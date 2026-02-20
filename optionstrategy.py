@@ -253,7 +253,9 @@ def get_technical_data():
         strong_res = r2 if r2 else resistance + 100
         strong_sup = s2 if s2 else support - 100
 
-        print(f"  Technical OK | CMP={cp:.2f} RSI={latest["RSI"]:.1f} MACD={latest["MACD"]:.2f}")
+        rsi_val  = latest['RSI']
+        macd_val = latest['MACD']
+        print(f"  Technical OK | CMP={cp:.2f} RSI={rsi_val:.1f} MACD={macd_val:.2f}")
         return {
             "price":       cp,
             "sma20":       latest["SMA_20"],
@@ -455,13 +457,17 @@ def build_oi_html(oc):
     dir_bdr = ("rgba(16,185,129,.35)" if oc["oi_cls"] == "bullish" else
                "rgba(239,68,68,.35)"  if oc["oi_cls"] == "bearish" else "rgba(251,191,36,.3)")
 
+    expiry  = oc['expiry']
+    oi_dir  = oc['oi_dir']
+    oi_sig  = oc['oi_sig']
+
     return (
         f"<div class=\"section\"><div class=\"sec-title\">CHANGE IN OPEN INTEREST"
-        f"<span class=\"sec-sub\">ATM +-10 strikes only &middot; Expiry: {oc['expiry']}</span></div>"
+        f"<span class=\"sec-sub\">ATM +-10 strikes only &middot; Expiry: {expiry}</span></div>"
         f"<div class=\"oi-dir-box\" style=\"background:{dir_bg};border:1px solid {dir_bdr};\">"
         f"<div class=\"oi-dir-tag\">OI DIRECTION</div>"
-        f"<div class=\"oi-dir-name\" style=\"color:{dir_col};\">{oc['oi_dir']}</div>"
-        f"<div class=\"oi-dir-sig\" style=\"color:{dir_col}80;\">{oc['oi_sig']}</div>"
+        f"<div class=\"oi-dir-name\" style=\"color:{dir_col};\">{oi_dir}</div>"
+        f"<div class=\"oi-dir-sig\" style=\"color:{dir_col}80;\">{oi_sig}</div>"
         f"<div class=\"oi-meter-wrap\">"
         f"<div class=\"oi-meter-lbl\">BULL STRENGTH</div>"
         f"<div class=\"oi-meter-track\"><div style=\"width:{bull_pct}%;height:100%;background:linear-gradient(90deg,#10b981,#34d399);border-radius:4px;\"></div></div>"
@@ -498,12 +504,13 @@ def build_key_levels_html(tech, oc):
 
     mp_html = ""
     if oc:
-        mp_p = pct(oc["max_pain"])
+        mp_p      = pct(oc["max_pain"])
+        max_pain  = oc['max_pain']
         mp_html = (
             f"<div class=\"kl-node\" style=\"left:{mp_p}%;top:0;transform:translateX(-50%);\">"
             f"<div class=\"kl-dot\" style=\"background:#ffb74d;box-shadow:0 0 8px #ffb74d;margin:0 auto 4px;\"></div>"
             f"<div class=\"kl-lbl\" style=\"color:#ffb74d;\">Max Pain</div>"
-            f"<div class=\"kl-val\" style=\"color:#ffb74d;\">Rs{oc['max_pain']:,}</div>"
+            f"<div class=\"kl-val\" style=\"color:#ffb74d;\">Rs{max_pain:,}</div>"
             f"</div>"
         )
 
@@ -557,18 +564,25 @@ def build_strategies_html(md, tech, oc):
     tech_strats, oi_strat = recommend_strategies(bias, atm, oi_dir)
 
     bc = "#00d4a0" if bias == "BULLISH" else ("#ff4560" if bias == "BEARISH" else "#f0b429")
-    be = "UP" if bias == "BULLISH" else ("DOWN" if bias == "BEARISH" else "SIDEWAYS")
 
     rec_cards = ""
     for s in tech_strats:
+        s_name = s['name']
+        s_legs = s['legs']
+        s_type = s['type']
+        s_risk = s['risk']
         rec_cards += (
             f"<div class=\"rec-card\" style=\"border-color:{bc}30;\">"
-            f"<div class=\"rec-name\">{s['name']}</div>"
-            f"<div class=\"rec-legs\">{s['legs']}</div>"
+            f"<div class=\"rec-name\">{s_name}</div>"
+            f"<div class=\"rec-legs\">{s_legs}</div>"
             f"<div style=\"display:flex;gap:6px;margin-top:8px;\">"
-            f"<span class=\"rec-tag\">{s['type']}</span>"
-            f"<span class=\"rec-tag\">{s['risk']} Risk</span></div></div>"
+            f"<span class=\"rec-tag\">{s_type}</span>"
+            f"<span class=\"rec-tag\">{s_risk} Risk</span></div></div>"
         )
+
+    oi_name = oi_strat['name']
+    oi_legs = oi_strat['legs']
+    oi_sig  = oi_strat['signal']
 
     rec_block = (
         f"<div class=\"rec-banner\" style=\"border-color:{bc}40;background:{bc}08;\">"
@@ -576,34 +590,43 @@ def build_strategies_html(md, tech, oc):
         f"<div class=\"rec-grid\">{rec_cards}</div>"
         f"<div class=\"rec-oi-box\">"
         f"<span class=\"rec-oi-lbl\">OI Signal Strategy:</span>"
-        f"<span class=\"rec-oi-name\">{oi_strat['name']}</span>"
-        f"<span class=\"rec-oi-legs\">{oi_strat['legs']}</span>"
-        f"<span class=\"rec-oi-sig\">{oi_strat['signal']}</span>"
+        f"<span class=\"rec-oi-name\">{oi_name}</span>"
+        f"<span class=\"rec-oi-legs\">{oi_legs}</span>"
+        f"<span class=\"rec-oi-sig\">{oi_sig}</span>"
         f"</div></div>"
     )
 
     dir_html = "<div class=\"strat-dir\">"
     for direction, info in ALL_STRATEGIES.items():
-        col = info["color"]
+        col   = info["color"]
+        label = info["label"]
         emoji = "UP" if direction == "bullish" else ("DOWN" if direction == "bearish" else "SIDEWAYS")
-        dir_html += f"<div class=\"strat-group\"><div class=\"strat-group-title\" style=\"color:{col};\">{emoji} {info['label']} Strategies</div>"
+        dir_html += f"<div class=\"strat-group\"><div class=\"strat-group-title\" style=\"color:{col};\">{emoji} {label} Strategies</div>"
         for s in info["items"]:
-            rc  = "#34d399" if s["risk"] == "Limited" else "#fb7185" if s["risk"] == "High" else "#fbbf24"
-            rwc = "#34d399" if s["reward"] == "Unlimited" else "#fbbf24"
+            s_risk   = s["risk"]
+            s_reward = s["reward"]
+            s_name   = s["name"]
+            s_desc   = s["desc"]
+            s_legs   = s["legs"]
+            s_mp     = s["mp"]
+            s_ml     = s["ml"]
+            s_be     = s["be"]
+            rc  = "#34d399" if s_risk == "Limited" else "#fb7185" if s_risk == "High" else "#fbbf24"
+            rwc = "#34d399" if s_reward == "Unlimited" else "#fbbf24"
             dir_html += (
                 f"<div class=\"strat-card\">"
                 f"<div class=\"strat-top\">"
-                f"<div class=\"strat-name\">{s['name']}</div>"
+                f"<div class=\"strat-name\">{s_name}</div>"
                 f"<div style=\"display:flex;gap:5px;flex-wrap:wrap;\">"
-                f"<span style=\"font-size:10px;padding:2px 8px;border-radius:4px;color:{rc};background:{rc}15;border:1px solid {rc}30;\">Risk: {s['risk']}</span>"
-                f"<span style=\"font-size:10px;padding:2px 8px;border-radius:4px;color:{rwc};background:{rwc}15;border:1px solid {rwc}30;\">Reward: {s['reward']}</span>"
+                f"<span style=\"font-size:10px;padding:2px 8px;border-radius:4px;color:{rc};background:{rc}15;border:1px solid {rc}30;\">Risk: {s_risk}</span>"
+                f"<span style=\"font-size:10px;padding:2px 8px;border-radius:4px;color:{rwc};background:{rwc}15;border:1px solid {rwc}30;\">Reward: {s_reward}</span>"
                 f"</div></div>"
-                f"<div class=\"strat-desc\">{s['desc']}</div>"
-                f"<div class=\"strat-legs\">{s['legs']}</div>"
+                f"<div class=\"strat-desc\">{s_desc}</div>"
+                f"<div class=\"strat-legs\">{s_legs}</div>"
                 f"<div class=\"strat-metrics\">"
-                f"<div><span class=\"sm-lbl\">Max Profit</span><span style=\"color:#34d399;\">{s['mp']}</span></div>"
-                f"<div><span class=\"sm-lbl\">Max Loss</span><span style=\"color:#fb7185;\">{s['ml']}</span></div>"
-                f"<div><span class=\"sm-lbl\">Breakeven</span><span style=\"color:#fbbf24;\">{s['be']}</span></div>"
+                f"<div><span class=\"sm-lbl\">Max Profit</span><span style=\"color:#34d399;\">{s_mp}</span></div>"
+                f"<div><span class=\"sm-lbl\">Max Loss</span><span style=\"color:#fb7185;\">{s_ml}</span></div>"
+                f"<div><span class=\"sm-lbl\">Breakeven</span><span style=\"color:#fbbf24;\">{s_be}</span></div>"
                 f"</div></div>"
             )
         dir_html += "</div>"
@@ -624,18 +647,27 @@ def build_strikes_html(oc):
     def ce_rows(rows):
         out = ""
         for i, r in enumerate(rows, 1):
-            out += (f"<tr><td>{i}</td><td><b>Rs{int(r['Strike']):,}</b></td>"
-                    f"<td>{int(r['CE_OI']):,}</td>"
-                    f"<td style=\"color:#00bcd4;font-weight:700;\">Rs{r['CE_LTP']:.2f}</td></tr>")
+            strike = int(r['Strike'])
+            ce_oi  = int(r['CE_OI'])
+            ce_ltp = r['CE_LTP']
+            out += (f"<tr><td>{i}</td><td><b>Rs{strike:,}</b></td>"
+                    f"<td>{ce_oi:,}</td>"
+                    f"<td style=\"color:#00bcd4;font-weight:700;\">Rs{ce_ltp:.2f}</td></tr>")
         return out
 
     def pe_rows(rows):
         out = ""
         for i, r in enumerate(rows, 1):
-            out += (f"<tr><td>{i}</td><td><b>Rs{int(r['Strike']):,}</b></td>"
-                    f"<td>{int(r['PE_OI']):,}</td>"
-                    f"<td style=\"color:#f44336;font-weight:700;\">Rs{r['PE_LTP']:.2f}</td></tr>")
+            strike = int(r['Strike'])
+            pe_oi  = int(r['PE_OI'])
+            pe_ltp = r['PE_LTP']
+            out += (f"<tr><td>{i}</td><td><b>Rs{strike:,}</b></td>"
+                    f"<td>{pe_oi:,}</td>"
+                    f"<td style=\"color:#f44336;font-weight:700;\">Rs{pe_ltp:.2f}</td></tr>")
         return out
+
+    top_ce = oc['top_ce']
+    top_pe = oc['top_pe']
 
     return (
         f"<div class=\"section\"><div class=\"sec-title\">TOP 5 STRIKES BY OPEN INTEREST"
@@ -643,10 +675,10 @@ def build_strikes_html(oc):
         f"<div class=\"strikes-wrap\">"
         f"<div><div style=\"color:#00bcd4;font-weight:700;margin-bottom:10px;\">CALL Options (CE)</div>"
         f"<table class=\"s-table\"><thead><tr><th>#</th><th>Strike</th><th>OI</th><th>LTP</th></tr></thead>"
-        f"<tbody>{ce_rows(oc['top_ce'])}</tbody></table></div>"
+        f"<tbody>{ce_rows(top_ce)}</tbody></table></div>"
         f"<div><div style=\"color:#f44336;font-weight:700;margin-bottom:10px;\">PUT Options (PE)</div>"
         f"<table class=\"s-table\"><thead><tr><th>#</th><th>Strike</th><th>OI</th><th>LTP</th></tr></thead>"
-        f"<tbody>{pe_rows(oc['top_pe'])}</tbody></table></div>"
+        f"<tbody>{pe_rows(top_pe)}</tbody></table></div>"
         f"</div></div>"
     )
 
@@ -680,7 +712,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .live-dot{width:7px;height:7px;border-radius:50%;background:var(--bull);box-shadow:0 0 8px var(--bull);animation:pulse 2s infinite;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
-/* Hero banner — Market Direction */
+/* Hero banner */
 .hero{padding:28px 32px;background:linear-gradient(135deg,rgba(14,19,24,.97),rgba(8,12,16,1));
   border-bottom:1px solid var(--bdr);display:flex;align-items:center;
   justify-content:space-between;gap:24px;flex-wrap:wrap;}
@@ -818,26 +850,30 @@ footer{padding:16px 32px;border-top:1px solid var(--bdr);background:var(--surf);
 
 
 def generate_html(tech, oc, md, ts):
-    cp    = tech["price"]     if tech else 0
-    expiry = oc["expiry"]    if oc   else "N/A"
-    atm   = oc["atm_strike"] if oc   else (round(cp / 50) * 50 if cp else 0)
-    pcr   = oc["pcr_oi"]     if oc   else 0
-    mp    = oc["max_pain"]   if oc   else 0
+    cp     = tech["price"]     if tech else 0
+    expiry = oc["expiry"]      if oc   else "N/A"
+    atm    = oc["atm_strike"]  if oc   else (round(cp / 50) * 50 if cp else 0)
+    pcr    = oc["pcr_oi"]      if oc   else 0
+    mp     = oc["max_pain"]    if oc   else 0
 
-    bias      = md["bias"]
-    bc        = "#00d4a0" if bias == "BULLISH" else ("#ff4560" if bias == "BEARISH" else "#f0b429")
-    b_grad    = ("linear-gradient(135deg,#00d4a0,#2ecc8a)" if bias == "BULLISH" else
-                 "linear-gradient(135deg,#ff4560,#cc1133)" if bias == "BEARISH" else
-                 "linear-gradient(135deg,#f0b429,#f7931e)")
-    b_arrow   = "UP" if bias == "BULLISH" else ("DOWN" if bias == "BEARISH" else "SIDEWAYS"  )
-    pcr_col   = "var(--bull)" if pcr > 1.2 else ("var(--bear)" if pcr < 0.7 else "var(--neut)")
+    bias   = md["bias"]
+    conf   = md["confidence"]
+    bull   = md["bull"]
+    bear   = md["bear"]
+    diff   = md["diff"]
 
-    oi_html      = build_oi_html(oc)              if oc   else ""
+    bc     = "#00d4a0" if bias == "BULLISH" else ("#ff4560" if bias == "BEARISH" else "#f0b429")
+    b_grad = ("linear-gradient(135deg,#00d4a0,#2ecc8a)" if bias == "BULLISH" else
+              "linear-gradient(135deg,#ff4560,#cc1133)" if bias == "BEARISH" else
+              "linear-gradient(135deg,#f0b429,#f7931e)")
+    b_arrow  = "UP" if bias == "BULLISH" else ("DOWN" if bias == "BEARISH" else "SIDEWAYS")
+    pcr_col  = "var(--bull)" if pcr > 1.2 else ("var(--bear)" if pcr < 0.7 else "var(--neut)")
+
+    oi_html      = build_oi_html(oc)               if oc   else ""
     kl_html      = build_key_levels_html(tech, oc) if tech else ""
     strat_html   = build_strategies_html(md, tech, oc)
     strikes_html = build_strikes_html(oc)
 
-    # Sidebar today signal
     sig_card = (
         f"<div class=\"sb-sec\">"
         f"<div class=\"sb-lbl\">TODAY'S SIGNAL</div>"
@@ -845,8 +881,8 @@ def generate_html(tech, oc, md, ts):
         f"<div class=\"sig-arrow\" style=\"background:{b_grad};-webkit-background-clip:text;"
         f"-webkit-text-fill-color:transparent;background-clip:text;\">{b_arrow}</div>"
         f"<div class=\"sig-bias\" style=\"color:{bc};\">{bias}</div>"
-        f"<div class=\"sig-meta\">{md['confidence']} CONFIDENCE</div>"
-        f"<div class=\"sig-meta\" style=\"margin-top:4px;\">Bull {md['bull']} pts &nbsp;&middot;&nbsp; Bear {md['bear']} pts</div>"
+        f"<div class=\"sig-meta\">{conf} CONFIDENCE</div>"
+        f"<div class=\"sig-meta\" style=\"margin-top:4px;\">Bull {bull} pts &nbsp;&middot;&nbsp; Bear {bear} pts</div>"
         f"</div></div>"
     )
 
@@ -876,9 +912,9 @@ def generate_html(tech, oc, md, ts):
 <div class="hero">
   <div>
     <div class="hero-dir" style="background:{b_grad};-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">{bias}</div>
-    <div class="hero-sub">Market Direction &middot; {md["confidence"]} Confidence</div>
+    <div class="hero-sub">Market Direction &middot; {conf} Confidence</div>
     <span class="hero-conf" style="color:{bc};border-color:{bc}50;background:{bc}12;">
-      Bull {md["bull"]} pt &nbsp;&middot;&nbsp; Bear {md["bear"]} pt &nbsp;&middot;&nbsp; Diff {md["diff"]:+d}
+      Bull {bull} pt &nbsp;&middot;&nbsp; Bear {bear} pt &nbsp;&middot;&nbsp; Diff {diff:+d}
     </span>
   </div>
   <div class="hero-stats">
@@ -958,7 +994,10 @@ def main():
     oc_raw      = NSEOptionChain().fetch()
     oc_analysis = analyze_option_chain(oc_raw) if oc_raw else None
     if oc_analysis:
-        print(f"  OK  Spot={oc_analysis['underlying']:.2f}  ATM={oc_analysis['atm_strike']}  PCR={oc_analysis['pcr_oi']:.3f}")
+        underlying = oc_analysis['underlying']
+        atm_strike = oc_analysis['atm_strike']
+        pcr_oi     = oc_analysis['pcr_oi']
+        print(f"  OK  Spot={underlying:.2f}  ATM={atm_strike}  PCR={pcr_oi:.3f}")
     else:
         print("  WARNING  Option chain unavailable -- technical-only mode")
 
@@ -967,7 +1006,11 @@ def main():
 
     print("\n[3/3] Scoring Market Direction...")
     md = compute_market_direction(tech, oc_analysis)
-    print(f"  OK  {md['bias']} ({md['confidence']} confidence)  Bull={md['bull']} Bear={md['bear']}")
+    bias = md['bias']
+    conf = md['confidence']
+    bull = md['bull']
+    bear = md['bear']
+    print(f"  OK  {bias} ({conf} confidence)  Bull={bull} Bear={bear}")
 
     print("\nGenerating HTML dashboard...")
     html = generate_html(tech, oc_analysis, md, ts)
