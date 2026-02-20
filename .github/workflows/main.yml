@@ -1,9 +1,16 @@
-name: Deploy Options Strategy Builder to GitHub Pages
+name: Deploy Nifty 50 Dashboard to GitHub Pages
 
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:
+  schedule:
+    # Run at 9:15 AM, 11:30 AM, 1:30 PM, 3:45 PM IST
+    # (IST = UTC+5:30 so subtract 5:30 from above)
+    - cron: '45 3 * * 1-5'   # 9:15 AM IST
+    - cron: '00 6 * * 1-5'   # 11:30 AM IST
+    - cron: '00 8 * * 1-5'   # 1:30 PM IST
+    - cron: '15 10 * * 1-5'  # 3:45 PM IST
+  workflow_dispatch:          # manual trigger button
 
 permissions:
   contents: read
@@ -15,7 +22,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # ── Job 1: Build the HTML ─────────────────────────────────────────────────
+  # ── Job 1: Build ─────────────────────────────────────────────
   build:
     runs-on: ubuntu-latest
     steps:
@@ -27,15 +34,20 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Generate HTML dashboard
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install curl_cffi pandas numpy yfinance pytz beautifulsoup4 requests
+
+      - name: Run dashboard generator
         run: python optionstrategy.py
 
       - name: Verify output
         run: |
-          echo "=== Generated files ==="
+          echo "=== Output files ==="
           ls -lh docs/
-          echo "=== HTML size ==="
-          wc -c docs/index.html
+          echo "=== HTML preview (first 5 lines) ==="
+          head -5 docs/index.html
 
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v4
@@ -47,7 +59,7 @@ jobs:
         with:
           path: 'docs'
 
-  # ── Job 2: Deploy to GitHub Pages ────────────────────────────────────────
+  # ── Job 2: Deploy ────────────────────────────────────────────
   deploy:
     needs: build
     runs-on: ubuntu-latest
