@@ -2256,6 +2256,7 @@ def main():
     print("\nGenerating HTML dashboard...")
     html = generate_html(tech, oc_analysis, md, ts, vix_data=vix_data)
 
+    os.makedirs("docs", exist_ok=True)
     out = os.path.join("docs", "index.html")
     with open(out, "w", encoding="utf-8") as f:
         f.write(html)
