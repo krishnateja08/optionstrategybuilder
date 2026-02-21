@@ -481,7 +481,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     b_bdr   = _cls_bdr(md.get("bias_cls", "neutral"))
 
     # SVG gauge — r=29, circumference=182.2
-    C = 182.2
+    C = 194.8
     def clamp(v, lo=3, hi=97): return max(lo, min(hi, v))
     bull_offset = C * (1 - clamp(bull_pct) / 100)
     bear_offset = C * (1 - clamp(bear_pct) / 100)
@@ -497,12 +497,12 @@ def build_dual_gauge_hero(oc, tech, md, ts):
   <!-- ① BULL GAUGE -->
   <div class="h-bull">
     <div class="gauge-wrap">
-      <svg width="72" height="72" viewBox="0 0 72 72">
-        <circle cx="36" cy="36" r="29" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="6"/>
-        <circle cx="36" cy="36" r="29" fill="none"
+      <svg width="76" height="76" viewBox="0 0 76 76">
+        <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="6"/>
+        <circle cx="38" cy="38" r="31" fill="none"
           stroke="url(#bull-g)" stroke-width="6" stroke-linecap="round"
           stroke-dasharray="{C}" stroke-dashoffset="{bull_offset:.1f}"
-          style="transform:rotate(-90deg);transform-origin:36px 36px;
+          style="transform:rotate(-90deg);transform-origin:38px 38px;
                  transition:stroke-dashoffset 1s ease;"/>
         <defs>
           <linearGradient id="bull-g" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -518,30 +518,28 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     </div>
   </div>
 
-  <!-- ② MIDDLE: signal + 3 bars -->
+  <!-- ② MIDDLE: signal + pill bars -->
   <div class="h-mid">
     <div class="h-eyebrow">OI NET SIGNAL &middot; {expiry} &middot; SPOT &#8377;{underlying:,.0f}</div>
     <div class="h-signal" style="color:{dir_col};">{oi_dir.upper()}</div>
     <div class="h-sub">{oi_sig} &middot; PCR&nbsp;<span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
-    <div class="h-bars">
-      <div class="h-bar-row">
-        <div class="h-bar-key">OI Net Chg</div>
-        <div class="h-bar-track"><div class="h-bar-fill" style="width:{oi_bar_w}%;
-          background:linear-gradient(90deg,#00c896,#4de8b8);
-          box-shadow:0 0 5px rgba(0,200,150,.35);"></div></div>
-        <div class="h-bar-num" style="color:#00c896;">+{bull_pct}%</div>
+    <div class="h-divider"></div>
+    <div class="pill-bars">
+      <div class="pill-row">
+        <div class="pill-dot" style="background:#00c896;box-shadow:0 0 5px rgba(0,200,150,.5);"></div>
+        <div class="pill-lbl">BULL STRENGTH</div>
+        <div class="pill-track">
+          <div class="pill-fill" style="width:{oi_bar_w}%;background:linear-gradient(90deg,#00c896,#4de8b8);"></div>
+        </div>
+        <div class="pill-num" style="color:#00c896;">{bull_pct}%</div>
       </div>
-      <div class="h-bar-row">
-        <div class="h-bar-key">Bear Force</div>
-        <div class="h-bar-track"><div class="h-bar-fill" style="width:{bear_bar_w}%;
-          background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div></div>
-        <div class="h-bar-num" style="color:#ff6b6b;">-{bear_pct}%</div>
-      </div>
-      <div class="h-bar-row">
-        <div class="h-bar-key">PCR (OI)</div>
-        <div class="h-bar-track"><div class="h-bar-fill" style="width:{pcr_bar_w:.0f}%;
-          background:linear-gradient(90deg,#6480ff,#8aa0ff);"></div></div>
-        <div class="h-bar-num" style="color:#8aa0ff;">{pcr:.2f}</div>
+      <div class="pill-row">
+        <div class="pill-dot" style="background:#ff6b6b;box-shadow:0 0 5px rgba(255,107,107,.4);"></div>
+        <div class="pill-lbl">BEAR STRENGTH</div>
+        <div class="pill-track">
+          <div class="pill-fill" style="width:{bear_bar_w}%;background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div>
+        </div>
+        <div class="pill-num" style="color:#ff6b6b;">{bear_pct}%</div>
       </div>
     </div>
   </div>
@@ -549,12 +547,12 @@ def build_dual_gauge_hero(oc, tech, md, ts):
   <!-- ③ BEAR GAUGE -->
   <div class="h-bear">
     <div class="gauge-wrap">
-      <svg width="72" height="72" viewBox="0 0 72 72">
-        <circle cx="36" cy="36" r="29" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="6"/>
-        <circle cx="36" cy="36" r="29" fill="none"
+      <svg width="76" height="76" viewBox="0 0 76 76">
+        <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="6"/>
+        <circle cx="38" cy="38" r="31" fill="none"
           stroke="url(#bear-g)" stroke-width="6" stroke-linecap="round"
           stroke-dasharray="{C}" stroke-dashoffset="{bear_offset:.1f}"
-          style="transform:rotate(-90deg);transform-origin:36px 36px;
+          style="transform:rotate(-90deg);transform-origin:38px 38px;
                  transition:stroke-dashoffset 1s ease;"/>
         <defs>
           <linearGradient id="bear-g" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -1856,7 +1854,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   background:linear-gradient(135deg,rgba(0,200,150,.055) 0%,rgba(100,128,255,.055) 100%);
   border-bottom:1px solid rgba(255,255,255,.07);
   overflow:hidden;position:relative;
-  height:92px;
+  height:97px;
 }
 .hero::before{
   content:'';position:absolute;top:-50px;left:-50px;
@@ -1874,46 +1872,49 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 /* ① Bull gauge col */
 .h-bull{
   flex-shrink:0;display:flex;align-items:center;justify-content:center;
-  padding:0 10px 0 16px;
+  padding:0 11px 0 17px;
 }
 /* ③ Bear gauge col */
 .h-bear{
   flex-shrink:0;display:flex;align-items:center;justify-content:center;
-  padding:0 12px 0 8px;
+  padding:0 13px 0 9px;
   border-left:1px solid rgba(255,255,255,.05);
 }
 /* Gauge shared */
-.gauge-wrap{position:relative;width:72px;height:72px;}
+.gauge-wrap{position:relative;width:76px;height:76px;}
 .gauge-wrap svg{display:block;}
 .gauge-inner{
   position:absolute;inset:0;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
 }
-.g-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;line-height:1;}
-.g-lbl{font-size:7px;letter-spacing:1.5px;text-transform:uppercase;
+.g-val{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;line-height:1;}
+.g-lbl{font-size:7.5px;letter-spacing:1.5px;text-transform:uppercase;
   color:rgba(255,255,255,.28);margin-top:2px;}
 
 /* ② Middle: signal + bars */
 .h-mid{
   flex:1;min-width:0;
   display:flex;flex-direction:column;justify-content:center;
-  padding:0 14px 0 12px;
+  padding:0 15px 0 13px;
   border-left:1px solid rgba(255,255,255,.05);
 }
 .h-eyebrow{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
   color:rgba(255,255,255,.22);margin-bottom:2px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.h-signal{font-size:17px;font-weight:800;letter-spacing:-.3px;line-height:1.1;margin-bottom:2px;}
-.h-sub{font-size:9px;color:rgba(255,255,255,.32);margin-bottom:5px;
+.h-signal{font-size:18px;font-weight:800;letter-spacing:-.3px;line-height:1.1;margin-bottom:2px;}
+.h-sub{font-size:9.5px;color:rgba(255,255,255,.32);margin-bottom:0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.h-bars{display:flex;flex-direction:column;gap:4px;}
-.h-bar-row{display:flex;align-items:center;gap:6px;}
-.h-bar-key{font-size:7.5px;text-transform:uppercase;letter-spacing:.5px;
-  color:rgba(255,255,255,.28);width:56px;flex-shrink:0;}
-.h-bar-track{flex:1;height:3px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden;}
-.h-bar-fill{height:100%;border-radius:2px;}
-.h-bar-num{font-family:'DM Mono',monospace;font-size:8.5px;font-weight:600;
-  width:34px;text-align:right;flex-shrink:0;}
+/* pill strength bars */
+.h-divider{height:1px;background:rgba(255,255,255,.05);margin:5px 0;}
+.pill-bars{display:flex;flex-direction:column;gap:5px;}
+.pill-row{display:flex;align-items:center;gap:8px;}
+.pill-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.pill-lbl{font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  color:rgba(255,255,255,.35);width:96px;flex-shrink:0;}
+.pill-track{flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;}
+.pill-fill{height:100%;border-radius:3px;}
+.pill-num{font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
+  width:36px;text-align:right;flex-shrink:0;}
 
 /* ④ Right stat panel */
 .h-stats{
@@ -1932,9 +1933,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   border-right:1px solid rgba(255,255,255,.04);
 }
 .h-stat:last-child{border-right:none;}
-.h-stat-lbl{font-size:7px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;
+.h-stat-lbl{font-size:7.5px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;
   color:rgba(255,255,255,.22);margin-bottom:3px;white-space:nowrap;}
-.h-stat-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
+.h-stat-val{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;
   line-height:1;white-space:nowrap;}
 
 /* Bottom: bias + conf + score + timestamp */
