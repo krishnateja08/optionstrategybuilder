@@ -1367,26 +1367,63 @@ function popBadgeStyle(pop) {{
 
 // ═══════════════════════════════════════════════
 //  INITIALIZE ALL CARDS WITH PoP BADGES
+//  Pre-computes PoP for every card, stores on
+//  dataset.pop for sorting, then styles badge.
 // ═══════════════════════════════════════════════
 function initAllCards() {{
   document.querySelectorAll('.sc-card').forEach(card => {{
-    const shape   = card.dataset.shape;
-    const cardId  = card.id;
-    const badge   = document.getElementById('pop_' + cardId);
+    const shape  = card.dataset.shape;
+    const cardId = card.id;
+    const badge  = document.getElementById('pop_' + cardId);
     try {{
       const m = calcMetrics(shape);
+      card.dataset.pop = m.pop;          // store for sort
       if (badge) {{
         badge.textContent = m.pop + '%';
         badge.setAttribute('style', badge.getAttribute('style') + ';' + popBadgeStyle(m.pop));
       }}
     }} catch(e) {{
+      card.dataset.pop = 0;
       if (badge) badge.textContent = '—%';
     }}
   }});
 }}
 
+// ═══════════════════════════════════════════════
+//  SORT GRID BY POP DESCENDING
+//  Moves DOM nodes inside #sc-grid so the highest
+//  PoP card always appears first within each category.
+// ═══════════════════════════════════════════════
+function sortGridByPoP(cat) {{
+  const grid  = document.getElementById('sc-grid');
+  if (!grid) return;
+  // Collect only cards of this category
+  const cards = Array.from(grid.querySelectorAll('.sc-card[data-cat="' + cat + '"]'));
+  // Sort descending by PoP
+  cards.sort((a, b) => parseInt(b.dataset.pop || 0) - parseInt(a.dataset.pop || 0));
+  // Re-append in sorted order; cards not in this cat stay put (hidden anyway)
+  // Strategy: detach all cat cards, then re-insert them at the end of their
+  // original relative position within the grid.
+  // Simpler approach: just reorder ALL cards category by category.
+  const allCards = {{
+    bullish:        Array.from(grid.querySelectorAll('.sc-card[data-cat="bullish"]')),
+    bearish:        Array.from(grid.querySelectorAll('.sc-card[data-cat="bearish"]')),
+    nondirectional: Array.from(grid.querySelectorAll('.sc-card[data-cat="nondirectional"]')),
+  }};
+  // Sort the active category; others keep original order (they're hidden anyway)
+  allCards[cat].sort((a, b) => parseInt(b.dataset.pop || 0) - parseInt(a.dataset.pop || 0));
+  // Remove all cards from DOM, then re-append in order: bull → bear → nd
+  ['bullish', 'bearish', 'nondirectional'].forEach(c => {{
+    allCards[c].forEach(card => grid.appendChild(card));
+  }});
+}}
+
 window.addEventListener('load', function() {{
   initAllCards();
+  // Sort all categories upfront so switching tabs shows sorted order immediately
+  sortGridByPoP('bullish');
+  sortGridByPoP('bearish');
+  sortGridByPoP('nondirectional');
   filterStrat('bullish', document.querySelector('.sc-tab'));
 }});
 </script>
