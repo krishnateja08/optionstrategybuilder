@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme
+Aurora Borealis Theme · OI Section: Sample 3 Ticker Table Layout
 Fetches live data from NSE -> runs analysis -> writes docs/index.html
-Triggered by GitHub Actions on every push / scheduled run.
-
 pip install curl_cffi pandas numpy yfinance pytz
 """
 
@@ -16,7 +14,6 @@ from curl_cffi import requests as curl_requests
 import yfinance as yf
 
 warnings.filterwarnings("ignore")
-
 
 # =================================================================
 #  SECTION 1 -- NSE OPTION CHAIN FETCHER
@@ -97,7 +94,7 @@ class NSEOptionChain:
                         "CE_OI_Change": ce.get("changeinOpenInterest", 0),
                         "PE_OI_Change": pe.get("changeinOpenInterest", 0),
                     })
-                # Use FULL option chain — no ATM +-10 filter
+                # Full option chain — no ATM filter
                 df         = pd.DataFrame(rows).sort_values("Strike").reset_index(drop=True)
                 underlying = json_data.get("records", {}).get("underlyingValue", 0)
                 atm_strike = round(underlying / 50) * 50
@@ -147,9 +144,9 @@ def analyze_option_chain(oc_data):
         oi_dir, oi_sig, oi_icon, oi_cls = "Strong Bullish", "Put Build-up + Call Unwinding", "GREEN",  "bullish"
     elif ce_chg > 0 and pe_chg > 0:
         if   pe_chg > ce_chg * 1.5:
-            oi_dir, oi_sig, oi_icon, oi_cls = "Bullish",           "Put Build-up Dominant",      "GREEN",  "bullish"
+            oi_dir, oi_sig, oi_icon, oi_cls = "Bullish",            "Put Build-up Dominant",      "GREEN",  "bullish"
         elif ce_chg > pe_chg * 1.5:
-            oi_dir, oi_sig, oi_icon, oi_cls = "Bearish",           "Call Build-up Dominant",     "RED",    "bearish"
+            oi_dir, oi_sig, oi_icon, oi_cls = "Bearish",            "Call Build-up Dominant",     "RED",    "bearish"
         else:
             oi_dir, oi_sig, oi_icon, oi_cls = "Neutral (High Vol)", "Both Calls & Puts Building", "YELLOW", "neutral"
     elif ce_chg < 0 and pe_chg < 0:
@@ -246,9 +243,7 @@ def get_technical_data():
         strong_res = r2 if r2 else resistance + 100
         strong_sup = s2 if s2 else support - 100
 
-        rsi_val  = latest['RSI']
-        macd_val = latest['MACD']
-        print(f"  Technical OK | CMP={cp:.2f} RSI={rsi_val:.1f} MACD={macd_val:.2f}")
+        print(f"  Technical OK | CMP={cp:.2f} RSI={latest['RSI']:.1f} MACD={latest['MACD']:.2f}")
         return {
             "price":       cp,
             "sma20":       latest["SMA_20"],
@@ -316,23 +311,19 @@ ALL_STRATEGIES = {
     "bullish": {
         "label": "Bullish", "color": "#00c896",
         "items": [
-            {"name": "Long Call",
-             "risk": "Limited",  "reward": "Unlimited",
+            {"name": "Long Call",       "risk": "Limited",  "reward": "Unlimited",
              "legs": "BUY CALL (ATM)",
              "desc": "Buy a call option. Profits as stock rises. Risk limited to premium paid.",
              "mp": "Unlimited", "ml": "Premium Paid", "be": "Strike + Premium"},
-            {"name": "Covered Call",
-             "risk": "Moderate", "reward": "Limited",
-             "legs": "OWN STOCK . SELL CALL (OTM)",
+            {"name": "Covered Call",    "risk": "Moderate", "reward": "Limited",
+             "legs": "OWN STOCK · SELL CALL (OTM)",
              "desc": "Own shares and sell a call against them. Generates income; caps upside.",
              "mp": "Strike - Cost + Premium", "ml": "Cost - Premium", "be": "Stock Cost - Premium"},
-            {"name": "Bull Call Spread",
-             "risk": "Limited",  "reward": "Limited",
-             "legs": "BUY CALL (Low) . SELL CALL (High)",
+            {"name": "Bull Call Spread","risk": "Limited",  "reward": "Limited",
+             "legs": "BUY CALL (Low) · SELL CALL (High)",
              "desc": "Buy lower call, sell higher call. Reduces cost; caps profit at upper strike.",
              "mp": "Spread Width - Debit", "ml": "Net Debit", "be": "Lower Strike + Debit"},
-            {"name": "Cash-Secured Put",
-             "risk": "Moderate", "reward": "Limited",
+            {"name": "Cash-Secured Put","risk": "Moderate", "reward": "Limited",
              "legs": "SELL PUT (OTM/ATM)",
              "desc": "Sell a put holding enough cash. Collect premium; buy shares at discount if assigned.",
              "mp": "Premium Received", "ml": "Strike - Premium", "be": "Strike - Premium"},
@@ -341,19 +332,16 @@ ALL_STRATEGIES = {
     "bearish": {
         "label": "Bearish", "color": "#ff6b6b",
         "items": [
-            {"name": "Long Put",
-             "risk": "Limited",  "reward": "High",
+            {"name": "Long Put",        "risk": "Limited",  "reward": "High",
              "legs": "BUY PUT (ATM)",
              "desc": "Buy a put option. Profits as stock falls. Risk limited to premium paid.",
              "mp": "Strike - Premium", "ml": "Premium Paid", "be": "Strike - Premium"},
-            {"name": "Bear Put Spread",
-             "risk": "Limited",  "reward": "Limited",
-             "legs": "BUY PUT (High) . SELL PUT (Low)",
+            {"name": "Bear Put Spread", "risk": "Limited",  "reward": "Limited",
+             "legs": "BUY PUT (High) · SELL PUT (Low)",
              "desc": "Buy higher put, sell lower put. Cheaper bearish bet with capped profit.",
              "mp": "Spread - Debit", "ml": "Net Debit", "be": "Higher Strike - Debit"},
-            {"name": "Bear Call Spread",
-             "risk": "Limited",  "reward": "Limited",
-             "legs": "SELL CALL (Low) . BUY CALL (High)",
+            {"name": "Bear Call Spread","risk": "Limited",  "reward": "Limited",
+             "legs": "SELL CALL (Low) · BUY CALL (High)",
              "desc": "Sell lower call, buy higher call. Credit received; profit if stock stays below lower strike.",
              "mp": "Net Credit", "ml": "Spread - Credit", "be": "Lower Strike + Credit"},
         ]
@@ -361,24 +349,20 @@ ALL_STRATEGIES = {
     "neutral": {
         "label": "Neutral / Volatility", "color": "#6480ff",
         "items": [
-            {"name": "Iron Condor",
-             "risk": "Limited",  "reward": "Limited",
+            {"name": "Iron Condor",     "risk": "Limited",  "reward": "Limited",
              "legs": "SELL OTM PUT+CALL SPREADS",
              "desc": "Sell OTM put spread + OTM call spread. Profit if stock stays in a defined range.",
              "mp": "Net Credit", "ml": "Spread - Credit", "be": "Short strikes +- Credit"},
-            {"name": "Straddle",
-             "risk": "Limited",  "reward": "Unlimited",
+            {"name": "Straddle",        "risk": "Limited",  "reward": "Unlimited",
              "legs": "BUY CALL + PUT (ATM)",
              "desc": "Buy ATM call and put. Profit from a large move in either direction.",
              "mp": "Unlimited (both sides)", "ml": "Total Premium", "be": "Strike +- Total Premium"},
-            {"name": "Strangle",
-             "risk": "Limited",  "reward": "Unlimited",
+            {"name": "Strangle",        "risk": "Limited",  "reward": "Unlimited",
              "legs": "BUY OTM CALL + OTM PUT",
              "desc": "Buy OTM call and OTM put. Cheaper than straddle; needs a bigger move to profit.",
              "mp": "Unlimited (both sides)", "ml": "Total Premium", "be": "Strikes +- Total Premium"},
-            {"name": "Butterfly Spread",
-             "risk": "Limited",  "reward": "Limited",
-             "legs": "BUY Low . SELL 2xMid . BUY High",
+            {"name": "Butterfly Spread","risk": "Limited",  "reward": "Limited",
+             "legs": "BUY Low · SELL 2xMid · BUY High",
              "desc": "Three strike combo. Maximum profit when stock lands exactly at middle strike.",
              "mp": "Mid - Low - Debit", "ml": "Net Debit", "be": "Low+Debit and High-Debit"},
         ]
@@ -390,14 +374,14 @@ def recommend_strategies(bias, atm_strike, oi_dir):
     atm = atm_strike
     tech_map = {
         "BULLISH": [
-            {"name": "Bull Call Spread", "legs": f"Buy {atm} CE - Sell {atm+200} CE",               "type": "Debit",  "risk": "Moderate"},
-            {"name": "Long Call",        "legs": f"Buy {atm} CE",                                    "type": "Debit",  "risk": "High"},
-            {"name": "Bull Put Spread",  "legs": f"Sell {atm-100} PE - Buy {atm-200} PE",            "type": "Credit", "risk": "Moderate"},
+            {"name": "Bull Call Spread", "legs": f"Buy {atm} CE - Sell {atm+200} CE",             "type": "Debit",  "risk": "Moderate"},
+            {"name": "Long Call",        "legs": f"Buy {atm} CE",                                  "type": "Debit",  "risk": "High"},
+            {"name": "Bull Put Spread",  "legs": f"Sell {atm-100} PE - Buy {atm-200} PE",          "type": "Credit", "risk": "Moderate"},
         ],
         "BEARISH": [
-            {"name": "Bear Put Spread",  "legs": f"Buy {atm} PE - Sell {atm-200} PE",               "type": "Debit",  "risk": "Moderate"},
-            {"name": "Long Put",         "legs": f"Buy {atm} PE",                                    "type": "Debit",  "risk": "High"},
-            {"name": "Bear Call Spread", "legs": f"Sell {atm+100} CE - Buy {atm+200} CE",           "type": "Credit", "risk": "Moderate"},
+            {"name": "Bear Put Spread",  "legs": f"Buy {atm} PE - Sell {atm-200} PE",             "type": "Debit",  "risk": "Moderate"},
+            {"name": "Long Put",         "legs": f"Buy {atm} PE",                                  "type": "Debit",  "risk": "High"},
+            {"name": "Bear Call Spread", "legs": f"Sell {atm+100} CE - Buy {atm+200} CE",         "type": "Credit", "risk": "Moderate"},
         ],
         "SIDEWAYS": [
             {"name": "Iron Condor",    "legs": f"Sell {atm+100} CE / Buy {atm+200} CE / Sell {atm-100} PE / Buy {atm-200} PE", "type": "Credit", "risk": "Low"},
@@ -419,68 +403,190 @@ def recommend_strategies(bias, atm_strike, oi_dir):
 
 
 # =================================================================
-#  SECTION 6 -- HTML SECTION BUILDERS  (Aurora Borealis Theme)
+#  SECTION 6 -- HTML SECTION BUILDERS
 # =================================================================
 
+# ── helper: colour by direction class ──────────────────────────
+def _cls_color(cls):
+    return "#00c896" if cls == "bullish" else ("#ff6b6b" if cls == "bearish" else "#6480ff")
+
+def _cls_bg(cls):
+    return ("rgba(0,200,150,.08)"   if cls == "bullish" else
+            "rgba(255,107,107,.08)" if cls == "bearish" else "rgba(100,128,255,.08)")
+
+def _cls_bdr(cls):
+    return ("rgba(0,200,150,.22)"   if cls == "bullish" else
+            "rgba(255,107,107,.22)" if cls == "bearish" else "rgba(100,128,255,.22)")
+
+
+# ── SAMPLE-3 TICKER TABLE OI SECTION ──────────────────────────
 def build_oi_html(oc):
-    ce  = oc["ce_chg"]
-    pe  = oc["pe_chg"]
-    net = oc["net_chg"]
+    ce       = oc["ce_chg"]
+    pe       = oc["pe_chg"]
+    net      = oc["net_chg"]
+    expiry   = oc["expiry"]
+    oi_dir   = oc["oi_dir"]
+    oi_sig   = oc["oi_sig"]
+    oi_cls   = oc["oi_cls"]
+    pcr      = oc["pcr_oi"]
+    total_ce = oc["total_ce_oi"]
+    total_pe = oc["total_pe_oi"]
+    max_ce_s = oc["max_ce_strike"]
+    max_pe_s = oc["max_pe_strike"]
+    max_pain = oc["max_pain"]
+
+    dir_col = _cls_color(oi_cls)
+    dir_bg  = _cls_bg(oi_cls)
+    dir_bdr = _cls_bdr(oi_cls)
+
+    # Bull/Bear force for strength bar
     bull_force = (abs(pe) if pe > 0 else 0) + (abs(ce) if ce < 0 else 0)
     bear_force = (abs(ce) if ce > 0 else 0) + (abs(pe) if pe < 0 else 0)
     total_f    = bull_force + bear_force or 1
     bull_pct   = round(bull_force / total_f * 100)
     bear_pct   = 100 - bull_pct
 
-    def oi_card(lbl, val, is_bull, sub):
-        col = "#00c896" if is_bull else "#ff6b6b"
-        sig = "Bullish Signal" if is_bull else "Bearish Signal"
-        bg  = "rgba(0,200,150,.07)"  if is_bull else "rgba(255,107,107,.07)"
-        bdr = "rgba(0,200,150,.2)"   if is_bull else "rgba(255,107,107,.2)"
+    # PCR colour
+    pcr_col = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
+
+    # OI Change row: CE change colour (negative = bullish)
+    ce_col  = "#00c896" if ce  < 0 else "#ff6b6b"
+    pe_col  = "#00c896" if pe  > 0 else "#ff6b6b"
+    net_col = "#00c896" if net > 0 else "#ff6b6b"
+
+    # OI Snapshot row: total_pe > total_ce = bullish
+    tce_col  = "#ff6b6b"
+    tpe_col  = "#00c896"
+    mce_col  = "#ff6b6b"   # call wall = resistance = red
+    mpe_col  = "#00c896"   # put wall  = support    = green
+    mp_col   = "#6480ff"
+
+    # Direction badge
+    dir_badge = (
+        f"<span style=\"display:inline-block;padding:3px 12px;border-radius:20px;"
+        f"font-size:10px;font-weight:700;letter-spacing:.5px;"
+        f"color:{dir_col};background:{dir_bg};border:1px solid {dir_bdr};\">"
+        f"{oi_dir}</span>"
+    )
+
+    # Strength mini-bar (inline, compact)
+    strength_bar = (
+        f"<div style=\"height:3px;background:rgba(255,255,255,.06);border-radius:2px;"
+        f"overflow:hidden;width:80px;display:inline-block;vertical-align:middle;margin:0 6px;\">"
+        f"<div style=\"width:{bull_pct}%;height:100%;"
+        f"background:linear-gradient(90deg,#00c896,#6480ff);border-radius:2px;"
+        f"box-shadow:0 0 6px rgba(0,200,150,.4);\"></div></div>"
+    )
+
+    def td(val, col, mono=True):
+        ff = "font-family:'DM Mono',monospace;" if mono else ""
+        return f"<td style=\"{ff}color:{col};font-weight:700;\">{val}</td>"
+
+    def badge(text, col):
+        bg  = col.replace(")", ",.1)").replace("rgb(","rgba(") if "rgb" in col else col+"18"
+        bdr = col.replace(")", ",.25)").replace("rgb(","rgba(") if "rgb" in col else col+"40"
         return (
-            f"<div class=\"oi-card\">"
-            f"<div class=\"oi-lbl\">{lbl}</div>"
-            f"<div class=\"oi-val\" style=\"color:{col};\">{val:+,}</div>"
-            f"<div class=\"oi-sub\">{sub}</div>"
-            f"<div class=\"oi-sig\" style=\"color:{col};background:{bg};border:1px solid {bdr};\">{sig}</div>"
-            f"</div>"
+            f"<span style=\"display:inline-block;padding:3px 10px;border-radius:4px;"
+            f"font-size:10px;font-weight:700;color:{col};"
+            f"background:rgba(0,0,0,.0);border:1px solid {dir_bdr};\">{text}</span>"
         )
 
-    oi_cls = oc["oi_cls"]
-    oi_dir = oc["oi_dir"]
-    oi_sig = oc["oi_sig"]
-    expiry = oc["expiry"]
-    dir_col = "#00c896" if oi_cls == "bullish" else ("#ff6b6b" if oi_cls == "bearish" else "#6480ff")
-    dir_bg  = ("rgba(0,200,150,.06)"   if oi_cls == "bullish" else
-               "rgba(255,107,107,.06)" if oi_cls == "bearish" else "rgba(100,128,255,.06)")
-    dir_bdr = ("rgba(0,200,150,.2)"    if oi_cls == "bullish" else
-               "rgba(255,107,107,.2)"  if oi_cls == "bearish" else "rgba(100,128,255,.2)")
-
     return (
-        f"<div class=\"section\"><div class=\"sec-title\">CHANGE IN OPEN INTEREST"
-        f"<span class=\"sec-sub\">Full Option Chain &middot; Expiry: {expiry}</span></div>"
-        f"<div class=\"oi-dir-box\" style=\"background:{dir_bg};border:1px solid {dir_bdr};\">"
-        f"<div class=\"oi-dir-tag\">OI DIRECTION</div>"
-        f"<div class=\"oi-dir-name\" style=\"color:{dir_col};\">{oi_dir}</div>"
-        f"<div class=\"oi-dir-sig\" style=\"color:{dir_col};opacity:.75;\">{oi_sig}</div>"
-        f"<div class=\"oi-meter-wrap\">"
-        f"<div class=\"oi-meter-lbl\">BULL STRENGTH</div>"
-        f"<div class=\"oi-meter-track\"><div style=\"width:{bull_pct}%;height:100%;"
-        f"background:linear-gradient(90deg,#00c896,#6480ff);border-radius:4px;"
-        f"box-shadow:0 0 10px rgba(0,200,150,.3);\"></div></div>"
-        f"<div class=\"oi-meter-pct\" style=\"color:#00c896;\">{bull_pct}% Bull &middot; {bear_pct}% Bear</div>"
-        f"</div></div>"
-        f"<div class=\"oi-cards\">"
-        f"{oi_card('CALL OI CHANGE', ce,  ce < 0,  'CE open interest delta')}"
-        f"{oi_card('PUT OI CHANGE',  pe,  pe > 0,  'PE open interest delta')}"
-        f"{oi_card('NET OI CHANGE',  net, net > 0, 'PE delta + CE delta')}"
+        f"<div class=\"section\">"
+        f"<div class=\"sec-title\">OPEN INTEREST DASHBOARD"
+        f"<span class=\"sec-sub\">Full Chain &middot; Expiry: {expiry}</span></div>"
+
+        # ── Direction header row ──────────────────────────────
+        f"<div style=\"display:flex;align-items:center;gap:14px;flex-wrap:wrap;"
+        f"padding:12px 16px;border-radius:12px;margin-bottom:14px;"
+        f"background:{dir_bg};border:1px solid {dir_bdr};\">"
+        f"<div>"
+        f"<div style=\"font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.3);"
+        f"text-transform:uppercase;margin-bottom:4px;\">OI DIRECTION</div>"
+        f"<div style=\"font-size:20px;font-weight:700;color:{dir_col};line-height:1;\">{oi_dir}</div>"
+        f"<div style=\"font-size:11px;color:{dir_col};opacity:.7;margin-top:3px;\">{oi_sig}</div>"
         f"</div>"
-        f"<div class=\"oi-legend\">"
-        f"<span>Call OI + = Writers selling calls <b style=\"color:#ff6b6b;\">Bearish</b></span>"
-        f"<span>Call OI - = Unwinding <b style=\"color:#00c896;\">Bullish</b></span>"
-        f"<span>Put OI + = Writers selling puts <b style=\"color:#00c896;\">Bullish</b></span>"
-        f"<span>Put OI - = Unwinding <b style=\"color:#ff6b6b;\">Bearish</b></span>"
-        f"</div></div>"
+        f"<div style=\"margin-left:auto;text-align:right;\">"
+        f"<div style=\"font-size:10px;color:rgba(255,255,255,.3);margin-bottom:5px;\">"
+        f"<span style=\"color:#00c896;font-weight:700;\">{bull_pct}% Bull</span>"
+        f"{strength_bar}"
+        f"<span style=\"color:#ff6b6b;font-weight:700;\">{bear_pct}% Bear</span>"
+        f"</div>"
+        f"{dir_badge}"
+        f"</div>"
+        f"</div>"
+
+        # ── Ticker Table ──────────────────────────────────────
+        f"<div class=\"oi-ticker-table\">"
+
+        # ROW 1 HEADER: OI Change
+        f"<div class=\"oi-ticker-hdr\" style=\"background:rgba(0,200,150,.06);"
+        f"border-bottom:1px solid rgba(0,200,150,.12);\">"
+        f"<div class=\"oi-ticker-hdr-label\" style=\"color:rgba(0,200,150,.7);\">&#9651; CHANGE IN OI</div>"
+        f"<div class=\"oi-ticker-hdr-cell\">Call OI Change</div>"
+        f"<div class=\"oi-ticker-hdr-cell\">Put OI Change</div>"
+        f"<div class=\"oi-ticker-hdr-cell\">Net OI Change</div>"
+        f"<div class=\"oi-ticker-hdr-cell\">Interpretation</div>"
+        f"<div class=\"oi-ticker-hdr-cell\">Signal</div>"
+        f"</div>"
+
+        # ROW 1 DATA: OI Change values
+        f"<div class=\"oi-ticker-row\">"
+        f"<div class=\"oi-ticker-metric\">OI Change</div>"
+        f"<div class=\"oi-ticker-cell\" style=\"color:{ce_col};font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">{ce:+,}</div>"
+        f"<div class=\"oi-ticker-cell\" style=\"color:{pe_col};font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">{pe:+,}</div>"
+        f"<div class=\"oi-ticker-cell\" style=\"color:{net_col};font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">{net:+,}</div>"
+        f"<div class=\"oi-ticker-cell\" style=\"font-size:11px;color:rgba(255,255,255,.5);\">{oi_sig}</div>"
+        f"<div class=\"oi-ticker-cell\">"
+        f"<span style=\"padding:4px 12px;border-radius:6px;font-size:11px;font-weight:700;"
+        f"color:{dir_col};background:{dir_bg};border:1px solid {dir_bdr};\">{oi_dir}</span>"
+        f"</div>"
+        f"</div>"
+
+        # ROW 2 HEADER: Open Interest snapshot
+        f"<div class=\"oi-ticker-hdr\" style=\"background:rgba(100,128,255,.06);"
+        f"border-top:1px solid rgba(255,255,255,.05);border-bottom:1px solid rgba(100,128,255,.12);\">"
+        f"<div class=\"oi-ticker-hdr-label\" style=\"color:rgba(100,128,255,.7);\">&#9632; OPEN INTEREST</div>"
+        f"<div class=\"oi-ticker-hdr-cell\">Total CE OI</div>"
+        f"<div class=\"oi-ticker-hdr-cell\">Total PE OI</div>"
+        f"<div class=\"oi-ticker-hdr-cell\">PCR (OI)</div>"
+        f"<div class=\"oi-ticker-hdr-cell\">Max CE Strike</div>"
+        f"<div class=\"oi-ticker-hdr-cell\">Max PE Strike</div>"
+        f"</div>"
+
+        # ROW 2 DATA: OI snapshot values
+        f"<div class=\"oi-ticker-row\">"
+        f"<div class=\"oi-ticker-metric\">Snapshot</div>"
+        f"<div class=\"oi-ticker-cell\" style=\"color:{tce_col};font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">{total_ce:,}</div>"
+        f"<div class=\"oi-ticker-cell\" style=\"color:{tpe_col};font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">{total_pe:,}</div>"
+        f"<div class=\"oi-ticker-cell\" style=\"color:{pcr_col};font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">{pcr:.3f}</div>"
+        f"<div class=\"oi-ticker-cell\" style=\"color:{mce_col};font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">&#8377;{max_ce_s:,}</div>"
+        f"<div class=\"oi-ticker-cell\" style=\"color:{mpe_col};font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">&#8377;{max_pe_s:,}</div>"
+        f"</div>"
+
+        # ROW 3 — Max Pain + legend
+        f"<div style=\"display:flex;align-items:center;justify-content:space-between;"
+        f"padding:10px 16px;border-top:1px solid rgba(255,255,255,.04);"
+        f"background:rgba(100,128,255,.03);flex-wrap:wrap;gap:10px;\">"
+        f"<div style=\"display:flex;align-items:center;gap:8px;\">"
+        f"<span style=\"font-size:9px;letter-spacing:1.5px;text-transform:uppercase;"
+        f"color:rgba(255,255,255,.3);\">MAX PAIN</span>"
+        f"<span style=\"font-family:'DM Mono',monospace;font-size:16px;font-weight:700;"
+        f"color:#6480ff;\">&#8377;{max_pain:,}</span>"
+        f"<span style=\"font-size:10px;color:rgba(100,128,255,.6);\">Option writers' target</span>"
+        f"</div>"
+        f"<div style=\"display:flex;gap:14px;flex-wrap:wrap;font-size:10px;color:rgba(255,255,255,.3);\">"
+        f"<span>Call OI+ &rarr; <b style=\"color:#ff6b6b;\">Bearish</b></span>"
+        f"<span>Call OI&minus; &rarr; <b style=\"color:#00c896;\">Bullish</b></span>"
+        f"<span>Put OI+ &rarr; <b style=\"color:#00c896;\">Bullish</b></span>"
+        f"<span>Put OI&minus; &rarr; <b style=\"color:#ff6b6b;\">Bearish</b></span>"
+        f"<span>PCR &gt;1.2 &rarr; <b style=\"color:#00c896;\">Bullish</b></span>"
+        f"<span>PCR &lt;0.7 &rarr; <b style=\"color:#ff6b6b;\">Bearish</b></span>"
+        f"</div>"
+        f"</div>"
+
+        f"</div>"  # end oi-ticker-table
+        f"</div>"  # end section
     )
 
 
@@ -502,7 +608,7 @@ def build_key_levels_html(tech, oc):
     mp_html = ""
     if oc:
         mp_p     = pct(oc["max_pain"])
-        max_pain = oc['max_pain']
+        max_pain = oc["max_pain"]
         mp_html  = (
             f"<div class=\"kl-node\" style=\"left:{mp_p}%;top:0;transform:translateX(-50%);\">"
             f"<div class=\"kl-dot\" style=\"background:#6480ff;box-shadow:0 0 8px rgba(100,128,255,.5);margin:0 auto 4px;\"></div>"
@@ -513,7 +619,7 @@ def build_key_levels_html(tech, oc):
 
     return (
         f"<div class=\"section\"><div class=\"sec-title\">KEY LEVELS"
-        f"<span class=\"sec-sub\">1H Candles &middot; Last 120 bars &middot; ATM +-200 pts &middot; Rounded to 25</span></div>"
+        f"<span class=\"sec-sub\">1H Candles &middot; Last 120 bars &middot; Rounded to 25</span></div>"
         f"<div class=\"kl-zone-labels\">"
         f"<span style=\"color:#00c896;\">SUPPORT ZONE</span>"
         f"<span style=\"color:#ff6b6b;\">RESISTANCE ZONE</span>"
@@ -559,7 +665,6 @@ def build_strategies_html(md, tech, oc):
     oi_dir = oc["oi_dir"] if oc else "Neutral"
 
     tech_strats, oi_strat = recommend_strategies(bias, atm, oi_dir)
-
     bc = "#00c896" if bias == "BULLISH" else ("#ff6b6b" if bias == "BEARISH" else "#6480ff")
 
     rec_cards = ""
@@ -574,7 +679,8 @@ def build_strategies_html(md, tech, oc):
         )
 
     rec_block = (
-        f"<div class=\"rec-banner\" style=\"border-color:{bc}30;background:linear-gradient(135deg,{bc}06,rgba(100,128,255,.04));\">"
+        f"<div class=\"rec-banner\" style=\"border-color:{bc}30;"
+        f"background:linear-gradient(135deg,{bc}06,rgba(100,128,255,.04));\">"
         f"<div class=\"rec-title\" style=\"color:{bc};\">TODAY'S RECOMMENDED STRATEGIES &mdash; {bias}</div>"
         f"<div class=\"rec-grid\">{rec_cards}</div>"
         f"<div class=\"rec-oi-box\">"
@@ -595,7 +701,7 @@ def build_strategies_html(md, tech, oc):
             f"<div class=\"strat-group-title\" style=\"color:{col};\">{emoji} {label} Strategies</div>"
         )
         for s in info["items"]:
-            rc  = "#00c896" if s["risk"]   == "Limited"   else "#ff6b6b" if s["risk"]   == "High" else "#6480ff"
+            rc  = "#00c896" if s["risk"]   == "Limited" else "#ff6b6b" if s["risk"]   == "High" else "#6480ff"
             rwc = "#00c896" if s["reward"] == "Unlimited" else "#6480ff"
             dir_html += (
                 f"<div class=\"strat-card\">"
@@ -621,8 +727,7 @@ def build_strategies_html(md, tech, oc):
     return (
         f"<div class=\"section\"><div class=\"sec-title\">STRATEGY RECOMMENDATIONS &amp; BUILDER</div>"
         f"{rec_block}"
-        f"<div class=\"sec-title\" style=\"border:none;padding:0;margin:24px 0 14px;"
-        f"font-size:12px;\">ALL STRATEGIES REFERENCE</div>"
+        f"<div class=\"sec-title\" style=\"border:none;padding:0;margin:24px 0 14px;font-size:12px;\">ALL STRATEGIES REFERENCE</div>"
         f"{dir_html}</div>"
     )
 
@@ -634,26 +739,20 @@ def build_strikes_html(oc):
     def ce_rows(rows):
         out = ""
         for i, r in enumerate(rows, 1):
-            strike = int(r['Strike'])
-            ce_oi  = int(r['CE_OI'])
-            ce_ltp = r['CE_LTP']
             out += (
-                f"<tr><td>{i}</td><td><b>&#8377;{strike:,}</b></td>"
-                f"<td>{ce_oi:,}</td>"
-                f"<td style=\"color:#00c8e0;font-weight:700;\">&#8377;{ce_ltp:.2f}</td></tr>"
+                f"<tr><td>{i}</td><td><b>&#8377;{int(r['Strike']):,}</b></td>"
+                f"<td>{int(r['CE_OI']):,}</td>"
+                f"<td style=\"color:#00c8e0;font-weight:700;\">&#8377;{r['CE_LTP']:.2f}</td></tr>"
             )
         return out
 
     def pe_rows(rows):
         out = ""
         for i, r in enumerate(rows, 1):
-            strike = int(r['Strike'])
-            pe_oi  = int(r['PE_OI'])
-            pe_ltp = r['PE_LTP']
             out += (
-                f"<tr><td>{i}</td><td><b>&#8377;{strike:,}</b></td>"
-                f"<td>{pe_oi:,}</td>"
-                f"<td style=\"color:#ff6b6b;font-weight:700;\">&#8377;{pe_ltp:.2f}</td></tr>"
+                f"<tr><td>{i}</td><td><b>&#8377;{int(r['Strike']):,}</b></td>"
+                f"<td>{int(r['PE_OI']):,}</td>"
+                f"<td style=\"color:#ff6b6b;font-weight:700;\">&#8377;{r['PE_LTP']:.2f}</td></tr>"
             )
         return out
 
@@ -710,19 +809,16 @@ body {
   min-height: 100vh;
 }
 
-/* Aurora ambient glow layers fixed to background */
 body::before {
   content: '';
-  position: fixed;
-  inset: 0;
+  position: fixed; inset: 0;
   background-image:
     radial-gradient(ellipse at 15% 0%,   rgba(0,200,150,.10) 0%, transparent 50%),
     radial-gradient(ellipse at 85% 10%,  rgba(100,128,255,.10) 0%, transparent 50%),
     radial-gradient(ellipse at 50% 90%,  rgba(0,200,220,.06) 0%, transparent 50%),
     radial-gradient(ellipse at 10% 80%,  rgba(0,200,150,.05) 0%, transparent 40%),
     radial-gradient(ellipse at 90% 60%,  rgba(100,128,255,.05) 0%, transparent 40%);
-  pointer-events: none;
-  z-index: 0;
+  pointer-events: none; z-index: 0;
 }
 
 .app { position: relative; z-index: 1; display: grid; grid-template-rows: auto auto 1fr auto; min-height: 100vh; }
@@ -731,8 +827,7 @@ body::before {
 header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 32px;
-  background: rgba(6,8,15,.85);
-  backdrop-filter: blur(16px);
+  background: rgba(6,8,15,.85); backdrop-filter: blur(16px);
   border-bottom: 1px solid rgba(255,255,255,.07);
   position: sticky; top: 0; z-index: 200;
   box-shadow: 0 1px 0 rgba(0,200,150,.1);
@@ -743,7 +838,6 @@ header {
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
   filter: drop-shadow(0 0 12px rgba(0,200,150,.3));
 }
-.logo span { /* inner span not needed in aurora — keep for compat */ }
 .hdr-meta { display: flex; align-items: center; gap: 14px; font-size: 11px; color: var(--muted); font-family: var(--fm); }
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #00c896; box-shadow: 0 0 10px #00c896; animation: pulse 2s infinite; }
 @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.2 } }
@@ -751,15 +845,13 @@ header {
 /* ── HERO ── */
 .hero {
   padding: 28px 32px;
-  background: rgba(6,8,15,.6);
-  backdrop-filter: blur(12px);
+  background: rgba(6,8,15,.6); backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(255,255,255,.06);
   display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
   position: relative; overflow: hidden;
 }
 .hero::before {
-  content: '';
-  position: absolute; inset: 0;
+  content: ''; position: absolute; inset: 0;
   background: radial-gradient(ellipse at 0% 50%, rgba(0,200,150,.08), transparent 60%),
               radial-gradient(ellipse at 100% 50%, rgba(100,128,255,.08), transparent 60%);
   pointer-events: none;
@@ -775,7 +867,6 @@ header {
   display: inline-flex; align-items: center; gap: 8px; margin-top: 10px;
   font-size: 11px; font-weight: 600; padding: 5px 18px; border-radius: 20px;
   border: 1px solid rgba(0,200,150,.25); background: rgba(0,200,150,.07); color: #00c896;
-  letter-spacing: .5px;
 }
 .hero-stats { display: flex; gap: 28px; align-items: center; flex-wrap: wrap; position: relative; }
 .hstat { text-align: center; }
@@ -787,8 +878,7 @@ header {
 
 /* ── SIDEBAR ── */
 .sidebar {
-  background: rgba(8,11,20,.7);
-  backdrop-filter: blur(12px);
+  background: rgba(8,11,20,.7); backdrop-filter: blur(12px);
   border-right: 1px solid rgba(255,255,255,.06);
   position: sticky; top: 57px; height: calc(100vh - 57px); overflow-y: auto;
 }
@@ -797,14 +887,13 @@ header {
 .sb-sec { padding: 16px 12px 8px; }
 .sb-lbl {
   font-size: 9px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase;
-  color: var(--aurora1); margin-bottom: 8px;
-  padding: 0 0 0 8px; border-left: 2px solid var(--aurora1);
+  color: var(--aurora1); margin-bottom: 8px; padding: 0 0 0 8px; border-left: 2px solid var(--aurora1);
 }
 .sb-btn {
   display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 12px;
   border-radius: 8px; border: 1px solid transparent; cursor: pointer;
-  background: transparent; color: var(--muted); font-family: var(--fh);
-  font-size: 12px; text-align: left; transition: all .15s;
+  background: transparent; color: var(--muted); font-family: var(--fh); font-size: 12px;
+  text-align: left; transition: all .15s;
 }
 .sb-btn:hover { background: rgba(0,200,150,.08); color: rgba(255,255,255,.8); border-color: rgba(0,200,150,.2); }
 .sb-btn.active { background: rgba(0,200,150,.1); border-color: rgba(0,200,150,.25); color: #00c896; font-weight: 600; }
@@ -813,8 +902,7 @@ header {
 .sig-card {
   margin: 12px 10px 8px; padding: 18px 14px;
   background: linear-gradient(135deg, rgba(0,200,150,.12), rgba(100,128,255,.12));
-  border-radius: 14px; border: 1px solid rgba(0,200,150,.2);
-  text-align: center;
+  border-radius: 14px; border: 1px solid rgba(0,200,150,.2); text-align: center;
   box-shadow: 0 4px 24px rgba(0,200,150,.1), inset 0 1px 0 rgba(255,255,255,.05);
 }
 .sig-arrow {
@@ -831,8 +919,7 @@ header {
 .section {
   padding: 26px 28px;
   border-bottom: 1px solid rgba(255,255,255,.05);
-  background: transparent;
-  position: relative;
+  background: transparent; position: relative;
 }
 .section:nth-child(odd) { background: rgba(255,255,255,.015); }
 
@@ -848,27 +935,39 @@ header {
   letter-spacing: .5px; text-transform: none; margin-left: auto;
 }
 
-/* ── OI SECTION ── */
-.oi-dir-box  { border-radius: 14px; padding: 18px 20px; margin-bottom: 16px; }
-.oi-dir-tag  { font-size: 10px; letter-spacing: 2px; color: var(--muted2); margin-bottom: 6px; text-transform: uppercase; }
-.oi-dir-name { font-family: var(--fh); font-size: 26px; font-weight: 700; margin-bottom: 4px; }
-.oi-dir-sig  { font-size: 13px; }
-.oi-meter-wrap { margin-top: 16px; }
-.oi-meter-lbl  { font-size: 10px; color: var(--muted2); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 5px; }
-.oi-meter-track { height: 6px; background: rgba(255,255,255,.06); border-radius: 4px; overflow: hidden; width: 100%; max-width: 320px; }
-.oi-meter-pct  { font-size: 12px; margin-top: 4px; }
-.oi-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 12px; }
-.oi-card {
-  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; padding: 16px;
-  box-shadow: 0 2px 12px rgba(0,0,0,.2);
-  transition: border-color .2s;
+/* ── SAMPLE-3 TICKER TABLE (OI SECTION) ── */
+.oi-ticker-table {
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 14px; overflow: hidden;
 }
-.oi-card:hover { border-color: rgba(0,200,150,.2); }
-.oi-lbl  { font-size: 9px; letter-spacing: 2px; color: var(--muted2); text-transform: uppercase; margin-bottom: 8px; }
-.oi-val  { font-family: var(--fm); font-size: 24px; font-weight: 600; margin-bottom: 4px; }
-.oi-sub  { font-size: 10px; color: var(--muted2); margin-bottom: 12px; }
-.oi-sig  { display: block; padding: 7px 12px; border-radius: 8px; text-align: center; font-size: 12px; font-weight: 600; }
-.oi-legend { display: flex; flex-wrap: wrap; gap: 10px 20px; font-size: 11px; color: var(--muted); padding: 10px 0; }
+.oi-ticker-hdr {
+  display: grid;
+  grid-template-columns: 120px repeat(5, 1fr);
+  padding: 9px 16px;
+  align-items: center;
+  gap: 6px;
+}
+.oi-ticker-hdr-label {
+  font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+}
+.oi-ticker-hdr-cell {
+  font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: rgba(255,255,255,.35); text-align: center;
+}
+.oi-ticker-row {
+  display: grid;
+  grid-template-columns: 120px repeat(5, 1fr);
+  padding: 14px 16px;
+  border-top: 1px solid rgba(255,255,255,.04);
+  align-items: center; gap: 6px;
+  transition: background .15s;
+}
+.oi-ticker-row:hover { background: rgba(255,255,255,.03); }
+.oi-ticker-metric {
+  font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+  color: rgba(255,255,255,.35);
+}
+.oi-ticker-cell { text-align: center; }
 
 /* ── KEY LEVELS ── */
 .kl-zone-labels { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; font-weight: 700; }
@@ -883,8 +982,7 @@ header {
 }
 .kl-price-tick {
   position: absolute; top: 50%; transform: translate(-50%,-50%);
-  width: 3px; height: 18px;
-  background: #fff; border-radius: 2px;
+  width: 3px; height: 18px; background: #fff; border-radius: 2px;
   box-shadow: 0 0 12px rgba(255,255,255,.6); z-index: 10;
 }
 .kl-dist-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
@@ -899,8 +997,7 @@ header {
 .rec-grid   { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 14px; }
 .rec-card   {
   background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08);
-  border-radius: 12px; padding: 14px;
-  transition: border-color .2s, background .2s;
+  border-radius: 12px; padding: 14px; transition: border-color .2s, background .2s;
 }
 .rec-card:hover { background: rgba(255,255,255,.05); }
 .rec-name { font-family: var(--fh); font-size: 14px; font-weight: 700; margin-bottom: 5px; }
@@ -928,13 +1025,12 @@ header {
 }
 .strat-card:hover {
   border-color: rgba(0,200,150,.25); transform: translateY(-2px);
-  background: rgba(0,200,150,.04);
-  box-shadow: 0 8px 24px rgba(0,200,150,.08);
+  background: rgba(0,200,150,.04); box-shadow: 0 8px 24px rgba(0,200,150,.08);
 }
-.strat-top    { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
-.strat-name   { font-family: var(--fh); font-size: 14px; font-weight: 700; color: rgba(255,255,255,.9); }
-.strat-desc   { font-size: 11px; color: var(--muted); line-height: 1.7; margin-bottom: 8px; }
-.strat-legs   { font-family: var(--fm); font-size: 10px; color: var(--aurora3); margin-bottom: 10px; letter-spacing: .5px; }
+.strat-top  { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+.strat-name { font-family: var(--fh); font-size: 14px; font-weight: 700; color: rgba(255,255,255,.9); }
+.strat-desc { font-size: 11px; color: var(--muted); line-height: 1.7; margin-bottom: 8px; }
+.strat-legs { font-family: var(--fm); font-size: 10px; color: var(--aurora3); margin-bottom: 10px; letter-spacing: .5px; }
 .strat-metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
 .strat-metrics > div {
   background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06); border-radius: 8px; padding: 6px 8px;
@@ -960,10 +1056,8 @@ header {
 
 /* ── FOOTER ── */
 footer {
-  padding: 16px 32px;
-  border-top: 1px solid rgba(255,255,255,.06);
-  background: rgba(6,8,15,.9);
-  backdrop-filter: blur(12px);
+  padding: 16px 32px; border-top: 1px solid rgba(255,255,255,.06);
+  background: rgba(6,8,15,.9); backdrop-filter: blur(12px);
   display: flex; justify-content: space-between;
   font-size: 11px; color: var(--muted2); font-family: var(--fm);
 }
@@ -973,9 +1067,10 @@ footer {
   .main { grid-template-columns: 1fr; }
   .sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid rgba(255,255,255,.06); }
   .hero-dir { font-size: 38px; }
-  .oi-cards { grid-template-columns: 1fr; }
+  .oi-ticker-hdr, .oi-ticker-row { grid-template-columns: 100px repeat(3,1fr); }
+  .oi-ticker-hdr-cell:nth-child(n+5), .oi-ticker-cell:nth-child(n+5) { display: none; }
   .strat-dir { grid-template-columns: 1fr; }
-  .rec-grid { grid-template-columns: 1fr; }
+  .rec-grid  { grid-template-columns: 1fr; }
   .strikes-wrap { grid-template-columns: 1fr; }
 }
 @media(max-width:640px) {
@@ -983,6 +1078,8 @@ footer {
   .hero { padding: 18px; flex-direction: column; }
   .hero-dir { font-size: 30px; }
   .section { padding: 18px 16px; }
+  .oi-ticker-hdr, .oi-ticker-row { grid-template-columns: 90px repeat(2,1fr); }
+  .oi-ticker-hdr-cell:nth-child(n+4), .oi-ticker-cell:nth-child(n+4) { display: none; }
   .strat-metrics { grid-template-columns: 1fr; }
   .kl-dist-row { grid-template-columns: 1fr; }
   footer { flex-direction: column; gap: 6px; }
@@ -1008,8 +1105,6 @@ def generate_html(tech, oc, md, ts):
     diff = md["diff"]
 
     b_arrow = "&#9650;" if bias == "BULLISH" else ("&#9660;" if bias == "BEARISH" else "&#8596;")
-
-    # Aurora theme: PCR colour uses aurora palette
     pcr_col = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
 
     oi_html      = build_oi_html(oc)               if oc   else ""
@@ -1017,7 +1112,6 @@ def generate_html(tech, oc, md, ts):
     strat_html   = build_strategies_html(md, tech, oc)
     strikes_html = build_strikes_html(oc)
 
-    # Sidebar signal card
     sig_card = (
         f"<div class=\"sb-sec\">"
         f"<div class=\"sb-lbl\">TODAY'S SIGNAL</div>"
@@ -1061,26 +1155,11 @@ def generate_html(tech, oc, md, ts):
     </span>
   </div>
   <div class="hero-stats">
-    <div class="hstat">
-      <div class="hstat-lbl">NIFTY Spot</div>
-      <div class="hstat-val">&#8377;{cp:,.2f}</div>
-    </div>
-    <div class="hstat">
-      <div class="hstat-lbl">ATM Strike</div>
-      <div class="hstat-val" style="color:#00c896;">&#8377;{atm:,}</div>
-    </div>
-    <div class="hstat">
-      <div class="hstat-lbl">Expiry</div>
-      <div class="hstat-val" style="color:#6480ff;">{expiry}</div>
-    </div>
-    <div class="hstat">
-      <div class="hstat-lbl">PCR (OI)</div>
-      <div class="hstat-val" style="color:{pcr_col};">{pcr:.3f}</div>
-    </div>
-    <div class="hstat">
-      <div class="hstat-lbl">Max Pain</div>
-      <div class="hstat-val" style="color:#00c8e0;">&#8377;{mp:,}</div>
-    </div>
+    <div class="hstat"><div class="hstat-lbl">NIFTY Spot</div><div class="hstat-val">&#8377;{cp:,.2f}</div></div>
+    <div class="hstat"><div class="hstat-lbl">ATM Strike</div><div class="hstat-val" style="color:#00c896;">&#8377;{atm:,}</div></div>
+    <div class="hstat"><div class="hstat-lbl">Expiry</div><div class="hstat-val" style="color:#6480ff;">{expiry}</div></div>
+    <div class="hstat"><div class="hstat-lbl">PCR (OI)</div><div class="hstat-val" style="color:{pcr_col};">{pcr:.3f}</div></div>
+    <div class="hstat"><div class="hstat-lbl">Max Pain</div><div class="hstat-val" style="color:#00c8e0;">&#8377;{mp:,}</div></div>
   </div>
 </div>
 
@@ -1089,7 +1168,7 @@ def generate_html(tech, oc, md, ts):
     {sig_card}
     <div class="sb-sec">
       <div class="sb-lbl">LIVE ANALYSIS</div>
-      <button class="sb-btn active" onclick="go('oi',this)">OI Change</button>
+      <button class="sb-btn active" onclick="go('oi',this)">OI Dashboard</button>
       <button class="sb-btn"       onclick="go('kl',this)">Key Levels</button>
     </div>
     <div class="sb-sec">
@@ -1148,7 +1227,7 @@ def main():
     ist_tz = pytz.timezone("Asia/Kolkata")
     ts     = datetime.now(ist_tz).strftime("%d-%b-%Y %H:%M IST")
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD -- Aurora Borealis Theme")
+    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme · Sample-3 OI")
     print(f"  {ts}")
     print("=" * 65)
 
@@ -1156,25 +1235,18 @@ def main():
     oc_raw      = NSEOptionChain().fetch()
     oc_analysis = analyze_option_chain(oc_raw) if oc_raw else None
     if oc_analysis:
-        underlying = oc_analysis['underlying']
-        atm_strike = oc_analysis['atm_strike']
-        pcr_oi     = oc_analysis['pcr_oi']
-        print(f"  OK  Spot={underlying:.2f}  ATM={atm_strike}  PCR={pcr_oi:.3f}")
+        print(f"  OK  Spot={oc_analysis['underlying']:.2f}  ATM={oc_analysis['atm_strike']}  PCR={oc_analysis['pcr_oi']:.3f}")
     else:
-        print("  WARNING  Option chain unavailable -- technical-only mode")
+        print("  WARNING  Option chain unavailable — technical-only mode")
 
     print("\n[2/3] Fetching Technical Indicators...")
     tech = get_technical_data()
 
     print("\n[3/3] Scoring Market Direction...")
-    md   = compute_market_direction(tech, oc_analysis)
-    bias = md['bias']
-    conf = md['confidence']
-    bull = md['bull']
-    bear = md['bear']
-    print(f"  OK  {bias} ({conf} confidence)  Bull={bull} Bear={bear}")
+    md = compute_market_direction(tech, oc_analysis)
+    print(f"  OK  {md['bias']} ({md['confidence']} confidence)  Bull={md['bull']} Bear={md['bear']}")
 
-    print("\nGenerating HTML dashboard (Aurora Borealis theme)...")
+    print("\nGenerating HTML dashboard...")
     html = generate_html(tech, oc_analysis, md, ts)
     os.makedirs("docs", exist_ok=True)
 
