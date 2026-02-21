@@ -528,18 +528,22 @@ def build_dual_gauge_hero(oc, tech, md, ts):
       <div class="pill-row">
         <div class="pill-dot" style="background:#00c896;box-shadow:0 0 5px rgba(0,200,150,.5);"></div>
         <div class="pill-lbl">BULL STRENGTH</div>
-        <div class="pill-track">
-          <div class="pill-fill" style="width:{oi_bar_w}%;background:linear-gradient(90deg,#00c896,#4de8b8);"></div>
+        <div class="pill-track-wrap">
+          <div class="pill-track">
+            <div class="pill-fill" style="width:{oi_bar_w}%;background:linear-gradient(90deg,#00c896,#4de8b8);"></div>
+          </div>
+          <div class="pill-num" style="color:#00c896;">{bull_pct}%</div>
         </div>
-        <div class="pill-num" style="color:#00c896;">{bull_pct}%</div>
       </div>
       <div class="pill-row">
         <div class="pill-dot" style="background:#ff6b6b;box-shadow:0 0 5px rgba(255,107,107,.4);"></div>
         <div class="pill-lbl">BEAR STRENGTH</div>
-        <div class="pill-track">
-          <div class="pill-fill" style="width:{bear_bar_w}%;background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div>
+        <div class="pill-track-wrap">
+          <div class="pill-track">
+            <div class="pill-fill" style="width:{bear_bar_w}%;background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div>
+          </div>
+          <div class="pill-num" style="color:#ff6b6b;">{bear_pct}%</div>
         </div>
-        <div class="pill-num" style="color:#ff6b6b;">{bear_pct}%</div>
       </div>
     </div>
   </div>
@@ -1904,17 +1908,18 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .h-signal{font-size:18px;font-weight:800;letter-spacing:-.3px;line-height:1.1;margin-bottom:2px;}
 .h-sub{font-size:9.5px;color:rgba(255,255,255,.32);margin-bottom:0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-/* pill strength bars */
+/* pill strength bars — track capped at 35% width */
 .h-divider{height:1px;background:rgba(255,255,255,.05);margin:5px 0;}
 .pill-bars{display:flex;flex-direction:column;gap:5px;}
 .pill-row{display:flex;align-items:center;gap:8px;}
 .pill-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 .pill-lbl{font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
   color:rgba(255,255,255,.35);width:96px;flex-shrink:0;}
-.pill-track{flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;}
+.pill-track-wrap{flex:1;display:flex;align-items:center;}
+.pill-track{width:35%;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;}
 .pill-fill{height:100%;border-radius:3px;}
 .pill-num{font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
-  width:36px;text-align:right;flex-shrink:0;}
+  margin-left:8px;flex-shrink:0;}
 
 /* ④ Right stat panel */
 .h-stats{
