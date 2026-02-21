@@ -316,154 +316,109 @@ def compute_market_direction(tech, oc_analysis):
 
 
 # =================================================================
-#  SECTION 5 -- PAYOFF SVG GENERATOR
-# =================================================================
-
-def get_payoff_svg(payoff_type, width=80, height=50):
-    w, h = width, height
-    mid_x, mid_y = w / 2, h / 2
-    G, R = "#0fa86b", "#c0392b"
-    BG_G, BG_R = "rgba(15,168,107,0.15)", "rgba(192,57,43,0.15)"
-    AXIS = f'<line x1="0" y1="{mid_y}" x2="{w}" y2="{mid_y}" stroke="rgba(100,120,140,0.35)" stroke-width="1"/>'
-
-    diagrams = {
-        # BULLISH
-        "bullish_ramp":    lambda: f'<polygon points="0,{h*.75} {mid_x},{h*.75} {w},{h*.05}" fill="{BG_G}"/><polyline points="0,{h*.75} {mid_x},{h*.75} {w},{h*.05}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "short_put":       lambda: f'<polygon points="0,{h*.8} {mid_x*.6},{h*.75} {w},{h*.25}" fill="{BG_G}"/><polyline points="0,{h*.8} {mid_x*.6},{h*.75} {w},{h*.25}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "bull_spread":     lambda: f'<polygon points="0,{h*.75} {mid_x*.8},{h*.75} {mid_x*1.2},{h*.25} {w},{h*.25}" fill="{BG_G}"/><polyline points="0,{h*.75} {mid_x*.8},{h*.75} {mid_x*1.2},{h*.25} {w},{h*.25}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "bull_put_spread":  lambda: f'<polygon points="0,{h*.75} {mid_x*.8},{h*.75} {mid_x*1.2},{h*.25} {w},{h*.25}" fill="{BG_G}"/><polyline points="0,{h*.75} {mid_x*.8},{h*.75} {mid_x*1.2},{h*.25} {w},{h*.25}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "call_ratio_back": lambda: f'<polygon points="0,{h*.5} {mid_x*.7},{h*.65} {mid_x},{h*.65} {w},{h*.05}" fill="{BG_G}"/><polyline points="0,{h*.5} {mid_x*.7},{h*.65} {mid_x},{h*.65} {w},{h*.05}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "long_synthetic":  lambda: f'<polygon points="0,{h*.9} {mid_x},{h*.5} {w},{h*.1}" fill="{BG_G}" opacity="0.5"/><polyline points="0,{h*.9} {mid_x},{h*.5} {w},{h*.1}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "range_forward":   lambda: f'<polygon points="{mid_x*.5},{h*.5} {mid_x*1.5},{h*.5} {w},{h*.15}" fill="{BG_G}"/><polyline points="0,{h*.5} {mid_x*.5},{h*.5} {mid_x*1.5},{h*.5} {w},{h*.15}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "bull_butterfly":  lambda: f'<polygon points="{mid_x*.5},{h*.75} {mid_x},{h*.2} {mid_x*1.5},{h*.75}" fill="{BG_G}"/><polyline points="0,{h*.8} {mid_x*.5},{h*.75} {mid_x},{h*.2} {mid_x*1.5},{h*.75} {w},{h*.8}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "bull_condor":     lambda: f'<polygon points="{mid_x*.3},{h*.75} {mid_x*.7},{h*.25} {mid_x*1.3},{h*.25} {mid_x*1.7},{h*.75}" fill="{BG_G}"/><polyline points="0,{h*.8} {mid_x*.3},{h*.75} {mid_x*.7},{h*.25} {mid_x*1.3},{h*.25} {mid_x*1.7},{h*.75} {w},{h*.8}" fill="none" stroke="{G}" stroke-width="2"/>',
-        # BEARISH
-        "bearish_ramp":    lambda: f'<polygon points="0,{h*.05} {mid_x},{h*.75} {w},{h*.75}" fill="{BG_R}"/><polyline points="0,{h*.05} {mid_x},{h*.75} {w},{h*.75}" fill="none" stroke="{R}" stroke-width="2"/>',
-        "short_call":      lambda: f'<polygon points="0,{h*.25} {mid_x*1.4},{h*.25} {w},{h*.85}" fill="{BG_G}" opacity="0.5"/><polyline points="0,{h*.25} {mid_x*1.4},{h*.25} {w},{h*.85}" fill="none" stroke="{R}" stroke-width="2"/>',
-        "bear_put_spread":  lambda: f'<polygon points="0,{h*.25} {mid_x*.8},{h*.25} {mid_x*1.2},{h*.75} {w},{h*.75}" fill="{BG_R}"/><polyline points="0,{h*.25} {mid_x*.8},{h*.25} {mid_x*1.2},{h*.75} {w},{h*.75}" fill="none" stroke="{R}" stroke-width="2"/>',
-        "bear_call_spread": lambda: f'<polygon points="0,{h*.25} {mid_x*.8},{h*.25} {mid_x*1.2},{h*.75} {w},{h*.75}" fill="{BG_R}"/><polyline points="0,{h*.25} {mid_x*.8},{h*.25} {mid_x*1.2},{h*.75} {w},{h*.75}" fill="none" stroke="{R}" stroke-width="2"/>',
-        "put_ratio_back":  lambda: f'<polygon points="0,{h*.05} {mid_x},{h*.65} {mid_x*1.3},{h*.65} {w},{h*.5}" fill="{BG_R}"/><polyline points="0,{h*.05} {mid_x},{h*.65} {mid_x*1.3},{h*.65} {w},{h*.5}" fill="none" stroke="{R}" stroke-width="2"/>',
-        "short_synthetic": lambda: f'<polygon points="0,{h*.1} {mid_x},{h*.5} {w},{h*.9}" fill="{BG_R}" opacity="0.5"/><polyline points="0,{h*.1} {mid_x},{h*.5} {w},{h*.9}" fill="none" stroke="{R}" stroke-width="2"/>',
-        "bear_butterfly":  lambda: f'<polygon points="{mid_x*.5},{h*.25} {mid_x},{h*.8} {mid_x*1.5},{h*.25}" fill="{BG_R}"/><polyline points="0,{h*.2} {mid_x*.5},{h*.25} {mid_x},{h*.8} {mid_x*1.5},{h*.25} {w},{h*.2}" fill="none" stroke="{R}" stroke-width="2"/>',
-        "bear_condor":     lambda: f'<polygon points="{mid_x*.3},{h*.25} {mid_x*.7},{h*.75} {mid_x*1.3},{h*.75} {mid_x*1.7},{h*.25}" fill="{BG_R}"/><polyline points="0,{h*.2} {mid_x*.3},{h*.25} {mid_x*.7},{h*.75} {mid_x*1.3},{h*.75} {mid_x*1.7},{h*.25} {w},{h*.2}" fill="none" stroke="{R}" stroke-width="2"/>',
-        # NON-DIRECTIONAL
-        "long_straddle":      lambda: f'<polygon points="0,{h*.1} {mid_x},{h*.85} {w},{h*.1}" fill="{BG_G}"/><polyline points="0,{h*.1} {mid_x},{h*.85} {w},{h*.1}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "short_straddle":     lambda: f'<polygon points="0,{h*.9} {mid_x},{h*.15} {w},{h*.9}" fill="{BG_R}"/><polyline points="0,{h*.9} {mid_x},{h*.15} {w},{h*.9}" fill="none" stroke="{R}" stroke-width="2"/>',
-        "long_strangle":      lambda: f'<polygon points="0,{h*.15} {mid_x*.6},{h*.8} {mid_x*1.4},{h*.8} {w},{h*.15}" fill="{BG_G}"/><polyline points="0,{h*.15} {mid_x*.6},{h*.8} {mid_x*1.4},{h*.8} {w},{h*.15}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "short_strangle":     lambda: f'<polygon points="0,{h*.85} {mid_x*.6},{h*.2} {mid_x*1.4},{h*.2} {w},{h*.85}" fill="{BG_R}"/><polyline points="0,{h*.85} {mid_x*.6},{h*.2} {mid_x*1.4},{h*.2} {w},{h*.85}" fill="none" stroke="{R}" stroke-width="2"/>',
-        "jade_lizard":        lambda: f'<polygon points="0,{h*.75} {mid_x*.5},{h*.3} {mid_x*1.4},{h*.3} {w},{h*.65}" fill="{BG_G}"/><polyline points="0,{h*.75} {mid_x*.5},{h*.3} {mid_x*1.4},{h*.3} {w},{h*.65}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "rev_jade_lizard":    lambda: f'<polygon points="0,{h*.65} {mid_x*.6},{h*.3} {mid_x*1.5},{h*.3} {w},{h*.75}" fill="{BG_G}"/><polyline points="0,{h*.65} {mid_x*.6},{h*.3} {mid_x*1.5},{h*.3} {w},{h*.75}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "call_ratio":         lambda: f'<polygon points="0,{h*.5} {mid_x*.6},{h*.5} {mid_x},{h*.2} {mid_x*1.4},{h*.5} {w},{h*.9}" fill="{BG_G}" opacity="0.5"/><polyline points="0,{h*.5} {mid_x*.6},{h*.5} {mid_x},{h*.2} {mid_x*1.4},{h*.5} {w},{h*.9}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "put_ratio":          lambda: f'<polygon points="0,{h*.9} {mid_x*.6},{h*.5} {mid_x},{h*.2} {mid_x*1.4},{h*.5} {w},{h*.5}" fill="{BG_R}" opacity="0.5"/><polyline points="0,{h*.9} {mid_x*.6},{h*.5} {mid_x},{h*.2} {mid_x*1.4},{h*.5} {w},{h*.5}" fill="none" stroke="{R}" stroke-width="2"/>',
-        "batman":             lambda: f'<polygon points="0,{h*.75} {mid_x*.3},{h*.75} {mid_x*.5},{h*.35} {mid_x*.7},{h*.2} {mid_x*1.3},{h*.2} {mid_x*1.5},{h*.35} {mid_x*1.7},{h*.75} {w},{h*.75}" fill="{BG_G}"/><polyline points="0,{h*.8} {mid_x*.3},{h*.75} {mid_x*.5},{h*.35} {mid_x*.7},{h*.2} {mid_x*1.3},{h*.2} {mid_x*1.5},{h*.35} {mid_x*1.7},{h*.75} {w},{h*.8}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "long_iron_fly":      lambda: f'<polygon points="0,{h*.2} {mid_x},{h*.8} {w},{h*.2}" fill="{BG_G}"/><polyline points="0,{h*.2} {mid_x},{h*.8} {w},{h*.2}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "short_iron_fly":     lambda: f'<polygon points="{mid_x*.5},{h*.75} {mid_x},{h*.2} {mid_x*1.5},{h*.75}" fill="{BG_R}"/><polyline points="0,{h*.75} {mid_x*.5},{h*.75} {mid_x},{h*.2} {mid_x*1.5},{h*.75} {w},{h*.75}" fill="none" stroke="{R}" stroke-width="2"/>',
-        "double_fly":         lambda: f'<polygon points="{mid_x*.3},{h*.7} {mid_x*.7},{h*.25} {mid_x},{h*.55} {mid_x*1.3},{h*.25} {mid_x*1.7},{h*.7}" fill="{BG_G}"/><polyline points="0,{h*.75} {mid_x*.3},{h*.7} {mid_x*.7},{h*.25} {mid_x},{h*.55} {mid_x*1.3},{h*.25} {mid_x*1.7},{h*.7} {w},{h*.75}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "long_iron_condor":   lambda: f'<polygon points="0,{h*.2} {mid_x*.4},{h*.75} {mid_x*1.6},{h*.75} {w},{h*.2}" fill="{BG_G}"/><polyline points="0,{h*.2} {mid_x*.4},{h*.75} {mid_x*1.6},{h*.75} {w},{h*.2}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "short_iron_condor":  lambda: f'<polygon points="{mid_x*.3},{h*.75} {mid_x*.7},{h*.25} {mid_x*1.3},{h*.25} {mid_x*1.7},{h*.75}" fill="{BG_R}"/><polyline points="0,{h*.8} {mid_x*.3},{h*.75} {mid_x*.7},{h*.25} {mid_x*1.3},{h*.25} {mid_x*1.7},{h*.75} {w},{h*.8}" fill="none" stroke="{R}" stroke-width="2"/>',
-        "double_condor":      lambda: f'<polygon points="{mid_x*.2},{h*.75} {mid_x*.5},{h*.25} {mid_x*1.5},{h*.25} {mid_x*1.8},{h*.75}" fill="{BG_R}"/><polyline points="0,{h*.8} {mid_x*.2},{h*.75} {mid_x*.5},{h*.25} {mid_x*1.5},{h*.25} {mid_x*1.8},{h*.75} {w},{h*.8}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "call_calendar":      lambda: f'<polygon points="{mid_x*.6},{h*.75} {mid_x},{h*.15} {mid_x*1.4},{h*.75}" fill="{BG_G}"/><polyline points="0,{h*.65} {mid_x*.6},{h*.75} {mid_x},{h*.15} {mid_x*1.4},{h*.75} {w},{h*.65}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "put_calendar":       lambda: f'<polygon points="{mid_x*.6},{h*.75} {mid_x},{h*.15} {mid_x*1.4},{h*.75}" fill="{BG_R}"/><polyline points="0,{h*.65} {mid_x*.6},{h*.75} {mid_x},{h*.15} {mid_x*1.4},{h*.75} {w},{h*.65}" fill="none" stroke="{R}" stroke-width="2"/>',
-        "diagonal_calendar":  lambda: f'<polygon points="{mid_x*.4},{h*.7} {mid_x*.9},{h*.2} {mid_x*1.5},{h*.7}" fill="{BG_G}"/><polyline points="0,{h*.7} {mid_x*.4},{h*.7} {mid_x*.9},{h*.2} {mid_x*1.5},{h*.7} {w},{h*.7}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "call_butterfly":     lambda: f'<polygon points="{mid_x*.5},{h*.75} {mid_x},{h*.2} {mid_x*1.5},{h*.75}" fill="{BG_G}"/><polyline points="0,{h*.8} {mid_x*.5},{h*.75} {mid_x},{h*.2} {mid_x*1.5},{h*.75} {w},{h*.8}" fill="none" stroke="{G}" stroke-width="2"/>',
-        "put_butterfly":      lambda: f'<polygon points="{mid_x*.5},{h*.75} {mid_x},{h*.2} {mid_x*1.5},{h*.75}" fill="{BG_R}"/><polyline points="0,{h*.8} {mid_x*.5},{h*.75} {mid_x},{h*.2} {mid_x*1.5},{h*.75} {w},{h*.8}" fill="none" stroke="{R}" stroke-width="2"/>',
-    }
-    fn = diagrams.get(payoff_type)
-    inner = fn() if fn else f'<line x1="0" y1="{mid_y}" x2="{w}" y2="{mid_y}" stroke="#7b6cf6" stroke-width="2"/>'
-    return (f'<svg viewBox="0 0 {w} {h}" width="{w}" height="{h}" xmlns="http://www.w3.org/2000/svg">'
-            f'{AXIS}{inner}</svg>')
-
-
-# =================================================================
-#  SECTION 6 -- STRATEGY DEFINITIONS (FULL LIBRARY)
+#  SECTION 5 -- STRATEGY DEFINITIONS & RECOMMENDATIONS
 # =================================================================
 
 ALL_STRATEGIES = {
     "bullish": {
-        "label": "Bullish", "color": "#0fa86b",
+        "label": "Bullish", "color": "#0d8a9e",
         "items": [
-            {"name": "Long Call",            "risk": "Limited",   "reward": "Unlimited", "legs": "BUY CALL (ATM)",                                        "desc": "Buy a call option. Profits as market rises. Risk limited to premium paid.",                              "mp": "Unlimited",             "ml": "Premium Paid",        "be": "Strike + Premium",        "payoff": "bullish_ramp"},
-            {"name": "Short Put",            "risk": "High",      "reward": "Limited",   "legs": "SELL PUT (OTM)",                                         "desc": "Sell a put option. Collect premium; profits if market stays above strike.",                               "mp": "Premium Received",      "ml": "Strike - Premium",    "be": "Strike - Premium",        "payoff": "short_put"},
-            {"name": "Bull Call Spread",     "risk": "Limited",   "reward": "Limited",   "legs": "BUY CALL (Low) · SELL CALL (High)",                     "desc": "Buy lower call, sell higher call. Reduces cost; caps profit at upper strike.",                            "mp": "Spread Width - Debit",  "ml": "Net Debit",           "be": "Lower Strike + Debit",    "payoff": "bull_spread"},
-            {"name": "Bull Put Spread",      "risk": "Limited",   "reward": "Limited",   "legs": "SELL PUT (High) · BUY PUT (Low)",                       "desc": "Sell higher put, buy lower put. Receive credit; profit if market stays above sold strike.",               "mp": "Net Credit",            "ml": "Spread - Credit",     "be": "Higher Strike - Credit",  "payoff": "bull_put_spread"},
-            {"name": "Call Ratio Back Spread","risk": "Limited",  "reward": "Unlimited", "legs": "SELL 1 CALL (Low) · BUY 2 CALLS (High)",                "desc": "Sell fewer lower calls, buy more higher calls. Profits from big upward move.",                           "mp": "Unlimited",             "ml": "Net Debit/Credit",    "be": "Varies",                  "payoff": "call_ratio_back"},
-            {"name": "Long Synthetic",       "risk": "High",      "reward": "Unlimited", "legs": "BUY CALL (ATM) · SELL PUT (ATM)",                       "desc": "Mimics owning the underlying. Unlimited upside, large downside risk.",                                   "mp": "Unlimited",             "ml": "Large",               "be": "ATM Strike",              "payoff": "long_synthetic"},
-            {"name": "Range Forward",        "risk": "Moderate",  "reward": "Moderate",  "legs": "BUY CALL (High) · SELL PUT (Low)",                      "desc": "Participate in upside above call strike; protected against downside below put strike.",                   "mp": "Above Call Strike",     "ml": "Below Put Strike",    "be": "Between Strikes",         "payoff": "range_forward"},
-            {"name": "Bullish Butterfly",    "risk": "Limited",   "reward": "Limited",   "legs": "BUY 1 Low CALL · SELL 2 Mid CALL · BUY 1 High CALL",   "desc": "Profit from moderate rise to middle strike. Very low cost, defined risk.",                                "mp": "At Middle Strike",      "ml": "Net Debit",           "be": "Low+Debit & High-Debit", "payoff": "bull_butterfly"},
-            {"name": "Bullish Condor",       "risk": "Limited",   "reward": "Limited",   "legs": "BUY Call(A) · SELL Call(B) · SELL Call(C) · BUY Call(D)","desc": "Four-strike call spread. Profit when market moves moderately higher.",                                   "mp": "Net Credit (B-C range)","ml": "Spread - Credit",     "be": "A+Debit & D-Debit",      "payoff": "bull_condor"},
+            {"name": "Long Call",
+             "risk": "Limited",  "reward": "Unlimited",
+             "legs": "BUY CALL (ATM)",
+             "desc": "Buy a call option. Profits as stock rises. Risk limited to premium paid.",
+             "mp": "Unlimited", "ml": "Premium Paid", "be": "Strike + Premium"},
+            {"name": "Covered Call",
+             "risk": "Moderate", "reward": "Limited",
+             "legs": "OWN STOCK . SELL CALL (OTM)",
+             "desc": "Own shares and sell a call against them. Generates income; caps upside.",
+             "mp": "Strike - Cost + Premium", "ml": "Cost - Premium", "be": "Stock Cost - Premium"},
+            {"name": "Bull Call Spread",
+             "risk": "Limited",  "reward": "Limited",
+             "legs": "BUY CALL (Low) . SELL CALL (High)",
+             "desc": "Buy lower call, sell higher call. Reduces cost; caps profit at upper strike.",
+             "mp": "Spread Width - Debit", "ml": "Net Debit", "be": "Lower Strike + Debit"},
+            {"name": "Cash-Secured Put",
+             "risk": "Moderate", "reward": "Limited",
+             "legs": "SELL PUT (OTM/ATM)",
+             "desc": "Sell a put holding enough cash. Collect premium; buy shares at discount if assigned.",
+             "mp": "Premium Received", "ml": "Strike - Premium", "be": "Strike - Premium"},
         ]
     },
     "bearish": {
         "label": "Bearish", "color": "#c0392b",
         "items": [
-            {"name": "Long Put",             "risk": "Limited",   "reward": "High",      "legs": "BUY PUT (ATM)",                                          "desc": "Buy a put option. Profits as market falls. Risk limited to premium paid.",                               "mp": "Strike - Premium",      "ml": "Premium Paid",        "be": "Strike - Premium",        "payoff": "bearish_ramp"},
-            {"name": "Short Call",           "risk": "Unlimited", "reward": "Limited",   "legs": "SELL CALL (OTM)",                                        "desc": "Sell a call option. Collect premium; profits if market stays below strike.",                              "mp": "Premium Received",      "ml": "Unlimited",           "be": "Strike + Premium",        "payoff": "short_call"},
-            {"name": "Bear Put Spread",      "risk": "Limited",   "reward": "Limited",   "legs": "BUY PUT (High) · SELL PUT (Low)",                       "desc": "Buy higher put, sell lower put. Cheaper bearish bet with capped profit.",                                "mp": "Spread - Debit",        "ml": "Net Debit",           "be": "Higher Strike - Debit",   "payoff": "bear_put_spread"},
-            {"name": "Bear Call Spread",     "risk": "Limited",   "reward": "Limited",   "legs": "SELL CALL (Low) · BUY CALL (High)",                     "desc": "Sell lower call, buy higher call. Credit received; profit if stock stays below lower strike.",            "mp": "Net Credit",            "ml": "Spread - Credit",     "be": "Lower Strike + Credit",   "payoff": "bear_call_spread"},
-            {"name": "Put Ratio Back Spread","risk": "Limited",   "reward": "High",      "legs": "SELL 1 PUT (High) · BUY 2 PUTS (Low)",                  "desc": "Sell fewer higher puts, buy more lower puts. Profits from big downward move.",                          "mp": "Large on big drop",     "ml": "Net Debit/Credit",    "be": "Varies",                  "payoff": "put_ratio_back"},
-            {"name": "Short Synthetic",      "risk": "Unlimited", "reward": "High",      "legs": "SELL CALL (ATM) · BUY PUT (ATM)",                       "desc": "Mimics being short the underlying. Large downside profit, unlimited upside risk.",                       "mp": "Large",                 "ml": "Unlimited",           "be": "ATM Strike",              "payoff": "short_synthetic"},
-            {"name": "Bearish Butterfly",    "risk": "Limited",   "reward": "Limited",   "legs": "BUY 1 High PUT · SELL 2 Mid PUT · BUY 1 Low PUT",       "desc": "Profit from moderate fall to middle strike. Very low cost, defined risk.",                               "mp": "At Middle Strike",      "ml": "Net Debit",           "be": "High-Debit & Low+Debit",  "payoff": "bear_butterfly"},
-            {"name": "Bearish Condor",       "risk": "Limited",   "reward": "Limited",   "legs": "BUY Put(D) · SELL Put(C) · SELL Put(B) · BUY Put(A)",   "desc": "Four-strike put spread. Profit when market moves moderately lower.",                                    "mp": "Net Credit (B-C range)","ml": "Spread - Credit",     "be": "D-Debit & A+Debit",      "payoff": "bear_condor"},
+            {"name": "Long Put",
+             "risk": "Limited",  "reward": "High",
+             "legs": "BUY PUT (ATM)",
+             "desc": "Buy a put option. Profits as stock falls. Risk limited to premium paid.",
+             "mp": "Strike - Premium", "ml": "Premium Paid", "be": "Strike - Premium"},
+            {"name": "Bear Put Spread",
+             "risk": "Limited",  "reward": "Limited",
+             "legs": "BUY PUT (High) . SELL PUT (Low)",
+             "desc": "Buy higher put, sell lower put. Cheaper bearish bet with capped profit.",
+             "mp": "Spread - Debit", "ml": "Net Debit", "be": "Higher Strike - Debit"},
+            {"name": "Bear Call Spread",
+             "risk": "Limited",  "reward": "Limited",
+             "legs": "SELL CALL (Low) . BUY CALL (High)",
+             "desc": "Sell lower call, buy higher call. Credit received; profit if stock stays below lower strike.",
+             "mp": "Net Credit", "ml": "Spread - Credit", "be": "Lower Strike + Credit"},
         ]
     },
-    "nondirectional": {
-        "label": "Non-Directional", "color": "#7b6cf6",
+    "neutral": {
+        "label": "Neutral / Volatility", "color": "#d4a017",
         "items": [
-            {"name": "Long Straddle",        "risk": "Limited",   "reward": "Unlimited", "legs": "BUY CALL + BUY PUT (ATM)",                               "desc": "Buy ATM call and put. Profit from large move in either direction.",                                      "mp": "Unlimited both sides",  "ml": "Total Premium",       "be": "Strike ± Total Premium",  "payoff": "long_straddle"},
-            {"name": "Short Straddle",       "risk": "Unlimited", "reward": "Limited",   "legs": "SELL CALL + SELL PUT (ATM)",                             "desc": "Sell ATM call and put. Profit if market stays near strike. High risk.",                                 "mp": "Net Credit",            "ml": "Unlimited both sides","be": "Strike ± Credit",          "payoff": "short_straddle"},
-            {"name": "Long Strangle",        "risk": "Limited",   "reward": "Unlimited", "legs": "BUY OTM CALL + BUY OTM PUT",                             "desc": "Buy OTM call and put. Cheaper than straddle; needs bigger move to profit.",                             "mp": "Unlimited both sides",  "ml": "Total Premium",       "be": "Strikes ± Total Premium", "payoff": "long_strangle"},
-            {"name": "Short Strangle",       "risk": "Unlimited", "reward": "Limited",   "legs": "SELL OTM CALL + SELL OTM PUT",                           "desc": "Sell OTM call and put. Wider range than short straddle. High risk.",                                   "mp": "Net Credit",            "ml": "Unlimited both sides","be": "Strikes ± Credit",         "payoff": "short_strangle"},
-            {"name": "Jade Lizard",          "risk": "Limited",   "reward": "Limited",   "legs": "SELL OTM CALL SPREAD + SELL OTM PUT",                    "desc": "No upside risk if total credit > call spread width. Complex income strategy.",                          "mp": "Net Credit",            "ml": "Put Strike - Credit", "be": "Put Strike - Credit",     "payoff": "jade_lizard"},
-            {"name": "Reverse Jade Lizard",  "risk": "Limited",   "reward": "Limited",   "legs": "SELL OTM PUT SPREAD + SELL OTM CALL",                    "desc": "No downside risk. Opposite of Jade Lizard. Credit strategy.",                                          "mp": "Net Credit",            "ml": "Varies",              "be": "Varies",                  "payoff": "rev_jade_lizard"},
-            {"name": "Call Ratio Spread",    "risk": "Unlimited", "reward": "Limited",   "legs": "BUY 1 CALL (Low) · SELL 2 CALLS (High)",                 "desc": "Profit if market stays below higher strike. Risk on big upside move.",                                 "mp": "At Higher Strike",      "ml": "Unlimited above top", "be": "Varies",                  "payoff": "call_ratio"},
-            {"name": "Put Ratio Spread",     "risk": "High",      "reward": "Limited",   "legs": "BUY 1 PUT (High) · SELL 2 PUTS (Low)",                   "desc": "Profit if market stays above lower strike. Risk on big downside move.",                                "mp": "At Lower Strike",       "ml": "Large below bottom",  "be": "Varies",                  "payoff": "put_ratio"},
-            {"name": "Batman Strategy",      "risk": "Limited",   "reward": "Limited",   "legs": "Complex 8-leg Spread",                                   "desc": "Wide profit zone. Combination of spreads creating a batman payoff shape.",                               "mp": "Wide middle zone",      "ml": "Net Debit",           "be": "Outer strikes ± Debit",   "payoff": "batman"},
-            {"name": "Long Iron Fly",        "risk": "Limited",   "reward": "Limited",   "legs": "BUY ATM CALL+PUT · SELL OTM CALL+PUT",                   "desc": "Profit from large move. Inverse of short iron fly. Buy the wings.",                                    "mp": "Large move either side","ml": "Net Debit",           "be": "ATM ± Debit",             "payoff": "long_iron_fly"},
-            {"name": "Short Iron Fly",       "risk": "Limited",   "reward": "Limited",   "legs": "SELL ATM CALL+PUT · BUY OTM CALL+PUT",                   "desc": "Profit if market stays near ATM. Sell the body, buy the wings.",                                      "mp": "Net Credit",            "ml": "Wing Width - Credit", "be": "ATM ± Credit",            "payoff": "short_iron_fly"},
-            {"name": "Double Fly",           "risk": "Limited",   "reward": "Limited",   "legs": "TWO BUTTERFLY SPREADS at different centers",              "desc": "Two butterflies combined for a wider profit zone. Complex but defined risk.",                           "mp": "At either center",      "ml": "Net Debit",           "be": "Outer edges ± Debit",     "payoff": "double_fly"},
-            {"name": "Long Iron Condor",     "risk": "Limited",   "reward": "Limited",   "legs": "BUY OTM CALL+PUT · SELL Further OTM CALL+PUT",           "desc": "Profit from large move in either direction. Debit strategy.",                                          "mp": "Big move either side",  "ml": "Net Debit",           "be": "Inner strikes ± Debit",   "payoff": "long_iron_condor"},
-            {"name": "Short Iron Condor",    "risk": "Limited",   "reward": "Limited",   "legs": "SELL OTM CALL+PUT · BUY Further OTM CALL+PUT",           "desc": "Profit if market stays within a range. Most popular income strategy.",                                 "mp": "Net Credit",            "ml": "Wing Width - Credit", "be": "Short strikes ± Credit",  "payoff": "short_iron_condor"},
-            {"name": "Double Condor",        "risk": "Limited",   "reward": "Limited",   "legs": "TWO CONDOR SPREADS combined",                            "desc": "Extended profit zone of condor. Very wide range strategy.",                                            "mp": "Net Credit",            "ml": "Wing - Credit",       "be": "Outer short strikes ± Credit", "payoff": "double_condor"},
-            {"name": "Call Calendar",        "risk": "Limited",   "reward": "Limited",   "legs": "SELL Near-Term CALL · BUY Far-Term CALL (Same Strike)",   "desc": "Profit from time decay. Near-term decays faster than far-term.",                                       "mp": "At strike at near expiry","ml": "Net Debit",          "be": "Near strike area",        "payoff": "call_calendar"},
-            {"name": "Put Calendar",         "risk": "Limited",   "reward": "Limited",   "legs": "SELL Near-Term PUT · BUY Far-Term PUT (Same Strike)",     "desc": "Same as call calendar but using puts. Profit from time decay.",                                        "mp": "At strike at near expiry","ml": "Net Debit",          "be": "Near strike area",        "payoff": "put_calendar"},
-            {"name": "Diagonal Calendar",    "risk": "Limited",   "reward": "Limited",   "legs": "SELL Near-Term Option · BUY Far-Term Option (Diff Strike)","desc": "Like calendar spread but with different strikes. More flexibility.",                                   "mp": "Varies",                "ml": "Net Debit",           "be": "Varies",                  "payoff": "diagonal_calendar"},
-            {"name": "Call Butterfly",       "risk": "Limited",   "reward": "Limited",   "legs": "BUY 1 Low CALL · SELL 2 Mid CALL · BUY 1 High CALL",    "desc": "Classic butterfly using calls. Maximum profit at middle strike.",                                       "mp": "At Middle Strike",      "ml": "Net Debit",           "be": "Low+Debit & High-Debit",  "payoff": "call_butterfly"},
-            {"name": "Put Butterfly",        "risk": "Limited",   "reward": "Limited",   "legs": "BUY 1 High PUT · SELL 2 Mid PUT · BUY 1 Low PUT",        "desc": "Classic butterfly using puts. Maximum profit at middle strike.",                                        "mp": "At Middle Strike",      "ml": "Net Debit",           "be": "High-Debit & Low+Debit",  "payoff": "put_butterfly"},
+            {"name": "Iron Condor",
+             "risk": "Limited",  "reward": "Limited",
+             "legs": "SELL OTM PUT+CALL SPREADS",
+             "desc": "Sell OTM put spread + OTM call spread. Profit if stock stays in a defined range.",
+             "mp": "Net Credit", "ml": "Spread - Credit", "be": "Short strikes +- Credit"},
+            {"name": "Straddle",
+             "risk": "Limited",  "reward": "Unlimited",
+             "legs": "BUY CALL + PUT (ATM)",
+             "desc": "Buy ATM call and put. Profit from a large move in either direction.",
+             "mp": "Unlimited (both sides)", "ml": "Total Premium", "be": "Strike +- Total Premium"},
+            {"name": "Strangle",
+             "risk": "Limited",  "reward": "Unlimited",
+             "legs": "BUY OTM CALL + OTM PUT",
+             "desc": "Buy OTM call and OTM put. Cheaper than straddle; needs a bigger move to profit.",
+             "mp": "Unlimited (both sides)", "ml": "Total Premium", "be": "Strikes +- Total Premium"},
+            {"name": "Butterfly Spread",
+             "risk": "Limited",  "reward": "Limited",
+             "legs": "BUY Low . SELL 2xMid . BUY High",
+             "desc": "Three strike combo. Maximum profit when stock lands exactly at middle strike.",
+             "mp": "Mid - Low - Debit", "ml": "Net Debit", "be": "Low+Debit and High-Debit"},
         ]
     }
 }
 
 
-# =================================================================
-#  SECTION 7 -- STRATEGY RECOMMENDATIONS
-# =================================================================
-
 def recommend_strategies(bias, atm_strike, oi_dir):
     atm = atm_strike
     tech_map = {
         "BULLISH": [
-            {"name": "Bull Call Spread",    "legs": f"Buy {atm} CE - Sell {atm+200} CE",                                                                           "type": "Debit",  "risk": "Moderate"},
-            {"name": "Long Call",           "legs": f"Buy {atm} CE",                                                                                                "type": "Debit",  "risk": "High"},
-            {"name": "Bull Put Spread",     "legs": f"Sell {atm-100} PE - Buy {atm-200} PE",                                                                        "type": "Credit", "risk": "Moderate"},
+            {"name": "Bull Call Spread", "legs": f"Buy {atm} CE - Sell {atm+200} CE",               "type": "Debit",  "risk": "Moderate"},
+            {"name": "Long Call",        "legs": f"Buy {atm} CE",                                    "type": "Debit",  "risk": "High"},
+            {"name": "Bull Put Spread",  "legs": f"Sell {atm-100} PE - Buy {atm-200} PE",            "type": "Credit", "risk": "Moderate"},
         ],
         "BEARISH": [
-            {"name": "Bear Put Spread",     "legs": f"Buy {atm} PE - Sell {atm-200} PE",                                                                           "type": "Debit",  "risk": "Moderate"},
-            {"name": "Long Put",            "legs": f"Buy {atm} PE",                                                                                                "type": "Debit",  "risk": "High"},
-            {"name": "Bear Call Spread",    "legs": f"Sell {atm+100} CE - Buy {atm+200} CE",                                                                        "type": "Credit", "risk": "Moderate"},
+            {"name": "Bear Put Spread",  "legs": f"Buy {atm} PE - Sell {atm-200} PE",               "type": "Debit",  "risk": "Moderate"},
+            {"name": "Long Put",         "legs": f"Buy {atm} PE",                                    "type": "Debit",  "risk": "High"},
+            {"name": "Bear Call Spread", "legs": f"Sell {atm+100} CE - Buy {atm+200} CE",           "type": "Credit", "risk": "Moderate"},
         ],
         "SIDEWAYS": [
-            {"name": "Iron Condor",         "legs": f"Sell {atm+100} CE / Buy {atm+200} CE / Sell {atm-100} PE / Buy {atm-200} PE",                                "type": "Credit", "risk": "Low"},
-            {"name": "Iron Butterfly",      "legs": f"Sell {atm} CE / Sell {atm} PE / Buy {atm+100} CE / Buy {atm-100} PE",                                         "type": "Credit", "risk": "Low"},
-            {"name": "Short Straddle",      "legs": f"Sell {atm} CE - Sell {atm} PE",                                                                              "type": "Credit", "risk": "Very High"},
+            {"name": "Iron Condor",    "legs": f"Sell {atm+100} CE / Buy {atm+200} CE / Sell {atm-100} PE / Buy {atm-200} PE", "type": "Credit", "risk": "Low"},
+            {"name": "Iron Butterfly", "legs": f"Sell {atm} CE / Sell {atm} PE / Buy {atm+100} CE / Buy {atm-100} PE",          "type": "Credit", "risk": "Low"},
+            {"name": "Short Straddle", "legs": f"Sell {atm} CE - Sell {atm} PE",                                                "type": "Credit", "risk": "Very High"},
         ],
     }
     oi_map = {
-        "Strong Bullish":      {"name": "Long Call",      "legs": f"Buy {atm} CE",                                 "signal": "Put build-up - bullish momentum"},
-        "Bullish":             {"name": "Long Call",      "legs": f"Buy {atm} CE",                                 "signal": "Put build-up dominant"},
-        "Strong Bearish":      {"name": "Long Put",       "legs": f"Buy {atm} PE",                                 "signal": "Call build-up - bearish momentum"},
-        "Bearish":             {"name": "Long Put",       "legs": f"Buy {atm} PE",                                 "signal": "Call build-up dominant"},
-        "Neutral (High Vol)":  {"name": "Long Straddle",  "legs": f"Buy {atm} CE + {atm} PE",                      "signal": "Both building - big move expected"},
-        "Neutral (Unwinding)": {"name": "Iron Butterfly", "legs": f"Sell {atm} CE+PE, Buy {atm+100}+{atm-100}",   "signal": "Unwinding - range bound"},
+        "Strong Bullish":      {"name": "Long Call",      "legs": f"Buy {atm} CE",                              "signal": "Put build-up - bullish momentum"},
+        "Bullish":             {"name": "Long Call",      "legs": f"Buy {atm} CE",                              "signal": "Put build-up dominant"},
+        "Strong Bearish":      {"name": "Long Put",       "legs": f"Buy {atm} PE",                              "signal": "Call build-up - bearish momentum"},
+        "Bearish":             {"name": "Long Put",       "legs": f"Buy {atm} PE",                              "signal": "Call build-up dominant"},
+        "Neutral (High Vol)":  {"name": "Long Straddle",  "legs": f"Buy {atm} CE + {atm} PE",                   "signal": "Both building - big move expected"},
+        "Neutral (Unwinding)": {"name": "Iron Butterfly", "legs": f"Sell {atm} CE+PE, Buy {atm+100}+{atm-100}", "signal": "Unwinding - range bound"},
     }
     tech_strats = tech_map.get(bias, tech_map["SIDEWAYS"])
     oi_strat    = oi_map.get(oi_dir, {"name": "Vertical Spread", "legs": f"Near {atm}", "signal": "Mixed signals"})
@@ -471,7 +426,7 @@ def recommend_strategies(bias, atm_strike, oi_dir):
 
 
 # =================================================================
-#  SECTION 8 -- HTML SECTION BUILDERS
+#  SECTION 6 -- HTML SECTION BUILDERS  (Ocean Teal + Cool Blue-Grey)
 # =================================================================
 
 def build_oi_html(oc):
@@ -604,27 +559,33 @@ def build_key_levels_html(tech, oc):
     )
 
 
-def build_strategy_selector_html(md, tech, oc):
-    """Builds the full strategy selector with tab switcher + payoff diagram cards."""
+def build_strategies_html(md, tech, oc):
     bias   = md["bias"]
     atm    = oc["atm_strike"] if oc else (round(tech["price"] / 50) * 50 if tech else 25000)
     oi_dir = oc["oi_dir"] if oc else "Neutral"
 
     tech_strats, oi_strat = recommend_strategies(bias, atm, oi_dir)
 
-    bc = "#0fa86b" if bias == "BULLISH" else ("#c0392b" if bias == "BEARISH" else "#d4a017")
+    bc = "#0d8a9e" if bias == "BULLISH" else ("#c0392b" if bias == "BEARISH" else "#d4a017")
 
-    # --- Recommended banner ---
     rec_cards = ""
     for s in tech_strats:
+        s_name = s['name']
+        s_legs = s['legs']
+        s_type = s['type']
+        s_risk = s['risk']
         rec_cards += (
             f"<div class=\"rec-card\" style=\"border-color:{bc}28;\">"
-            f"<div class=\"rec-name\">{s['name']}</div>"
-            f"<div class=\"rec-legs\">{s['legs']}</div>"
+            f"<div class=\"rec-name\">{s_name}</div>"
+            f"<div class=\"rec-legs\">{s_legs}</div>"
             f"<div style=\"display:flex;gap:6px;margin-top:8px;\">"
-            f"<span class=\"rec-tag\">{s['type']}</span>"
-            f"<span class=\"rec-tag\">{s['risk']} Risk</span></div></div>"
+            f"<span class=\"rec-tag\">{s_type}</span>"
+            f"<span class=\"rec-tag\">{s_risk} Risk</span></div></div>"
         )
+
+    oi_name = oi_strat['name']
+    oi_legs = oi_strat['legs']
+    oi_sig  = oi_strat['signal']
 
     rec_block = (
         f"<div class=\"rec-banner\" style=\"border-color:{bc}30;background:{bc}05;\">"
@@ -632,117 +593,59 @@ def build_strategy_selector_html(md, tech, oc):
         f"<div class=\"rec-grid\">{rec_cards}</div>"
         f"<div class=\"rec-oi-box\">"
         f"<span class=\"rec-oi-lbl\">OI Signal Strategy:</span>"
-        f"<span class=\"rec-oi-name\">{oi_strat['name']}</span>"
-        f"<span class=\"rec-oi-legs\">{oi_strat['legs']}</span>"
-        f"<span class=\"rec-oi-sig\">{oi_strat['signal']}</span>"
+        f"<span class=\"rec-oi-name\">{oi_name}</span>"
+        f"<span class=\"rec-oi-legs\">{oi_legs}</span>"
+        f"<span class=\"rec-oi-sig\">{oi_sig}</span>"
         f"</div></div>"
     )
 
-    # --- Tab buttons ---
-    tab_defs = [
-        ("bullish",        "BULLISH",         "#0fa86b", "9"),
-        ("bearish",        "BEARISH",         "#c0392b", "8"),
-        ("nondirectional", "NON-DIRECTIONAL", "#7b6cf6", "20"),
-    ]
-    tabs_html = '<div class="stab-wrap">'
-    for key, label, color, count in tab_defs:
-        active = "stab-active" if key == "bullish" else ""
-        tabs_html += (
-            f'<button class="stab {active}" data-tab="{key}" '
-            f'onclick="switchTab(\'{key}\')" style="--tc:{color};">'
-            f'{label} <span class="stab-count">{count}</span></button>'
+    dir_html = "<div class=\"strat-dir\">"
+    for direction, info in ALL_STRATEGIES.items():
+        col   = info["color"]
+        label = info["label"]
+        emoji = "UP" if direction == "bullish" else ("DOWN" if direction == "bearish" else "SIDEWAYS")
+        dir_html += (
+            f"<div class=\"strat-group\">"
+            f"<div class=\"strat-group-title\" style=\"color:{col};\">{emoji} {label} Strategies</div>"
         )
-    tabs_html += "</div>"
-
-    # --- Strategy cards per category ---
-    panels_html = ""
-    for cat_key, cat_data in ALL_STRATEGIES.items():
-        col   = cat_data["color"]
-        items = cat_data["items"]
-        visible = "block" if cat_key == "bullish" else "none"
-        cards_html = '<div class="strat-grid">'
-        for s in items:
-            svg     = get_payoff_svg(s.get("payoff", ""), 80, 50)
-            rc      = "#0fa86b" if s["risk"] in ("Limited",) else ("#d4a017" if s["risk"] == "Moderate" else "#c0392b")
-            rwc     = "#0fa86b" if s["reward"] == "Unlimited" else "#d4a017" if s["reward"] == "High" else "#8a8a8a"
-            cards_html += (
-                f'<div class="strat-card" onclick="openModal(this)" '
-                f'data-name="{s["name"]}" data-legs="{s["legs"]}" data-desc="{s["desc"]}" '
-                f'data-mp="{s["mp"]}" data-ml="{s["ml"]}" data-be="{s["be"]}" '
-                f'data-risk="{s["risk"]}" data-reward="{s["reward"]}" data-color="{col}">'
-                f'<div class="sc-svg">{svg}</div>'
-                f'<div class="sc-name">{s["name"]}</div>'
-                f'<div class="sc-legs">{s["legs"]}</div>'
-                f'<div class="sc-badges">'
-                f'<span class="sc-badge" style="color:{rc};">Risk: {s["risk"]}</span>'
-                f'<span class="sc-badge" style="color:{rwc};">Reward: {s["reward"]}</span>'
-                f'</div></div>'
+        for s in info["items"]:
+            s_risk   = s["risk"]
+            s_reward = s["reward"]
+            s_name   = s["name"]
+            s_desc   = s["desc"]
+            s_legs   = s["legs"]
+            s_mp     = s["mp"]
+            s_ml     = s["ml"]
+            s_be     = s["be"]
+            rc  = "#0fa86b" if s_risk   == "Limited"   else "#c0392b" if s_risk   == "High" else "#d4a017"
+            rwc = "#0fa86b" if s_reward == "Unlimited" else "#d4a017"
+            dir_html += (
+                f"<div class=\"strat-card\">"
+                f"<div class=\"strat-top\">"
+                f"<div class=\"strat-name\">{s_name}</div>"
+                f"<div style=\"display:flex;gap:5px;flex-wrap:wrap;\">"
+                f"<span style=\"font-size:10px;padding:2px 8px;border-radius:4px;"
+                f"color:{rc};background:{rc}10;border:1px solid {rc}28;\">Risk: {s_risk}</span>"
+                f"<span style=\"font-size:10px;padding:2px 8px;border-radius:4px;"
+                f"color:{rwc};background:{rwc}10;border:1px solid {rwc}28;\">Reward: {s_reward}</span>"
+                f"</div></div>"
+                f"<div class=\"strat-desc\">{s_desc}</div>"
+                f"<div class=\"strat-legs\">{s_legs}</div>"
+                f"<div class=\"strat-metrics\">"
+                f"<div><span class=\"sm-lbl\">Max Profit</span><span style=\"color:#0fa86b;\">{s_mp}</span></div>"
+                f"<div><span class=\"sm-lbl\">Max Loss</span><span style=\"color:#c0392b;\">{s_ml}</span></div>"
+                f"<div><span class=\"sm-lbl\">Breakeven</span><span style=\"color:#b8880e;\">{s_be}</span></div>"
+                f"</div></div>"
             )
-        cards_html += "</div>"
-        panels_html += f'<div id="tab-{cat_key}" class="stab-panel" style="display:{visible};">{cards_html}</div>'
-
-    # --- Detail modal (shown on card click) ---
-    modal_html = """
-<div id="strat-modal" class="smodal-overlay" onclick="if(event.target===this)closeModal()">
-  <div class="smodal-box">
-    <div class="smodal-header">
-      <div>
-        <div class="smodal-name" id="modal-name">Strategy Name</div>
-        <div class="smodal-legs" id="modal-legs">Legs</div>
-      </div>
-      <button class="smodal-close" onclick="closeModal()">&#x2715;</button>
-    </div>
-    <div class="smodal-body">
-      <div class="smodal-svg-wrap" id="modal-svg"></div>
-      <p class="smodal-desc" id="modal-desc"></p>
-      <div class="smodal-metrics">
-        <div class="smodal-metric"><span class="smodal-ml">Max Profit</span><span class="smodal-mv" id="modal-mp" style="color:#0fa86b;"></span></div>
-        <div class="smodal-metric"><span class="smodal-ml">Max Loss</span><span class="smodal-mv" id="modal-ml" style="color:#c0392b;"></span></div>
-        <div class="smodal-metric"><span class="smodal-ml">Breakeven</span><span class="smodal-mv" id="modal-be" style="color:#d4a017;"></span></div>
-      </div>
-    </div>
-  </div>
-</div>"""
-
-    js = """
-<script>
-function switchTab(key) {
-  document.querySelectorAll('.stab-panel').forEach(p => p.style.display = 'none');
-  document.querySelectorAll('.stab').forEach(b => b.classList.remove('stab-active'));
-  const panel = document.getElementById('tab-' + key);
-  if (panel) panel.style.display = 'block';
-  const btn = document.querySelector('[data-tab="' + key + '"]');
-  if (btn) btn.classList.add('stab-active');
-}
-function openModal(card) {
-  const m = document.getElementById('strat-modal');
-  document.getElementById('modal-name').textContent = card.dataset.name;
-  document.getElementById('modal-legs').textContent = card.dataset.legs;
-  document.getElementById('modal-desc').textContent = card.dataset.desc;
-  document.getElementById('modal-mp').textContent   = card.dataset.mp;
-  document.getElementById('modal-ml').textContent   = card.dataset.ml;
-  document.getElementById('modal-be').textContent   = card.dataset.be;
-  // Clone svg from card for modal
-  const svgEl = card.querySelector('.sc-svg');
-  const svgBox = document.getElementById('modal-svg');
-  svgBox.innerHTML = svgEl ? svgEl.innerHTML.replace('width="80" height="50"','width="220" height="120"').replace('viewBox="0 0 80 50"','viewBox="0 0 80 50"') : '';
-  m.style.display = 'flex';
-}
-function closeModal() {
-  document.getElementById('strat-modal').style.display = 'none';
-}
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
-</script>"""
+        dir_html += "</div>"
+    dir_html += "</div>"
 
     return (
         f"<div class=\"section\"><div class=\"sec-title\">STRATEGY RECOMMENDATIONS &amp; BUILDER</div>"
         f"{rec_block}"
-        f"<div class=\"sec-title\" style=\"border:none;padding:0;margin:24px 0 14px;font-size:12px;\">ALL STRATEGIES REFERENCE</div>"
-        f"{tabs_html}"
-        f"{panels_html}"
-        f"{modal_html}"
-        f"{js}"
-        f"</div>"
+        f"<div class=\"sec-title\" style=\"border:none;padding:0;margin:24px 0 14px;"
+        f"font-size:12px;\">ALL STRATEGIES REFERENCE</div>"
+        f"{dir_html}</div>"
     )
 
 
@@ -753,18 +656,31 @@ def build_strikes_html(oc):
     def ce_rows(rows):
         out = ""
         for i, r in enumerate(rows, 1):
-            out += (f"<tr><td>{i}</td><td><b>Rs{int(r['Strike']):,}</b></td>"
-                    f"<td>{int(r['CE_OI']):,}</td>"
-                    f"<td style=\"color:#0d8a9e;font-weight:700;\">Rs{r['CE_LTP']:.2f}</td></tr>")
+            strike = int(r['Strike'])
+            ce_oi  = int(r['CE_OI'])
+            ce_ltp = r['CE_LTP']
+            out += (
+                f"<tr><td>{i}</td><td><b>Rs{strike:,}</b></td>"
+                f"<td>{ce_oi:,}</td>"
+                f"<td style=\"color:#0d8a9e;font-weight:700;\">Rs{ce_ltp:.2f}</td></tr>"
+            )
         return out
 
     def pe_rows(rows):
         out = ""
         for i, r in enumerate(rows, 1):
-            out += (f"<tr><td>{i}</td><td><b>Rs{int(r['Strike']):,}</b></td>"
-                    f"<td>{int(r['PE_OI']):,}</td>"
-                    f"<td style=\"color:#c0392b;font-weight:700;\">Rs{r['PE_LTP']:.2f}</td></tr>")
+            strike = int(r['Strike'])
+            pe_oi  = int(r['PE_OI'])
+            pe_ltp = r['PE_LTP']
+            out += (
+                f"<tr><td>{i}</td><td><b>Rs{strike:,}</b></td>"
+                f"<td>{pe_oi:,}</td>"
+                f"<td style=\"color:#c0392b;font-weight:700;\">Rs{pe_ltp:.2f}</td></tr>"
+            )
         return out
+
+    top_ce = oc['top_ce']
+    top_pe = oc['top_pe']
 
     return (
         f"<div class=\"section\"><div class=\"sec-title\">TOP 5 STRIKES BY OPEN INTEREST"
@@ -772,179 +688,308 @@ def build_strikes_html(oc):
         f"<div class=\"strikes-wrap\">"
         f"<div><div style=\"color:#0d8a9e;font-weight:700;margin-bottom:10px;\">CALL Options (CE)</div>"
         f"<table class=\"s-table\"><thead><tr><th>#</th><th>Strike</th><th>OI</th><th>LTP</th></tr></thead>"
-        f"<tbody>{ce_rows(oc['top_ce'])}</tbody></table></div>"
+        f"<tbody>{ce_rows(top_ce)}</tbody></table></div>"
         f"<div><div style=\"color:#c0392b;font-weight:700;margin-bottom:10px;\">PUT Options (PE)</div>"
         f"<table class=\"s-table\"><thead><tr><th>#</th><th>Strike</th><th>OI</th><th>LTP</th></tr></thead>"
-        f"<tbody>{pe_rows(oc['top_pe'])}</tbody></table></div>"
+        f"<tbody>{pe_rows(top_pe)}</tbody></table></div>"
         f"</div></div>"
     )
 
 
 # =================================================================
-#  SECTION 9 -- CSS
+#  SECTION 7 -- CSS  (Ocean Teal header/hero + Cool Blue-Grey content)
 # =================================================================
 
 CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@300;400;500&display=swap');
+
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+
 :root {
-  --bg: #e8edf2; --surf: #dde4ec; --card: #d0d9e4; --bdr: #bfcad8; --bdr2: #a8b8cc;
-  --teal-dark: #0d5c6e; --teal: #1a9aad; --teal-light: #26d0a0; --teal-pale: #c8d8e4;
-  --text: #0d2d38; --muted: #4a5a6a; --muted2: #6a7a8a;
-  --bull: #0fa86b; --bear: #c0392b; --neut: #d4a017; --accent: #0d8a9e;
-  --fh: 'Sora', sans-serif; --fm: 'DM Mono', monospace;
+  /* ---- Cool Blue-Grey content palette ---- */
+  --bg:      #e8edf2;   /* page background   */
+  --surf:    #dde4ec;   /* section surface   */
+  --card:    #d0d9e4;   /* card background   */
+  --bdr:     #bfcad8;   /* border            */
+  --bdr2:    #a8b8cc;   /* stronger border   */
+
+  /* ---- Ocean Teal brand colours ---- */
+  --teal-dark:  #0d5c6e;
+  --teal:       #1a9aad;
+  --teal-light: #26d0a0;
+  --teal-pale:  #c8d8e4;
+
+  /* ---- Text ---- */
+  --text:   #0d2d38;
+  --muted:  #4a5a6a;
+  --muted2: #6a7a8a;
+
+  /* ---- Signal colours ---- */
+  --bull:   #0fa86b;
+  --bear:   #c0392b;
+  --neut:   #d4a017;
+  --accent: #0d8a9e;
+
+  --fh: 'Sora', sans-serif;
+  --fm: 'DM Mono', monospace;
 }
+
 html { scroll-behavior: smooth; }
-body { background: var(--bg); color: var(--text); font-family: var(--fh); font-size: 13px; line-height: 1.6; min-height: 100vh; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--fh);
+  font-size: 13px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* Subtle grid texture over the blue-grey bg */
 body::before {
-  content: ''; position: fixed; inset: 0;
-  background-image: radial-gradient(circle at 15% 25%, rgba(26,154,173,.05) 0%, transparent 45%),
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 15% 25%, rgba(26,154,173,.05) 0%, transparent 45%),
     radial-gradient(circle at 85% 75%, rgba(13,92,110,.05) 0%, transparent 45%),
     linear-gradient(rgba(13,92,110,.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(13,92,110,.025) 1px, transparent 1px);
   background-size: 100% 100%, 100% 100%, 36px 36px, 36px 36px;
-  pointer-events: none; z-index: 0;
+  pointer-events: none;
+  z-index: 0;
 }
+
 .app { position: relative; z-index: 1; display: grid; grid-template-rows: auto auto 1fr auto; min-height: 100vh; }
-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 32px; border-bottom: 2px solid rgba(255,255,255,.15); background: linear-gradient(135deg, #0d4a5a, #0d6e80); position: sticky; top: 0; z-index: 200; box-shadow: 0 2px 12px rgba(13,74,90,.3); }
+
+/* ---- Header ---- */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 32px;
+  border-bottom: 2px solid rgba(255,255,255,.15);
+  background: linear-gradient(135deg, #0d4a5a, #0d6e80);
+  position: sticky; top: 0; z-index: 200;
+  box-shadow: 0 2px 12px rgba(13,74,90,.3);
+}
 .logo { font-family: var(--fh); font-size: 20px; font-weight: 700; color: #fff; letter-spacing: .5px; }
 .logo span { color: #a8eee0; }
 .hdr-meta { display: flex; align-items: center; gap: 14px; font-size: 11px; color: rgba(255,255,255,.55); font-family: var(--fm); }
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #26d0a0; box-shadow: 0 0 8px #26d0a0; animation: pulse 2s infinite; }
 @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.3 } }
-.hero { padding: 26px 32px; background: linear-gradient(135deg, #0d4a5a 0%, #0d6e80 50%, #1a9aad 100%); border-bottom: 1px solid rgba(255,255,255,.1); display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; box-shadow: 0 3px 16px rgba(13,74,90,.2); }
+
+/* ---- Hero ---- */
+.hero {
+  padding: 26px 32px;
+  background: linear-gradient(135deg, #0d4a5a 0%, #0d6e80 50%, #1a9aad 100%);
+  border-bottom: 1px solid rgba(255,255,255,.1);
+  display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+  box-shadow: 0 3px 16px rgba(13,74,90,.2);
+}
 .hero-dir { font-family: var(--fh); font-size: 52px; font-weight: 700; line-height: 1; letter-spacing: -2px; color: #fff; }
 .hero-sub { font-size: 13px; color: rgba(255,255,255,.55); margin-top: 5px; }
-.hero-conf { display: inline-block; margin-top: 10px; font-size: 11px; font-weight: 600; padding: 4px 16px; border-radius: 20px; letter-spacing: 1px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.1); color: #a8eee0; }
+.hero-conf {
+  display: inline-block; margin-top: 10px; font-size: 11px; font-weight: 600;
+  padding: 4px 16px; border-radius: 20px; letter-spacing: 1px;
+  border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.1); color: #a8eee0;
+}
 .hero-stats { display: flex; gap: 28px; align-items: center; flex-wrap: wrap; }
 .hstat { text-align: center; }
 .hstat-lbl { font-size: 10px; color: rgba(255,255,255,.45); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 3px; }
 .hstat-val { font-family: var(--fm); font-size: 18px; font-weight: 600; color: #fff; }
+
+/* ---- Main grid ---- */
 .main { display: grid; grid-template-columns: 268px 1fr; min-height: 0; }
-.sidebar { border-right: 1px solid var(--bdr2); background: linear-gradient(180deg, #d0dae6 0%, #c8d4e2 100%); position: sticky; top: 57px; height: calc(100vh - 57px); overflow-y: auto; }
+
+/* ---- Sidebar ---- */
+.sidebar {
+  border-right: 1px solid var(--bdr2);
+  background: linear-gradient(180deg, #d0dae6 0%, #c8d4e2 100%);
+  position: sticky; top: 57px; height: calc(100vh - 57px); overflow-y: auto;
+  box-shadow: inset -1px 0 0 var(--bdr2);
+}
 .sidebar::-webkit-scrollbar { width: 3px; }
 .sidebar::-webkit-scrollbar-thumb { background: var(--bdr2); border-radius: 2px; }
 .sb-sec { padding: 16px 12px 8px; }
-.sb-lbl { font-size: 9px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--teal); margin-bottom: 8px; padding: 0 0 0 8px; border-left: 3px solid var(--teal); }
-.sb-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 12px; border-radius: 8px; border: 1px solid transparent; cursor: pointer; background: transparent; color: var(--muted); font-family: var(--fh); font-size: 12px; text-align: left; transition: all .15s; }
+.sb-lbl {
+  font-size: 9px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase;
+  color: var(--teal); margin-bottom: 8px;
+  padding: 0 0 0 8px; border-left: 3px solid var(--teal);
+}
+.sb-btn {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 12px;
+  border-radius: 8px; border: 1px solid transparent; cursor: pointer;
+  background: transparent; color: var(--muted); font-family: var(--fh);
+  font-size: 12px; text-align: left; transition: all .15s;
+}
 .sb-btn:hover { background: rgba(13,138,158,.1); color: var(--teal-dark); border-color: var(--bdr); }
 .sb-btn.active { background: rgba(13,138,158,.14); border-color: var(--bdr2); color: var(--teal-dark); font-weight: 600; }
 .sb-badge { font-size: 10px; margin-left: auto; font-weight: 700; }
-.sig-card { margin: 12px 10px 8px; padding: 16px 14px; background: linear-gradient(135deg, #0d4a5a, #0d8a9e); border-radius: 12px; border: 1px solid rgba(255,255,255,.1); text-align: center; box-shadow: 0 4px 16px rgba(13,74,90,.25); }
+
+/* Signal card */
+.sig-card {
+  margin: 12px 10px 8px; padding: 16px 14px;
+  background: linear-gradient(135deg, #0d4a5a, #0d8a9e);
+  border-radius: 12px; border: 1px solid rgba(255,255,255,.1);
+  text-align: center; box-shadow: 0 4px 16px rgba(13,74,90,.25);
+}
 .sig-arrow { font-family: var(--fh); font-size: 38px; font-weight: 700; line-height: 1; margin-bottom: 4px; color: #a8eee0; }
 .sig-bias  { font-family: var(--fh); font-size: 18px; font-weight: 700; color: #fff; }
 .sig-meta  { font-size: 10px; color: rgba(255,255,255,.5); margin-top: 4px; }
+
+/* ---- Content ---- */
 .content { overflow-y: auto; }
-.section { padding: 24px 28px; border-bottom: 1px solid var(--bdr); background: var(--bg); }
-.section:nth-child(odd) { background: var(--surf); }
-.sec-title { font-family: var(--fh); font-size: 12px; font-weight: 700; letter-spacing: 2px; color: var(--teal-dark); text-transform: uppercase; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2px solid var(--teal-pale); }
-.sec-sub { font-size: 11px; color: var(--muted2); font-weight: 400; letter-spacing: .5px; text-transform: none; margin-left: auto; }
-.oi-dir-box { border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
-.oi-dir-tag { font-size: 10px; letter-spacing: 2px; color: var(--muted2); margin-bottom: 6px; text-transform: uppercase; }
-.oi-dir-name { font-family: var(--fh); font-size: 26px; font-weight: 700; margin-bottom: 4px; }
-.oi-dir-sig { font-size: 13px; }
-.oi-meter-wrap { margin-top: 16px; }
-.oi-meter-lbl { font-size: 10px; color: var(--muted2); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 5px; }
-.oi-meter-track { height: 8px; background: rgba(13,92,110,.1); border-radius: 4px; overflow: hidden; width: 100%; max-width: 320px; }
-.oi-meter-pct { font-size: 12px; margin-top: 4px; }
-.oi-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 12px; }
-.oi-card { background: var(--card); border: 1px solid var(--bdr); border-radius: 12px; padding: 16px; box-shadow: 0 1px 6px rgba(13,60,80,.07); }
-.oi-lbl { font-size: 9px; letter-spacing: 2px; color: var(--muted2); text-transform: uppercase; margin-bottom: 8px; }
-.oi-val { font-family: var(--fm); font-size: 24px; font-weight: 600; margin-bottom: 4px; }
-.oi-sub { font-size: 10px; color: var(--muted2); margin-bottom: 12px; }
-.oi-sig { display: block; padding: 7px 12px; border-radius: 6px; text-align: center; font-size: 12px; font-weight: 600; }
-.oi-legend { display: flex; flex-wrap: wrap; gap: 10px 20px; font-size: 11px; color: var(--muted); padding: 10px 0; }
-.kl-zone-labels { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; font-weight: 700; }
-.kl-node { position: absolute; text-align: center; }
-.kl-lbl { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; line-height: 1.3; white-space: nowrap; }
-.kl-val { font-size: 12px; font-weight: 700; color: var(--text); white-space: nowrap; margin-top: 2px; }
-.kl-dot { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--surf); }
-.kl-gradient-bar { position: relative; height: 8px; border-radius: 4px; background: linear-gradient(90deg,#0d6e80 0%,#0d8a9e 20%,#26d0a0 40%,#d4a017 58%,#c0392b 80%,#96281b 100%); }
-.kl-price-tick { position: absolute; top: 50%; transform: translate(-50%,-50%); width: 4px; height: 20px; background: var(--teal-dark); border-radius: 2px; box-shadow: 0 0 10px rgba(13,92,110,.5); z-index: 10; }
-.kl-dist-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
-.kl-dist-box { background: var(--card); border: 1px solid; border-radius: 8px; padding: 9px 14px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 4px rgba(13,60,80,.06); }
-.rec-banner { border: 1px solid; border-radius: 14px; padding: 18px 20px; margin-bottom: 20px; }
-.rec-title { font-family: var(--fh); font-size: 15px; font-weight: 700; margin-bottom: 14px; }
-.rec-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 14px; }
-.rec-card { background: var(--card); border: 1px solid; border-radius: 10px; padding: 14px; box-shadow: 0 1px 6px rgba(13,60,80,.07); }
-.rec-name { font-family: var(--fh); font-size: 14px; font-weight: 700; color: var(--teal-dark); margin-bottom: 5px; }
-.rec-legs { font-family: var(--fm); font-size: 11px; color: var(--muted); }
-.rec-tag { font-size: 10px; padding: 2px 8px; border-radius: 4px; background: rgba(13,138,158,.07); color: var(--teal); border: 1px solid var(--bdr); }
-.rec-oi-box { background: var(--card); border: 1px solid var(--bdr); border-radius: 8px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; box-shadow: 0 1px 4px rgba(13,60,80,.06); }
-.rec-oi-lbl { color: var(--muted2); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
-.rec-oi-name { font-weight: 700; color: var(--teal-dark); }
-.rec-oi-legs { font-family: var(--fm); font-size: 11px; color: var(--muted); }
-.rec-oi-sig { margin-left: auto; font-style: italic; color: var(--muted2); }
 
-/* ---- Strategy Tabs ---- */
-.stab-wrap { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; }
-.stab {
-  padding: 8px 18px; border-radius: 8px; border: 1.5px solid var(--tc, #0d8a9e);
-  background: transparent; color: var(--tc, #0d8a9e); font-family: var(--fh);
-  font-size: 12px; font-weight: 600; cursor: pointer; transition: all .18s; letter-spacing: .5px;
+/* ---- Section — alternating surface colours ---- */
+.section {
+  padding: 24px 28px;
+  border-bottom: 1px solid var(--bdr);
+  background: var(--bg);
 }
-.stab:hover { background: color-mix(in srgb, var(--tc, #0d8a9e) 12%, transparent); }
-.stab-active { background: var(--tc, #0d8a9e) !important; color: #fff !important; box-shadow: 0 3px 12px color-mix(in srgb, var(--tc,#0d8a9e) 30%, transparent); }
-.stab-count { font-size: 10px; background: rgba(255,255,255,.25); padding: 1px 6px; border-radius: 10px; margin-left: 4px; }
-.stab-panel { animation: fadeIn .2s ease; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.section:nth-child(odd) { background: var(--surf); }
 
-/* ---- Strategy Grid Cards ---- */
-.strat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px,1fr)); gap: 12px; }
-.strat-card {
-  background: var(--card); border: 1px solid var(--bdr); border-radius: 12px;
-  padding: 14px 12px 12px; cursor: pointer; transition: all .2s;
+.sec-title {
+  font-family: var(--fh); font-size: 12px; font-weight: 700; letter-spacing: 2px;
+  color: var(--teal-dark); text-transform: uppercase;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 18px; padding-bottom: 12px;
+  border-bottom: 2px solid var(--teal-pale);
+}
+.sec-sub {
+  font-size: 11px; color: var(--muted2); font-weight: 400;
+  letter-spacing: .5px; text-transform: none; margin-left: auto;
+}
+
+/* ---- OI ---- */
+.oi-dir-box  { border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+.oi-dir-tag  { font-size: 10px; letter-spacing: 2px; color: var(--muted2); margin-bottom: 6px; text-transform: uppercase; }
+.oi-dir-name { font-family: var(--fh); font-size: 26px; font-weight: 700; margin-bottom: 4px; }
+.oi-dir-sig  { font-size: 13px; }
+.oi-meter-wrap { margin-top: 16px; }
+.oi-meter-lbl  { font-size: 10px; color: var(--muted2); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 5px; }
+.oi-meter-track { height: 8px; background: rgba(13,92,110,.1); border-radius: 4px; overflow: hidden; width: 100%; max-width: 320px; }
+.oi-meter-pct  { font-size: 12px; margin-top: 4px; }
+.oi-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 12px; }
+.oi-card {
+  background: var(--card); border: 1px solid var(--bdr); border-radius: 12px; padding: 16px;
   box-shadow: 0 1px 6px rgba(13,60,80,.07);
 }
+.oi-lbl  { font-size: 9px; letter-spacing: 2px; color: var(--muted2); text-transform: uppercase; margin-bottom: 8px; }
+.oi-val  { font-family: var(--fm); font-size: 24px; font-weight: 600; margin-bottom: 4px; }
+.oi-sub  { font-size: 10px; color: var(--muted2); margin-bottom: 12px; }
+.oi-sig  { display: block; padding: 7px 12px; border-radius: 6px; text-align: center; font-size: 12px; font-weight: 600; }
+.oi-legend { display: flex; flex-wrap: wrap; gap: 10px 20px; font-size: 11px; color: var(--muted); padding: 10px 0; }
+
+/* ---- Key Levels ---- */
+.kl-zone-labels { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; font-weight: 700; }
+.kl-node { position: absolute; text-align: center; }
+.kl-lbl  { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; line-height: 1.3; white-space: nowrap; }
+.kl-val  { font-size: 12px; font-weight: 700; color: var(--text); white-space: nowrap; margin-top: 2px; }
+.kl-dot  { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--surf); }
+.kl-gradient-bar {
+  position: relative; height: 8px; border-radius: 4px;
+  background: linear-gradient(90deg,#0d6e80 0%,#0d8a9e 20%,#26d0a0 40%,#d4a017 58%,#c0392b 80%,#96281b 100%);
+}
+.kl-price-tick {
+  position: absolute; top: 50%; transform: translate(-50%,-50%);
+  width: 4px; height: 20px; background: var(--teal-dark); border-radius: 2px;
+  box-shadow: 0 0 10px rgba(13,92,110,.5); z-index: 10;
+}
+.kl-dist-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+.kl-dist-box {
+  background: var(--card); border: 1px solid; border-radius: 8px;
+  padding: 9px 14px; display: flex; justify-content: space-between; align-items: center;
+  box-shadow: 0 1px 4px rgba(13,60,80,.06);
+}
+
+/* ---- Strategies ---- */
+.rec-banner { border: 1px solid; border-radius: 14px; padding: 18px 20px; margin-bottom: 20px; }
+.rec-title  { font-family: var(--fh); font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+.rec-grid   { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 14px; }
+.rec-card   {
+  background: var(--card); border: 1px solid; border-radius: 10px; padding: 14px;
+  box-shadow: 0 1px 6px rgba(13,60,80,.07);
+}
+.rec-name { font-family: var(--fh); font-size: 14px; font-weight: 700; color: var(--teal-dark); margin-bottom: 5px; }
+.rec-legs { font-family: var(--fm); font-size: 11px; color: var(--muted); }
+.rec-tag  {
+  font-size: 10px; padding: 2px 8px; border-radius: 4px;
+  background: rgba(13,138,158,.07); color: var(--teal); border: 1px solid var(--bdr);
+}
+.rec-oi-box {
+  background: var(--card); border: 1px solid var(--bdr); border-radius: 8px;
+  padding: 12px 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px;
+  box-shadow: 0 1px 4px rgba(13,60,80,.06);
+}
+.rec-oi-lbl  { color: var(--muted2); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+.rec-oi-name { font-weight: 700; color: var(--teal-dark); }
+.rec-oi-legs { font-family: var(--fm); font-size: 11px; color: var(--muted); }
+.rec-oi-sig  { margin-left: auto; font-style: italic; color: var(--muted2); }
+
+.strat-dir        { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.strat-group      { display: flex; flex-direction: column; gap: 10px; }
+.strat-group-title { font-family: var(--fh); font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.strat-card {
+  background: var(--card); border: 1px solid var(--bdr); border-radius: 10px; padding: 14px;
+  transition: all .2s; box-shadow: 0 1px 6px rgba(13,60,80,.06);
+}
 .strat-card:hover { border-color: var(--teal); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(13,92,110,.13); }
-.sc-svg { margin-bottom: 8px; display: flex; justify-content: center; }
-.sc-name { font-family: var(--fh); font-size: 12px; font-weight: 700; color: var(--teal-dark); margin-bottom: 4px; line-height: 1.3; }
-.sc-legs { font-family: var(--fm); font-size: 9px; color: var(--muted2); margin-bottom: 8px; line-height: 1.5; }
-.sc-badges { display: flex; flex-wrap: wrap; gap: 4px; }
-.sc-badge { font-size: 9px; padding: 1px 6px; border-radius: 4px; background: rgba(13,60,80,.05); border: 1px solid var(--bdr); }
+.strat-top    { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+.strat-name   { font-family: var(--fh); font-size: 14px; font-weight: 700; color: var(--teal-dark); }
+.strat-desc   { font-size: 11px; color: var(--muted); line-height: 1.7; margin-bottom: 8px; }
+.strat-legs   { font-family: var(--fm); font-size: 10px; color: var(--teal); margin-bottom: 10px; letter-spacing: .5px; }
+.strat-metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
+.strat-metrics > div {
+  background: var(--surf); border: 1px solid var(--bdr); border-radius: 6px; padding: 6px 8px;
+}
+.sm-lbl { display: block; font-size: 9px; color: var(--muted2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
 
-/* ---- Strategy Modal ---- */
-.smodal-overlay {
-  display: none; position: fixed; inset: 0; z-index: 9000;
-  background: rgba(13,30,40,.65); backdrop-filter: blur(4px);
-  justify-content: center; align-items: center; padding: 20px;
-}
-.smodal-box {
-  background: var(--surf); border: 1px solid var(--bdr2); border-radius: 18px;
-  width: 100%; max-width: 480px; box-shadow: 0 24px 60px rgba(0,0,0,.3);
-  overflow: hidden;
-}
-.smodal-header {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  padding: 20px 22px 14px; border-bottom: 1px solid var(--bdr);
-  background: linear-gradient(135deg, #0d4a5a, #0d8a9e);
-}
-.smodal-name { font-family: var(--fh); font-size: 20px; font-weight: 700; color: #fff; }
-.smodal-legs { font-family: var(--fm); font-size: 11px; color: rgba(255,255,255,.6); margin-top: 4px; }
-.smodal-close { background: rgba(255,255,255,.15); border: none; color: #fff; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: background .15s; }
-.smodal-close:hover { background: rgba(255,255,255,.28); }
-.smodal-body { padding: 20px 22px; }
-.smodal-svg-wrap { display: flex; justify-content: center; margin-bottom: 14px; background: var(--card); border-radius: 10px; padding: 14px; border: 1px solid var(--bdr); }
-.smodal-desc { font-size: 13px; color: var(--muted); margin-bottom: 16px; line-height: 1.7; }
-.smodal-metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
-.smodal-metric { background: var(--card); border: 1px solid var(--bdr); border-radius: 8px; padding: 10px 12px; }
-.smodal-ml { display: block; font-size: 9px; color: var(--muted2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
-.smodal-mv { font-family: var(--fm); font-size: 12px; font-weight: 600; }
-
+/* ---- Strikes table ---- */
 .strikes-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .s-table { width: 100%; border-collapse: collapse; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(13,60,80,.09); }
-.s-table th { background: linear-gradient(135deg, #0d4a5a, #0d8a9e); color: #fff; padding: 10px 12px; font-size: 11px; font-weight: 600; text-align: left; letter-spacing: .5px; }
-.s-table td { padding: 10px 12px; border-bottom: 1px solid var(--bdr); font-size: 12px; color: var(--text); background: var(--card); }
+.s-table th {
+  background: linear-gradient(135deg, #0d4a5a, #0d8a9e);
+  color: #fff; padding: 10px 12px; font-size: 11px; font-weight: 600; text-align: left; letter-spacing: .5px;
+}
+.s-table td {
+  padding: 10px 12px; border-bottom: 1px solid var(--bdr);
+  font-size: 12px; color: var(--text); background: var(--card);
+}
 .s-table tr:last-child td { border-bottom: none; }
 .s-table tr:hover td { background: var(--surf); }
-footer { padding: 16px 32px; border-top: 2px solid rgba(255,255,255,.12); background: linear-gradient(135deg, #0d4a5a, #0d6e80); display: flex; justify-content: space-between; font-size: 11px; color: rgba(255,255,255,.45); font-family: var(--fm); }
-@media(max-width:1024px) { .main { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--bdr); } .hero-dir { font-size: 36px; } .oi-cards { grid-template-columns: 1fr; } .rec-grid { grid-template-columns: 1fr; } .strikes-wrap { grid-template-columns: 1fr; } }
-@media(max-width:640px) { header { padding: 12px 16px; } .hero { padding: 16px; flex-direction: column; } .hero-dir { font-size: 30px; } .section { padding: 16px; } .smodal-metrics { grid-template-columns: 1fr; } .kl-dist-row { grid-template-columns: 1fr; } footer { flex-direction: column; gap: 6px; } }
+
+/* ---- Footer ---- */
+footer {
+  padding: 16px 32px;
+  border-top: 2px solid rgba(255,255,255,.12);
+  background: linear-gradient(135deg, #0d4a5a, #0d6e80);
+  display: flex; justify-content: space-between;
+  font-size: 11px; color: rgba(255,255,255,.45); font-family: var(--fm);
+}
+
+/* ---- Responsive ---- */
+@media(max-width:1024px) {
+  .main { grid-template-columns: 1fr; }
+  .sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--bdr); }
+  .hero-dir { font-size: 36px; }
+  .oi-cards { grid-template-columns: 1fr; }
+  .strat-dir { grid-template-columns: 1fr; }
+  .rec-grid { grid-template-columns: 1fr; }
+  .strikes-wrap { grid-template-columns: 1fr; }
+}
+@media(max-width:640px) {
+  header { padding: 12px 16px; }
+  .hero { padding: 16px; flex-direction: column; }
+  .hero-dir { font-size: 30px; }
+  .section { padding: 16px; }
+  .strat-metrics { grid-template-columns: 1fr; }
+  .kl-dist-row { grid-template-columns: 1fr; }
+  footer { flex-direction: column; gap: 6px; }
+}
 """
 
 
 # =================================================================
-#  SECTION 10 -- MASTER HTML ASSEMBLER
+#  SECTION 8 -- MASTER HTML ASSEMBLER
 # =================================================================
 
 def generate_html(tech, oc, md, ts):
@@ -960,13 +1005,19 @@ def generate_html(tech, oc, md, ts):
     bear = md["bear"]
     diff = md["diff"]
 
-    b_arrow = "UP" if bias == "BULLISH" else ("DOWN" if bias == "BEARISH" else "SIDEWAYS")
+    if bias == "BULLISH":
+        b_arrow = "UP"
+    elif bias == "BEARISH":
+        b_arrow = "DOWN"
+    else:
+        b_arrow = "SIDEWAYS"
+
     bc      = "#0d8a9e" if bias == "BULLISH" else ("#c0392b" if bias == "BEARISH" else "#d4a017")
     pcr_col = "var(--bull)" if pcr > 1.2 else ("var(--bear)" if pcr < 0.7 else "var(--neut)")
 
-    oi_html      = build_oi_html(oc)                          if oc   else ""
-    kl_html      = build_key_levels_html(tech, oc)           if tech else ""
-    strat_html   = build_strategy_selector_html(md, tech, oc)
+    oi_html      = build_oi_html(oc)               if oc   else ""
+    kl_html      = build_key_levels_html(tech, oc) if tech else ""
+    strat_html   = build_strategies_html(md, tech, oc)
     strikes_html = build_strikes_html(oc)
 
     sig_card = (
@@ -992,6 +1043,7 @@ def generate_html(tech, oc, md, ts):
 </head>
 <body>
 <div class="app">
+
 <header>
   <div class="logo">NIFTY<span>CRAFT</span></div>
   <div class="hdr-meta">
@@ -1001,20 +1053,39 @@ def generate_html(tech, oc, md, ts):
     <span>{ts}</span>
   </div>
 </header>
+
 <div class="hero">
   <div>
     <div class="hero-dir">{bias}</div>
     <div class="hero-sub">Market Direction &middot; {conf} Confidence</div>
-    <span class="hero-conf">Bull {bull} pt &nbsp;&middot;&nbsp; Bear {bear} pt &nbsp;&middot;&nbsp; Diff {diff:+d}</span>
+    <span class="hero-conf">
+      Bull {bull} pt &nbsp;&middot;&nbsp; Bear {bear} pt &nbsp;&middot;&nbsp; Diff {diff:+d}
+    </span>
   </div>
   <div class="hero-stats">
-    <div class="hstat"><div class="hstat-lbl">NIFTY Spot</div><div class="hstat-val">&#8377;{cp:,.2f}</div></div>
-    <div class="hstat"><div class="hstat-lbl">ATM Strike</div><div class="hstat-val" style="color:#a8eee0;">&#8377;{atm:,}</div></div>
-    <div class="hstat"><div class="hstat-lbl">Expiry</div><div class="hstat-val" style="color:#f5d77a;">{expiry}</div></div>
-    <div class="hstat"><div class="hstat-lbl">PCR (OI)</div><div class="hstat-val" style="color:{pcr_col};">{pcr:.3f}</div></div>
-    <div class="hstat"><div class="hstat-lbl">Max Pain</div><div class="hstat-val" style="color:#f5d77a;">&#8377;{mp:,}</div></div>
+    <div class="hstat">
+      <div class="hstat-lbl">NIFTY Spot</div>
+      <div class="hstat-val">&#8377;{cp:,.2f}</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-lbl">ATM Strike</div>
+      <div class="hstat-val" style="color:#a8eee0;">&#8377;{atm:,}</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-lbl">Expiry</div>
+      <div class="hstat-val" style="color:#f5d77a;">{expiry}</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-lbl">PCR (OI)</div>
+      <div class="hstat-val" style="color:{pcr_col};">{pcr:.3f}</div>
+    </div>
+    <div class="hstat">
+      <div class="hstat-lbl">Max Pain</div>
+      <div class="hstat-val" style="color:#f5d77a;">&#8377;{mp:,}</div>
+    </div>
   </div>
 </div>
+
 <div class="main">
   <aside class="sidebar">
     {sig_card}
@@ -1025,22 +1096,26 @@ def generate_html(tech, oc, md, ts):
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">STRATEGIES</div>
-      <button class="sb-btn" onclick="go('strat',this);switchTab('bullish')">Bullish <span class="sb-badge" style="color:var(--bull);">9</span></button>
-      <button class="sb-btn" onclick="go('strat',this);switchTab('bearish')">Bearish <span class="sb-badge" style="color:var(--bear);">8</span></button>
-      <button class="sb-btn" onclick="go('strat',this);switchTab('nondirectional')">Non-Directional <span class="sb-badge" style="color:#7b6cf6;">20</span></button>
+      <button class="sb-btn" onclick="go('strat',this)">Recommendations</button>
+      <button class="sb-btn" onclick="go('strat',this)">Bullish <span class="sb-badge" style="color:var(--bull);">4</span></button>
+      <button class="sb-btn" onclick="go('strat',this)">Bearish <span class="sb-badge" style="color:var(--bear);">3</span></button>
+      <button class="sb-btn" onclick="go('strat',this)">Neutral <span class="sb-badge" style="color:var(--neut);">4</span></button>
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">OPTION CHAIN</div>
       <button class="sb-btn" onclick="go('strikes',this)">Top 5 Strikes</button>
     </div>
   </aside>
+
   <main class="content">
     <div id="oi">{oi_html}</div>
     <div id="kl">{kl_html}</div>
     <div id="strat">{strat_html}</div>
     <div id="strikes">{strikes_html}</div>
     <div class="section">
-      <div style="background:rgba(212,160,23,.06);border:1px solid rgba(212,160,23,.22);border-left:3px solid #d4a017;border-radius:10px;padding:16px 18px;font-size:13px;color:#7a5c00;line-height:1.8;">
+      <div style="background:rgba(212,160,23,.06);border:1px solid rgba(212,160,23,.22);
+                  border-left:3px solid #d4a017;border-radius:10px;padding:16px 18px;
+                  font-size:13px;color:#7a5c00;line-height:1.8;">
         <strong>DISCLAIMER</strong><br>
         This dashboard is for EDUCATIONAL purposes only &mdash; NOT financial advice.<br>
         Always use stop losses. Consult a SEBI-registered investment advisor before trading.
@@ -1048,11 +1123,13 @@ def generate_html(tech, oc, md, ts):
     </div>
   </main>
 </div>
+
 <footer>
   <span>NiftyCraft &middot; NSE Options Dashboard</span>
   <span>For Educational Purposes Only &middot; &copy; 2025</span>
 </footer>
 </div>
+
 <script>
 function go(id, btn) {{
   const el = document.getElementById(id);
@@ -1066,7 +1143,7 @@ function go(id, btn) {{
 
 
 # =================================================================
-#  SECTION 11 -- MAIN RUNNER
+#  SECTION 9 -- MAIN RUNNER
 # =================================================================
 
 def main():
@@ -1081,7 +1158,10 @@ def main():
     oc_raw      = NSEOptionChain().fetch()
     oc_analysis = analyze_option_chain(oc_raw) if oc_raw else None
     if oc_analysis:
-        print(f"  OK  Spot={oc_analysis['underlying']:.2f}  ATM={oc_analysis['atm_strike']}  PCR={oc_analysis['pcr_oi']:.3f}")
+        underlying = oc_analysis['underlying']
+        atm_strike = oc_analysis['atm_strike']
+        pcr_oi     = oc_analysis['pcr_oi']
+        print(f"  OK  Spot={underlying:.2f}  ATM={atm_strike}  PCR={pcr_oi:.3f}")
     else:
         print("  WARNING  Option chain unavailable -- technical-only mode")
 
@@ -1090,7 +1170,11 @@ def main():
 
     print("\n[3/3] Scoring Market Direction...")
     md   = compute_market_direction(tech, oc_analysis)
-    print(f"  OK  {md['bias']} ({md['confidence']} confidence)  Bull={md['bull']} Bear={md['bear']}")
+    bias = md['bias']
+    conf = md['confidence']
+    bull = md['bull']
+    bear = md['bear']
+    print(f"  OK  {bias} ({conf} confidence)  Bull={bull} Bear={bear}")
 
     print("\nGenerating HTML dashboard...")
     html = generate_html(tech, oc_analysis, md, ts)
