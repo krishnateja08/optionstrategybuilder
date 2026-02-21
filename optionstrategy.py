@@ -128,10 +128,7 @@ class NSEOptionChain:
                 result = self._fetch_for_expiry(session, headers, real_expiry)
         if result is None:
             print("  ERROR Option chain fetch failed.")
-        # Return session+headers so VIX fetcher can reuse the warm session
         return result, session, headers
-
-
 
 
 # =================================================================
@@ -139,14 +136,6 @@ class NSEOptionChain:
 # =================================================================
 
 def fetch_india_vix(nse_session=None, nse_headers=None):
-    """
-    Fetch India VIX. Tries 3 sources in order:
-    1. NSE /api/allIndices  (uses warm session - best)
-    2. NSE option-chain vixClose field
-    3. yfinance ^INDIAVIX
-    Returns dict {value, prev_close, change, change_pct, high, low, status} or None.
-    """
-    # Source 1: NSE allIndices
     if nse_session and nse_headers:
         try:
             resp = nse_session.get(
@@ -167,7 +156,6 @@ def fetch_india_vix(nse_session=None, nse_headers=None):
         except Exception as e:
             print(f"  WARNING VIX source1: {e}")
 
-    # Source 2: option-chain vixClose
     if nse_session and nse_headers:
         try:
             resp = nse_session.get(
@@ -183,7 +171,6 @@ def fetch_india_vix(nse_session=None, nse_headers=None):
         except Exception as e:
             print(f"  WARNING VIX source2: {e}")
 
-    # Source 3: yfinance ^INDIAVIX
     try:
         import yfinance as yf
         hist = yf.Ticker("^INDIAVIX").history(period="2d")
@@ -205,7 +192,6 @@ def fetch_india_vix(nse_session=None, nse_headers=None):
 
 
 def vix_label(v):
-    """Return (label, color, bg, border, signal) based on VIX level."""
     if   v < 12:  return "Extremely Low",  "#00c896", "rgba(0,200,150,.12)",  "rgba(0,200,150,.35)",  "Sell Premium"
     elif v < 15:  return "Low",            "#4de8b8", "rgba(0,200,150,.08)",  "rgba(0,200,150,.25)",  "Sell Premium"
     elif v < 20:  return "Normal",         "#6480ff", "rgba(100,128,255,.1)", "rgba(100,128,255,.3)", "Balanced"
@@ -256,11 +242,9 @@ def analyze_option_chain(oc_data):
     top_ce = df.nlargest(5, "CE_OI")[["Strike", "CE_OI", "CE_LTP"]].to_dict("records")
     top_pe = df.nlargest(5, "PE_OI")[["Strike", "PE_OI", "PE_LTP"]].to_dict("records")
 
-    # Build ATM/OTM lookup for JS
-    atm = oc_data["atm_strike"]
+    atm  = oc_data["atm_strike"]
     spot = oc_data["underlying"]
-    
-    # Get strikes around ATM for JS data
+
     strikes_data = []
     for _, row in df.iterrows():
         strikes_data.append({
@@ -272,6 +256,13 @@ def analyze_option_chain(oc_data):
             "ce_oi":  int(row["CE_OI"]),
             "pe_oi":  int(row["PE_OI"]),
         })
+
+    # Bull/bear force for gauge
+    bull_force = (abs(pe_chg) if pe_chg > 0 else 0) + (abs(ce_chg) if ce_chg < 0 else 0)
+    bear_force = (abs(ce_chg) if ce_chg > 0 else 0) + (abs(pe_chg) if pe_chg < 0 else 0)
+    total_f    = bull_force + bear_force or 1
+    bull_pct   = round(bull_force / total_f * 100)
+    bear_pct   = 100 - bull_pct
 
     return {
         "expiry":        oc_data["expiry"],
@@ -296,6 +287,10 @@ def analyze_option_chain(oc_data):
         "top_ce":        top_ce,
         "top_pe":        top_pe,
         "strikes_data":  strikes_data,
+        "bull_pct":      bull_pct,
+        "bear_pct":      bear_pct,
+        "bull_force":    bull_force,
+        "bear_force":    bear_force,
         "df":            df,
     }
 
@@ -344,7 +339,6 @@ def get_technical_data():
                 if r2 and r1 and r2 <= r1:  r2 = r1 + 75
                 if s1 and s1 >= cp:         s1 = round((cp - 50) / 25) * 25
                 if s2 and s1 and s2 >= s1:  s2 = s1 - 75
-                print(f"  1H Levels: S2={s2} S1={s1} CMP={cp:.0f} R1={r1} R2={r2}")
         except Exception as e:
             print(f"  WARNING 1H data: {e}")
 
@@ -354,7 +348,6 @@ def get_technical_data():
         strong_res = r2 if r2 else resistance + 100
         strong_sup = s2 if s2 else support - 100
 
-        # Historical volatility (annualized)
         df["log_ret"] = np.log(df["Close"] / df["Close"].shift(1))
         hv = df["log_ret"].tail(20).std() * np.sqrt(252) * 100
 
@@ -433,6 +426,203 @@ def _cls_bg(cls):
 def _cls_bdr(cls):
     return ("rgba(0,200,150,.22)"   if cls == "bullish" else
             "rgba(255,107,107,.22)" if cls == "bearish" else "rgba(100,128,255,.22)")
+
+
+# =================================================================
+#  SECTION 5A -- DUAL GAUGE HERO (replaces SIDEWAYS header)
+# =================================================================
+
+def build_dual_gauge_hero(oc, tech, md, ts):
+    """
+    Build the Dual Gauge Ring hero widget.
+    Shows OI Net Change (bull gauge) and OI Net Value / bear pressure (bear gauge)
+    with progress bars for OI Net Chg %, Bear Force %, and PCR.
+    """
+    # ── Pull data ──────────────────────────────────────────────
+    if oc:
+        ce_chg      = oc["ce_chg"]
+        pe_chg      = oc["pe_chg"]
+        net_chg     = oc["net_chg"]
+        bull_pct    = oc["bull_pct"]
+        bear_pct    = oc["bear_pct"]
+        bull_force  = oc["bull_force"]
+        bear_force  = oc["bear_force"]
+        pcr         = oc["pcr_oi"]
+        oi_sig      = oc["oi_sig"]
+        oi_dir      = oc["oi_dir"]
+        oi_cls      = oc["oi_cls"]
+        expiry      = oc["expiry"]
+        underlying  = oc["underlying"]
+        atm         = oc["atm_strike"]
+        max_pain    = oc["max_pain"]
+        # Format bull/bear OI numbers nicely
+        def fmt_oi(n):
+            if abs(n) >= 1_000_000: return f"{'+' if n>0 else ''}{n/1_000_000:.1f}M"
+            if abs(n) >= 1_000:     return f"{'+' if n>0 else ''}{n/1_000:.0f}K"
+            return f"{n:+,}"
+        bull_label = fmt_oi(pe_chg) if pe_chg > 0 else fmt_oi(abs(ce_chg) if ce_chg < 0 else net_chg)
+        bear_label = fmt_oi(ce_chg) if ce_chg > 0 else fmt_oi(abs(pe_chg) if pe_chg < 0 else -net_chg)
+    else:
+        ce_chg = pe_chg = net_chg = 0
+        bull_pct = bear_pct = 50
+        bull_force = bear_force = 0
+        pcr = 1.0
+        oi_sig = "No Data"
+        oi_dir = "UNKNOWN"
+        oi_cls = "neutral"
+        expiry = "N/A"
+        underlying = 0
+        atm = 0
+        max_pain = 0
+        bull_label = "N/A"
+        bear_label = "N/A"
+
+    cp       = tech["price"] if tech else 0
+    bias     = md["bias"]
+    conf     = md["confidence"]
+    bull_sc  = md["bull"]
+    bear_sc  = md["bear"]
+
+    dir_col  = _cls_color(oi_cls)
+    dir_bg   = _cls_bg(oi_cls)
+    dir_bdr  = _cls_bdr(oi_cls)
+
+    # PCR colour
+    pcr_col = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
+
+    # SVG gauge circumference for r=54 → 2πr ≈ 339.3
+    C = 339.3
+
+    # Bull gauge: fill = bull_pct%
+    bull_offset = C * (1 - bull_pct / 100)
+    # Bear gauge: fill = bear_pct%
+    bear_offset = C * (1 - bear_pct / 100)
+
+    # Progress bar widths (clamped 3-97)
+    def clamp(v, lo=3, hi=97): return max(lo, min(hi, v))
+    oi_bar_w   = clamp(bull_pct)
+    bear_bar_w = clamp(bear_pct)
+    pcr_bar_w  = clamp(min(pcr / 2.0 * 100, 97))   # map 0-2.0 → 0-100%
+
+    return f"""
+<div class="hero-gauge-wrap">
+  <!-- Left glow -->
+  <div class="hg-glow hg-glow-bull"></div>
+  <div class="hg-glow hg-glow-bear"></div>
+
+  <!-- BULL GAUGE -->
+  <div class="hg-gauge">
+    <svg width="140" height="140" viewBox="0 0 130 130">
+      <circle cx="65" cy="65" r="54" fill="none"
+        stroke="rgba(255,255,255,.06)" stroke-width="10"/>
+      <circle cx="65" cy="65" r="54" fill="none"
+        stroke="rgba(0,200,150,.12)" stroke-width="10"
+        stroke-dasharray="{C}" stroke-dashoffset="0"/>
+      <circle cx="65" cy="65" r="54" fill="none"
+        stroke="url(#bull-grad)" stroke-width="10"
+        stroke-dasharray="{C}" stroke-dashoffset="{bull_offset:.1f}"
+        stroke-linecap="round"
+        style="transform:rotate(-90deg);transform-origin:65px 65px;
+               transition:stroke-dashoffset 1.2s cubic-bezier(.34,1.56,.64,1);"/>
+      <defs>
+        <linearGradient id="bull-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#00c896"/>
+          <stop offset="100%" stop-color="#4de8b8"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    <div class="hg-gauge-inner">
+      <div class="hg-gauge-val" style="color:#00c896;">{bull_label}</div>
+      <div class="hg-gauge-lbl">OI BULL</div>
+    </div>
+  </div>
+
+  <!-- MIDDLE PANEL -->
+  <div class="hg-mid">
+    <div class="hg-eyebrow">OI NET SIGNAL &middot; {expiry} &middot; Spot &#8377;{underlying:,.0f}</div>
+    <div class="hg-signal" style="color:{dir_col};">{oi_dir.upper()}</div>
+    <div class="hg-sub">{oi_sig} &middot; PCR&nbsp;<span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
+
+    <div class="hg-bars">
+      <div class="hg-bar-row">
+        <div class="hg-bar-key">OI Net Chg</div>
+        <div class="hg-bar-track">
+          <div class="hg-bar-fill" style="width:{oi_bar_w}%;
+            background:linear-gradient(90deg,#00c896,#4de8b8);
+            box-shadow:0 0 8px rgba(0,200,150,.4);"></div>
+        </div>
+        <div class="hg-bar-num" style="color:#00c896;">+{bull_pct}%</div>
+      </div>
+      <div class="hg-bar-row">
+        <div class="hg-bar-key">Bear Force</div>
+        <div class="hg-bar-track">
+          <div class="hg-bar-fill" style="width:{bear_bar_w}%;
+            background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div>
+        </div>
+        <div class="hg-bar-num" style="color:#ff6b6b;">-{bear_pct}%</div>
+      </div>
+      <div class="hg-bar-row">
+        <div class="hg-bar-key">PCR (OI)</div>
+        <div class="hg-bar-track">
+          <div class="hg-bar-fill" style="width:{pcr_bar_w:.0f}%;
+            background:linear-gradient(90deg,#6480ff,#8aa0ff);"></div>
+        </div>
+        <div class="hg-bar-num" style="color:#8aa0ff;">{pcr:.2f}</div>
+      </div>
+    </div>
+
+    <!-- Bottom stat row -->
+    <div class="hg-statrow">
+      <div class="hg-stat">
+        <div class="hg-stat-lbl">MAX PAIN</div>
+        <div class="hg-stat-val" style="color:#6480ff;">&#8377;{max_pain:,}</div>
+      </div>
+      <div class="hg-stat">
+        <div class="hg-stat-lbl">ATM</div>
+        <div class="hg-stat-val" style="color:#00c896;">&#8377;{atm:,}</div>
+      </div>
+      <div class="hg-stat">
+        <div class="hg-stat-lbl">BIAS</div>
+        <div class="hg-stat-val" style="color:{_cls_color(md.get('bias_cls','neutral'))};">{bias}</div>
+      </div>
+      <div class="hg-stat">
+        <div class="hg-stat-lbl">CONF</div>
+        <div class="hg-stat-val" style="color:#ffd166;">{conf}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BEAR GAUGE -->
+  <div class="hg-gauge">
+    <svg width="140" height="140" viewBox="0 0 130 130">
+      <circle cx="65" cy="65" r="54" fill="none"
+        stroke="rgba(255,255,255,.06)" stroke-width="10"/>
+      <circle cx="65" cy="65" r="54" fill="none"
+        stroke="rgba(255,107,107,.08)" stroke-width="10"
+        stroke-dasharray="{C}" stroke-dashoffset="0"/>
+      <circle cx="65" cy="65" r="54" fill="none"
+        stroke="url(#bear-grad)" stroke-width="10"
+        stroke-dasharray="{C}" stroke-dashoffset="{bear_offset:.1f}"
+        stroke-linecap="round"
+        style="transform:rotate(-90deg);transform-origin:65px 65px;
+               transition:stroke-dashoffset 1.2s cubic-bezier(.34,1.56,.64,1);"/>
+      <defs>
+        <linearGradient id="bear-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#ff6b6b"/>
+          <stop offset="100%" stop-color="#ff9090"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    <div class="hg-gauge-inner">
+      <div class="hg-gauge-val" style="color:#ff6b6b;">{bear_label}</div>
+      <div class="hg-gauge-lbl">OI BEAR</div>
+    </div>
+  </div>
+
+  <!-- Timestamp -->
+  <div class="hg-ts">{ts}</div>
+</div>
+"""
 
 
 def build_oi_html(oc):
@@ -793,9 +983,6 @@ STRATEGIES_DATA = {
 
 
 def build_strategies_html(oc_analysis):
-    """Build interactive tabbed strategies section with SVG payoff charts and dynamic metrics."""
-
-    # Prepare option chain data for JS injection
     if oc_analysis:
         spot        = oc_analysis["underlying"]
         atm         = oc_analysis["atm_strike"]
@@ -816,7 +1003,6 @@ def build_strategies_html(oc_analysis):
             rc      = "#00c896" if s["risk"]   in ("Limited","Low") else ("#ff6b6b" if s["risk"] in ("Unlimited","High") else "#6480ff")
             rwc     = "#00c896" if s["reward"] == "Unlimited" else "#6480ff"
             card_id = f"sc_{cat}_{idx}"
-            # POP badge placeholder — filled by JS
             cards += (
                 f'<div class="sc-card" data-cat="{cat}" data-shape="{s["shape"]}" '
                 f'data-name="{s["name"]}" data-legs="{s["legs"]}" '
@@ -824,7 +1010,6 @@ def build_strategies_html(oc_analysis):
                 f'data-margin-mult="{s.get("margin_mult", 1.0)}" '
                 f'data-lot-size="{s.get("lot_size", 75)}" '
                 f'id="{card_id}">'
-                # POP badge top-right
                 f'<div class="sc-pop-badge" id="pop_{card_id}">—%</div>'
                 f'<div class="sc-svg">{svg}</div>'
                 f'<div class="sc-body">'
@@ -835,7 +1020,6 @@ def build_strategies_html(oc_analysis):
                 f'<span class="sc-tag" style="color:{rwc};border-color:{rwc}40;">Reward: {s["reward"]}</span>'
                 f'</div>'
                 f'</div>'
-                # Expanded detail panel (populated by JS)
                 f'<div class="sc-detail" id="detail_{card_id}">'
                 f'<div class="sc-desc">{s["desc"]}</div>'
                 f'<div class="sc-metrics-live" id="metrics_{card_id}">'
@@ -877,9 +1061,6 @@ def build_strategies_html(oc_analysis):
 </div>
 
 <script>
-// ═══════════════════════════════════════════════
-//  OPTION CHAIN DATA (injected from Python)
-// ═══════════════════════════════════════════════
 const OC = {{
   spot:     {spot:.2f},
   atm:      {atm},
@@ -889,20 +1070,10 @@ const OC = {{
   lotSize:  75,
 }};
 
-// Build a map from strike -> {{ce_ltp, pe_ltp, ce_iv, pe_iv}}
 const STRIKE_MAP = {{}};
 OC.strikes.forEach(s => {{ STRIKE_MAP[s.strike] = s; }});
 
-// ═══════════════════════════════════════════════
-//  PROBABILITY OF PROFIT ENGINE
-//  Uses delta-based approximation:
-//  PoP(long call) ≈ 1 - delta_call  (for OTM)
-//  PoP(credit strategy) ≈ delta at short strike
-//  Adjusted with PCR and distance to max pain
-// ═══════════════════════════════════════════════
-
 function normCDF(x) {{
-  // Approximation of N(x)
   const a1=0.254829592, a2=-0.284496736, a3=1.421413741,
         a4=-1.453152027, a5=1.061405429, p=0.3275911;
   const sign = x < 0 ? -1 : 1;
@@ -913,16 +1084,14 @@ function normCDF(x) {{
 }}
 
 function bsDelta(spot, strike, iv, T, isCall) {{
-  // Black-Scholes delta
   if (iv <= 0 || T <= 0) return isCall ? 0.5 : -0.5;
-  const r = 0.065; // Indian risk-free rate approx
+  const r = 0.065;
   const d1 = (Math.log(spot/strike) + (r + 0.5*iv*iv)*T) / (iv * Math.sqrt(T));
   if (isCall) return normCDF(d1);
   return normCDF(d1) - 1;
 }}
 
 function getATMLTP(type) {{
-  // Get LTP nearest to ATM
   const atm = OC.atm;
   const row = STRIKE_MAP[atm] || OC.strikes.reduce((best, s) => {{
     return Math.abs(s.strike - atm) < Math.abs(best.strike - atm) ? s : best;
@@ -931,7 +1100,6 @@ function getATMLTP(type) {{
 }}
 
 function getOTM(type, offset) {{
-  // Get OTM strike LTP (offset = number of strikes away)
   const targetStrike = type === 'ce' ? OC.atm + offset*50 : OC.atm - offset*50;
   const row = STRIKE_MAP[targetStrike] || OC.strikes.reduce((best, s) => {{
     return Math.abs(s.strike - targetStrike) < Math.abs(best.strike - targetStrike) ? s : best;
@@ -940,7 +1108,6 @@ function getOTM(type, offset) {{
 }}
 
 function getPCRAdjust() {{
-  // PCR adjustment to PoP: bullish context boosts call buyer PoP
   if (OC.pcr > 1.3) return 0.05;
   if (OC.pcr > 1.1) return 0.02;
   if (OC.pcr < 0.7) return -0.05;
@@ -948,16 +1115,8 @@ function getPCRAdjust() {{
   return 0;
 }}
 
-function daysToExpiry() {{
-  // Rough DTE from OC data — use 5 as default weekly
-  return 5;
-}}
+function daysToExpiry() {{ return 5; }}
 
-// ═══════════════════════════════════════════════
-//  STRATEGY METRICS CALCULATOR
-//  Returns {{pop, maxProfit, maxLoss, rrRatio,
-//            breakevens, netCredit, margin, pnl}}
-// ═══════════════════════════════════════════════
 function calcMetrics(shape) {{
   const spot   = OC.spot;
   const atm    = OC.atm;
@@ -965,13 +1124,12 @@ function calcMetrics(shape) {{
   const pcrAdj = getPCRAdjust();
   const lotSz  = OC.lotSize;
 
-  // ATM premiums
   const ce_atm_ltp = getATMLTP('ce');
   const pe_atm_ltp = getATMLTP('pe');
-  const ce_otm1    = getOTM('ce', 1);   // 1 strike OTM call
-  const ce_otm2    = getOTM('ce', 2);   // 2 strikes OTM call
-  const pe_otm1    = getOTM('pe', 1);   // 1 strike OTM put
-  const pe_otm2    = getOTM('pe', 2);   // 2 strikes OTM put
+  const ce_otm1    = getOTM('ce', 1);
+  const ce_otm2    = getOTM('ce', 2);
+  const pe_otm1    = getOTM('pe', 1);
+  const pe_otm2    = getOTM('pe', 2);
 
   const atmIV    = (getOTM('ce',0) && STRIKE_MAP[atm]) ? (STRIKE_MAP[atm].ce_iv||15)/100 : 0.15;
   const otm1IV   = (ce_otm1.iv || 15) / 100;
@@ -983,13 +1141,13 @@ function calcMetrics(shape) {{
       const prem = ce_atm_ltp || 150;
       const delta = bsDelta(spot, atm, atmIV, T, true);
       pop  = Math.round((1 - delta + pcrAdj) * 100);
-      mp   = 999999; // Unlimited
+      mp   = 999999;
       ml   = prem * lotSz;
       be   = [atm + prem];
       nc   = -prem * lotSz;
       margin = prem * lotSz;
       pnl  = Math.max(spot - atm - prem, -prem) * lotSz;
-      rrRatio = 0; // unlimited
+      rrRatio = 0;
       break;
     }}
     case 'long_put': {{
@@ -1013,7 +1171,7 @@ function calcMetrics(shape) {{
       ml   = (atm - prem) * lotSz;
       be   = [atm - prem];
       nc   = prem * lotSz;
-      margin = atm * lotSz * 0.15; // ~15% SPAN margin
+      margin = atm * lotSz * 0.15;
       pnl  = Math.min(prem, Math.max(spot - atm + prem, -atm + prem)) * lotSz;
       rrRatio = ((atm - prem) / prem).toFixed(2);
       break;
@@ -1359,7 +1517,6 @@ function calcMetrics(shape) {{
       break;
     }}
     default: {{
-      // Generic fallback for calendar, diagonal, etc.
       const prem = ce_atm_ltp || 150;
       pop  = Math.round((0.50 + pcrAdj) * 100);
       mp   = prem * lotSz * 0.5;
@@ -1372,107 +1529,49 @@ function calcMetrics(shape) {{
     }}
   }}
 
-  // Clamp PoP to 5–95%
   pop = Math.min(95, Math.max(5, pop));
 
-  // ── Build strike price label per strategy ──
   let strikeStr = '';
   switch(shape) {{
-    case 'long_call':
-    case 'short_put':
-    case 'long_put':
-    case 'short_call':
-    case 'long_straddle':
-    case 'short_straddle':
-    case 'long_synthetic':
-    case 'short_synthetic':
-      strikeStr = '₹' + atm.toLocaleString('en-IN') + ' (ATM)';
-      break;
+    case 'long_call': case 'short_put': case 'long_put': case 'short_call':
+    case 'long_straddle': case 'short_straddle': case 'long_synthetic': case 'short_synthetic':
+      strikeStr = '₹' + atm.toLocaleString('en-IN') + ' (ATM)'; break;
     case 'bull_call_spread':
-      strikeStr = 'Buy ₹' + atm.toLocaleString('en-IN') + ' · Sell ₹' + ce_otm1.strike.toLocaleString('en-IN');
-      break;
+      strikeStr = 'Buy ₹' + atm.toLocaleString('en-IN') + ' · Sell ₹' + ce_otm1.strike.toLocaleString('en-IN'); break;
     case 'bull_put_spread':
-      strikeStr = 'Sell ₹' + atm.toLocaleString('en-IN') + ' · Buy ₹' + pe_otm1.strike.toLocaleString('en-IN');
-      break;
+      strikeStr = 'Sell ₹' + atm.toLocaleString('en-IN') + ' · Buy ₹' + pe_otm1.strike.toLocaleString('en-IN'); break;
     case 'bear_call_spread':
-      strikeStr = 'Sell ₹' + atm.toLocaleString('en-IN') + ' · Buy ₹' + ce_otm1.strike.toLocaleString('en-IN');
-      break;
+      strikeStr = 'Sell ₹' + atm.toLocaleString('en-IN') + ' · Buy ₹' + ce_otm1.strike.toLocaleString('en-IN'); break;
     case 'bear_put_spread':
-      strikeStr = 'Buy ₹' + atm.toLocaleString('en-IN') + ' · Sell ₹' + pe_otm1.strike.toLocaleString('en-IN');
-      break;
-    case 'long_strangle':
-      strikeStr = 'CE ₹' + ce_otm1.strike.toLocaleString('en-IN') + ' · PE ₹' + pe_otm1.strike.toLocaleString('en-IN');
-      break;
-    case 'short_strangle':
-      strikeStr = 'CE ₹' + ce_otm1.strike.toLocaleString('en-IN') + ' · PE ₹' + pe_otm1.strike.toLocaleString('en-IN');
-      break;
-    case 'short_iron_condor':
-    case 'long_iron_condor':
+      strikeStr = 'Buy ₹' + atm.toLocaleString('en-IN') + ' · Sell ₹' + pe_otm1.strike.toLocaleString('en-IN'); break;
+    case 'long_strangle': case 'short_strangle':
+      strikeStr = 'CE ₹' + ce_otm1.strike.toLocaleString('en-IN') + ' · PE ₹' + pe_otm1.strike.toLocaleString('en-IN'); break;
+    case 'short_iron_condor': case 'long_iron_condor':
       strikeStr = 'PE ₹' + pe_otm2.strike.toLocaleString('en-IN') + '/' + pe_otm1.strike.toLocaleString('en-IN')
-               + ' · CE ₹' + ce_otm1.strike.toLocaleString('en-IN') + '/' + ce_otm2.strike.toLocaleString('en-IN');
-      break;
-    case 'short_iron_fly':
-    case 'long_iron_fly':
+               + ' · CE ₹' + ce_otm1.strike.toLocaleString('en-IN') + '/' + ce_otm2.strike.toLocaleString('en-IN'); break;
+    case 'short_iron_fly': case 'long_iron_fly':
       strikeStr = 'Wings ₹' + pe_otm1.strike.toLocaleString('en-IN') + ' / ₹' + ce_otm1.strike.toLocaleString('en-IN')
-               + ' · ATM ₹' + atm.toLocaleString('en-IN');
-      break;
-    case 'call_butterfly':
-    case 'bull_butterfly':
+               + ' · ATM ₹' + atm.toLocaleString('en-IN'); break;
+    case 'call_butterfly': case 'bull_butterfly':
       strikeStr = '₹' + atm.toLocaleString('en-IN') + ' / ₹' + ce_otm1.strike.toLocaleString('en-IN')
-               + ' / ₹' + ce_otm2.strike.toLocaleString('en-IN');
-      break;
-    case 'put_butterfly':
-    case 'bear_butterfly':
+               + ' / ₹' + ce_otm2.strike.toLocaleString('en-IN'); break;
+    case 'put_butterfly': case 'bear_butterfly':
       strikeStr = '₹' + pe_otm2.strike.toLocaleString('en-IN') + ' / ₹' + pe_otm1.strike.toLocaleString('en-IN')
-               + ' / ₹' + atm.toLocaleString('en-IN');
-      break;
+               + ' / ₹' + atm.toLocaleString('en-IN'); break;
     case 'call_ratio_back':
-      strikeStr = 'Sell ₹' + atm.toLocaleString('en-IN') + ' · Buy 2x ₹' + ce_otm1.strike.toLocaleString('en-IN');
-      break;
+      strikeStr = 'Sell ₹' + atm.toLocaleString('en-IN') + ' · Buy 2x ₹' + ce_otm1.strike.toLocaleString('en-IN'); break;
     case 'put_ratio_back':
-      strikeStr = 'Sell ₹' + atm.toLocaleString('en-IN') + ' · Buy 2x ₹' + pe_otm1.strike.toLocaleString('en-IN');
-      break;
-    case 'call_ratio_spread':
-      strikeStr = 'Buy ₹' + atm.toLocaleString('en-IN') + ' · Sell 2x ₹' + ce_otm1.strike.toLocaleString('en-IN');
-      break;
-    case 'put_ratio_spread':
-      strikeStr = 'Buy ₹' + atm.toLocaleString('en-IN') + ' · Sell 2x ₹' + pe_otm1.strike.toLocaleString('en-IN');
-      break;
+      strikeStr = 'Sell ₹' + atm.toLocaleString('en-IN') + ' · Buy 2x ₹' + pe_otm1.strike.toLocaleString('en-IN'); break;
     case 'jade_lizard':
       strikeStr = 'PE ₹' + pe_otm1.strike.toLocaleString('en-IN')
-               + ' · CE ₹' + ce_otm1.strike.toLocaleString('en-IN') + '/' + ce_otm2.strike.toLocaleString('en-IN');
-      break;
+               + ' · CE ₹' + ce_otm1.strike.toLocaleString('en-IN') + '/' + ce_otm2.strike.toLocaleString('en-IN'); break;
     case 'reverse_jade':
       strikeStr = 'CE ₹' + ce_otm1.strike.toLocaleString('en-IN')
-               + ' · PE ₹' + pe_otm1.strike.toLocaleString('en-IN') + '/' + pe_otm2.strike.toLocaleString('en-IN');
-      break;
-    case 'bull_condor':
-      strikeStr = 'Buy ₹' + atm.toLocaleString('en-IN') + ' · Sell ₹' + ce_otm1.strike.toLocaleString('en-IN')
-               + '/' + ce_otm2.strike.toLocaleString('en-IN') + ' · Buy higher';
-      break;
-    case 'bear_condor':
-      strikeStr = 'Buy ₹' + atm.toLocaleString('en-IN') + ' · Sell ₹' + pe_otm1.strike.toLocaleString('en-IN')
-               + '/' + pe_otm2.strike.toLocaleString('en-IN') + ' · Buy lower';
-      break;
-    case 'risk_reversal':
-      strikeStr = 'Buy PE ₹' + pe_otm1.strike.toLocaleString('en-IN') + ' · Sell CE ₹' + ce_otm1.strike.toLocaleString('en-IN');
-      break;
-    case 'range_forward':
-      strikeStr = 'Buy CE ₹' + ce_otm1.strike.toLocaleString('en-IN') + ' · Sell PE ₹' + pe_otm1.strike.toLocaleString('en-IN');
-      break;
-    case 'batman':
-      strikeStr = 'CE: ₹' + atm.toLocaleString('en-IN') + ' / ₹' + ce_otm1.strike.toLocaleString('en-IN')
-               + ' / ₹' + ce_otm2.strike.toLocaleString('en-IN');
-      break;
-    case 'double_fly':
-    case 'double_condor':
-      strikeStr = 'ATM ₹' + atm.toLocaleString('en-IN') + ' (two spreads)';
-      break;
+               + ' · PE ₹' + pe_otm1.strike.toLocaleString('en-IN') + '/' + pe_otm2.strike.toLocaleString('en-IN'); break;
     default:
       strikeStr = 'ATM ₹' + atm.toLocaleString('en-IN');
   }}
 
-  // Format Breakevens
   const beStr = be.map(v => '₹' + Math.round(v).toLocaleString('en-IN')).join(' / ');
   const mpStr = mp === 999999 ? 'Unlimited' : '₹' + Math.round(mp).toLocaleString('en-IN');
   const mlStr = ml === 999999 ? 'Unlimited' : '₹' + Math.round(ml).toLocaleString('en-IN');
@@ -1483,23 +1582,15 @@ function calcMetrics(shape) {{
   const mpPct    = mp === 999999 ? '∞' : (ml > 0 ? (mp/ml*100).toFixed(0) + '%' : '—');
 
   return {{
-    pop, mpStr, mlStr, rrStr, beStr, ncStr, marginStr, pnlStr, mpPct,
-    strikeStr,
-    mpRaw: mp, mlRaw: ml,
-    ncRaw: Math.round(nc),
-    pnlPositive: pnl >= 0,
-    ncPositive:  nc >= 0,
+    pop, mpStr, mlStr, rrStr, beStr, ncStr, marginStr, pnlStr, mpPct, strikeStr,
+    mpRaw: mp, mlRaw: ml, ncRaw: Math.round(nc), pnlPositive: pnl >= 0, ncPositive: nc >= 0,
   }};
 }}
 
-// ═══════════════════════════════════════════════
-//  RENDER METRICS HTML
-// ═══════════════════════════════════════════════
 function renderMetrics(m, cardEl) {{
   const probColor = m.pop >= 60 ? '#00c896' : (m.pop >= 45 ? '#6480ff' : '#ff6b6b');
   const ncColor   = m.ncPositive  ? '#00c896' : '#ff6b6b';
   const pnlColor  = m.pnlPositive ? '#00c896' : '#ff6b6b';
-
   return `
     <div class="metric-row metric-strike">
       <span class="metric-lbl">Strike Price</span>
@@ -1540,20 +1631,12 @@ function renderMetrics(m, cardEl) {{
   `;
 }}
 
-// ═══════════════════════════════════════════════
-//  POP BADGE COLOR
-// ═══════════════════════════════════════════════
 function popBadgeStyle(pop) {{
   if (pop >= 65) return 'background:rgba(0,200,150,.2);color:#00c896;border-color:rgba(0,200,150,.4);';
   if (pop >= 50) return 'background:rgba(100,128,255,.2);color:#8aa0ff;border-color:rgba(100,128,255,.4);';
   return 'background:rgba(255,107,107,.2);color:#ff6b6b;border-color:rgba(255,107,107,.4);';
 }}
 
-// ═══════════════════════════════════════════════
-//  INITIALIZE ALL CARDS WITH PoP BADGES
-//  Pre-computes PoP for every card, stores on
-//  dataset.pop for sorting, then styles badge.
-// ═══════════════════════════════════════════════
 function initAllCards() {{
   document.querySelectorAll('.sc-card').forEach(card => {{
     const shape  = card.dataset.shape;
@@ -1561,7 +1644,7 @@ function initAllCards() {{
     const badge  = document.getElementById('pop_' + cardId);
     try {{
       const m = calcMetrics(shape);
-      card.dataset.pop = m.pop;          // store for sort
+      card.dataset.pop = m.pop;
       if (badge) {{
         badge.textContent = m.pop + '%';
         badge.setAttribute('style', badge.getAttribute('style') + ';' + popBadgeStyle(m.pop));
@@ -1573,30 +1656,15 @@ function initAllCards() {{
   }});
 }}
 
-// ═══════════════════════════════════════════════
-//  SORT GRID BY POP DESCENDING
-//  Moves DOM nodes inside #sc-grid so the highest
-//  PoP card always appears first within each category.
-// ═══════════════════════════════════════════════
 function sortGridByPoP(cat) {{
   const grid  = document.getElementById('sc-grid');
   if (!grid) return;
-  // Collect only cards of this category
-  const cards = Array.from(grid.querySelectorAll('.sc-card[data-cat="' + cat + '"]'));
-  // Sort descending by PoP
-  cards.sort((a, b) => parseInt(b.dataset.pop || 0) - parseInt(a.dataset.pop || 0));
-  // Re-append in sorted order; cards not in this cat stay put (hidden anyway)
-  // Strategy: detach all cat cards, then re-insert them at the end of their
-  // original relative position within the grid.
-  // Simpler approach: just reorder ALL cards category by category.
   const allCards = {{
     bullish:        Array.from(grid.querySelectorAll('.sc-card[data-cat="bullish"]')),
     bearish:        Array.from(grid.querySelectorAll('.sc-card[data-cat="bearish"]')),
     nondirectional: Array.from(grid.querySelectorAll('.sc-card[data-cat="nondirectional"]')),
   }};
-  // Sort the active category; others keep original order (they're hidden anyway)
   allCards[cat].sort((a, b) => parseInt(b.dataset.pop || 0) - parseInt(a.dataset.pop || 0));
-  // Remove all cards from DOM, then re-append in order: bull → bear → nd
   ['bullish', 'bearish', 'nondirectional'].forEach(c => {{
     allCards[c].forEach(card => grid.appendChild(card));
   }});
@@ -1604,7 +1672,6 @@ function sortGridByPoP(cat) {{
 
 window.addEventListener('load', function() {{
   initAllCards();
-  // Sort all categories upfront so switching tabs shows sorted order immediately
   sortGridByPoP('bullish');
   sortGridByPoP('bearish');
   sortGridByPoP('nondirectional');
@@ -1614,14 +1681,11 @@ window.addEventListener('load', function() {{
 """
 
 
-
-
 # =================================================================
-#  SECTION 5B -- SCROLLING TICKER BAR
+#  SECTION 5B -- SCROLLING TICKER BAR (with highlighted labels)
 # =================================================================
 
 def rsi_label(rsi):
-    """RSI colour + signal."""
     if   rsi >= 70: return "Overbought", "#ff6b6b", "bearish"
     elif rsi >= 60: return "Strong",     "#ffd166", "neutral"
     elif rsi >= 40: return "Neutral",    "#6480ff", "neutral"
@@ -1629,7 +1693,6 @@ def rsi_label(rsi):
     else:           return "Oversold",   "#00c896", "bullish"
 
 def macd_label(macd, signal):
-    """MACD colour + signal."""
     diff = macd - signal
     if   diff >  0.5: return "Bullish",         "#00c896", "bullish"
     elif diff >  0:   return "Mildly Bullish",   "#4de8b8", "bullish"
@@ -1637,22 +1700,22 @@ def macd_label(macd, signal):
     else:             return "Bearish",          "#ff6b6b", "bearish"
 
 def pcr_label(pcr):
-    """PCR colour + signal."""
     if   pcr > 1.3: return "Very Bullish",  "#00c896", "bullish"
     elif pcr > 1.1: return "Bullish",       "#4de8b8", "bullish"
     elif pcr > 0.9: return "Neutral",       "#6480ff", "neutral"
     elif pcr > 0.7: return "Bearish",       "#ffd166", "neutral"
     else:           return "Very Bearish",  "#ff6b6b", "bearish"
 
-def bias_color(bias_cls):
-    return "#00c896" if bias_cls == "bullish" else ("#ff6b6b" if bias_cls == "bearish" else "#ffd166")
 
 def build_ticker_bar(tech, oc, vix_data):
-    """Build the scrolling ticker HTML with India VIX, RSI, MACD, PCR."""
-
+    """
+    Scrolling ticker bar — label names are now highlighted with a
+    coloured background pill so they stand out clearly against the
+    dark strip. Values and signal badges follow after.
+    """
     items = []
 
-    # ── India VIX ────────────────────────────────────────────────
+    # ── INDIA VIX ────────────────────────────────────────────────
     if vix_data:
         v     = vix_data["value"]
         chg   = vix_data["change"]
@@ -1661,22 +1724,25 @@ def build_ticker_bar(tech, oc, vix_data):
         chg_str  = f"{chg:+.2f} ({chg_p:+.2f}%)"
         chg_col  = "#ff6b6b" if chg > 0 else ("#00c896" if chg < 0 else "#6480ff")
         items.append(
-            f'<div class="tk-item" style="--tk-col:{col};--tk-bg:{bg};--tk-bdr:{bdr}">' 
-            f'<span class="tk-icon">&#9650;</span>' 
-            f'<span class="tk-key">India VIX</span>' 
-            f'<span class="tk-val" style="color:{col};">{v:.2f}</span>' 
-            f'<span class="tk-sub" style="color:{chg_col};">{chg_str}</span>' 
-            f'<span class="tk-badge" style="background:{bg};color:{col};border:1px solid {bdr};">{lbl} &middot; {sig}</span>' 
+            f'<div class="tk-item">'
+            # ← highlighted label name
+            f'<span class="tk-name" style="background:rgba(0,200,220,.15);color:#00c8e0;'
+            f'border:1px solid rgba(0,200,220,.3);">&#9650;&nbsp;INDIA VIX</span>'
+            f'<span class="tk-val" style="color:{col};">{v:.2f}</span>'
+            f'<span class="tk-sub" style="color:{chg_col};">{chg_str}</span>'
+            f'<span class="tk-badge" style="background:{bg};color:{col};border:1px solid {bdr};">'
+            f'{lbl} &middot; {sig}</span>'
             f'</div>'
         )
     else:
         items.append(
-            '<div class="tk-item" style="--tk-col:#6480ff;--tk-bg:rgba(100,128,255,.1);--tk-bdr:rgba(100,128,255,.3)">' 
-            '<span class="tk-icon">&#9650;</span>' 
-            '<span class="tk-key">India VIX</span>' 
-            '<span class="tk-val" style="color:#6480ff;">N/A</span>' 
-            '<span class="tk-badge" style="background:rgba(100,128,255,.1);color:#6480ff;border:1px solid rgba(100,128,255,.3);">Unavailable</span>' 
-            '</div>'
+            f'<div class="tk-item">'
+            f'<span class="tk-name" style="background:rgba(100,128,255,.15);color:#6480ff;'
+            f'border:1px solid rgba(100,128,255,.3);">&#9650;&nbsp;INDIA VIX</span>'
+            f'<span class="tk-val" style="color:#6480ff;">N/A</span>'
+            f'<span class="tk-badge" style="background:rgba(100,128,255,.1);color:#6480ff;'
+            f'border:1px solid rgba(100,128,255,.3);">Unavailable</span>'
+            f'</div>'
         )
 
     # ── RSI ──────────────────────────────────────────────────────
@@ -1685,12 +1751,15 @@ def build_ticker_bar(tech, oc, vix_data):
         lbl, col, cls = rsi_label(rsi)
         bg  = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.1)"
         bdr = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.3)"
+        name_bg  = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.18)"
+        name_col = col
+        name_bdr = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.35)"
         items.append(
-            f'<div class="tk-item" style="--tk-col:{col};--tk-bg:{bg};--tk-bdr:{bdr}">' 
-            f'<span class="tk-icon">&#9643;</span>' 
-            f'<span class="tk-key">RSI (14)</span>' 
-            f'<span class="tk-val" style="color:{col};">{rsi:.1f}</span>' 
-            f'<span class="tk-badge" style="background:{bg};color:{col};border:1px solid {bdr};">{lbl}</span>' 
+            f'<div class="tk-item">'
+            f'<span class="tk-name" style="background:{name_bg};color:{name_col};border:1px solid {name_bdr};">'
+            f'&#9643;&nbsp;RSI (14)</span>'
+            f'<span class="tk-val" style="color:{col};">{rsi:.1f}</span>'
+            f'<span class="tk-badge" style="background:{bg};color:{col};border:1px solid {bdr};">{lbl}</span>'
             f'</div>'
         )
 
@@ -1701,14 +1770,17 @@ def build_ticker_bar(tech, oc, vix_data):
         lbl, col, cls = macd_label(macd, signal)
         bg  = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.1)"
         bdr = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.3)"
+        name_bg  = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.18)"
+        name_col = col
+        name_bdr = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.35)"
         diff = macd - signal
         items.append(
-            f'<div class="tk-item" style="--tk-col:{col};--tk-bg:{bg};--tk-bdr:{bdr}">' 
-            f'<span class="tk-icon">&#9654;</span>' 
-            f'<span class="tk-key">MACD</span>' 
-            f'<span class="tk-val" style="color:{col};">{macd:.2f}</span>' 
-            f'<span class="tk-sub" style="color:rgba(255,255,255,.4);">Sig: {signal:.2f} &nbsp; Hist: {diff:+.2f}</span>' 
-            f'<span class="tk-badge" style="background:{bg};color:{col};border:1px solid {bdr};">{lbl}</span>' 
+            f'<div class="tk-item">'
+            f'<span class="tk-name" style="background:{name_bg};color:{name_col};border:1px solid {name_bdr};">'
+            f'&#9654;&nbsp;MACD</span>'
+            f'<span class="tk-val" style="color:{col};">{macd:.2f}</span>'
+            f'<span class="tk-sub" style="color:rgba(255,255,255,.4);">Sig:&nbsp;{signal:.2f} &nbsp;Hist:&nbsp;{diff:+.2f}</span>'
+            f'<span class="tk-badge" style="background:{bg};color:{col};border:1px solid {bdr};">{lbl}</span>'
             f'</div>'
         )
 
@@ -1718,16 +1790,19 @@ def build_ticker_bar(tech, oc, vix_data):
         lbl, col, cls = pcr_label(pcr)
         bg  = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.1)"
         bdr = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.3)"
+        name_bg  = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.18)"
+        name_col = col
+        name_bdr = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.35)"
         items.append(
-            f'<div class="tk-item" style="--tk-col:{col};--tk-bg:{bg};--tk-bdr:{bdr}">' 
-            f'<span class="tk-icon">&#9670;</span>' 
-            f'<span class="tk-key">PCR (OI)</span>' 
-            f'<span class="tk-val" style="color:{col};">{pcr:.3f}</span>' 
-            f'<span class="tk-badge" style="background:{bg};color:{col};border:1px solid {bdr};">{lbl}</span>' 
+            f'<div class="tk-item">'
+            f'<span class="tk-name" style="background:{name_bg};color:{name_col};border:1px solid {name_bdr};">'
+            f'&#9670;&nbsp;PCR (OI)</span>'
+            f'<span class="tk-val" style="color:{col};">{pcr:.3f}</span>'
+            f'<span class="tk-badge" style="background:{bg};color:{col};border:1px solid {bdr};">{lbl}</span>'
             f'</div>'
         )
 
-    # Duplicate items so the scroll loop is seamless
+    # Triplicate so the loop scrolls seamlessly
     track_inner = "".join(items) * 3
 
     return f'''
@@ -1740,6 +1815,7 @@ def build_ticker_bar(tech, oc, vix_data):
   </div>
 </div>
 '''
+
 
 # =================================================================
 #  SECTION 7 -- CSS
@@ -1768,9 +1844,9 @@ body::before{
     radial-gradient(ellipse at 90% 60%,rgba(100,128,255,.05) 0%,transparent 40%);
   pointer-events:none;z-index:0;
 }
-.app{position:relative;z-index:1;display:grid;grid-template-rows:auto auto 1fr auto;min-height:100vh}
+.app{position:relative;z-index:1;display:grid;grid-template-rows:auto auto auto 1fr auto;min-height:100vh}
 
-/* HEADER */
+/* ── HEADER ── */
 header{display:flex;align-items:center;justify-content:space-between;padding:14px 32px;
   background:rgba(6,8,15,.85);backdrop-filter:blur(16px);
   border-bottom:1px solid rgba(255,255,255,.07);position:sticky;top:0;z-index:200;
@@ -1783,32 +1859,70 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .live-dot{width:7px;height:7px;border-radius:50%;background:#00c896;box-shadow:0 0 10px #00c896;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
 
-/* HERO */
-.hero{padding:28px 32px;background:rgba(6,8,15,.6);backdrop-filter:blur(12px);
-  border-bottom:1px solid rgba(255,255,255,.06);
-  display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;
-  position:relative;overflow:hidden}
-.hero::before{content:'';position:absolute;inset:0;
-  background:radial-gradient(ellipse at 0% 50%,rgba(0,200,150,.08),transparent 60%),
-             radial-gradient(ellipse at 100% 50%,rgba(100,128,255,.08),transparent 60%);
-  pointer-events:none}
-.hero-dir{font-family:var(--fh);font-size:54px;font-weight:700;line-height:1;letter-spacing:-2px;
-  background:linear-gradient(90deg,#00c896 0%,#6480ff 50%,#00c8e0 100%);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-  filter:drop-shadow(0 0 28px rgba(0,200,150,.25))}
-.hero-sub{font-size:13px;color:var(--muted);margin-top:6px}
-.hero-conf{display:inline-flex;align-items:center;gap:8px;margin-top:10px;font-size:11px;font-weight:600;
-  padding:5px 18px;border-radius:20px;border:1px solid rgba(0,200,150,.25);
-  background:rgba(0,200,150,.07);color:#00c896}
-.hero-stats{display:flex;gap:28px;align-items:center;flex-wrap:wrap}
-.hstat{text-align:center}
-.hstat-lbl{font-size:10px;color:var(--muted2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:3px}
-.hstat-val{font-family:var(--fm);font-size:18px;font-weight:600;color:rgba(255,255,255,.9)}
+/* ══════════════════════════════════════════════
+   DUAL GAUGE HERO
+══════════════════════════════════════════════ */
+.hero-gauge-wrap{
+  position:relative;
+  display:flex;align-items:center;gap:24px;flex-wrap:wrap;
+  padding:22px 36px 22px 28px;
+  background:linear-gradient(135deg,rgba(0,200,150,.06) 0%,rgba(100,128,255,.06) 100%);
+  border-bottom:1px solid rgba(255,255,255,.07);
+  overflow:hidden;
+}
+.hg-glow{position:absolute;border-radius:50%;pointer-events:none;}
+.hg-glow-bull{top:-60px;left:-60px;width:280px;height:280px;
+  background:radial-gradient(circle,rgba(0,200,150,.12),transparent 70%);}
+.hg-glow-bear{bottom:-60px;right:-60px;width:280px;height:280px;
+  background:radial-gradient(circle,rgba(255,107,107,.09),transparent 70%);}
 
-/* LAYOUT */
+/* Gauge circle */
+.hg-gauge{position:relative;width:140px;height:140px;flex-shrink:0;}
+.hg-gauge-inner{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;
+}
+.hg-gauge-val{font-family:'DM Mono',monospace;font-size:22px;font-weight:700;line-height:1;}
+.hg-gauge-lbl{font-size:9px;letter-spacing:2px;text-transform:uppercase;
+  color:rgba(255,255,255,.3);margin-top:3px;}
+
+/* Middle info */
+.hg-mid{flex:1;min-width:220px;z-index:1;}
+.hg-eyebrow{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  color:rgba(255,255,255,.3);margin-bottom:6px;}
+.hg-signal{font-family:'Sora',sans-serif;font-size:28px;font-weight:800;line-height:1.1;
+  letter-spacing:-.5px;margin-bottom:4px;}
+.hg-sub{font-size:11px;color:rgba(255,255,255,.4);margin-bottom:14px;line-height:1.6;}
+
+/* Progress bars */
+.hg-bars{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
+.hg-bar-row{display:flex;align-items:center;gap:10px;}
+.hg-bar-key{font-size:10px;color:rgba(255,255,255,.35);width:75px;
+  letter-spacing:.5px;text-transform:uppercase;}
+.hg-bar-track{flex:1;height:5px;background:rgba(255,255,255,.07);
+  border-radius:3px;overflow:hidden;}
+.hg-bar-fill{height:100%;border-radius:3px;}
+.hg-bar-num{font-family:'DM Mono',monospace;font-size:10px;font-weight:600;
+  width:40px;text-align:right;}
+
+/* Bottom stat row */
+.hg-statrow{display:flex;gap:20px;flex-wrap:wrap;}
+.hg-stat{text-align:center;}
+.hg-stat-lbl{font-size:9px;letter-spacing:2px;text-transform:uppercase;
+  color:rgba(255,255,255,.25);margin-bottom:3px;}
+.hg-stat-val{font-family:'DM Mono',monospace;font-size:16px;font-weight:700;}
+
+/* Timestamp overlay */
+.hg-ts{
+  position:absolute;bottom:10px;right:20px;
+  font-family:'DM Mono',monospace;font-size:10px;
+  color:rgba(255,255,255,.2);letter-spacing:1px;
+}
+
+/* ── LAYOUT ── */
 .main{display:grid;grid-template-columns:268px 1fr;min-height:0}
 
-/* SIDEBAR */
+/* ── SIDEBAR ── */
 .sidebar{background:rgba(8,11,20,.7);backdrop-filter:blur(12px);
   border-right:1px solid rgba(255,255,255,.06);
   position:sticky;top:57px;height:calc(100vh - 57px);overflow-y:auto}
@@ -1833,7 +1947,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .sig-bias{font-family:var(--fh);font-size:18px;font-weight:700;color:rgba(255,255,255,.9)}
 .sig-meta{font-size:10px;color:var(--muted);margin-top:4px}
 
-/* CONTENT */
+/* ── CONTENT ── */
 .content{overflow-y:auto}
 .section{padding:26px 28px;border-bottom:1px solid rgba(255,255,255,.05);background:transparent;position:relative}
 .section:nth-child(odd){background:rgba(255,255,255,.015)}
@@ -1843,7 +1957,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid rgba(0,200,150,.15)}
 .sec-sub{font-size:11px;color:var(--muted2);font-weight:400;letter-spacing:.5px;text-transform:none;margin-left:auto}
 
-/* OI TICKER TABLE */
+/* ── OI TICKER TABLE ── */
 .oi-ticker-table{border:1px solid rgba(255,255,255,.07);border-radius:14px;overflow:hidden}
 .oi-ticker-hdr{display:grid;grid-template-columns:130px repeat(5,1fr);padding:9px 18px;align-items:center;gap:6px}
 .oi-ticker-hdr-label{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
@@ -1854,7 +1968,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .oi-ticker-metric{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.35)}
 .oi-ticker-cell{text-align:center}
 
-/* KEY LEVELS */
+/* ── KEY LEVELS ── */
 .kl-zone-labels{display:flex;justify-content:space-between;margin-bottom:6px;font-size:11px;font-weight:700}
 .kl-node{position:absolute;text-align:center}
 .kl-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;line-height:1.3;white-space:nowrap}
@@ -1870,7 +1984,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .kl-dist-box{background:rgba(255,255,255,.03);border:1px solid;border-radius:10px;
   padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
 
-/* STRIKES TABLE */
+/* ── STRIKES TABLE ── */
 .strikes-head{font-weight:700;margin-bottom:10px;font-size:13px}
 .strikes-wrap{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 .s-table{width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden}
@@ -1889,21 +2003,16 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   display:flex;align-items:center;gap:8px;background:transparent}
 .sc-tab:hover{opacity:.85}
 .sc-cnt{font-size:10px;padding:1px 7px;border-radius:10px;color:#fff;font-weight:700}
-
 .sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
-
 .sc-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);
   border-radius:14px;overflow:hidden;cursor:pointer;
-  transition:all .2s;display:flex;flex-direction:column;
-  position:relative;}
+  transition:all .2s;display:flex;flex-direction:column;position:relative;}
 .sc-card:hover{border-color:rgba(0,200,150,.3);transform:translateY(-3px);
   box-shadow:0 8px 28px rgba(0,200,150,.1)}
 .sc-card.hidden{display:none}
 .sc-card.expanded .sc-detail{display:block}
 .sc-card.expanded{border-color:rgba(0,200,150,.35);
   box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12)}
-
-/* POP BADGE */
 .sc-pop-badge{
   position:absolute;top:8px;right:8px;
   font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
@@ -1912,7 +2021,6 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   z-index:5;letter-spacing:.5px;transition:all .3s;
   min-width:38px;text-align:center;
 }
-
 .sc-svg{display:flex;align-items:center;justify-content:center;
   padding:14px 0 6px;background:rgba(255,255,255,.02)}
 .sc-body{padding:10px 12px 12px}
@@ -1923,38 +2031,32 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .sc-tags{display:flex;flex-direction:column;gap:4px}
 .sc-tag{font-size:9px;padding:2px 8px;border-radius:6px;
   border:1px solid;background:rgba(0,0,0,.2);display:inline-block;width:fit-content}
-
 .sc-detail{display:none;border-top:1px solid rgba(255,255,255,.06);
   background:rgba(0,200,150,.03)}
 .sc-desc{font-size:11px;color:rgba(255,255,255,.5);line-height:1.7;
   padding:12px 12px 8px;border-bottom:1px solid rgba(255,255,255,.05);}
-
-/* LIVE METRICS PANEL */
 .sc-metrics-live{padding:0}
 .sc-loading{padding:14px 12px;font-size:11px;color:rgba(255,255,255,.3);text-align:center;font-family:'DM Mono',monospace}
-
 .metric-row{
   display:flex;justify-content:space-between;align-items:center;
   padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.04);
   transition:background .15s;
 }
 .metric-row:hover{background:rgba(255,255,255,.03)}
-.metric-strike{
-  background:rgba(255,209,102,.04);
-  border-bottom:1px solid rgba(255,209,102,.12) !important;
-}
-.metric-lbl{font-size:10px;color:rgba(255,255,255,.35);
-  letter-spacing:.5px;text-transform:uppercase;font-family:'DM Mono',monospace;}
+.metric-strike{background:rgba(255,209,102,.04);border-bottom:1px solid rgba(255,209,102,.12) !important;}
+.metric-lbl{font-size:10px;color:rgba(255,255,255,.35);letter-spacing:.5px;
+  text-transform:uppercase;font-family:'DM Mono',monospace;}
 .metric-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:600;text-align:right;}
 
-
-/* ── SCROLLING TICKER BAR ── */
+/* ══════════════════════════════════════════════
+   SCROLLING TICKER BAR  — highlighted names
+══════════════════════════════════════════════ */
 .ticker-wrap{
   display:flex;align-items:center;
-  background:rgba(6,8,15,.95);
+  background:rgba(4,6,12,.97);
   border-bottom:1px solid rgba(255,255,255,.07);
   height:46px;overflow:hidden;position:relative;z-index:190;
-  box-shadow:0 2px 20px rgba(0,0,0,.4);
+  box-shadow:0 2px 20px rgba(0,0,0,.5);
 }
 .ticker-label{
   flex-shrink:0;padding:0 16px;
@@ -1962,8 +2064,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   letter-spacing:3px;color:#00c896;text-transform:uppercase;
   border-right:1px solid rgba(0,200,150,.2);height:100%;
   display:flex;align-items:center;
-  background:rgba(0,200,150,.06);
-  white-space:nowrap;
+  background:rgba(0,200,150,.07);white-space:nowrap;
 }
 .ticker-viewport{flex:1;overflow:hidden;height:100%}
 .ticker-track{
@@ -1979,17 +2080,20 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 }
 .tk-item{
   display:inline-flex;align-items:center;gap:10px;
-  padding:0 22px;height:100%;
-  border-right:1px solid rgba(255,255,255,.05);
-  flex-shrink:0;cursor:default;
-  transition:background .2s;
+  padding:0 20px;height:100%;
+  border-right:1px solid rgba(255,255,255,.04);
+  flex-shrink:0;
 }
-.tk-item:hover{background:var(--tk-bg,rgba(255,255,255,.04))}
-.tk-icon{font-size:10px;color:rgba(255,255,255,.2)}
-.tk-key{
-  font-family:var(--fm);font-size:9px;font-weight:700;
-  letter-spacing:2px;text-transform:uppercase;
-  color:rgba(255,255,255,.35);white-space:nowrap;
+/* ── Highlighted label name pill ── */
+.tk-name{
+  font-family:var(--fm);font-size:10px;font-weight:700;
+  letter-spacing:1.5px;text-transform:uppercase;
+  padding:3px 10px;border-radius:6px;
+  white-space:nowrap;flex-shrink:0;
+  /* default — overridden inline for each item */
+  background:rgba(255,255,255,.08);
+  color:rgba(255,255,255,.5);
+  border:1px solid rgba(255,255,255,.1);
 }
 .tk-val{
   font-family:var(--fm);font-size:18px;font-weight:700;
@@ -2004,17 +2108,20 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   padding:3px 10px;border-radius:20px;
   white-space:nowrap;letter-spacing:.3px;
 }
-/* FOOTER */
+
+/* ── FOOTER ── */
 footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);
   background:rgba(6,8,15,.9);backdrop-filter:blur(12px);
   display:flex;justify-content:space-between;
   font-size:11px;color:var(--muted2);font-family:var(--fm)}
 
-/* RESPONSIVE */
+/* ── RESPONSIVE ── */
 @media(max-width:1024px){
   .main{grid-template-columns:1fr}
   .sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid rgba(255,255,255,.06)}
-  .hero-dir{font-size:38px}
+  .hero-gauge-wrap{padding:18px 16px;}
+  .hg-gauge{width:110px;height:110px;}
+  .hg-signal{font-size:22px;}
   .oi-ticker-hdr,.oi-ticker-row{grid-template-columns:100px repeat(3,1fr)}
   .oi-ticker-hdr-cell:nth-child(n+5),.oi-ticker-cell:nth-child(n+5){display:none}
   .strikes-wrap{grid-template-columns:1fr}
@@ -2022,8 +2129,9 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);
 }
 @media(max-width:640px){
   header{padding:12px 16px}
-  .hero{padding:18px;flex-direction:column}
-  .hero-dir{font-size:30px}
+  .hero-gauge-wrap{flex-direction:column;align-items:flex-start;gap:16px;}
+  .hg-gauge{width:100px;height:100px;}
+  .hg-signal{font-size:18px;}
   .section{padding:18px 16px}
   .oi-ticker-hdr,.oi-ticker-row{grid-template-columns:90px repeat(2,1fr)}
   .oi-ticker-hdr-cell:nth-child(n+4),.oi-ticker-cell:nth-child(n+4){display:none}
@@ -2044,20 +2152,22 @@ def generate_html(tech, oc, md, ts, vix_data=None):
     pcr    = oc["pcr_oi"]     if oc   else 0
     mp     = oc["max_pain"]   if oc   else 0
 
-    bias = md["bias"]
-    conf = md["confidence"]
-    bull = md["bull"]
-    bear = md["bear"]
-    diff = md["diff"]
+    bias   = md["bias"]
+    conf   = md["confidence"]
+    bull   = md["bull"]
+    bear   = md["bear"]
+    diff   = md["diff"]
+    bias_cls = md.get("bias_cls", "neutral")
 
     b_arrow = "&#9650;" if bias == "BULLISH" else ("&#9660;" if bias == "BEARISH" else "&#8596;")
-    pcr_col = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
 
-    oi_html      = build_oi_html(oc)               if oc   else ""
-    kl_html      = build_key_levels_html(tech, oc) if tech else ""
+    oi_html      = build_oi_html(oc)                          if oc   else ""
+    kl_html      = build_key_levels_html(tech, oc)            if tech else ""
     strat_html   = build_strategies_html(oc)
     strikes_html = build_strikes_html(oc)
     ticker_html  = build_ticker_bar(tech, oc, vix_data)
+    # NEW — dual gauge hero replaces old .hero block
+    gauge_html   = build_dual_gauge_hero(oc, tech, md, ts)
 
     sig_card = (
         f"<div class=\"sb-sec\"><div class=\"sb-lbl\">TODAY'S SIGNAL</div>"
@@ -2094,20 +2204,7 @@ def generate_html(tech, oc, md, ts, vix_data=None):
 
 {ticker_html}
 
-<div class="hero">
-  <div>
-    <div class="hero-dir">{bias}</div>
-    <div class="hero-sub">Market Direction &middot; {conf} Confidence</div>
-    <span class="hero-conf">Bull {bull} pt &nbsp;&middot;&nbsp; Bear {bear} pt &nbsp;&middot;&nbsp; Diff {diff:+d}</span>
-  </div>
-  <div class="hero-stats">
-    <div class="hstat"><div class="hstat-lbl">NIFTY Spot</div><div class="hstat-val">&#8377;{cp:,.2f}</div></div>
-    <div class="hstat"><div class="hstat-lbl">ATM Strike</div><div class="hstat-val" style="color:#00c896;">&#8377;{atm:,}</div></div>
-    <div class="hstat"><div class="hstat-lbl">Expiry</div><div class="hstat-val" style="color:#6480ff;">{expiry}</div></div>
-    <div class="hstat"><div class="hstat-lbl">PCR (OI)</div><div class="hstat-val" style="color:{pcr_col};">{pcr:.3f}</div></div>
-    <div class="hstat"><div class="hstat-lbl">Max Pain</div><div class="hstat-val" style="color:#00c8e0;">&#8377;{mp:,}</div></div>
-  </div>
-</div>
+{gauge_html}
 
 <div class="main">
   <aside class="sidebar">
@@ -2190,7 +2287,6 @@ function filterStrat(cat, btn) {{
   }}
 }}
 
-// Toggle card expand — compute metrics on first expand
 document.addEventListener("click", function(e) {{
   const card = e.target.closest(".sc-card");
   if (card) {{
@@ -2198,7 +2294,6 @@ document.addEventListener("click", function(e) {{
     document.querySelectorAll(".sc-card.expanded").forEach(c => c.classList.remove("expanded"));
     if (!wasExpanded) {{
       card.classList.add("expanded");
-      // Populate metrics if not already done
       const metricsEl = card.querySelector('.sc-metrics-live');
       if (metricsEl && metricsEl.querySelector('.sc-loading')) {{
         const shape = card.dataset.shape;
@@ -2225,7 +2320,7 @@ def main():
     ist_tz = pytz.timezone("Asia/Kolkata")
     ts     = datetime.now(ist_tz).strftime("%d-%b-%Y %H:%M IST")
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v6")
+    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v7 (Gauge Hero)")
     print(f"  {ts}")
     print("=" * 65)
 
