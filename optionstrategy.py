@@ -100,6 +100,12 @@ class NSEOptionChain:
                         "PE_Vol":       pe.get("totalTradedVolume", 0),
                         "CE_OI_Change": ce.get("changeinOpenInterest", 0),
                         "PE_OI_Change": pe.get("changeinOpenInterest", 0),
+                        "CE_IV":        ce.get("impliedVolatility", 0),
+                        "PE_IV":        pe.get("impliedVolatility", 0),
+                        "CE_Delta":     ce.get("delta", 0),
+                        "PE_Delta":     pe.get("delta", 0),
+                        "CE_Theta":     ce.get("theta", 0),
+                        "PE_Theta":     pe.get("theta", 0),
                     })
 
                 df = pd.DataFrame(rows).sort_values("Strike").reset_index(drop=True)
@@ -168,6 +174,23 @@ def analyze_option_chain(oc_data):
     top_ce = df.nlargest(5, "CE_OI")[["Strike", "CE_OI", "CE_LTP"]].to_dict("records")
     top_pe = df.nlargest(5, "PE_OI")[["Strike", "PE_OI", "PE_LTP"]].to_dict("records")
 
+    # Build ATM/OTM lookup for JS
+    atm = oc_data["atm_strike"]
+    spot = oc_data["underlying"]
+    
+    # Get strikes around ATM for JS data
+    strikes_data = []
+    for _, row in df.iterrows():
+        strikes_data.append({
+            "strike": int(row["Strike"]),
+            "ce_ltp": float(row["CE_LTP"]),
+            "pe_ltp": float(row["PE_LTP"]),
+            "ce_iv":  float(row.get("CE_IV", 15)),
+            "pe_iv":  float(row.get("PE_IV", 15)),
+            "ce_oi":  int(row["CE_OI"]),
+            "pe_oi":  int(row["PE_OI"]),
+        })
+
     return {
         "expiry":        oc_data["expiry"],
         "underlying":    oc_data["underlying"],
@@ -190,6 +213,7 @@ def analyze_option_chain(oc_data):
         "oi_cls":        oi_cls,
         "top_ce":        top_ce,
         "top_pe":        top_pe,
+        "strikes_data":  strikes_data,
         "df":            df,
     }
 
@@ -248,7 +272,11 @@ def get_technical_data():
         strong_res = r2 if r2 else resistance + 100
         strong_sup = s2 if s2 else support - 100
 
-        print(f"  Technical OK | CMP={cp:.2f} RSI={latest['RSI']:.1f} MACD={latest['MACD']:.2f}")
+        # Historical volatility (annualized)
+        df["log_ret"] = np.log(df["Close"] / df["Close"].shift(1))
+        hv = df["log_ret"].tail(20).std() * np.sqrt(252) * 100
+
+        print(f"  Technical OK | CMP={cp:.2f} RSI={latest['RSI']:.1f} MACD={latest['MACD']:.2f} HV={hv:.1f}%")
         return {
             "price":       cp,
             "sma20":       latest["SMA_20"],
@@ -261,6 +289,7 @@ def get_technical_data():
             "resistance":  resistance,
             "strong_sup":  strong_sup,
             "strong_res":  strong_res,
+            "hv":          round(float(hv), 2),
         }
     except Exception as e:
         print(f"  ERROR Technical: {e}")
@@ -555,21 +584,14 @@ def build_strikes_html(oc):
 # =================================================================
 
 def make_payoff_svg(shape, bull_color="#00c896", bear_color="#ff6b6b"):
-    """
-    Generate inline SVG payoff diagram for each strategy shape.
-    Each shape is a keyword matching the strategy type.
-    Returns a small 80x50 SVG string.
-    """
     w, h = 80, 50
     mid  = h // 2
     pad  = 8
 
-    # Helper to build polyline points string
     def pts(*coords):
         return " ".join(f"{x},{y}" for x, y in coords)
 
     shapes = {
-        # ── BULLISH ──────────────────────────────────────────────
         "long_call":         {"profit": [(pad,mid),(40,mid),(72,h-pad)],           "loss": [(pad,mid),(40,mid)]},
         "short_put":         {"profit": [(pad,h-pad),(40,mid),(72,mid)],           "loss": [(pad,mid),(40,mid)]},
         "bull_call_spread":  {"profit": [(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],"loss": [(pad,mid),(30,mid)]},
@@ -579,7 +601,6 @@ def make_payoff_svg(shape, bull_color="#00c896", bear_color="#ff6b6b"):
         "range_forward":     {"profit": [(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],"loss": [(pad,pad),(30,pad),(55,mid)]},
         "bull_butterfly":    {"profit": [(pad,mid),(36,h-pad),(54,mid)],           "loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
         "bull_condor":       {"profit": [(pad,mid),(28,mid),(36,h-pad),(50,h-pad),(58,mid),(72,mid)],"loss": [(pad,mid),(72,mid)]},
-        # ── BEARISH ──────────────────────────────────────────────
         "short_call":        {"profit": [(pad,mid),(40,mid),(72,pad)],             "loss": [(pad,mid),(40,mid)]},
         "long_put":          {"profit": [(pad,h-pad),(40,mid),(72,mid)],           "loss": [(pad,mid),(40,mid)]},
         "bear_call_spread":  {"profit": [(pad,h-pad),(30,h-pad),(55,mid),(72,mid)],"loss": [(pad,mid),(72,mid)]},
@@ -589,7 +610,6 @@ def make_payoff_svg(shape, bull_color="#00c896", bear_color="#ff6b6b"):
         "risk_reversal":     {"profit": [(pad,h-pad),(36,mid),(72,pad)],           "loss": [(pad,mid),(36,mid)]},
         "bear_butterfly":    {"profit": [(pad,mid),(36,pad),(54,mid)],             "loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
         "bear_condor":       {"profit": [(pad,mid),(28,mid),(36,pad),(50,pad),(58,mid),(72,mid)], "loss": [(pad,mid),(72,mid)]},
-        # ── NON-DIRECTIONAL ──────────────────────────────────────
         "long_straddle":     {"profit": [(pad,h-pad),(36,mid),(54,mid),(72,h-pad)],"loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
         "short_straddle":    {"profit": [(pad,mid),(36,mid),(54,mid),(72,mid)],    "loss": [(pad,h-pad),(36,mid),(54,mid),(72,h-pad)]},
         "long_strangle":     {"profit": [(pad,h-pad),(30,mid),(50,mid),(72,h-pad)],"loss": [(pad,mid),(30,mid),(50,mid),(72,mid)]},
@@ -616,7 +636,6 @@ def make_payoff_svg(shape, bull_color="#00c896", bear_color="#ff6b6b"):
     profit_pts = pts(*s["profit"])
     loss_pts   = pts(*s["loss"]) if s["loss"] else ""
 
-    # Build shaded area fill paths
     def area_path(coords, is_profit):
         if not coords: return ""
         base_y = mid
@@ -632,12 +651,9 @@ def make_payoff_svg(shape, bull_color="#00c896", bear_color="#ff6b6b"):
 
     svg = (
         f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" xmlns="http://www.w3.org/2000/svg">'
-        # axes
         f'<line x1="{pad}" y1="{pad}" x2="{pad}" y2="{h-pad}" stroke="rgba(255,255,255,.15)" stroke-width="1"/>'
         f'<line x1="{pad}" y1="{mid}" x2="{w-pad}" y2="{mid}" stroke="rgba(255,255,255,.15)" stroke-width="1"/>'
-        # shaded areas
         f'{profit_area}{loss_area}'
-        # profit line
         f'<polyline points="{profit_pts}" fill="none" stroke="{bull_color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>'
     )
     if loss_pts:
@@ -648,63 +664,86 @@ def make_payoff_svg(shape, bull_color="#00c896", bear_color="#ff6b6b"):
 
 STRATEGIES_DATA = {
     "bullish": [
-        {"name": "Long Call",         "shape": "long_call",        "risk": "Limited",  "reward": "Unlimited", "legs": "BUY CALL (ATM)",                         "desc": "Buy a call option. Profits as market rises above strike. Risk is limited to premium paid.", "mp": "Unlimited", "ml": "Premium Paid", "be": "Strike + Premium"},
-        {"name": "Short Put",         "shape": "short_put",        "risk": "Moderate", "reward": "Limited",   "legs": "SELL PUT (OTM)",                          "desc": "Sell a put option below market. Collect premium. Profit if market stays above strike.", "mp": "Premium Received", "ml": "Strike - Premium", "be": "Strike - Premium"},
-        {"name": "Bull Call Spread",  "shape": "bull_call_spread", "risk": "Limited",  "reward": "Limited",   "legs": "BUY CALL (Low) · SELL CALL (High)",       "desc": "Buy lower call, sell higher call. Reduces cost; caps profit at upper strike.", "mp": "Spread - Debit", "ml": "Net Debit", "be": "Lower Strike + Debit"},
-        {"name": "Bull Put Spread",   "shape": "bull_put_spread",  "risk": "Limited",  "reward": "Limited",   "legs": "SELL PUT (High) · BUY PUT (Low)",          "desc": "Sell higher put, buy lower put. Credit received upfront. Profit if market stays above higher strike.", "mp": "Net Credit", "ml": "Spread - Credit", "be": "Higher Strike - Credit"},
-        {"name": "Call Ratio Back Spread","shape":"call_ratio_back","risk": "Limited",  "reward": "Unlimited", "legs": "SELL 1 CALL (Low) · BUY 2 CALLS (High)",  "desc": "Sell fewer calls, buy more higher calls. Benefits from a big upside move.", "mp": "Unlimited", "ml": "Limited", "be": "Varies"},
-        {"name": "Long Synthetic",    "shape": "long_synthetic",   "risk": "High",     "reward": "Unlimited", "legs": "BUY CALL (ATM) · SELL PUT (ATM)",         "desc": "Replicates owning the underlying. Unlimited profit potential with high risk.", "mp": "Unlimited", "ml": "Unlimited", "be": "ATM Strike"},
-        {"name": "Range Forward",     "shape": "range_forward",    "risk": "Limited",  "reward": "Limited",   "legs": "BUY CALL (High) · SELL PUT (Low)",        "desc": "Collar-like structure. Profit in a range. Used to hedge existing positions.", "mp": "Capped", "ml": "Capped", "be": "Varies"},
-        {"name": "Bull Butterfly",    "shape": "bull_butterfly",   "risk": "Limited",  "reward": "Limited",   "legs": "BUY Low CALL · SELL 2 Mid CALL · BUY High CALL", "desc": "Max profit at middle strike. Low cost strategy for moderate bullish view.", "mp": "Mid - Low - Debit", "ml": "Net Debit", "be": "Low+Debit / High-Debit"},
-        {"name": "Bull Condor",       "shape": "bull_condor",      "risk": "Limited",  "reward": "Limited",   "legs": "BUY Low · SELL Mid-Low · SELL Mid-High · BUY High", "desc": "Four-leg bullish strategy. Profit in a range above current price.", "mp": "Net Credit", "ml": "Spread - Credit", "be": "Lower strikes + Credit"},
+        {"name": "Long Call",         "shape": "long_call",        "risk": "Limited",  "reward": "Unlimited", "legs": "BUY CALL (ATM)",                         "desc": "Buy a call option. Profits as market rises above strike. Risk is limited to premium paid.", "mp": "Unlimited", "ml": "Premium Paid", "be": "Strike + Premium", "lot_size": 75, "margin_mult": 1.0},
+        {"name": "Short Put",         "shape": "short_put",        "risk": "Moderate", "reward": "Limited",   "legs": "SELL PUT (OTM)",                          "desc": "Sell a put option below market. Collect premium. Profit if market stays above strike.", "mp": "Premium Received", "ml": "Strike - Premium", "be": "Strike - Premium", "lot_size": 75, "margin_mult": 5.0},
+        {"name": "Bull Call Spread",  "shape": "bull_call_spread", "risk": "Limited",  "reward": "Limited",   "legs": "BUY CALL (Low) · SELL CALL (High)",       "desc": "Buy lower call, sell higher call. Reduces cost; caps profit at upper strike.", "mp": "Spread - Debit", "ml": "Net Debit", "be": "Lower Strike + Debit", "lot_size": 75, "margin_mult": 1.5},
+        {"name": "Bull Put Spread",   "shape": "bull_put_spread",  "risk": "Limited",  "reward": "Limited",   "legs": "SELL PUT (High) · BUY PUT (Low)",          "desc": "Sell higher put, buy lower put. Credit received upfront. Profit if market stays above higher strike.", "mp": "Net Credit", "ml": "Spread - Credit", "be": "Higher Strike - Credit", "lot_size": 75, "margin_mult": 2.0},
+        {"name": "Call Ratio Back Spread","shape":"call_ratio_back","risk": "Limited",  "reward": "Unlimited", "legs": "SELL 1 CALL (Low) · BUY 2 CALLS (High)",  "desc": "Sell fewer calls, buy more higher calls. Benefits from a big upside move.", "mp": "Unlimited", "ml": "Limited", "be": "Varies", "lot_size": 75, "margin_mult": 2.5},
+        {"name": "Long Synthetic",    "shape": "long_synthetic",   "risk": "High",     "reward": "Unlimited", "legs": "BUY CALL (ATM) · SELL PUT (ATM)",         "desc": "Replicates owning the underlying. Unlimited profit potential with high risk.", "mp": "Unlimited", "ml": "Unlimited", "be": "ATM Strike", "lot_size": 75, "margin_mult": 6.0},
+        {"name": "Range Forward",     "shape": "range_forward",    "risk": "Limited",  "reward": "Limited",   "legs": "BUY CALL (High) · SELL PUT (Low)",        "desc": "Collar-like structure. Profit in a range. Used to hedge existing positions.", "mp": "Capped", "ml": "Capped", "be": "Varies", "lot_size": 75, "margin_mult": 2.0},
+        {"name": "Bull Butterfly",    "shape": "bull_butterfly",   "risk": "Limited",  "reward": "Limited",   "legs": "BUY Low CALL · SELL 2 Mid CALL · BUY High CALL", "desc": "Max profit at middle strike. Low cost strategy for moderate bullish view.", "mp": "Mid - Low - Debit", "ml": "Net Debit", "be": "Low+Debit / High-Debit", "lot_size": 75, "margin_mult": 1.2},
+        {"name": "Bull Condor",       "shape": "bull_condor",      "risk": "Limited",  "reward": "Limited",   "legs": "BUY Low · SELL Mid-Low · SELL Mid-High · BUY High", "desc": "Four-leg bullish strategy. Profit in a range above current price.", "mp": "Net Credit", "ml": "Spread - Credit", "be": "Lower strikes + Credit", "lot_size": 75, "margin_mult": 1.8},
     ],
     "bearish": [
-        {"name": "Short Call",        "shape": "short_call",       "risk": "Unlimited","reward": "Limited",   "legs": "SELL CALL (ATM/OTM)",                     "desc": "Sell a call option above market. Collect premium. Profit if market falls or stays below strike.", "mp": "Premium Received", "ml": "Unlimited", "be": "Strike + Premium"},
-        {"name": "Long Put",          "shape": "long_put",         "risk": "Limited",  "reward": "High",      "legs": "BUY PUT (ATM)",                           "desc": "Buy a put option. Profits as market falls below strike. Risk is limited to premium paid.", "mp": "Strike - Premium", "ml": "Premium Paid", "be": "Strike - Premium"},
-        {"name": "Bear Call Spread",  "shape": "bear_call_spread", "risk": "Limited",  "reward": "Limited",   "legs": "SELL CALL (Low) · BUY CALL (High)",       "desc": "Sell lower call, buy higher call. Credit received. Profit if market stays below lower strike.", "mp": "Net Credit", "ml": "Spread - Credit", "be": "Lower Strike + Credit"},
-        {"name": "Bear Put Spread",   "shape": "bear_put_spread",  "risk": "Limited",  "reward": "Limited",   "legs": "BUY PUT (High) · SELL PUT (Low)",          "desc": "Buy higher put, sell lower put. Cheaper bearish bet with capped profit.", "mp": "Spread - Debit", "ml": "Net Debit", "be": "Higher Strike - Debit"},
-        {"name": "Put Ratio Back Spread","shape":"put_ratio_back", "risk": "Limited",  "reward": "High",      "legs": "SELL 1 PUT (High) · BUY 2 PUTS (Low)",    "desc": "Sell fewer puts, buy more lower puts. Benefits from a big downside move.", "mp": "High", "ml": "Limited", "be": "Varies"},
-        {"name": "Short Synthetic",   "shape": "short_synthetic",  "risk": "High",     "reward": "High",      "legs": "SELL CALL (ATM) · BUY PUT (ATM)",         "desc": "Replicates shorting the underlying. Profit as market falls. High risk.", "mp": "Unlimited", "ml": "Unlimited", "be": "ATM Strike"},
-        {"name": "Risk Reversal",     "shape": "risk_reversal",    "risk": "High",     "reward": "High",      "legs": "BUY PUT (Low) · SELL CALL (High)",        "desc": "Protect downside while giving up upside. Common hedging structure.", "mp": "High", "ml": "High", "be": "Varies"},
-        {"name": "Bear Butterfly",    "shape": "bear_butterfly",   "risk": "Limited",  "reward": "Limited",   "legs": "BUY Low PUT · SELL 2 Mid PUT · BUY High PUT", "desc": "Max profit at middle strike. Low cost strategy for moderate bearish view.", "mp": "Mid - Low - Debit", "ml": "Net Debit", "be": "Low+Debit / High-Debit"},
-        {"name": "Bear Condor",       "shape": "bear_condor",      "risk": "Limited",  "reward": "Limited",   "legs": "BUY High · SELL Mid-High · SELL Mid-Low · BUY Low", "desc": "Four-leg bearish strategy. Profit in a range below current price.", "mp": "Net Credit", "ml": "Spread - Credit", "be": "Upper strikes - Credit"},
+        {"name": "Short Call",        "shape": "short_call",       "risk": "Unlimited","reward": "Limited",   "legs": "SELL CALL (ATM/OTM)",                     "desc": "Sell a call option above market. Collect premium. Profit if market falls or stays below strike.", "mp": "Premium Received", "ml": "Unlimited", "be": "Strike + Premium", "lot_size": 75, "margin_mult": 5.0},
+        {"name": "Long Put",          "shape": "long_put",         "risk": "Limited",  "reward": "High",      "legs": "BUY PUT (ATM)",                           "desc": "Buy a put option. Profits as market falls below strike. Risk is limited to premium paid.", "mp": "Strike - Premium", "ml": "Premium Paid", "be": "Strike - Premium", "lot_size": 75, "margin_mult": 1.0},
+        {"name": "Bear Call Spread",  "shape": "bear_call_spread", "risk": "Limited",  "reward": "Limited",   "legs": "SELL CALL (Low) · BUY CALL (High)",       "desc": "Sell lower call, buy higher call. Credit received. Profit if market stays below lower strike.", "mp": "Net Credit", "ml": "Spread - Credit", "be": "Lower Strike + Credit", "lot_size": 75, "margin_mult": 2.0},
+        {"name": "Bear Put Spread",   "shape": "bear_put_spread",  "risk": "Limited",  "reward": "Limited",   "legs": "BUY PUT (High) · SELL PUT (Low)",          "desc": "Buy higher put, sell lower put. Cheaper bearish bet with capped profit.", "mp": "Spread - Debit", "ml": "Net Debit", "be": "Higher Strike - Debit", "lot_size": 75, "margin_mult": 1.5},
+        {"name": "Put Ratio Back Spread","shape":"put_ratio_back", "risk": "Limited",  "reward": "High",      "legs": "SELL 1 PUT (High) · BUY 2 PUTS (Low)",    "desc": "Sell fewer puts, buy more lower puts. Benefits from a big downside move.", "mp": "High", "ml": "Limited", "be": "Varies", "lot_size": 75, "margin_mult": 2.5},
+        {"name": "Short Synthetic",   "shape": "short_synthetic",  "risk": "High",     "reward": "High",      "legs": "SELL CALL (ATM) · BUY PUT (ATM)",         "desc": "Replicates shorting the underlying. Profit as market falls. High risk.", "mp": "Unlimited", "ml": "Unlimited", "be": "ATM Strike", "lot_size": 75, "margin_mult": 6.0},
+        {"name": "Risk Reversal",     "shape": "risk_reversal",    "risk": "High",     "reward": "High",      "legs": "BUY PUT (Low) · SELL CALL (High)",        "desc": "Protect downside while giving up upside. Common hedging structure.", "mp": "High", "ml": "High", "be": "Varies", "lot_size": 75, "margin_mult": 3.0},
+        {"name": "Bear Butterfly",    "shape": "bear_butterfly",   "risk": "Limited",  "reward": "Limited",   "legs": "BUY Low PUT · SELL 2 Mid PUT · BUY High PUT", "desc": "Max profit at middle strike. Low cost strategy for moderate bearish view.", "mp": "Mid - Low - Debit", "ml": "Net Debit", "be": "Low+Debit / High-Debit", "lot_size": 75, "margin_mult": 1.2},
+        {"name": "Bear Condor",       "shape": "bear_condor",      "risk": "Limited",  "reward": "Limited",   "legs": "BUY High · SELL Mid-High · SELL Mid-Low · BUY Low", "desc": "Four-leg bearish strategy. Profit in a range below current price.", "mp": "Net Credit", "ml": "Spread - Credit", "be": "Upper strikes - Credit", "lot_size": 75, "margin_mult": 1.8},
     ],
     "nondirectional": [
-        {"name": "Long Straddle",     "shape": "long_straddle",    "risk": "Limited",  "reward": "Unlimited", "legs": "BUY CALL (ATM) + BUY PUT (ATM)",          "desc": "Buy both ATM call and put. Profit from big move in either direction. Best before events.", "mp": "Unlimited", "ml": "Total Premium", "be": "Strike +/- Total Premium"},
-        {"name": "Short Straddle",    "shape": "short_straddle",   "risk": "Unlimited","reward": "Limited",   "legs": "SELL CALL (ATM) + SELL PUT (ATM)",        "desc": "Sell both ATM call and put. Profit from low volatility. High risk unlimited loss.", "mp": "Total Premium", "ml": "Unlimited", "be": "Strike +/- Total Premium"},
-        {"name": "Long Strangle",     "shape": "long_strangle",    "risk": "Limited",  "reward": "Unlimited", "legs": "BUY OTM CALL + BUY OTM PUT",              "desc": "Buy OTM call and put. Cheaper than straddle. Needs bigger move to profit.", "mp": "Unlimited", "ml": "Total Premium", "be": "Strikes +/- Premium"},
-        {"name": "Short Strangle",    "shape": "short_strangle",   "risk": "Unlimited","reward": "Limited",   "legs": "SELL OTM CALL + SELL OTM PUT",            "desc": "Sell OTM call and put. Wider profit range than short straddle. Still high risk.", "mp": "Total Premium", "ml": "Unlimited", "be": "Strikes +/- Premium"},
-        {"name": "Jade Lizard",       "shape": "jade_lizard",      "risk": "Limited",  "reward": "Limited",   "legs": "SELL OTM PUT + SELL CALL SPREAD",         "desc": "No upside risk. Collect premium. Bearish but risk-defined.", "mp": "Total Credit", "ml": "Below Put Strike", "be": "Put Strike - Credit"},
-        {"name": "Reverse Jade Lizard","shape":"reverse_jade",     "risk": "Limited",  "reward": "Limited",   "legs": "SELL OTM CALL + SELL PUT SPREAD",         "desc": "No downside risk. Collect premium. Bullish but risk-defined.", "mp": "Total Credit", "ml": "Above Call Strike", "be": "Call Strike + Credit"},
-        {"name": "Call Ratio Spread", "shape": "call_ratio_spread","risk": "Unlimited","reward": "Limited",   "legs": "BUY 1 CALL (Low) · SELL 2 CALLS (High)", "desc": "Sell more calls than bought. Credit or debit. Risk if big upside move occurs.", "mp": "Net Credit + Spread", "ml": "Unlimited", "be": "Varies"},
-        {"name": "Put Ratio Spread",  "shape": "put_ratio_spread", "risk": "Unlimited","reward": "Limited",   "legs": "BUY 1 PUT (High) · SELL 2 PUTS (Low)",   "desc": "Sell more puts than bought. Risk if big downside move occurs.", "mp": "Net Credit + Spread", "ml": "Unlimited", "be": "Varies"},
-        {"name": "Batman Strategy",   "shape": "batman",           "risk": "Limited",  "reward": "Limited",   "legs": "BUY 2 CALLS + SELL 4 CALLS + BUY 2 CALLS","desc": "Double butterfly. Two profit peaks. Complex strategy for range-bound markets.", "mp": "Limited", "ml": "Net Debit", "be": "Multiple"},
-        {"name": "Long Iron Fly",     "shape": "long_iron_fly",    "risk": "Limited",  "reward": "Limited",   "legs": "BUY CALL · BUY PUT · SELL ATM CALL · SELL ATM PUT", "desc": "Debit iron fly. Profit from a big move. Max loss if price stays at ATM.", "mp": "Wings - Debit", "ml": "Net Debit", "be": "ATM +/- Debit"},
-        {"name": "Short Iron Fly",    "shape": "short_iron_fly",   "risk": "Limited",  "reward": "Limited",   "legs": "SELL CALL · SELL PUT · BUY OTM CALL · BUY OTM PUT", "desc": "Credit iron fly. Max profit at ATM. Common non-directional strategy.", "mp": "Net Credit", "ml": "Wings - Credit", "be": "ATM +/- Credit"},
-        {"name": "Double Fly",        "shape": "double_fly",       "risk": "Limited",  "reward": "Limited",   "legs": "TWO BUTTERFLY SPREADS",                   "desc": "Two butterfly spreads at different strikes. Two profit peaks.", "mp": "Limited", "ml": "Net Debit", "be": "Multiple"},
-        {"name": "Long Iron Condor",  "shape": "long_iron_condor", "risk": "Limited",  "reward": "Limited",   "legs": "BUY CALL SPREAD + BUY PUT SPREAD",        "desc": "Debit condor. Profit from a big move. Opposite of short iron condor.", "mp": "Spreads - Debit", "ml": "Net Debit", "be": "Inner strikes +/- Debit"},
-        {"name": "Short Iron Condor", "shape": "short_iron_condor","risk": "Limited",  "reward": "Limited",   "legs": "SELL CALL SPREAD + SELL PUT SPREAD",       "desc": "Collect premium from both sides. Profit if price stays in a range.", "mp": "Net Credit", "ml": "Spreads - Credit", "be": "Short strikes +/- Credit"},
-        {"name": "Double Condor",     "shape": "double_condor",    "risk": "Limited",  "reward": "Limited",   "legs": "TWO CONDOR SPREADS",                      "desc": "Two condor spreads. Wider profit range. Complex multi-leg strategy.", "mp": "Limited", "ml": "Net Debit/Credit", "be": "Multiple"},
-        {"name": "Call Calendar",     "shape": "call_calendar",    "risk": "Limited",  "reward": "Limited",   "legs": "SELL NEAR-TERM CALL · BUY FAR-TERM CALL", "desc": "Profit from time decay difference. Best when price stays near strike.", "mp": "Limited", "ml": "Net Debit", "be": "Near strike"},
-        {"name": "Put Calendar",      "shape": "put_calendar",     "risk": "Limited",  "reward": "Limited",   "legs": "SELL NEAR-TERM PUT · BUY FAR-TERM PUT",   "desc": "Profit from time decay. Best when price stays near strike on expiry.", "mp": "Limited", "ml": "Net Debit", "be": "Near strike"},
-        {"name": "Diagonal Calendar", "shape": "diagonal_calendar","risk": "Limited",  "reward": "Limited",   "legs": "SELL NEAR CALL/PUT · BUY FAR DIFF STRIKE","desc": "Calendar spread with different strikes. Combines time and price movement.", "mp": "Limited", "ml": "Net Debit", "be": "Varies"},
-        {"name": "Call Butterfly",    "shape": "call_butterfly",   "risk": "Limited",  "reward": "Limited",   "legs": "BUY Low CALL · SELL 2 Mid CALL · BUY High CALL", "desc": "Max profit at middle strike using calls only. Low net debit strategy.", "mp": "Mid - Low - Debit", "ml": "Net Debit", "be": "Low+Debit / High-Debit"},
-        {"name": "Put Butterfly",     "shape": "put_butterfly",    "risk": "Limited",  "reward": "Limited",   "legs": "BUY High PUT · SELL 2 Mid PUT · BUY Low PUT",   "desc": "Max profit at middle strike using puts only. Low net debit strategy.", "mp": "High - Mid - Debit", "ml": "Net Debit", "be": "High-Debit / Low+Debit"},
+        {"name": "Long Straddle",     "shape": "long_straddle",    "risk": "Limited",  "reward": "Unlimited", "legs": "BUY CALL (ATM) + BUY PUT (ATM)",          "desc": "Buy both ATM call and put. Profit from big move in either direction. Best before events.", "mp": "Unlimited", "ml": "Total Premium", "be": "Strike +/- Total Premium", "lot_size": 75, "margin_mult": 1.0},
+        {"name": "Short Straddle",    "shape": "short_straddle",   "risk": "Unlimited","reward": "Limited",   "legs": "SELL CALL (ATM) + SELL PUT (ATM)",        "desc": "Sell both ATM call and put. Profit from low volatility. High risk unlimited loss.", "mp": "Total Premium", "ml": "Unlimited", "be": "Strike +/- Total Premium", "lot_size": 75, "margin_mult": 8.0},
+        {"name": "Long Strangle",     "shape": "long_strangle",    "risk": "Limited",  "reward": "Unlimited", "legs": "BUY OTM CALL + BUY OTM PUT",              "desc": "Buy OTM call and put. Cheaper than straddle. Needs bigger move to profit.", "mp": "Unlimited", "ml": "Total Premium", "be": "Strikes +/- Premium", "lot_size": 75, "margin_mult": 1.0},
+        {"name": "Short Strangle",    "shape": "short_strangle",   "risk": "Unlimited","reward": "Limited",   "legs": "SELL OTM CALL + SELL OTM PUT",            "desc": "Sell OTM call and put. Wider profit range than short straddle. Still high risk.", "mp": "Total Premium", "ml": "Unlimited", "be": "Strikes +/- Premium", "lot_size": 75, "margin_mult": 7.0},
+        {"name": "Jade Lizard",       "shape": "jade_lizard",      "risk": "Limited",  "reward": "Limited",   "legs": "SELL OTM PUT + SELL CALL SPREAD",         "desc": "No upside risk. Collect premium. Bearish but risk-defined.", "mp": "Total Credit", "ml": "Below Put Strike", "be": "Put Strike - Credit", "lot_size": 75, "margin_mult": 3.0},
+        {"name": "Reverse Jade Lizard","shape":"reverse_jade",     "risk": "Limited",  "reward": "Limited",   "legs": "SELL OTM CALL + SELL PUT SPREAD",         "desc": "No downside risk. Collect premium. Bullish but risk-defined.", "mp": "Total Credit", "ml": "Above Call Strike", "be": "Call Strike + Credit", "lot_size": 75, "margin_mult": 3.0},
+        {"name": "Call Ratio Spread", "shape": "call_ratio_spread","risk": "Unlimited","reward": "Limited",   "legs": "BUY 1 CALL (Low) · SELL 2 CALLS (High)", "desc": "Sell more calls than bought. Credit or debit. Risk if big upside move occurs.", "mp": "Net Credit + Spread", "ml": "Unlimited", "be": "Varies", "lot_size": 75, "margin_mult": 4.0},
+        {"name": "Put Ratio Spread",  "shape": "put_ratio_spread", "risk": "Unlimited","reward": "Limited",   "legs": "BUY 1 PUT (High) · SELL 2 PUTS (Low)",   "desc": "Sell more puts than bought. Risk if big downside move occurs.", "mp": "Net Credit + Spread", "ml": "Unlimited", "be": "Varies", "lot_size": 75, "margin_mult": 4.0},
+        {"name": "Batman Strategy",   "shape": "batman",           "risk": "Limited",  "reward": "Limited",   "legs": "BUY 2 CALLS + SELL 4 CALLS + BUY 2 CALLS","desc": "Double butterfly. Two profit peaks. Complex strategy for range-bound markets.", "mp": "Limited", "ml": "Net Debit", "be": "Multiple", "lot_size": 75, "margin_mult": 2.0},
+        {"name": "Long Iron Fly",     "shape": "long_iron_fly",    "risk": "Limited",  "reward": "Limited",   "legs": "BUY CALL · BUY PUT · SELL ATM CALL · SELL ATM PUT", "desc": "Debit iron fly. Profit from a big move. Max loss if price stays at ATM.", "mp": "Wings - Debit", "ml": "Net Debit", "be": "ATM +/- Debit", "lot_size": 75, "margin_mult": 1.5},
+        {"name": "Short Iron Fly",    "shape": "short_iron_fly",   "risk": "Limited",  "reward": "Limited",   "legs": "SELL CALL · SELL PUT · BUY OTM CALL · BUY OTM PUT", "desc": "Credit iron fly. Max profit at ATM. Common non-directional strategy.", "mp": "Net Credit", "ml": "Wings - Credit", "be": "ATM +/- Credit", "lot_size": 75, "margin_mult": 3.0},
+        {"name": "Double Fly",        "shape": "double_fly",       "risk": "Limited",  "reward": "Limited",   "legs": "TWO BUTTERFLY SPREADS",                   "desc": "Two butterfly spreads at different strikes. Two profit peaks.", "mp": "Limited", "ml": "Net Debit", "be": "Multiple", "lot_size": 75, "margin_mult": 2.0},
+        {"name": "Long Iron Condor",  "shape": "long_iron_condor", "risk": "Limited",  "reward": "Limited",   "legs": "BUY CALL SPREAD + BUY PUT SPREAD",        "desc": "Debit condor. Profit from a big move. Opposite of short iron condor.", "mp": "Spreads - Debit", "ml": "Net Debit", "be": "Inner strikes +/- Debit", "lot_size": 75, "margin_mult": 1.5},
+        {"name": "Short Iron Condor", "shape": "short_iron_condor","risk": "Limited",  "reward": "Limited",   "legs": "SELL CALL SPREAD + SELL PUT SPREAD",       "desc": "Collect premium from both sides. Profit if price stays in a range.", "mp": "Net Credit", "ml": "Spreads - Credit", "be": "Short strikes +/- Credit", "lot_size": 75, "margin_mult": 3.5},
+        {"name": "Double Condor",     "shape": "double_condor",    "risk": "Limited",  "reward": "Limited",   "legs": "TWO CONDOR SPREADS",                      "desc": "Two condor spreads. Wider profit range. Complex multi-leg strategy.", "mp": "Limited", "ml": "Net Debit/Credit", "be": "Multiple", "lot_size": 75, "margin_mult": 2.5},
+        {"name": "Call Calendar",     "shape": "call_calendar",    "risk": "Limited",  "reward": "Limited",   "legs": "SELL NEAR-TERM CALL · BUY FAR-TERM CALL", "desc": "Profit from time decay difference. Best when price stays near strike.", "mp": "Limited", "ml": "Net Debit", "be": "Near strike", "lot_size": 75, "margin_mult": 2.0},
+        {"name": "Put Calendar",      "shape": "put_calendar",     "risk": "Limited",  "reward": "Limited",   "legs": "SELL NEAR-TERM PUT · BUY FAR-TERM PUT",   "desc": "Profit from time decay. Best when price stays near strike on expiry.", "mp": "Limited", "ml": "Net Debit", "be": "Near strike", "lot_size": 75, "margin_mult": 2.0},
+        {"name": "Diagonal Calendar", "shape": "diagonal_calendar","risk": "Limited",  "reward": "Limited",   "legs": "SELL NEAR CALL/PUT · BUY FAR DIFF STRIKE","desc": "Calendar spread with different strikes. Combines time and price movement.", "mp": "Limited", "ml": "Net Debit", "be": "Varies", "lot_size": 75, "margin_mult": 2.0},
+        {"name": "Call Butterfly",    "shape": "call_butterfly",   "risk": "Limited",  "reward": "Limited",   "legs": "BUY Low CALL · SELL 2 Mid CALL · BUY High CALL", "desc": "Max profit at middle strike using calls only. Low net debit strategy.", "mp": "Mid - Low - Debit", "ml": "Net Debit", "be": "Low+Debit / High-Debit", "lot_size": 75, "margin_mult": 1.2},
+        {"name": "Put Butterfly",     "shape": "put_butterfly",    "risk": "Limited",  "reward": "Limited",   "legs": "BUY High PUT · SELL 2 Mid PUT · BUY Low PUT",   "desc": "Max profit at middle strike using puts only. Low net debit strategy.", "mp": "High - Mid - Debit", "ml": "Net Debit", "be": "High-Debit / Low+Debit", "lot_size": 75, "margin_mult": 1.2},
     ],
 }
 
 
-def build_strategies_html():
-    """Build interactive tabbed strategies section with SVG payoff charts."""
+def build_strategies_html(oc_analysis):
+    """Build interactive tabbed strategies section with SVG payoff charts and dynamic metrics."""
+
+    # Prepare option chain data for JS injection
+    if oc_analysis:
+        spot        = oc_analysis["underlying"]
+        atm         = oc_analysis["atm_strike"]
+        pcr         = oc_analysis["pcr_oi"]
+        max_pain    = oc_analysis["max_pain"]
+        strikes_json = json.dumps(oc_analysis.get("strikes_data", []))
+    else:
+        spot        = 23000
+        atm         = 23000
+        pcr         = 1.0
+        max_pain    = 23000
+        strikes_json = "[]"
 
     def render_cards(strats, cat):
         cards = ""
-        for s in strats:
+        for idx, s in enumerate(strats):
             svg     = make_payoff_svg(s["shape"])
             rc      = "#00c896" if s["risk"]   in ("Limited","Low") else ("#ff6b6b" if s["risk"] in ("Unlimited","High") else "#6480ff")
             rwc     = "#00c896" if s["reward"] == "Unlimited" else "#6480ff"
+            card_id = f"sc_{cat}_{idx}"
+            # POP badge placeholder — filled by JS
             cards += (
-                f'<div class="sc-card" data-cat="{cat}">'
+                f'<div class="sc-card" data-cat="{cat}" data-shape="{s["shape"]}" '
+                f'data-name="{s["name"]}" data-legs="{s["legs"]}" '
+                f'data-risk="{s["risk"]}" data-reward="{s["reward"]}" '
+                f'data-margin-mult="{s.get("margin_mult", 1.0)}" '
+                f'data-lot-size="{s.get("lot_size", 75)}" '
+                f'id="{card_id}">'
+                # POP badge top-right
+                f'<div class="sc-pop-badge" id="pop_{card_id}">—%</div>'
                 f'<div class="sc-svg">{svg}</div>'
                 f'<div class="sc-body">'
                 f'<div class="sc-name">{s["name"]}</div>'
@@ -714,12 +753,11 @@ def build_strategies_html():
                 f'<span class="sc-tag" style="color:{rwc};border-color:{rwc}40;">Reward: {s["reward"]}</span>'
                 f'</div>'
                 f'</div>'
-                f'<div class="sc-detail">'
+                # Expanded detail panel (populated by JS)
+                f'<div class="sc-detail" id="detail_{card_id}">'
                 f'<div class="sc-desc">{s["desc"]}</div>'
-                f'<div class="sc-metrics">'
-                f'<div><span class="sc-ml">Max Profit</span><span style="color:#00c896;">{s["mp"]}</span></div>'
-                f'<div><span class="sc-ml">Max Loss</span><span style="color:#ff6b6b;">{s["ml"]}</span></div>'
-                f'<div><span class="sc-ml">Breakeven</span><span style="color:#6480ff;">{s["be"]}</span></div>'
+                f'<div class="sc-metrics-live" id="metrics_{card_id}">'
+                f'<div class="sc-loading">&#9685; Calculating metrics...</div>'
                 f'</div>'
                 f'</div>'
                 f'</div>'
@@ -733,10 +771,9 @@ def build_strategies_html():
     return f"""
 <div class="section" id="strat">
   <div class="sec-title">STRATEGIES REFERENCE
-    <span class="sec-sub">Click a card to expand &middot; Select category to filter</span>
+    <span class="sec-sub">Live metrics from option chain &middot; Click to expand &middot; PoP = Probability of Profit</span>
   </div>
 
-  <!-- Tab buttons -->
   <div class="sc-tabs">
     <button class="sc-tab active" onclick="filterStrat('bullish',this)"
       style="border-color:#00c896;color:#00c896;background:rgba(0,200,150,.12);">
@@ -752,11 +789,607 @@ def build_strategies_html():
     </button>
   </div>
 
-  <!-- Cards grid -->
   <div class="sc-grid" id="sc-grid">
     {bull_cards}{bear_cards}{nd_cards}
   </div>
 </div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  OPTION CHAIN DATA (injected from Python)
+// ═══════════════════════════════════════════════
+const OC = {{
+  spot:     {spot:.2f},
+  atm:      {atm},
+  pcr:      {pcr:.3f},
+  maxPain:  {max_pain},
+  strikes:  {strikes_json},
+  lotSize:  75,
+}};
+
+// Build a map from strike -> {{ce_ltp, pe_ltp, ce_iv, pe_iv}}
+const STRIKE_MAP = {{}};
+OC.strikes.forEach(s => {{ STRIKE_MAP[s.strike] = s; }});
+
+// ═══════════════════════════════════════════════
+//  PROBABILITY OF PROFIT ENGINE
+//  Uses delta-based approximation:
+//  PoP(long call) ≈ 1 - delta_call  (for OTM)
+//  PoP(credit strategy) ≈ delta at short strike
+//  Adjusted with PCR and distance to max pain
+// ═══════════════════════════════════════════════
+
+function normCDF(x) {{
+  // Approximation of N(x)
+  const a1=0.254829592, a2=-0.284496736, a3=1.421413741,
+        a4=-1.453152027, a5=1.061405429, p=0.3275911;
+  const sign = x < 0 ? -1 : 1;
+  x = Math.abs(x);
+  const t = 1 / (1 + p * x);
+  const y = 1 - (((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+  return 0.5 * (1 + sign * y);
+}}
+
+function bsDelta(spot, strike, iv, T, isCall) {{
+  // Black-Scholes delta
+  if (iv <= 0 || T <= 0) return isCall ? 0.5 : -0.5;
+  const r = 0.065; // Indian risk-free rate approx
+  const d1 = (Math.log(spot/strike) + (r + 0.5*iv*iv)*T) / (iv * Math.sqrt(T));
+  if (isCall) return normCDF(d1);
+  return normCDF(d1) - 1;
+}}
+
+function getATMLTP(type) {{
+  // Get LTP nearest to ATM
+  const atm = OC.atm;
+  const row = STRIKE_MAP[atm] || OC.strikes.reduce((best, s) => {{
+    return Math.abs(s.strike - atm) < Math.abs(best.strike - atm) ? s : best;
+  }}, OC.strikes[0] || {{strike: atm, ce_ltp: 0, pe_ltp: 0, ce_iv: 15, pe_iv: 15}});
+  return type === 'ce' ? row.ce_ltp : row.pe_ltp;
+}}
+
+function getOTM(type, offset) {{
+  // Get OTM strike LTP (offset = number of strikes away)
+  const targetStrike = type === 'ce' ? OC.atm + offset*50 : OC.atm - offset*50;
+  const row = STRIKE_MAP[targetStrike] || OC.strikes.reduce((best, s) => {{
+    return Math.abs(s.strike - targetStrike) < Math.abs(best.strike - targetStrike) ? s : best;
+  }}, OC.strikes[0] || {{strike: OC.atm, ce_ltp: 0, pe_ltp: 0, ce_iv: 15, pe_iv: 15}});
+  return {{strike: row.strike || targetStrike, ltp: type === 'ce' ? row.ce_ltp : row.pe_ltp, iv: type === 'ce' ? row.ce_iv : row.pe_iv}};
+}}
+
+function getPCRAdjust() {{
+  // PCR adjustment to PoP: bullish context boosts call buyer PoP
+  if (OC.pcr > 1.3) return 0.05;
+  if (OC.pcr > 1.1) return 0.02;
+  if (OC.pcr < 0.7) return -0.05;
+  if (OC.pcr < 0.9) return -0.02;
+  return 0;
+}}
+
+function daysToExpiry() {{
+  // Rough DTE from OC data — use 5 as default weekly
+  return 5;
+}}
+
+// ═══════════════════════════════════════════════
+//  STRATEGY METRICS CALCULATOR
+//  Returns {{pop, maxProfit, maxLoss, rrRatio,
+//            breakevens, netCredit, margin, pnl}}
+// ═══════════════════════════════════════════════
+function calcMetrics(shape) {{
+  const spot   = OC.spot;
+  const atm    = OC.atm;
+  const T      = daysToExpiry() / 365;
+  const pcrAdj = getPCRAdjust();
+  const lotSz  = OC.lotSize;
+
+  // ATM premiums
+  const ce_atm_ltp = getATMLTP('ce');
+  const pe_atm_ltp = getATMLTP('pe');
+  const ce_otm1    = getOTM('ce', 1);   // 1 strike OTM call
+  const ce_otm2    = getOTM('ce', 2);   // 2 strikes OTM call
+  const pe_otm1    = getOTM('pe', 1);   // 1 strike OTM put
+  const pe_otm2    = getOTM('pe', 2);   // 2 strikes OTM put
+
+  const atmIV    = (getOTM('ce',0) && STRIKE_MAP[atm]) ? (STRIKE_MAP[atm].ce_iv||15)/100 : 0.15;
+  const otm1IV   = (ce_otm1.iv || 15) / 100;
+
+  let pop=50, mp=0, ml=0, be=[], nc=0, margin=0, pnl=0, rrRatio=0;
+
+  switch(shape) {{
+    case 'long_call': {{
+      const prem = ce_atm_ltp || 150;
+      const delta = bsDelta(spot, atm, atmIV, T, true);
+      pop  = Math.round((1 - delta + pcrAdj) * 100);
+      mp   = 999999; // Unlimited
+      ml   = prem * lotSz;
+      be   = [atm + prem];
+      nc   = -prem * lotSz;
+      margin = prem * lotSz;
+      pnl  = Math.max(spot - atm - prem, -prem) * lotSz;
+      rrRatio = 0; // unlimited
+      break;
+    }}
+    case 'long_put': {{
+      const prem = pe_atm_ltp || 150;
+      const delta = bsDelta(spot, atm, atmIV, T, false);
+      pop  = Math.round((Math.abs(delta) + pcrAdj) * 100);
+      mp   = 999999;
+      ml   = prem * lotSz;
+      be   = [atm - prem];
+      nc   = -prem * lotSz;
+      margin = prem * lotSz;
+      pnl  = Math.max(atm - spot - prem, -prem) * lotSz;
+      rrRatio = 0;
+      break;
+    }}
+    case 'short_put': {{
+      const prem = pe_atm_ltp || 150;
+      const delta = bsDelta(spot, atm, atmIV, T, false);
+      pop  = Math.round((1 - Math.abs(delta) + pcrAdj) * 100);
+      mp   = prem * lotSz;
+      ml   = (atm - prem) * lotSz;
+      be   = [atm - prem];
+      nc   = prem * lotSz;
+      margin = atm * lotSz * 0.15; // ~15% SPAN margin
+      pnl  = Math.min(prem, Math.max(spot - atm + prem, -atm + prem)) * lotSz;
+      rrRatio = ((atm - prem) / prem).toFixed(2);
+      break;
+    }}
+    case 'short_call': {{
+      const prem = ce_atm_ltp || 150;
+      const delta = bsDelta(spot, atm, atmIV, T, true);
+      pop  = Math.round((1 - delta - pcrAdj) * 100);
+      mp   = prem * lotSz;
+      ml   = 999999;
+      be   = [atm + prem];
+      nc   = prem * lotSz;
+      margin = atm * lotSz * 0.15;
+      pnl  = 0;
+      rrRatio = 0;
+      break;
+    }}
+    case 'bull_call_spread': {{
+      const buyStrike  = atm;
+      const sellStrike = ce_otm1.strike;
+      const buyPrem    = ce_atm_ltp || 150;
+      const sellPrem   = ce_otm1.ltp || 80;
+      const netDebit   = buyPrem - sellPrem;
+      const spread     = sellStrike - buyStrike;
+      pop  = Math.round((0.45 + pcrAdj) * 100);
+      mp   = (spread - netDebit) * lotSz;
+      ml   = netDebit * lotSz;
+      be   = [buyStrike + netDebit];
+      nc   = -netDebit * lotSz;
+      margin = netDebit * lotSz;
+      pnl  = 0;
+      rrRatio = ((spread - netDebit) / netDebit).toFixed(2);
+      break;
+    }}
+    case 'bull_put_spread': {{
+      const sellStrike = atm;
+      const buyStrike  = pe_otm1.strike;
+      const sellPrem   = pe_atm_ltp || 150;
+      const buyPrem    = pe_otm1.ltp || 80;
+      const netCredit  = sellPrem - buyPrem;
+      const spread     = sellStrike - buyStrike;
+      pop  = Math.round((0.55 + pcrAdj) * 100);
+      mp   = netCredit * lotSz;
+      ml   = (spread - netCredit) * lotSz;
+      be   = [sellStrike - netCredit];
+      nc   = netCredit * lotSz;
+      margin = spread * lotSz;
+      pnl  = 0;
+      rrRatio = (netCredit / (spread - netCredit)).toFixed(2);
+      break;
+    }}
+    case 'bear_call_spread': {{
+      const sellStrike = atm;
+      const buyStrike  = ce_otm1.strike;
+      const sellPrem   = ce_atm_ltp || 150;
+      const buyPrem    = ce_otm1.ltp || 80;
+      const netCredit  = sellPrem - buyPrem;
+      const spread     = buyStrike - sellStrike;
+      pop  = Math.round((0.55 - pcrAdj) * 100);
+      mp   = netCredit * lotSz;
+      ml   = (spread - netCredit) * lotSz;
+      be   = [sellStrike + netCredit];
+      nc   = netCredit * lotSz;
+      margin = spread * lotSz;
+      pnl  = 0;
+      rrRatio = (netCredit / (spread - netCredit)).toFixed(2);
+      break;
+    }}
+    case 'bear_put_spread': {{
+      const buyStrike  = atm;
+      const sellStrike = pe_otm1.strike;
+      const buyPrem    = pe_atm_ltp || 150;
+      const sellPrem   = pe_otm1.ltp || 80;
+      const netDebit   = buyPrem - sellPrem;
+      const spread     = buyStrike - sellStrike;
+      pop  = Math.round((0.45 - pcrAdj) * 100);
+      mp   = (spread - netDebit) * lotSz;
+      ml   = netDebit * lotSz;
+      be   = [buyStrike - netDebit];
+      nc   = -netDebit * lotSz;
+      margin = netDebit * lotSz;
+      pnl  = 0;
+      rrRatio = ((spread - netDebit) / netDebit).toFixed(2);
+      break;
+    }}
+    case 'long_straddle': {{
+      const ce_prem = ce_atm_ltp || 150;
+      const pe_prem = pe_atm_ltp || 150;
+      const totalPrem = ce_prem + pe_prem;
+      pop  = Math.round((0.35 + Math.abs(pcrAdj)) * 100);
+      mp   = 999999;
+      ml   = totalPrem * lotSz;
+      be   = [atm - totalPrem, atm + totalPrem];
+      nc   = -totalPrem * lotSz;
+      margin = totalPrem * lotSz;
+      pnl  = (Math.abs(spot - atm) - totalPrem) * lotSz;
+      rrRatio = 0;
+      break;
+    }}
+    case 'short_straddle': {{
+      const ce_prem = ce_atm_ltp || 150;
+      const pe_prem = pe_atm_ltp || 150;
+      const totalPrem = ce_prem + pe_prem;
+      pop  = Math.round((0.65 - Math.abs(pcrAdj)) * 100);
+      mp   = totalPrem * lotSz;
+      ml   = 999999;
+      be   = [atm - totalPrem, atm + totalPrem];
+      nc   = totalPrem * lotSz;
+      margin = atm * lotSz * 0.25;
+      pnl  = (totalPrem - Math.abs(spot - atm)) * lotSz;
+      rrRatio = 0;
+      break;
+    }}
+    case 'long_strangle': {{
+      const ce_prem = ce_otm1.ltp || 100;
+      const pe_prem = pe_otm1.ltp || 100;
+      const totalPrem = ce_prem + pe_prem;
+      pop  = Math.round((0.30 + Math.abs(pcrAdj)) * 100);
+      mp   = 999999;
+      ml   = totalPrem * lotSz;
+      be   = [pe_otm1.strike - totalPrem, ce_otm1.strike + totalPrem];
+      nc   = -totalPrem * lotSz;
+      margin = totalPrem * lotSz;
+      pnl  = 0;
+      rrRatio = 0;
+      break;
+    }}
+    case 'short_strangle': {{
+      const ce_prem = ce_otm1.ltp || 100;
+      const pe_prem = pe_otm1.ltp || 100;
+      const totalPrem = ce_prem + pe_prem;
+      pop  = Math.round((0.68 - Math.abs(pcrAdj)) * 100);
+      mp   = totalPrem * lotSz;
+      ml   = 999999;
+      be   = [pe_otm1.strike - totalPrem, ce_otm1.strike + totalPrem];
+      nc   = totalPrem * lotSz;
+      margin = atm * lotSz * 0.20;
+      pnl  = (totalPrem - Math.max(0, spot - ce_otm1.strike) - Math.max(0, pe_otm1.strike - spot)) * lotSz;
+      rrRatio = 0;
+      break;
+    }}
+    case 'short_iron_condor': {{
+      const sellCE = ce_otm1.ltp || 100;
+      const buyCE  = ce_otm2.ltp || 50;
+      const sellPE = pe_otm1.ltp || 100;
+      const buyPE  = pe_otm2.ltp || 50;
+      const netCredit = sellCE - buyCE + sellPE - buyPE;
+      const wingWidth = 50;
+      pop  = Math.round((0.65 + pcrAdj) * 100);
+      mp   = netCredit * lotSz;
+      ml   = (wingWidth - netCredit) * lotSz;
+      be   = [pe_otm1.strike - netCredit, ce_otm1.strike + netCredit];
+      nc   = netCredit * lotSz;
+      margin = wingWidth * lotSz * 2;
+      pnl  = 0;
+      rrRatio = (netCredit / (wingWidth - netCredit)).toFixed(2);
+      break;
+    }}
+    case 'long_iron_condor': {{
+      const sellCE = ce_otm1.ltp || 100;
+      const buyCE  = ce_otm2.ltp || 50;
+      const sellPE = pe_otm1.ltp || 100;
+      const buyPE  = pe_otm2.ltp || 50;
+      const netDebit = buyCE - sellCE + buyPE - sellPE;
+      const wingWidth = 50;
+      pop  = Math.round((0.33 - pcrAdj) * 100);
+      mp   = (wingWidth - Math.abs(netDebit)) * lotSz;
+      ml   = Math.abs(netDebit) * lotSz;
+      be   = [pe_otm1.strike - Math.abs(netDebit), ce_otm1.strike + Math.abs(netDebit)];
+      nc   = netDebit * lotSz;
+      margin = Math.abs(netDebit) * lotSz;
+      pnl  = 0;
+      rrRatio = ((wingWidth - Math.abs(netDebit)) / Math.abs(netDebit)).toFixed(2);
+      break;
+    }}
+    case 'short_iron_fly': {{
+      const ce_prem = ce_atm_ltp || 150;
+      const pe_prem = pe_atm_ltp || 150;
+      const wing_ce = ce_otm1.ltp || 80;
+      const wing_pe = pe_otm1.ltp || 80;
+      const netCredit = ce_prem + pe_prem - wing_ce - wing_pe;
+      const wingWidth = 50;
+      pop  = Math.round((0.60 + pcrAdj) * 100);
+      mp   = netCredit * lotSz;
+      ml   = (wingWidth - netCredit) * lotSz;
+      be   = [atm - netCredit, atm + netCredit];
+      nc   = netCredit * lotSz;
+      margin = wingWidth * lotSz * 2;
+      pnl  = 0;
+      rrRatio = (netCredit / (wingWidth - netCredit)).toFixed(2);
+      break;
+    }}
+    case 'long_iron_fly': {{
+      const ce_prem = ce_atm_ltp || 150;
+      const pe_prem = pe_atm_ltp || 150;
+      const wing_ce = ce_otm1.ltp || 80;
+      const wing_pe = pe_otm1.ltp || 80;
+      const netDebit = wing_ce + wing_pe - ce_prem - pe_prem;
+      const wingWidth = 50;
+      pop  = Math.round((0.38 - pcrAdj) * 100);
+      mp   = (wingWidth - Math.abs(netDebit)) * lotSz;
+      ml   = Math.abs(netDebit) * lotSz;
+      be   = [atm - Math.abs(netDebit), atm + Math.abs(netDebit)];
+      nc   = -Math.abs(netDebit) * lotSz;
+      margin = Math.abs(netDebit) * lotSz;
+      pnl  = 0;
+      rrRatio = ((wingWidth - Math.abs(netDebit)) / Math.abs(netDebit)).toFixed(2);
+      break;
+    }}
+    case 'call_ratio_back': {{
+      const sell_prem = ce_atm_ltp || 150;
+      const buy_prem  = ce_otm1.ltp || 80;
+      const netDebit  = 2 * buy_prem - sell_prem;
+      pop  = Math.round((0.40 + pcrAdj) * 100);
+      mp   = 999999;
+      ml   = netDebit > 0 ? netDebit * lotSz : 0;
+      be   = [ce_otm1.strike + buy_prem];
+      nc   = -netDebit * lotSz;
+      margin = ce_otm1.strike * lotSz * 0.15;
+      pnl  = 0;
+      rrRatio = 0;
+      break;
+    }}
+    case 'put_ratio_back': {{
+      const sell_prem = pe_atm_ltp || 150;
+      const buy_prem  = pe_otm1.ltp || 80;
+      const netDebit  = 2 * buy_prem - sell_prem;
+      pop  = Math.round((0.40 - pcrAdj) * 100);
+      mp   = 999999;
+      ml   = netDebit > 0 ? netDebit * lotSz : 0;
+      be   = [pe_otm1.strike - buy_prem];
+      nc   = -netDebit * lotSz;
+      margin = pe_otm1.strike * lotSz * 0.15;
+      pnl  = 0;
+      rrRatio = 0;
+      break;
+    }}
+    case 'long_synthetic': {{
+      const ce_prem = ce_atm_ltp || 150;
+      const pe_prem = pe_atm_ltp || 150;
+      const netDebit = ce_prem - pe_prem;
+      pop  = Math.round((0.50 + pcrAdj) * 100);
+      mp   = 999999;
+      ml   = 999999;
+      be   = [atm + netDebit];
+      nc   = -Math.abs(netDebit) * lotSz;
+      margin = atm * lotSz * 0.30;
+      pnl  = (spot - atm - netDebit) * lotSz;
+      rrRatio = 0;
+      break;
+    }}
+    case 'short_synthetic': {{
+      const ce_prem = ce_atm_ltp || 150;
+      const pe_prem = pe_atm_ltp || 150;
+      const netCredit = ce_prem - pe_prem;
+      pop  = Math.round((0.50 - pcrAdj) * 100);
+      mp   = 999999;
+      ml   = 999999;
+      be   = [atm + netCredit];
+      nc   = Math.abs(netCredit) * lotSz;
+      margin = atm * lotSz * 0.30;
+      pnl  = (atm - spot + netCredit) * lotSz;
+      rrRatio = 0;
+      break;
+    }}
+    case 'call_butterfly': case 'bull_butterfly': {{
+      const low_prem  = ce_atm_ltp || 150;
+      const mid_prem  = ce_otm1.ltp || 80;
+      const high_prem = ce_otm2.ltp || 40;
+      const netDebit  = low_prem - 2*mid_prem + high_prem;
+      const spread    = 50;
+      pop  = Math.round((0.55 + pcrAdj) * 100);
+      mp   = (spread - netDebit) * lotSz;
+      ml   = netDebit * lotSz;
+      be   = [atm + netDebit, ce_otm2.strike - netDebit];
+      nc   = -netDebit * lotSz;
+      margin = netDebit * lotSz;
+      pnl  = 0;
+      rrRatio = ((spread - netDebit) / netDebit).toFixed(2);
+      break;
+    }}
+    case 'put_butterfly': case 'bear_butterfly': {{
+      const high_prem = pe_atm_ltp || 150;
+      const mid_prem  = pe_otm1.ltp || 80;
+      const low_prem  = pe_otm2.ltp || 40;
+      const netDebit  = high_prem - 2*mid_prem + low_prem;
+      const spread    = 50;
+      pop  = Math.round((0.55 - pcrAdj) * 100);
+      mp   = (spread - netDebit) * lotSz;
+      ml   = netDebit * lotSz;
+      be   = [pe_otm2.strike + netDebit, atm - netDebit];
+      nc   = -netDebit * lotSz;
+      margin = netDebit * lotSz;
+      pnl  = 0;
+      rrRatio = ((spread - netDebit) / netDebit).toFixed(2);
+      break;
+    }}
+    case 'jade_lizard': {{
+      const pe_prem  = pe_otm1.ltp || 100;
+      const ce_sell  = ce_otm1.ltp || 80;
+      const ce_buy   = ce_otm2.ltp || 40;
+      const netCredit = pe_prem + ce_sell - ce_buy;
+      pop  = Math.round((0.60 + pcrAdj) * 100);
+      mp   = netCredit * lotSz;
+      ml   = (pe_otm1.strike - netCredit) * lotSz;
+      be   = [pe_otm1.strike - netCredit];
+      nc   = netCredit * lotSz;
+      margin = pe_otm1.strike * lotSz * 0.15;
+      pnl  = 0;
+      rrRatio = (netCredit / (pe_otm1.strike - netCredit)).toFixed(2);
+      break;
+    }}
+    case 'reverse_jade': {{
+      const ce_prem  = ce_otm1.ltp || 100;
+      const pe_sell  = pe_otm1.ltp || 80;
+      const pe_buy   = pe_otm2.ltp || 40;
+      const netCredit = ce_prem + pe_sell - pe_buy;
+      pop  = Math.round((0.60 - pcrAdj) * 100);
+      mp   = netCredit * lotSz;
+      ml   = (ce_otm1.strike - netCredit) * lotSz;
+      be   = [ce_otm1.strike + netCredit];
+      nc   = netCredit * lotSz;
+      margin = ce_otm1.strike * lotSz * 0.15;
+      pnl  = 0;
+      rrRatio = (netCredit / (ce_otm1.strike - netCredit)).toFixed(2);
+      break;
+    }}
+    case 'bull_condor': case 'bear_condor': {{
+      const s1 = shape === 'bull_condor' ? ce_atm_ltp : pe_atm_ltp;
+      const s2 = shape === 'bull_condor' ? ce_otm1.ltp : pe_otm1.ltp;
+      const s3 = shape === 'bull_condor' ? (ce_otm2.ltp * 0.7) : (pe_otm2.ltp * 0.7);
+      const s4 = shape === 'bull_condor' ? (ce_otm2.ltp * 0.4) : (pe_otm2.ltp * 0.4);
+      const netCredit = (s1 - s2) - (s3 - s4);
+      const adj = shape === 'bull_condor' ? pcrAdj : -pcrAdj;
+      pop  = Math.round((0.55 + adj) * 100);
+      mp   = netCredit * lotSz;
+      ml   = (50 - netCredit) * lotSz;
+      be   = [atm + netCredit];
+      nc   = netCredit * lotSz;
+      margin = 100 * lotSz;
+      pnl  = 0;
+      rrRatio = (netCredit / (50 - netCredit)).toFixed(2);
+      break;
+    }}
+    default: {{
+      // Generic fallback for calendar, diagonal, etc.
+      const prem = ce_atm_ltp || 150;
+      pop  = Math.round((0.50 + pcrAdj) * 100);
+      mp   = prem * lotSz * 0.5;
+      ml   = prem * lotSz * 0.3;
+      be   = [atm];
+      nc   = -prem * 0.3 * lotSz;
+      margin = prem * lotSz;
+      pnl  = 0;
+      rrRatio = 1.5;
+    }}
+  }}
+
+  // Clamp PoP to 5–95%
+  pop = Math.min(95, Math.max(5, pop));
+
+  // Format Breakevens
+  const beStr = be.map(v => '₹' + Math.round(v).toLocaleString('en-IN')).join(' / ');
+  const mpStr = mp === 999999 ? 'Unlimited' : '₹' + Math.round(mp).toLocaleString('en-IN');
+  const mlStr = ml === 999999 ? 'Unlimited' : '₹' + Math.round(ml).toLocaleString('en-IN');
+  const ncStr = (nc >= 0 ? '+ ' : '- ') + '₹' + Math.abs(Math.round(nc)).toLocaleString('en-IN');
+  const marginStr = '₹' + Math.round(margin).toLocaleString('en-IN');
+  const pnlStr   = pnl === 0 ? '₹0' : (pnl >= 0 ? '+ ' : '- ') + '₹' + Math.abs(Math.round(pnl)).toLocaleString('en-IN');
+  const rrStr    = rrRatio === 0 ? '∞' : ('1:' + Math.abs(rrRatio));
+  const mpPct    = mp === 999999 ? '∞' : (ml > 0 ? (mp/ml*100).toFixed(0) + '%' : '—');
+
+  return {{
+    pop, mpStr, mlStr, rrStr, beStr, ncStr, marginStr, pnlStr, mpPct,
+    mpRaw: mp, mlRaw: ml,
+    ncRaw: Math.round(nc),
+    pnlPositive: pnl >= 0,
+    ncPositive:  nc >= 0,
+  }};
+}}
+
+// ═══════════════════════════════════════════════
+//  RENDER METRICS HTML
+// ═══════════════════════════════════════════════
+function renderMetrics(m, cardEl) {{
+  const probColor = m.pop >= 60 ? '#00c896' : (m.pop >= 45 ? '#6480ff' : '#ff6b6b');
+  const ncColor   = m.ncPositive  ? '#00c896' : '#ff6b6b';
+  const pnlColor  = m.pnlPositive ? '#00c896' : '#ff6b6b';
+
+  return `
+    <div class="metric-row">
+      <span class="metric-lbl">Prob. of Profit</span>
+      <span class="metric-val" style="color:${{probColor}};font-weight:800;font-size:15px;">${{m.pop}}%</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-lbl">Max. Profit</span>
+      <span class="metric-val" style="color:#00c896;">${{m.mpStr}} <small style="opacity:.5;">${{m.mpPct}}</small></span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-lbl">Max. Loss</span>
+      <span class="metric-val" style="color:#ff6b6b;">${{m.mlStr}}</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-lbl">Max RR Ratio</span>
+      <span class="metric-val" style="color:#6480ff;">${{m.rrStr}}</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-lbl">Breakevens</span>
+      <span class="metric-val" style="color:#00c8e0;font-size:11px;">${{m.beStr}}</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-lbl">Total PNL (est.)</span>
+      <span class="metric-val" style="color:${{pnlColor}};">${{m.pnlStr}}</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-lbl">Net Credit / Debit</span>
+      <span class="metric-val" style="color:${{ncColor}};">${{m.ncStr}}</span>
+    </div>
+    <div class="metric-row" style="border-bottom:none;">
+      <span class="metric-lbl">Est. Margin/Premium</span>
+      <span class="metric-val" style="color:#8aa0ff;">${{m.marginStr}}</span>
+    </div>
+  `;
+}}
+
+// ═══════════════════════════════════════════════
+//  POP BADGE COLOR
+// ═══════════════════════════════════════════════
+function popBadgeStyle(pop) {{
+  if (pop >= 65) return 'background:rgba(0,200,150,.2);color:#00c896;border-color:rgba(0,200,150,.4);';
+  if (pop >= 50) return 'background:rgba(100,128,255,.2);color:#8aa0ff;border-color:rgba(100,128,255,.4);';
+  return 'background:rgba(255,107,107,.2);color:#ff6b6b;border-color:rgba(255,107,107,.4);';
+}}
+
+// ═══════════════════════════════════════════════
+//  INITIALIZE ALL CARDS WITH PoP BADGES
+// ═══════════════════════════════════════════════
+function initAllCards() {{
+  document.querySelectorAll('.sc-card').forEach(card => {{
+    const shape   = card.dataset.shape;
+    const cardId  = card.id;
+    const badge   = document.getElementById('pop_' + cardId);
+    try {{
+      const m = calcMetrics(shape);
+      if (badge) {{
+        badge.textContent = m.pop + '%';
+        badge.setAttribute('style', badge.getAttribute('style') + ';' + popBadgeStyle(m.pop));
+      }}
+    }} catch(e) {{
+      if (badge) badge.textContent = '—%';
+    }}
+  }});
+}}
+
+window.addEventListener('load', function() {{
+  initAllCards();
+  filterStrat('bullish', document.querySelector('.sc-tab'));
+}});
+</script>
 """
 
 
@@ -909,11 +1542,12 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .sc-tab:hover{opacity:.85}
 .sc-cnt{font-size:10px;padding:1px 7px;border-radius:10px;color:#fff;font-weight:700}
 
-.sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
 
 .sc-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);
   border-radius:14px;overflow:hidden;cursor:pointer;
-  transition:all .2s;display:flex;flex-direction:column}
+  transition:all .2s;display:flex;flex-direction:column;
+  position:relative;}
 .sc-card:hover{border-color:rgba(0,200,150,.3);transform:translateY(-3px);
   box-shadow:0 8px 28px rgba(0,200,150,.1)}
 .sc-card.hidden{display:none}
@@ -921,24 +1555,45 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .sc-card.expanded{border-color:rgba(0,200,150,.35);
   box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12)}
 
+/* POP BADGE */
+.sc-pop-badge{
+  position:absolute;top:8px;right:8px;
+  font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
+  padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.15);
+  background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);
+  z-index:5;letter-spacing:.5px;transition:all .3s;
+  min-width:38px;text-align:center;
+}
+
 .sc-svg{display:flex;align-items:center;justify-content:center;
-  padding:12px 0 6px;background:rgba(255,255,255,.02)}
+  padding:14px 0 6px;background:rgba(255,255,255,.02)}
 .sc-body{padding:10px 12px 12px}
 .sc-name{font-family:var(--fh);font-size:12px;font-weight:700;
-  color:rgba(255,255,255,.9);margin-bottom:4px;line-height:1.3}
+  color:rgba(255,255,255,.9);margin-bottom:4px;line-height:1.3;padding-right:48px}
 .sc-legs{font-family:var(--fm);font-size:9px;color:rgba(0,200,220,.7);
   margin-bottom:8px;letter-spacing:.3px;line-height:1.4}
 .sc-tags{display:flex;flex-direction:column;gap:4px}
 .sc-tag{font-size:9px;padding:2px 8px;border-radius:6px;
   border:1px solid;background:rgba(0,0,0,.2);display:inline-block;width:fit-content}
 
-.sc-detail{display:none;padding:12px;border-top:1px solid rgba(255,255,255,.06);
+.sc-detail{display:none;border-top:1px solid rgba(255,255,255,.06);
   background:rgba(0,200,150,.03)}
-.sc-desc{font-size:11px;color:rgba(255,255,255,.55);line-height:1.7;margin-bottom:10px}
-.sc-metrics{display:grid;grid-template-columns:1fr;gap:5px}
-.sc-metrics>div{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);
-  border-radius:6px;padding:5px 8px;font-size:11px;display:flex;justify-content:space-between;gap:8px}
-.sc-ml{font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;white-space:nowrap}
+.sc-desc{font-size:11px;color:rgba(255,255,255,.5);line-height:1.7;
+  padding:12px 12px 8px;border-bottom:1px solid rgba(255,255,255,.05);}
+
+/* LIVE METRICS PANEL */
+.sc-metrics-live{padding:0}
+.sc-loading{padding:14px 12px;font-size:11px;color:rgba(255,255,255,.3);text-align:center;font-family:'DM Mono',monospace}
+
+.metric-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.04);
+  transition:background .15s;
+}
+.metric-row:hover{background:rgba(255,255,255,.03)}
+.metric-lbl{font-size:10px;color:rgba(255,255,255,.35);
+  letter-spacing:.5px;text-transform:uppercase;font-family:'DM Mono',monospace;}
+.metric-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:600;text-align:right;}
 
 /* FOOTER */
 footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);
@@ -954,7 +1609,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);
   .oi-ticker-hdr,.oi-ticker-row{grid-template-columns:100px repeat(3,1fr)}
   .oi-ticker-hdr-cell:nth-child(n+5),.oi-ticker-cell:nth-child(n+5){display:none}
   .strikes-wrap{grid-template-columns:1fr}
-  .sc-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .sc-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
 }
 @media(max-width:640px){
   header{padding:12px 16px}
@@ -965,7 +1620,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);
   .oi-ticker-hdr-cell:nth-child(n+4),.oi-ticker-cell:nth-child(n+4){display:none}
   .kl-dist-row{grid-template-columns:1fr}
   footer{flex-direction:column;gap:6px}
-  .sc-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+  .sc-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
 }
 """
 
@@ -991,7 +1646,7 @@ def generate_html(tech, oc, md, ts):
 
     oi_html      = build_oi_html(oc)               if oc   else ""
     kl_html      = build_key_levels_html(tech, oc) if tech else ""
-    strat_html   = build_strategies_html()
+    strat_html   = build_strategies_html(oc)
     strikes_html = build_strikes_html(oc)
 
     sig_card = (
@@ -1096,12 +1751,9 @@ function go(id, btn) {{
 }}
 
 function filterStrat(cat, btn) {{
-  // Filter cards
   document.querySelectorAll(".sc-card").forEach(c => {{
     c.classList.toggle("hidden", c.dataset.cat !== cat);
   }});
-
-  // Update tab styles
   const colors = {{ bullish:"#00c896", bearish:"#ff6b6b", nondirectional:"#6480ff" }};
   const col = colors[cat] || "#00c896";
   document.querySelectorAll(".sc-tab").forEach(t => {{
@@ -1114,7 +1766,6 @@ function filterStrat(cat, btn) {{
     btn.style.color       = col;
     btn.style.background  = col + "20";
   }} else {{
-    // called from sidebar — find the matching tab
     document.querySelectorAll(".sc-tab").forEach(t => {{
       if ((cat === "bullish" && t.textContent.includes("BULLISH")) ||
           (cat === "bearish" && t.textContent.includes("BEARISH")) ||
@@ -1127,19 +1778,27 @@ function filterStrat(cat, btn) {{
   }}
 }}
 
-// Toggle card expand
+// Toggle card expand — compute metrics on first expand
 document.addEventListener("click", function(e) {{
   const card = e.target.closest(".sc-card");
   if (card) {{
     const wasExpanded = card.classList.contains("expanded");
     document.querySelectorAll(".sc-card.expanded").forEach(c => c.classList.remove("expanded"));
-    if (!wasExpanded) card.classList.add("expanded");
+    if (!wasExpanded) {{
+      card.classList.add("expanded");
+      // Populate metrics if not already done
+      const metricsEl = card.querySelector('.sc-metrics-live');
+      if (metricsEl && metricsEl.querySelector('.sc-loading')) {{
+        const shape = card.dataset.shape;
+        try {{
+          const m = calcMetrics(shape);
+          metricsEl.innerHTML = renderMetrics(m, card);
+        }} catch(err) {{
+          metricsEl.innerHTML = '<div class="sc-loading">Could not calculate metrics</div>';
+        }}
+      }}
+    }}
   }}
-}});
-
-// Show bullish by default on load
-window.addEventListener("load", function() {{
-  filterStrat("bullish", document.querySelector(".sc-tab"));
 }});
 </script>
 </body>
@@ -1154,7 +1813,7 @@ def main():
     ist_tz = pytz.timezone("Asia/Kolkata")
     ts     = datetime.now(ist_tz).strftime("%d-%b-%Y %H:%M IST")
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme")
+    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v2")
     print(f"  {ts}")
     print("=" * 65)
 
