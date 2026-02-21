@@ -2225,28 +2225,36 @@ def main():
     ist_tz = pytz.timezone("Asia/Kolkata")
     ts     = datetime.now(ist_tz).strftime("%d-%b-%Y %H:%M IST")
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v5")
+    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v6")
     print(f"  {ts}")
     print("=" * 65)
 
-    print("\n[1/3] Fetching NSE Option Chain (Spot +-500 pts)...")
-    oc_raw      = NSEOptionChain().fetch()
+    print("\n[1/4] Fetching NSE Option Chain (Spot +-500 pts)...")
+    nse_fetcher = NSEOptionChain()
+    oc_raw, nse_session, nse_headers = nse_fetcher.fetch()
     oc_analysis = analyze_option_chain(oc_raw) if oc_raw else None
     if oc_analysis:
         print(f"  OK  Spot={oc_analysis['underlying']:.2f}  ATM={oc_analysis['atm_strike']}  PCR={oc_analysis['pcr_oi']:.3f}")
     else:
         print("  WARNING  Option chain unavailable — technical-only mode")
 
-    print("\n[2/3] Fetching Technical Indicators...")
+    print("\n[2/4] Fetching India VIX...")
+    vix_data = fetch_india_vix(nse_session, nse_headers)
+    if vix_data:
+        lbl, col, bg, bdr, sig = vix_label(vix_data['value'])
+        print(f"  OK  India VIX={vix_data['value']}  Change={vix_data['change']:+.2f}  Status: {lbl}")
+    else:
+        print("  WARNING  India VIX unavailable — dashboard will show N/A")
+
+    print("\n[3/4] Fetching Technical Indicators...")
     tech = get_technical_data()
 
-    print("\n[3/3] Scoring Market Direction...")
+    print("\n[4/4] Scoring Market Direction...")
     md = compute_market_direction(tech, oc_analysis)
     print(f"  OK  {md['bias']} ({md['confidence']} confidence)  Bull={md['bull']} Bear={md['bear']}")
 
     print("\nGenerating HTML dashboard...")
-    html = generate_html(tech, oc_analysis, md, ts)
-    os.makedirs("docs", exist_ok=True)
+    html = generate_html(tech, oc_analysis, md, ts, vix_data=vix_data)
 
     out = os.path.join("docs", "index.html")
     with open(out, "w", encoding="utf-8") as f:
