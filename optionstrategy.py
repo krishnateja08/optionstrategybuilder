@@ -430,15 +430,12 @@ def _cls_bdr(cls):
 
 # =================================================================
 #  SECTION 5A -- COMPACT DUAL GAUGE HERO
+#  FIXES:
+#   1. Both gauges same visual weight — stronger track + min clamp 10%
+#   2. OI Signal text (STRONG BULLISH) — bigger, brighter, text-shadow
 # =================================================================
 
 def build_dual_gauge_hero(oc, tech, md, ts):
-    """
-    Compact single-row hero:
-      [Bull Gauge] | [Signal + Bars] | [Bear Gauge] | [5 Stats + Bias/Ts]
-    Fixed height ~92px so it never dominates the page.
-    """
-    # ── Pull data ──────────────────────────────────────────────
     if oc:
         ce_chg     = oc["ce_chg"]
         pe_chg     = oc["pe_chg"]
@@ -480,9 +477,10 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     b_bg    = _cls_bg(md.get("bias_cls", "neutral"))
     b_bdr   = _cls_bdr(md.get("bias_cls", "neutral"))
 
-    # SVG gauge — r=29, circumference=182.2
+    # ── FIX 1: clamp minimum raised to 10 so both gauges always show arc ──
     C = 194.8
-    def clamp(v, lo=3, hi=97): return max(lo, min(hi, v))
+    def clamp(v, lo=10, hi=97): return max(lo, min(hi, v))
+
     bull_offset = C * (1 - clamp(bull_pct) / 100)
     bear_offset = C * (1 - clamp(bear_pct) / 100)
     oi_bar_w    = clamp(bull_pct)
@@ -491,6 +489,17 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 
     b_arrow = "▲" if bias == "BULLISH" else ("▼" if bias == "BEARISH" else "◆")
 
+    # ── FIX 2: oi_dir signal label — uppercase, brighter, with text-shadow ──
+    # Determine glow color based on direction
+    glow_col = dir_col.replace("#", "")
+    # Parse hex to rgb for shadow
+    if dir_col == "#00c896":
+        glow_rgb = "0,200,150"
+    elif dir_col == "#ff6b6b":
+        glow_rgb = "255,107,107"
+    else:
+        glow_rgb = "100,128,255"
+
     return f"""
 <div class="hero">
 
@@ -498,7 +507,8 @@ def build_dual_gauge_hero(oc, tech, md, ts):
   <div class="h-bull">
     <div class="gauge-wrap">
       <svg width="76" height="76" viewBox="0 0 76 76">
-        <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="6"/>
+        <!-- FIX: stronger track ring so both gauges look same size -->
+        <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="6"/>
         <circle cx="38" cy="38" r="31" fill="none"
           stroke="url(#bull-g)" stroke-width="6" stroke-linecap="round"
           stroke-dasharray="{C}" stroke-dashoffset="{bull_offset:.1f}"
@@ -521,7 +531,14 @@ def build_dual_gauge_hero(oc, tech, md, ts):
   <!-- ② MIDDLE: signal + pill bars + bear gauge inline -->
   <div class="h-mid">
     <div class="h-eyebrow">OI NET SIGNAL &middot; {expiry} &middot; SPOT &#8377;{underlying:,.0f}</div>
-    <div class="h-signal" style="color:{dir_col};">{oi_dir.upper()}</div>
+
+    <!-- FIX 2: bigger, brighter signal text with glow shadow -->
+    <div class="h-signal" style="color:{dir_col};
+      text-shadow: 0 0 20px rgba({glow_rgb},.6), 0 0 40px rgba({glow_rgb},.3);
+      font-size:22px; font-weight:900; letter-spacing:1px;">
+      {oi_dir.upper()}
+    </div>
+
     <div class="h-sub">{oi_sig} &middot; PCR&nbsp;<span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
     <div class="h-divider"></div>
     <div class="bars-with-bear">
@@ -543,10 +560,12 @@ def build_dual_gauge_hero(oc, tech, md, ts):
           <div class="pill-num" style="color:#ff6b6b;">{bear_pct}%</div>
         </div>
       </div>
-      <!-- BEAR GAUGE — same 76px, sits right next to numbers, no separator -->
+
+      <!-- BEAR GAUGE — FIX: same stronger track ring -->
       <div class="gauge-wrap">
         <svg width="76" height="76" viewBox="0 0 76 76">
-          <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="6"/>
+          <!-- FIX: stronger track ring so both gauges look same size -->
+          <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="6"/>
           <circle cx="38" cy="38" r="31" fill="none"
             stroke="url(#bear-g)" stroke-width="6" stroke-linecap="round"
             stroke-dasharray="{C}" stroke-dashoffset="{bear_offset:.1f}"
@@ -569,7 +588,6 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 
   <!-- ④ RIGHT STAT PANEL -->
   <div class="h-stats">
-    <!-- Top: 5 key stat cells -->
     <div class="h-stat-row">
       <div class="h-stat">
         <div class="h-stat-lbl">NIFTY SPOT</div>
@@ -592,7 +610,6 @@ def build_dual_gauge_hero(oc, tech, md, ts):
         <div class="h-stat-val" style="color:#ffd166;">&#8377;{max_pain:,}</div>
       </div>
     </div>
-    <!-- Bottom: bias chip + confidence + score + timestamp -->
     <div class="h-stat-bottom">
       <div class="h-bias-row">
         <span class="h-chip" style="background:{b_bg};color:{b_col};border:1px solid {b_bdr};">
@@ -1693,14 +1710,8 @@ def pcr_label(pcr):
 
 
 def build_ticker_bar(tech, oc, vix_data):
-    """
-    Scrolling ticker bar — label names are now highlighted with a
-    coloured background pill so they stand out clearly against the
-    dark strip. Values and signal badges follow after.
-    """
     items = []
 
-    # ── INDIA VIX ────────────────────────────────────────────────
     if vix_data:
         v     = vix_data["value"]
         chg   = vix_data["change"]
@@ -1710,7 +1721,6 @@ def build_ticker_bar(tech, oc, vix_data):
         chg_col  = "#ff6b6b" if chg > 0 else ("#00c896" if chg < 0 else "#6480ff")
         items.append(
             f'<div class="tk-item">'
-            # ← highlighted label name
             f'<span class="tk-name" style="background:rgba(0,200,220,.15);color:#00c8e0;'
             f'border:1px solid rgba(0,200,220,.3);">&#9650;&nbsp;INDIA VIX</span>'
             f'<span class="tk-val" style="color:{col};">{v:.2f}</span>'
@@ -1730,7 +1740,6 @@ def build_ticker_bar(tech, oc, vix_data):
             f'</div>'
         )
 
-    # ── RSI ──────────────────────────────────────────────────────
     if tech:
         rsi = tech["rsi"]
         lbl, col, cls = rsi_label(rsi)
@@ -1748,7 +1757,6 @@ def build_ticker_bar(tech, oc, vix_data):
             f'</div>'
         )
 
-    # ── MACD ─────────────────────────────────────────────────────
     if tech:
         macd   = tech["macd"]
         signal = tech["signal_line"]
@@ -1769,7 +1777,6 @@ def build_ticker_bar(tech, oc, vix_data):
             f'</div>'
         )
 
-    # ── PCR ──────────────────────────────────────────────────────
     if oc:
         pcr = oc["pcr_oi"]
         lbl, col, cls = pcr_label(pcr)
@@ -1787,7 +1794,6 @@ def build_ticker_bar(tech, oc, vix_data):
             f'</div>'
         )
 
-    # Triplicate so the loop scrolls seamlessly
     track_inner = "".join(items) * 3
 
     return f'''
@@ -1830,7 +1836,6 @@ body::before{
   pointer-events:none;z-index:0;
 }
 .app{position:relative;z-index:1;display:grid;grid-template-rows:auto auto auto 1fr auto;min-height:100vh}
-/* header / ticker / hero / main / footer */
 
 /* ── HEADER ── */
 header{display:flex;align-items:center;justify-content:space-between;padding:14px 32px;
@@ -1846,7 +1851,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
 
 /* ══════════════════════════════════════════════
-   COMPACT HERO  (fixed 92px height single row)
+   COMPACT HERO
 ══════════════════════════════════════════════ */
 .hero{
   display:flex;align-items:stretch;
@@ -1868,15 +1873,12 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   pointer-events:none;
 }
 
-/* ① Bull gauge col */
 .h-bull{
   flex-shrink:0;display:flex;align-items:center;justify-content:center;
   padding:0 11px 0 17px;
 }
-/* Bear gauge inline with pill bars — no stretch */
 .bars-with-bear{display:flex;align-items:center;gap:10px;}
 .bars-col{display:flex;flex-direction:column;gap:5px;flex-shrink:0;}
-/* Gauge shared */
 .gauge-wrap{position:relative;width:76px;height:76px;}
 .gauge-wrap svg{display:block;}
 .gauge-inner{
@@ -1887,7 +1889,6 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .g-lbl{font-size:7.5px;letter-spacing:1.5px;text-transform:uppercase;
   color:rgba(255,255,255,.28);margin-top:2px;}
 
-/* ② Middle: signal + bars */
 .h-mid{
   flex:1;min-width:0;
   display:flex;flex-direction:column;justify-content:center;
@@ -1897,10 +1898,15 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .h-eyebrow{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
   color:rgba(255,255,255,.22);margin-bottom:2px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.h-signal{font-size:18px;font-weight:800;letter-spacing:-.3px;line-height:1.1;margin-bottom:2px;}
+
+/* ── FIX 2: h-signal now gets its style inline per direction but baseline is bigger/bolder ── */
+.h-signal{
+  font-size:22px;font-weight:900;letter-spacing:1px;line-height:1.1;margin-bottom:2px;
+  /* inline style overrides color + text-shadow per direction */
+}
+
 .h-sub{font-size:9.5px;color:rgba(255,255,255,.32);margin-bottom:0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-/* pill strength bars — track capped at 35% width */
 .h-divider{height:1px;background:rgba(255,255,255,.05);margin:5px 0;}
 .pill-bars{display:flex;flex-direction:column;gap:5px;}
 .pill-row{display:flex;align-items:center;gap:8px;}
@@ -1913,7 +1919,6 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .pill-num{font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
   margin-left:8px;flex-shrink:0;}
 
-/* ④ Right stat panel */
 .h-stats{
   flex-shrink:0;min-width:360px;
   display:flex;flex-direction:column;
@@ -1935,7 +1940,6 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .h-stat-val{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;
   line-height:1;white-space:nowrap;}
 
-/* Bottom: bias + conf + score + timestamp */
 .h-stat-bottom{
   display:flex;align-items:center;justify-content:space-between;
   padding:4px 10px;
@@ -2079,9 +2083,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   text-transform:uppercase;font-family:'DM Mono',monospace;}
 .metric-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:600;text-align:right;}
 
-/* ══════════════════════════════════════════════
-   SCROLLING TICKER BAR  — highlighted names
-══════════════════════════════════════════════ */
+/* ── SCROLLING TICKER BAR ── */
 .ticker-wrap{
   display:flex;align-items:center;
   background:rgba(4,6,12,.97);
@@ -2115,13 +2117,11 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   border-right:1px solid rgba(255,255,255,.04);
   flex-shrink:0;
 }
-/* ── Highlighted label name pill ── */
 .tk-name{
   font-family:var(--fm);font-size:10px;font-weight:700;
   letter-spacing:1.5px;text-transform:uppercase;
   padding:3px 10px;border-radius:6px;
   white-space:nowrap;flex-shrink:0;
-  /* default — overridden inline for each item */
   background:rgba(255,255,255,.08);
   color:rgba(255,255,255,.5);
   border:1px solid rgba(255,255,255,.1);
@@ -2167,7 +2167,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);
   .hero{height:auto;}
   .h-bull,.h-bear{padding:8px 12px;}
   .gauge-wrap{width:60px;height:60px;}
-  .h-signal{font-size:14px;}
+  .h-signal{font-size:16px;}
   .h-stats{min-width:100%;}
   .h-stat{min-width:50%;}
   .section{padding:18px 16px}
@@ -2204,7 +2204,6 @@ def generate_html(tech, oc, md, ts, vix_data=None):
     strat_html   = build_strategies_html(oc)
     strikes_html = build_strikes_html(oc)
     ticker_html  = build_ticker_bar(tech, oc, vix_data)
-    # NEW — dual gauge hero replaces old .hero block
     gauge_html   = build_dual_gauge_hero(oc, tech, md, ts)
 
     sig_card = (
@@ -2358,7 +2357,7 @@ def main():
     ist_tz = pytz.timezone("Asia/Kolkata")
     ts     = datetime.now(ist_tz).strftime("%d-%b-%Y %H:%M IST")
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v7 (Gauge Hero)")
+    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v8 (Gauge Fix)")
     print(f"  {ts}")
     print("=" * 65)
 
