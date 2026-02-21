@@ -80,16 +80,12 @@ class NSEOptionChain:
 
                 underlying = json_data.get("records", {}).get("underlyingValue", 0)
                 atm_strike = round(underlying / 50) * 50
-
-                # ── Filter: +-10 strikes from spot price ──────────
-                # Each Nifty strike is 50 pts apart, so +-10 strikes = +-500 pts from spot
-                lower_bound = underlying - 500   # 10 strikes below
-                upper_bound = underlying + 500   # 10 strikes above
+                lower_bound = underlying - 500
+                upper_bound = underlying + 500
 
                 rows = []
                 for item in data:
                     strike = item.get("strikePrice")
-                    # Only include strikes within +-500 pts (+-10 strikes) of spot
                     if strike is None or not (lower_bound <= strike <= upper_bound):
                         continue
                     ce = item.get("CE", {})
@@ -107,7 +103,7 @@ class NSEOptionChain:
                     })
 
                 df = pd.DataFrame(rows).sort_values("Strike").reset_index(drop=True)
-                print(f"    OK {len(df)} strikes (spot +-500 pts) | Spot={underlying:.0f} ATM={atm_strike} Range=[{lower_bound:.0f}-{upper_bound:.0f}]")
+                print(f"    OK {len(df)} strikes | Spot={underlying:.0f} ATM={atm_strike} Range=[{lower_bound:.0f}-{upper_bound:.0f}]")
                 return {"expiry": expiry, "df": df, "underlying": underlying, "atm_strike": atm_strike}
             except Exception as e:
                 print(f"    FAIL Attempt {attempt}: {e}")
@@ -313,74 +309,7 @@ def compute_market_direction(tech, oc_analysis):
 
 
 # =================================================================
-#  SECTION 5 -- ALL STRATEGIES REFERENCE
-# =================================================================
-
-ALL_STRATEGIES = {
-    "bullish": {
-        "label": "Bullish", "color": "#00c896",
-        "items": [
-            {"name": "Long Call",        "risk": "Limited",  "reward": "Unlimited",
-             "legs": "BUY CALL (ATM)",
-             "desc": "Buy a call option. Profits as stock rises. Risk limited to premium paid.",
-             "mp": "Unlimited", "ml": "Premium Paid", "be": "Strike + Premium"},
-            {"name": "Covered Call",     "risk": "Moderate", "reward": "Limited",
-             "legs": "OWN STOCK · SELL CALL (OTM)",
-             "desc": "Own shares and sell a call against them. Generates income; caps upside.",
-             "mp": "Strike - Cost + Premium", "ml": "Cost - Premium", "be": "Stock Cost - Premium"},
-            {"name": "Bull Call Spread", "risk": "Limited",  "reward": "Limited",
-             "legs": "BUY CALL (Low) · SELL CALL (High)",
-             "desc": "Buy lower call, sell higher call. Reduces cost; caps profit at upper strike.",
-             "mp": "Spread Width - Debit", "ml": "Net Debit", "be": "Lower Strike + Debit"},
-            {"name": "Cash-Secured Put", "risk": "Moderate", "reward": "Limited",
-             "legs": "SELL PUT (OTM/ATM)",
-             "desc": "Sell a put holding enough cash. Collect premium; buy shares at discount if assigned.",
-             "mp": "Premium Received", "ml": "Strike - Premium", "be": "Strike - Premium"},
-        ]
-    },
-    "bearish": {
-        "label": "Bearish", "color": "#ff6b6b",
-        "items": [
-            {"name": "Long Put",         "risk": "Limited", "reward": "High",
-             "legs": "BUY PUT (ATM)",
-             "desc": "Buy a put option. Profits as stock falls. Risk limited to premium paid.",
-             "mp": "Strike - Premium", "ml": "Premium Paid", "be": "Strike - Premium"},
-            {"name": "Bear Put Spread",  "risk": "Limited", "reward": "Limited",
-             "legs": "BUY PUT (High) · SELL PUT (Low)",
-             "desc": "Buy higher put, sell lower put. Cheaper bearish bet with capped profit.",
-             "mp": "Spread - Debit", "ml": "Net Debit", "be": "Higher Strike - Debit"},
-            {"name": "Bear Call Spread", "risk": "Limited", "reward": "Limited",
-             "legs": "SELL CALL (Low) · BUY CALL (High)",
-             "desc": "Sell lower call, buy higher call. Credit received; profit if stock stays below lower strike.",
-             "mp": "Net Credit", "ml": "Spread - Credit", "be": "Lower Strike + Credit"},
-        ]
-    },
-    "neutral": {
-        "label": "Neutral / Volatility", "color": "#6480ff",
-        "items": [
-            {"name": "Iron Condor",      "risk": "Limited", "reward": "Limited",
-             "legs": "SELL OTM PUT+CALL SPREADS",
-             "desc": "Sell OTM put spread + OTM call spread. Profit if stock stays in a defined range.",
-             "mp": "Net Credit", "ml": "Spread - Credit", "be": "Short strikes +- Credit"},
-            {"name": "Straddle",         "risk": "Limited", "reward": "Unlimited",
-             "legs": "BUY CALL + PUT (ATM)",
-             "desc": "Buy ATM call and put. Profit from a large move in either direction.",
-             "mp": "Unlimited (both sides)", "ml": "Total Premium", "be": "Strike +- Total Premium"},
-            {"name": "Strangle",         "risk": "Limited", "reward": "Unlimited",
-             "legs": "BUY OTM CALL + OTM PUT",
-             "desc": "Buy OTM call and OTM put. Cheaper than straddle; needs a bigger move to profit.",
-             "mp": "Unlimited (both sides)", "ml": "Total Premium", "be": "Strikes +- Total Premium"},
-            {"name": "Butterfly Spread", "risk": "Limited", "reward": "Limited",
-             "legs": "BUY Low · SELL 2xMid · BUY High",
-             "desc": "Three strike combo. Maximum profit when stock lands exactly at middle strike.",
-             "mp": "Mid - Low - Debit", "ml": "Net Debit", "be": "Low+Debit and High-Debit"},
-        ]
-    }
-}
-
-
-# =================================================================
-#  SECTION 6 -- HTML SECTION BUILDERS
+#  SECTION 5 -- HTML SECTION BUILDERS
 # =================================================================
 
 def _cls_color(cls):
@@ -395,7 +324,6 @@ def _cls_bdr(cls):
             "rgba(255,107,107,.22)" if cls == "bearish" else "rgba(100,128,255,.22)")
 
 
-# ── SAMPLE-3 TICKER TABLE OI SECTION ──────────────────────────
 def build_oi_html(oc):
     ce       = oc["ce_chg"]
     pe       = oc["pe_chg"]
@@ -440,13 +368,11 @@ def build_oi_html(oc):
         f"<div class=\"sec-title\">OPEN INTEREST DASHBOARD"
         f"<span class=\"sec-sub\">Spot &#177;500 pts (&#177;10 strikes) &middot; Expiry: {expiry} &middot; Spot: &#8377;{underlying:,.2f}</span></div>"
 
-        # Direction header
         f"<div style=\"display:flex;align-items:center;gap:14px;flex-wrap:wrap;"
         f"padding:12px 18px;border-radius:12px;margin-bottom:14px;"
         f"background:{dir_bg};border:1px solid {dir_bdr};\">"
         f"<div>"
-        f"<div style=\"font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.3);"
-        f"text-transform:uppercase;margin-bottom:4px;\">OI DIRECTION</div>"
+        f"<div style=\"font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.3);text-transform:uppercase;margin-bottom:4px;\">OI DIRECTION</div>"
         f"<div style=\"font-size:22px;font-weight:700;color:{dir_col};line-height:1;\">{oi_dir}</div>"
         f"<div style=\"font-size:11px;color:{dir_col};opacity:.7;margin-top:3px;\">{oi_sig}</div>"
         f"</div>"
@@ -456,17 +382,13 @@ def build_oi_html(oc):
         f"{strength_bar}"
         f"<span style=\"color:#ff6b6b;font-weight:700;\">{bear_pct}% Bear</span>"
         f"</div>"
-        f"<span style=\"display:inline-block;padding:4px 14px;border-radius:20px;"
-        f"font-size:10px;font-weight:700;color:{dir_col};background:{dir_bg};"
-        f"border:1px solid {dir_bdr};\">{oi_dir}</span>"
+        f"<span style=\"display:inline-block;padding:4px 14px;border-radius:20px;font-size:10px;font-weight:700;"
+        f"color:{dir_col};background:{dir_bg};border:1px solid {dir_bdr};\">{oi_dir}</span>"
         f"</div></div>"
 
-        # ── Ticker Table ──
         f"<div class=\"oi-ticker-table\">"
 
-        # ROW 1 HEADER: Change in OI
-        f"<div class=\"oi-ticker-hdr\" style=\"background:rgba(0,200,150,.05);"
-        f"border-bottom:1px solid rgba(0,200,150,.1);\">"
+        f"<div class=\"oi-ticker-hdr\" style=\"background:rgba(0,200,150,.05);border-bottom:1px solid rgba(0,200,150,.1);\">"
         f"<div class=\"oi-ticker-hdr-label\" style=\"color:rgba(0,200,150,.8);\">&#9651; CHANGE IN OI</div>"
         f"<div class=\"oi-ticker-hdr-cell\">Call OI Change</div>"
         f"<div class=\"oi-ticker-hdr-cell\">Put OI Change</div>"
@@ -474,8 +396,6 @@ def build_oi_html(oc):
         f"<div class=\"oi-ticker-hdr-cell\">Interpretation</div>"
         f"<div class=\"oi-ticker-hdr-cell\">Signal</div>"
         f"</div>"
-
-        # ROW 1 DATA
         f"<div class=\"oi-ticker-row\">"
         f"<div class=\"oi-ticker-metric\">OI Change</div>"
         f"<div class=\"oi-ticker-cell\" style=\"color:{ce_col};font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">{ce:+,}</div>"
@@ -485,12 +405,9 @@ def build_oi_html(oc):
         f"<div class=\"oi-ticker-cell\">"
         f"<span style=\"padding:4px 12px;border-radius:6px;font-size:11px;font-weight:700;"
         f"color:{dir_col};background:{dir_bg};border:1px solid {dir_bdr};\">{oi_dir}</span>"
-        f"</div>"
-        f"</div>"
+        f"</div></div>"
 
-        # ROW 2 HEADER: Open Interest Snapshot
-        f"<div class=\"oi-ticker-hdr\" style=\"background:rgba(100,128,255,.05);"
-        f"border-top:1px solid rgba(255,255,255,.04);border-bottom:1px solid rgba(100,128,255,.1);\">"
+        f"<div class=\"oi-ticker-hdr\" style=\"background:rgba(100,128,255,.05);border-top:1px solid rgba(255,255,255,.04);border-bottom:1px solid rgba(100,128,255,.1);\">"
         f"<div class=\"oi-ticker-hdr-label\" style=\"color:rgba(100,128,255,.8);\">&#9632; OPEN INTEREST</div>"
         f"<div class=\"oi-ticker-hdr-cell\">Total CE OI</div>"
         f"<div class=\"oi-ticker-hdr-cell\">Total PE OI</div>"
@@ -498,8 +415,6 @@ def build_oi_html(oc):
         f"<div class=\"oi-ticker-hdr-cell\">Max CE Strike</div>"
         f"<div class=\"oi-ticker-hdr-cell\">Max PE Strike</div>"
         f"</div>"
-
-        # ROW 2 DATA
         f"<div class=\"oi-ticker-row\">"
         f"<div class=\"oi-ticker-metric\">Snapshot</div>"
         f"<div class=\"oi-ticker-cell\" style=\"color:#ff6b6b;font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">{total_ce:,}</div>"
@@ -509,15 +424,11 @@ def build_oi_html(oc):
         f"<div class=\"oi-ticker-cell\" style=\"color:#00c896;font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">&#8377;{max_pe_s:,}</div>"
         f"</div>"
 
-        # Bottom bar: Max Pain + legend
         f"<div style=\"display:flex;align-items:center;justify-content:space-between;"
-        f"padding:10px 18px;border-top:1px solid rgba(255,255,255,.04);"
-        f"background:rgba(100,128,255,.03);flex-wrap:wrap;gap:10px;\">"
+        f"padding:10px 18px;border-top:1px solid rgba(255,255,255,.04);background:rgba(100,128,255,.03);flex-wrap:wrap;gap:10px;\">"
         f"<div style=\"display:flex;align-items:center;gap:10px;\">"
-        f"<span style=\"font-size:9px;letter-spacing:1.5px;text-transform:uppercase;"
-        f"color:rgba(255,255,255,.3);\">MAX PAIN</span>"
-        f"<span style=\"font-family:'DM Mono',monospace;font-size:18px;font-weight:700;"
-        f"color:#6480ff;\">&#8377;{max_pain:,}</span>"
+        f"<span style=\"font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);\">MAX PAIN</span>"
+        f"<span style=\"font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:#6480ff;\">&#8377;{max_pain:,}</span>"
         f"<span style=\"font-size:10px;color:rgba(100,128,255,.6);\">Option writers&apos; target</span>"
         f"</div>"
         f"<div style=\"display:flex;gap:16px;flex-wrap:wrap;font-size:10px;color:rgba(255,255,255,.3);\">"
@@ -528,9 +439,7 @@ def build_oi_html(oc):
         f"<span>PCR&gt;1.2 &rarr; <b style=\"color:#00c896;\">Bullish</b></span>"
         f"<span>PCR&lt;0.7 &rarr; <b style=\"color:#ff6b6b;\">Bearish</b></span>"
         f"</div></div>"
-
-        f"</div>"   # end oi-ticker-table
-        f"</div>"   # end section
+        f"</div></div>"
     )
 
 
@@ -603,47 +512,6 @@ def build_key_levels_html(tech, oc):
     )
 
 
-# ── ALL STRATEGIES REFERENCE (no recommendations block) ────────
-def build_strategies_html():
-    dir_html = "<div class=\"strat-dir\">"
-    for direction, info in ALL_STRATEGIES.items():
-        col   = info["color"]
-        label = info["label"]
-        emoji = "&#9650;" if direction == "bullish" else ("&#9660;" if direction == "bearish" else "&#8596;")
-        dir_html += (
-            f"<div class=\"strat-group\">"
-            f"<div class=\"strat-group-title\" style=\"color:{col};\">{emoji} {label} Strategies</div>"
-        )
-        for s in info["items"]:
-            rc  = "#00c896" if s["risk"]   == "Limited" else "#ff6b6b" if s["risk"]   == "High" else "#6480ff"
-            rwc = "#00c896" if s["reward"] == "Unlimited" else "#6480ff"
-            dir_html += (
-                f"<div class=\"strat-card\">"
-                f"<div class=\"strat-top\">"
-                f"<div class=\"strat-name\">{s['name']}</div>"
-                f"<div style=\"display:flex;gap:5px;flex-wrap:wrap;\">"
-                f"<span style=\"font-size:10px;padding:2px 8px;border-radius:10px;"
-                f"color:{rc};background:{rc}12;border:1px solid {rc}30;\">Risk: {s['risk']}</span>"
-                f"<span style=\"font-size:10px;padding:2px 8px;border-radius:10px;"
-                f"color:{rwc};background:{rwc}12;border:1px solid {rwc}30;\">Reward: {s['reward']}</span>"
-                f"</div></div>"
-                f"<div class=\"strat-desc\">{s['desc']}</div>"
-                f"<div class=\"strat-legs\">{s['legs']}</div>"
-                f"<div class=\"strat-metrics\">"
-                f"<div><span class=\"sm-lbl\">Max Profit</span><span style=\"color:#00c896;\">{s['mp']}</span></div>"
-                f"<div><span class=\"sm-lbl\">Max Loss</span><span style=\"color:#ff6b6b;\">{s['ml']}</span></div>"
-                f"<div><span class=\"sm-lbl\">Breakeven</span><span style=\"color:#6480ff;\">{s['be']}</span></div>"
-                f"</div></div>"
-            )
-        dir_html += "</div>"
-    dir_html += "</div>"
-
-    return (
-        f"<div class=\"section\"><div class=\"sec-title\">STRATEGIES REFERENCE</div>"
-        f"{dir_html}</div>"
-    )
-
-
 def build_strikes_html(oc):
     if not oc or (not oc["top_ce"] and not oc["top_pe"]):
         return ""
@@ -683,288 +551,423 @@ def build_strikes_html(oc):
 
 
 # =================================================================
+#  SECTION 6 -- STRATEGIES WITH PAYOFF CHARTS (SVG-based)
+# =================================================================
+
+def make_payoff_svg(shape, bull_color="#00c896", bear_color="#ff6b6b"):
+    """
+    Generate inline SVG payoff diagram for each strategy shape.
+    Each shape is a keyword matching the strategy type.
+    Returns a small 80x50 SVG string.
+    """
+    w, h = 80, 50
+    mid  = h // 2
+    pad  = 8
+
+    # Helper to build polyline points string
+    def pts(*coords):
+        return " ".join(f"{x},{y}" for x, y in coords)
+
+    shapes = {
+        # ── BULLISH ──────────────────────────────────────────────
+        "long_call":         {"profit": [(pad,mid),(40,mid),(72,h-pad)],           "loss": [(pad,mid),(40,mid)]},
+        "short_put":         {"profit": [(pad,h-pad),(40,mid),(72,mid)],           "loss": [(pad,mid),(40,mid)]},
+        "bull_call_spread":  {"profit": [(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],"loss": [(pad,mid),(30,mid)]},
+        "bull_put_spread":   {"profit": [(pad,h-pad),(30,h-pad),(55,mid),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "call_ratio_back":   {"profit": [(pad,h-pad),(25,mid),(50,mid),(72,h-pad)],"loss": [(pad,mid),(25,mid),(50,mid)]},
+        "long_synthetic":    {"profit": [(pad,mid),(72,h-pad)],                    "loss": [(pad,pad),(40,mid)]},
+        "range_forward":     {"profit": [(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],"loss": [(pad,pad),(30,pad),(55,mid)]},
+        "bull_butterfly":    {"profit": [(pad,mid),(36,h-pad),(54,mid)],           "loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "bull_condor":       {"profit": [(pad,mid),(28,mid),(36,h-pad),(50,h-pad),(58,mid),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        # ── BEARISH ──────────────────────────────────────────────
+        "short_call":        {"profit": [(pad,mid),(40,mid),(72,pad)],             "loss": [(pad,mid),(40,mid)]},
+        "long_put":          {"profit": [(pad,h-pad),(40,mid),(72,mid)],           "loss": [(pad,mid),(40,mid)]},
+        "bear_call_spread":  {"profit": [(pad,h-pad),(30,h-pad),(55,mid),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "bear_put_spread":   {"profit": [(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],"loss": [(pad,mid),(30,mid)]},
+        "put_ratio_back":    {"profit": [(pad,h-pad),(25,mid),(50,mid),(72,pad)],  "loss": [(pad,mid),(25,mid),(50,mid)]},
+        "short_synthetic":   {"profit": [(pad,mid),(72,pad)],                     "loss": [(pad,h-pad),(40,mid)]},
+        "risk_reversal":     {"profit": [(pad,h-pad),(36,mid),(72,pad)],           "loss": [(pad,mid),(36,mid)]},
+        "bear_butterfly":    {"profit": [(pad,mid),(36,pad),(54,mid)],             "loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "bear_condor":       {"profit": [(pad,mid),(28,mid),(36,pad),(50,pad),(58,mid),(72,mid)], "loss": [(pad,mid),(72,mid)]},
+        # ── NON-DIRECTIONAL ──────────────────────────────────────
+        "long_straddle":     {"profit": [(pad,h-pad),(36,mid),(54,mid),(72,h-pad)],"loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "short_straddle":    {"profit": [(pad,mid),(36,mid),(54,mid),(72,mid)],    "loss": [(pad,h-pad),(36,mid),(54,mid),(72,h-pad)]},
+        "long_strangle":     {"profit": [(pad,h-pad),(30,mid),(50,mid),(72,h-pad)],"loss": [(pad,mid),(30,mid),(50,mid),(72,mid)]},
+        "short_strangle":    {"profit": [(pad,mid),(30,mid),(50,mid),(72,mid)],    "loss": [(pad,h-pad),(30,mid),(50,mid),(72,h-pad)]},
+        "jade_lizard":       {"profit": [(pad,pad),(30,mid),(55,mid),(72,mid)],    "loss": [(pad,mid),(30,mid)]},
+        "reverse_jade":      {"profit": [(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],"loss": [(pad,pad),(30,mid)]},
+        "call_ratio_spread": {"profit": [(pad,mid),(36,h-pad),(72,mid)],           "loss": [(pad,mid),(36,mid),(72,pad)]},
+        "put_ratio_spread":  {"profit": [(pad,mid),(36,h-pad),(72,mid)],           "loss": [(pad,pad),(36,mid),(72,mid)]},
+        "batman":            {"profit": [(pad,mid),(20,h-pad),(36,mid),(54,mid),(68,h-pad),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "long_iron_fly":     {"profit": [(pad,pad),(36,mid),(54,mid),(72,pad)],    "loss": [(pad,mid),(36,h-pad),(54,h-pad),(72,mid)]},
+        "short_iron_fly":    {"profit": [(pad,mid),(36,h-pad),(54,h-pad),(72,mid)],"loss": [(pad,pad),(36,mid),(54,mid),(72,pad)]},
+        "double_fly":        {"profit": [(pad,mid),(20,h-pad),(36,mid),(54,mid),(68,h-pad),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "long_iron_condor":  {"profit": [(pad,pad),(24,mid),(36,mid),(54,mid),(66,pad),(72,pad)],   "loss": [(pad,mid),(24,mid),(66,mid),(72,mid)]},
+        "short_iron_condor": {"profit": [(pad,mid),(24,h-pad),(36,h-pad),(54,h-pad),(66,mid),(72,mid)],"loss": [(pad,pad),(72,pad)]},
+        "double_condor":     {"profit": [(pad,mid),(20,h-pad),(36,mid),(54,mid),(68,h-pad),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "call_calendar":     {"profit": [(pad,mid),(36,h-pad),(54,mid),(72,mid)],  "loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "put_calendar":      {"profit": [(pad,mid),(36,h-pad),(54,mid),(72,mid)],  "loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "diagonal_calendar": {"profit": [(pad,mid),(30,h-pad),(55,mid),(72,mid)],  "loss": [(pad,mid),(30,mid),(55,mid),(72,mid)]},
+        "call_butterfly":    {"profit": [(pad,mid),(36,h-pad),(54,mid),(72,mid)],  "loss": [(pad,mid),(72,mid)]},
+        "put_butterfly":     {"profit": [(pad,mid),(36,h-pad),(54,mid),(72,mid)],  "loss": [(pad,mid),(72,mid)]},
+    }
+
+    s = shapes.get(shape, {"profit": [(pad,mid),(72,mid)], "loss": []})
+    profit_pts = pts(*s["profit"])
+    loss_pts   = pts(*s["loss"]) if s["loss"] else ""
+
+    # Build shaded area fill paths
+    def area_path(coords, is_profit):
+        if not coords: return ""
+        base_y = mid
+        col    = bull_color if is_profit else bear_color
+        path_d = f"M {coords[0][0]},{base_y} "
+        for x, y in coords:
+            path_d += f"L {x},{y} "
+        path_d += f"L {coords[-1][0]},{base_y} Z"
+        return f'<path d="{path_d}" fill="{col}" fill-opacity="0.18"/>'
+
+    profit_area = area_path(s["profit"], True)
+    loss_area   = area_path(s["loss"],   False)
+
+    svg = (
+        f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" xmlns="http://www.w3.org/2000/svg">'
+        # axes
+        f'<line x1="{pad}" y1="{pad}" x2="{pad}" y2="{h-pad}" stroke="rgba(255,255,255,.15)" stroke-width="1"/>'
+        f'<line x1="{pad}" y1="{mid}" x2="{w-pad}" y2="{mid}" stroke="rgba(255,255,255,.15)" stroke-width="1"/>'
+        # shaded areas
+        f'{profit_area}{loss_area}'
+        # profit line
+        f'<polyline points="{profit_pts}" fill="none" stroke="{bull_color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>'
+    )
+    if loss_pts:
+        svg += f'<polyline points="{loss_pts}" fill="none" stroke="{bear_color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="3,2"/>'
+    svg += '</svg>'
+    return svg
+
+
+STRATEGIES_DATA = {
+    "bullish": [
+        {"name": "Long Call",         "shape": "long_call",        "risk": "Limited",  "reward": "Unlimited", "legs": "BUY CALL (ATM)",                         "desc": "Buy a call option. Profits as market rises above strike. Risk is limited to premium paid.", "mp": "Unlimited", "ml": "Premium Paid", "be": "Strike + Premium"},
+        {"name": "Short Put",         "shape": "short_put",        "risk": "Moderate", "reward": "Limited",   "legs": "SELL PUT (OTM)",                          "desc": "Sell a put option below market. Collect premium. Profit if market stays above strike.", "mp": "Premium Received", "ml": "Strike - Premium", "be": "Strike - Premium"},
+        {"name": "Bull Call Spread",  "shape": "bull_call_spread", "risk": "Limited",  "reward": "Limited",   "legs": "BUY CALL (Low) · SELL CALL (High)",       "desc": "Buy lower call, sell higher call. Reduces cost; caps profit at upper strike.", "mp": "Spread - Debit", "ml": "Net Debit", "be": "Lower Strike + Debit"},
+        {"name": "Bull Put Spread",   "shape": "bull_put_spread",  "risk": "Limited",  "reward": "Limited",   "legs": "SELL PUT (High) · BUY PUT (Low)",          "desc": "Sell higher put, buy lower put. Credit received upfront. Profit if market stays above higher strike.", "mp": "Net Credit", "ml": "Spread - Credit", "be": "Higher Strike - Credit"},
+        {"name": "Call Ratio Back Spread","shape":"call_ratio_back","risk": "Limited",  "reward": "Unlimited", "legs": "SELL 1 CALL (Low) · BUY 2 CALLS (High)",  "desc": "Sell fewer calls, buy more higher calls. Benefits from a big upside move.", "mp": "Unlimited", "ml": "Limited", "be": "Varies"},
+        {"name": "Long Synthetic",    "shape": "long_synthetic",   "risk": "High",     "reward": "Unlimited", "legs": "BUY CALL (ATM) · SELL PUT (ATM)",         "desc": "Replicates owning the underlying. Unlimited profit potential with high risk.", "mp": "Unlimited", "ml": "Unlimited", "be": "ATM Strike"},
+        {"name": "Range Forward",     "shape": "range_forward",    "risk": "Limited",  "reward": "Limited",   "legs": "BUY CALL (High) · SELL PUT (Low)",        "desc": "Collar-like structure. Profit in a range. Used to hedge existing positions.", "mp": "Capped", "ml": "Capped", "be": "Varies"},
+        {"name": "Bull Butterfly",    "shape": "bull_butterfly",   "risk": "Limited",  "reward": "Limited",   "legs": "BUY Low CALL · SELL 2 Mid CALL · BUY High CALL", "desc": "Max profit at middle strike. Low cost strategy for moderate bullish view.", "mp": "Mid - Low - Debit", "ml": "Net Debit", "be": "Low+Debit / High-Debit"},
+        {"name": "Bull Condor",       "shape": "bull_condor",      "risk": "Limited",  "reward": "Limited",   "legs": "BUY Low · SELL Mid-Low · SELL Mid-High · BUY High", "desc": "Four-leg bullish strategy. Profit in a range above current price.", "mp": "Net Credit", "ml": "Spread - Credit", "be": "Lower strikes + Credit"},
+    ],
+    "bearish": [
+        {"name": "Short Call",        "shape": "short_call",       "risk": "Unlimited","reward": "Limited",   "legs": "SELL CALL (ATM/OTM)",                     "desc": "Sell a call option above market. Collect premium. Profit if market falls or stays below strike.", "mp": "Premium Received", "ml": "Unlimited", "be": "Strike + Premium"},
+        {"name": "Long Put",          "shape": "long_put",         "risk": "Limited",  "reward": "High",      "legs": "BUY PUT (ATM)",                           "desc": "Buy a put option. Profits as market falls below strike. Risk is limited to premium paid.", "mp": "Strike - Premium", "ml": "Premium Paid", "be": "Strike - Premium"},
+        {"name": "Bear Call Spread",  "shape": "bear_call_spread", "risk": "Limited",  "reward": "Limited",   "legs": "SELL CALL (Low) · BUY CALL (High)",       "desc": "Sell lower call, buy higher call. Credit received. Profit if market stays below lower strike.", "mp": "Net Credit", "ml": "Spread - Credit", "be": "Lower Strike + Credit"},
+        {"name": "Bear Put Spread",   "shape": "bear_put_spread",  "risk": "Limited",  "reward": "Limited",   "legs": "BUY PUT (High) · SELL PUT (Low)",          "desc": "Buy higher put, sell lower put. Cheaper bearish bet with capped profit.", "mp": "Spread - Debit", "ml": "Net Debit", "be": "Higher Strike - Debit"},
+        {"name": "Put Ratio Back Spread","shape":"put_ratio_back", "risk": "Limited",  "reward": "High",      "legs": "SELL 1 PUT (High) · BUY 2 PUTS (Low)",    "desc": "Sell fewer puts, buy more lower puts. Benefits from a big downside move.", "mp": "High", "ml": "Limited", "be": "Varies"},
+        {"name": "Short Synthetic",   "shape": "short_synthetic",  "risk": "High",     "reward": "High",      "legs": "SELL CALL (ATM) · BUY PUT (ATM)",         "desc": "Replicates shorting the underlying. Profit as market falls. High risk.", "mp": "Unlimited", "ml": "Unlimited", "be": "ATM Strike"},
+        {"name": "Risk Reversal",     "shape": "risk_reversal",    "risk": "High",     "reward": "High",      "legs": "BUY PUT (Low) · SELL CALL (High)",        "desc": "Protect downside while giving up upside. Common hedging structure.", "mp": "High", "ml": "High", "be": "Varies"},
+        {"name": "Bear Butterfly",    "shape": "bear_butterfly",   "risk": "Limited",  "reward": "Limited",   "legs": "BUY Low PUT · SELL 2 Mid PUT · BUY High PUT", "desc": "Max profit at middle strike. Low cost strategy for moderate bearish view.", "mp": "Mid - Low - Debit", "ml": "Net Debit", "be": "Low+Debit / High-Debit"},
+        {"name": "Bear Condor",       "shape": "bear_condor",      "risk": "Limited",  "reward": "Limited",   "legs": "BUY High · SELL Mid-High · SELL Mid-Low · BUY Low", "desc": "Four-leg bearish strategy. Profit in a range below current price.", "mp": "Net Credit", "ml": "Spread - Credit", "be": "Upper strikes - Credit"},
+    ],
+    "nondirectional": [
+        {"name": "Long Straddle",     "shape": "long_straddle",    "risk": "Limited",  "reward": "Unlimited", "legs": "BUY CALL (ATM) + BUY PUT (ATM)",          "desc": "Buy both ATM call and put. Profit from big move in either direction. Best before events.", "mp": "Unlimited", "ml": "Total Premium", "be": "Strike +/- Total Premium"},
+        {"name": "Short Straddle",    "shape": "short_straddle",   "risk": "Unlimited","reward": "Limited",   "legs": "SELL CALL (ATM) + SELL PUT (ATM)",        "desc": "Sell both ATM call and put. Profit from low volatility. High risk unlimited loss.", "mp": "Total Premium", "ml": "Unlimited", "be": "Strike +/- Total Premium"},
+        {"name": "Long Strangle",     "shape": "long_strangle",    "risk": "Limited",  "reward": "Unlimited", "legs": "BUY OTM CALL + BUY OTM PUT",              "desc": "Buy OTM call and put. Cheaper than straddle. Needs bigger move to profit.", "mp": "Unlimited", "ml": "Total Premium", "be": "Strikes +/- Premium"},
+        {"name": "Short Strangle",    "shape": "short_strangle",   "risk": "Unlimited","reward": "Limited",   "legs": "SELL OTM CALL + SELL OTM PUT",            "desc": "Sell OTM call and put. Wider profit range than short straddle. Still high risk.", "mp": "Total Premium", "ml": "Unlimited", "be": "Strikes +/- Premium"},
+        {"name": "Jade Lizard",       "shape": "jade_lizard",      "risk": "Limited",  "reward": "Limited",   "legs": "SELL OTM PUT + SELL CALL SPREAD",         "desc": "No upside risk. Collect premium. Bearish but risk-defined.", "mp": "Total Credit", "ml": "Below Put Strike", "be": "Put Strike - Credit"},
+        {"name": "Reverse Jade Lizard","shape":"reverse_jade",     "risk": "Limited",  "reward": "Limited",   "legs": "SELL OTM CALL + SELL PUT SPREAD",         "desc": "No downside risk. Collect premium. Bullish but risk-defined.", "mp": "Total Credit", "ml": "Above Call Strike", "be": "Call Strike + Credit"},
+        {"name": "Call Ratio Spread", "shape": "call_ratio_spread","risk": "Unlimited","reward": "Limited",   "legs": "BUY 1 CALL (Low) · SELL 2 CALLS (High)", "desc": "Sell more calls than bought. Credit or debit. Risk if big upside move occurs.", "mp": "Net Credit + Spread", "ml": "Unlimited", "be": "Varies"},
+        {"name": "Put Ratio Spread",  "shape": "put_ratio_spread", "risk": "Unlimited","reward": "Limited",   "legs": "BUY 1 PUT (High) · SELL 2 PUTS (Low)",   "desc": "Sell more puts than bought. Risk if big downside move occurs.", "mp": "Net Credit + Spread", "ml": "Unlimited", "be": "Varies"},
+        {"name": "Batman Strategy",   "shape": "batman",           "risk": "Limited",  "reward": "Limited",   "legs": "BUY 2 CALLS + SELL 4 CALLS + BUY 2 CALLS","desc": "Double butterfly. Two profit peaks. Complex strategy for range-bound markets.", "mp": "Limited", "ml": "Net Debit", "be": "Multiple"},
+        {"name": "Long Iron Fly",     "shape": "long_iron_fly",    "risk": "Limited",  "reward": "Limited",   "legs": "BUY CALL · BUY PUT · SELL ATM CALL · SELL ATM PUT", "desc": "Debit iron fly. Profit from a big move. Max loss if price stays at ATM.", "mp": "Wings - Debit", "ml": "Net Debit", "be": "ATM +/- Debit"},
+        {"name": "Short Iron Fly",    "shape": "short_iron_fly",   "risk": "Limited",  "reward": "Limited",   "legs": "SELL CALL · SELL PUT · BUY OTM CALL · BUY OTM PUT", "desc": "Credit iron fly. Max profit at ATM. Common non-directional strategy.", "mp": "Net Credit", "ml": "Wings - Credit", "be": "ATM +/- Credit"},
+        {"name": "Double Fly",        "shape": "double_fly",       "risk": "Limited",  "reward": "Limited",   "legs": "TWO BUTTERFLY SPREADS",                   "desc": "Two butterfly spreads at different strikes. Two profit peaks.", "mp": "Limited", "ml": "Net Debit", "be": "Multiple"},
+        {"name": "Long Iron Condor",  "shape": "long_iron_condor", "risk": "Limited",  "reward": "Limited",   "legs": "BUY CALL SPREAD + BUY PUT SPREAD",        "desc": "Debit condor. Profit from a big move. Opposite of short iron condor.", "mp": "Spreads - Debit", "ml": "Net Debit", "be": "Inner strikes +/- Debit"},
+        {"name": "Short Iron Condor", "shape": "short_iron_condor","risk": "Limited",  "reward": "Limited",   "legs": "SELL CALL SPREAD + SELL PUT SPREAD",       "desc": "Collect premium from both sides. Profit if price stays in a range.", "mp": "Net Credit", "ml": "Spreads - Credit", "be": "Short strikes +/- Credit"},
+        {"name": "Double Condor",     "shape": "double_condor",    "risk": "Limited",  "reward": "Limited",   "legs": "TWO CONDOR SPREADS",                      "desc": "Two condor spreads. Wider profit range. Complex multi-leg strategy.", "mp": "Limited", "ml": "Net Debit/Credit", "be": "Multiple"},
+        {"name": "Call Calendar",     "shape": "call_calendar",    "risk": "Limited",  "reward": "Limited",   "legs": "SELL NEAR-TERM CALL · BUY FAR-TERM CALL", "desc": "Profit from time decay difference. Best when price stays near strike.", "mp": "Limited", "ml": "Net Debit", "be": "Near strike"},
+        {"name": "Put Calendar",      "shape": "put_calendar",     "risk": "Limited",  "reward": "Limited",   "legs": "SELL NEAR-TERM PUT · BUY FAR-TERM PUT",   "desc": "Profit from time decay. Best when price stays near strike on expiry.", "mp": "Limited", "ml": "Net Debit", "be": "Near strike"},
+        {"name": "Diagonal Calendar", "shape": "diagonal_calendar","risk": "Limited",  "reward": "Limited",   "legs": "SELL NEAR CALL/PUT · BUY FAR DIFF STRIKE","desc": "Calendar spread with different strikes. Combines time and price movement.", "mp": "Limited", "ml": "Net Debit", "be": "Varies"},
+        {"name": "Call Butterfly",    "shape": "call_butterfly",   "risk": "Limited",  "reward": "Limited",   "legs": "BUY Low CALL · SELL 2 Mid CALL · BUY High CALL", "desc": "Max profit at middle strike using calls only. Low net debit strategy.", "mp": "Mid - Low - Debit", "ml": "Net Debit", "be": "Low+Debit / High-Debit"},
+        {"name": "Put Butterfly",     "shape": "put_butterfly",    "risk": "Limited",  "reward": "Limited",   "legs": "BUY High PUT · SELL 2 Mid PUT · BUY Low PUT",   "desc": "Max profit at middle strike using puts only. Low net debit strategy.", "mp": "High - Mid - Debit", "ml": "Net Debit", "be": "High-Debit / Low+Debit"},
+    ],
+}
+
+
+def build_strategies_html():
+    """Build interactive tabbed strategies section with SVG payoff charts."""
+
+    def render_cards(strats, cat):
+        cards = ""
+        for s in strats:
+            svg     = make_payoff_svg(s["shape"])
+            rc      = "#00c896" if s["risk"]   in ("Limited","Low") else ("#ff6b6b" if s["risk"] in ("Unlimited","High") else "#6480ff")
+            rwc     = "#00c896" if s["reward"] == "Unlimited" else "#6480ff"
+            cards += (
+                f'<div class="sc-card" data-cat="{cat}">'
+                f'<div class="sc-svg">{svg}</div>'
+                f'<div class="sc-body">'
+                f'<div class="sc-name">{s["name"]}</div>'
+                f'<div class="sc-legs">{s["legs"]}</div>'
+                f'<div class="sc-tags">'
+                f'<span class="sc-tag" style="color:{rc};border-color:{rc}40;">Risk: {s["risk"]}</span>'
+                f'<span class="sc-tag" style="color:{rwc};border-color:{rwc}40;">Reward: {s["reward"]}</span>'
+                f'</div>'
+                f'</div>'
+                f'<div class="sc-detail">'
+                f'<div class="sc-desc">{s["desc"]}</div>'
+                f'<div class="sc-metrics">'
+                f'<div><span class="sc-ml">Max Profit</span><span style="color:#00c896;">{s["mp"]}</span></div>'
+                f'<div><span class="sc-ml">Max Loss</span><span style="color:#ff6b6b;">{s["ml"]}</span></div>'
+                f'<div><span class="sc-ml">Breakeven</span><span style="color:#6480ff;">{s["be"]}</span></div>'
+                f'</div>'
+                f'</div>'
+                f'</div>'
+            )
+        return cards
+
+    bull_cards  = render_cards(STRATEGIES_DATA["bullish"],       "bullish")
+    bear_cards  = render_cards(STRATEGIES_DATA["bearish"],       "bearish")
+    nd_cards    = render_cards(STRATEGIES_DATA["nondirectional"],"nondirectional")
+
+    return f"""
+<div class="section" id="strat">
+  <div class="sec-title">STRATEGIES REFERENCE
+    <span class="sec-sub">Click a card to expand &middot; Select category to filter</span>
+  </div>
+
+  <!-- Tab buttons -->
+  <div class="sc-tabs">
+    <button class="sc-tab active" onclick="filterStrat('bullish',this)"
+      style="border-color:#00c896;color:#00c896;background:rgba(0,200,150,.12);">
+      &#9650; BULLISH <span class="sc-cnt" style="background:#00c896;">9</span>
+    </button>
+    <button class="sc-tab" onclick="filterStrat('bearish',this)"
+      style="border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.5);">
+      &#9660; BEARISH <span class="sc-cnt" style="background:#ff6b6b;">9</span>
+    </button>
+    <button class="sc-tab" onclick="filterStrat('nondirectional',this)"
+      style="border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.5);">
+      &#8596; NON-DIRECTIONAL <span class="sc-cnt" style="background:#6480ff;">20</span>
+    </button>
+  </div>
+
+  <!-- Cards grid -->
+  <div class="sc-grid" id="sc-grid">
+    {bull_cards}{bear_cards}{nd_cards}
+  </div>
+</div>
+"""
+
+
+# =================================================================
 #  SECTION 7 -- CSS
 # =================================================================
 
 CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@300;400;500&display=swap');
-
-*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --bg:      #06080f;
-  --surf:    #080b14;
-  --card:    #0c1020;
-  --bdr:     rgba(255,255,255,.07);
-  --bdr2:    rgba(255,255,255,.12);
-  --aurora1: #00c896;
-  --aurora2: #6480ff;
-  --aurora3: #00c8e0;
-  --bull:    #00c896;
-  --bear:    #ff6b6b;
-  --neut:    #6480ff;
-  --text:    rgba(255,255,255,.9);
-  --muted:   rgba(255,255,255,.45);
-  --muted2:  rgba(255,255,255,.28);
-  --fh: 'Sora', sans-serif;
-  --fm: 'DM Mono', monospace;
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#06080f;--surf:#080b14;--card:#0c1020;
+  --bdr:rgba(255,255,255,.07);--bdr2:rgba(255,255,255,.12);
+  --aurora1:#00c896;--aurora2:#6480ff;--aurora3:#00c8e0;
+  --bull:#00c896;--bear:#ff6b6b;--neut:#6480ff;
+  --text:rgba(255,255,255,.9);--muted:rgba(255,255,255,.45);--muted2:rgba(255,255,255,.28);
+  --fh:'Sora',sans-serif;--fm:'DM Mono',monospace;
 }
-
-html { scroll-behavior: smooth; }
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--fh);
-  font-size: 13px;
-  line-height: 1.6;
-  min-height: 100vh;
-}
-
-body::before {
-  content: '';
-  position: fixed; inset: 0;
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--fh);font-size:13px;line-height:1.6;min-height:100vh}
+body::before{
+  content:'';position:fixed;inset:0;
   background-image:
-    radial-gradient(ellipse at 15% 0%,   rgba(0,200,150,.10) 0%, transparent 50%),
-    radial-gradient(ellipse at 85% 10%,  rgba(100,128,255,.10) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 90%,  rgba(0,200,220,.06) 0%, transparent 50%),
-    radial-gradient(ellipse at 10% 80%,  rgba(0,200,150,.05) 0%, transparent 40%),
-    radial-gradient(ellipse at 90% 60%,  rgba(100,128,255,.05) 0%, transparent 40%);
-  pointer-events: none; z-index: 0;
+    radial-gradient(ellipse at 15% 0%,rgba(0,200,150,.10) 0%,transparent 50%),
+    radial-gradient(ellipse at 85% 10%,rgba(100,128,255,.10) 0%,transparent 50%),
+    radial-gradient(ellipse at 50% 90%,rgba(0,200,220,.06) 0%,transparent 50%),
+    radial-gradient(ellipse at 10% 80%,rgba(0,200,150,.05) 0%,transparent 40%),
+    radial-gradient(ellipse at 90% 60%,rgba(100,128,255,.05) 0%,transparent 40%);
+  pointer-events:none;z-index:0;
 }
+.app{position:relative;z-index:1;display:grid;grid-template-rows:auto auto 1fr auto;min-height:100vh}
 
-.app { position: relative; z-index: 1; display: grid; grid-template-rows: auto auto 1fr auto; min-height: 100vh; }
+/* HEADER */
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 32px;
+  background:rgba(6,8,15,.85);backdrop-filter:blur(16px);
+  border-bottom:1px solid rgba(255,255,255,.07);position:sticky;top:0;z-index:200;
+  box-shadow:0 1px 0 rgba(0,200,150,.1)}
+.logo{font-family:var(--fh);font-size:20px;font-weight:700;
+  background:linear-gradient(90deg,#00c896,#6480ff);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 0 12px rgba(0,200,150,.3))}
+.hdr-meta{display:flex;align-items:center;gap:14px;font-size:11px;color:var(--muted);font-family:var(--fm)}
+.live-dot{width:7px;height:7px;border-radius:50%;background:#00c896;box-shadow:0 0 10px #00c896;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
 
-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 32px;
-  background: rgba(6,8,15,.85); backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(255,255,255,.07);
-  position: sticky; top: 0; z-index: 200;
-  box-shadow: 0 1px 0 rgba(0,200,150,.1);
-}
-.logo {
-  font-family: var(--fh); font-size: 20px; font-weight: 700;
-  background: linear-gradient(90deg, #00c896, #6480ff);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 12px rgba(0,200,150,.3));
-}
-.hdr-meta { display: flex; align-items: center; gap: 14px; font-size: 11px; color: var(--muted); font-family: var(--fm); }
-.live-dot { width: 7px; height: 7px; border-radius: 50%; background: #00c896; box-shadow: 0 0 10px #00c896; animation: pulse 2s infinite; }
-@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.2 } }
+/* HERO */
+.hero{padding:28px 32px;background:rgba(6,8,15,.6);backdrop-filter:blur(12px);
+  border-bottom:1px solid rgba(255,255,255,.06);
+  display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;
+  position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at 0% 50%,rgba(0,200,150,.08),transparent 60%),
+             radial-gradient(ellipse at 100% 50%,rgba(100,128,255,.08),transparent 60%);
+  pointer-events:none}
+.hero-dir{font-family:var(--fh);font-size:54px;font-weight:700;line-height:1;letter-spacing:-2px;
+  background:linear-gradient(90deg,#00c896 0%,#6480ff 50%,#00c8e0 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 0 28px rgba(0,200,150,.25))}
+.hero-sub{font-size:13px;color:var(--muted);margin-top:6px}
+.hero-conf{display:inline-flex;align-items:center;gap:8px;margin-top:10px;font-size:11px;font-weight:600;
+  padding:5px 18px;border-radius:20px;border:1px solid rgba(0,200,150,.25);
+  background:rgba(0,200,150,.07);color:#00c896}
+.hero-stats{display:flex;gap:28px;align-items:center;flex-wrap:wrap}
+.hstat{text-align:center}
+.hstat-lbl{font-size:10px;color:var(--muted2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:3px}
+.hstat-val{font-family:var(--fm);font-size:18px;font-weight:600;color:rgba(255,255,255,.9)}
 
-.hero {
-  padding: 28px 32px;
-  background: rgba(6,8,15,.6); backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255,255,255,.06);
-  display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
-  position: relative; overflow: hidden;
-}
-.hero::before {
-  content: ''; position: absolute; inset: 0;
-  background: radial-gradient(ellipse at 0% 50%, rgba(0,200,150,.08), transparent 60%),
-              radial-gradient(ellipse at 100% 50%, rgba(100,128,255,.08), transparent 60%);
-  pointer-events: none;
-}
-.hero-dir {
-  font-family: var(--fh); font-size: 54px; font-weight: 700; line-height: 1; letter-spacing: -2px;
-  background: linear-gradient(90deg, #00c896 0%, #6480ff 50%, #00c8e0 100%);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 28px rgba(0,200,150,.25));
-}
-.hero-sub { font-size: 13px; color: var(--muted); margin-top: 6px; }
-.hero-conf {
-  display: inline-flex; align-items: center; gap: 8px; margin-top: 10px;
-  font-size: 11px; font-weight: 600; padding: 5px 18px; border-radius: 20px;
-  border: 1px solid rgba(0,200,150,.25); background: rgba(0,200,150,.07); color: #00c896;
-}
-.hero-stats { display: flex; gap: 28px; align-items: center; flex-wrap: wrap; }
-.hstat { text-align: center; }
-.hstat-lbl { font-size: 10px; color: var(--muted2); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 3px; }
-.hstat-val { font-family: var(--fm); font-size: 18px; font-weight: 600; color: rgba(255,255,255,.9); }
+/* LAYOUT */
+.main{display:grid;grid-template-columns:268px 1fr;min-height:0}
 
-.main { display: grid; grid-template-columns: 268px 1fr; min-height: 0; }
+/* SIDEBAR */
+.sidebar{background:rgba(8,11,20,.7);backdrop-filter:blur(12px);
+  border-right:1px solid rgba(255,255,255,.06);
+  position:sticky;top:57px;height:calc(100vh - 57px);overflow-y:auto}
+.sidebar::-webkit-scrollbar{width:3px}
+.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+.sb-sec{padding:16px 12px 8px}
+.sb-lbl{font-size:9px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--aurora1);margin-bottom:8px;padding:0 0 0 8px;border-left:2px solid var(--aurora1)}
+.sb-btn{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;
+  border-radius:8px;border:1px solid transparent;cursor:pointer;
+  background:transparent;color:var(--muted);font-family:var(--fh);font-size:12px;text-align:left;transition:all .15s}
+.sb-btn:hover{background:rgba(0,200,150,.08);color:rgba(255,255,255,.8);border-color:rgba(0,200,150,.2)}
+.sb-btn.active{background:rgba(0,200,150,.1);border-color:rgba(0,200,150,.25);color:#00c896;font-weight:600}
+.sb-badge{font-size:10px;margin-left:auto;font-weight:700}
+.sig-card{margin:12px 10px 8px;padding:18px 14px;
+  background:linear-gradient(135deg,rgba(0,200,150,.12),rgba(100,128,255,.12));
+  border-radius:14px;border:1px solid rgba(0,200,150,.2);text-align:center;
+  box-shadow:0 4px 24px rgba(0,200,150,.1),inset 0 1px 0 rgba(255,255,255,.05)}
+.sig-arrow{font-family:var(--fh);font-size:38px;font-weight:700;line-height:1;margin-bottom:4px;
+  background:linear-gradient(135deg,#00c896,#6480ff);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sig-bias{font-family:var(--fh);font-size:18px;font-weight:700;color:rgba(255,255,255,.9)}
+.sig-meta{font-size:10px;color:var(--muted);margin-top:4px}
 
-.sidebar {
-  background: rgba(8,11,20,.7); backdrop-filter: blur(12px);
-  border-right: 1px solid rgba(255,255,255,.06);
-  position: sticky; top: 57px; height: calc(100vh - 57px); overflow-y: auto;
-}
-.sidebar::-webkit-scrollbar { width: 3px; }
-.sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 2px; }
-.sb-sec { padding: 16px 12px 8px; }
-.sb-lbl {
-  font-size: 9px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase;
-  color: var(--aurora1); margin-bottom: 8px; padding: 0 0 0 8px; border-left: 2px solid var(--aurora1);
-}
-.sb-btn {
-  display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 12px;
-  border-radius: 8px; border: 1px solid transparent; cursor: pointer;
-  background: transparent; color: var(--muted); font-family: var(--fh); font-size: 12px;
-  text-align: left; transition: all .15s;
-}
-.sb-btn:hover  { background: rgba(0,200,150,.08); color: rgba(255,255,255,.8); border-color: rgba(0,200,150,.2); }
-.sb-btn.active { background: rgba(0,200,150,.1);  border-color: rgba(0,200,150,.25); color: #00c896; font-weight: 600; }
-.sb-badge { font-size: 10px; margin-left: auto; font-weight: 700; }
+/* CONTENT */
+.content{overflow-y:auto}
+.section{padding:26px 28px;border-bottom:1px solid rgba(255,255,255,.05);background:transparent;position:relative}
+.section:nth-child(odd){background:rgba(255,255,255,.015)}
+.sec-title{font-family:var(--fh);font-size:11px;font-weight:700;letter-spacing:2.5px;
+  color:var(--aurora1);text-transform:uppercase;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid rgba(0,200,150,.15)}
+.sec-sub{font-size:11px;color:var(--muted2);font-weight:400;letter-spacing:.5px;text-transform:none;margin-left:auto}
 
-.sig-card {
-  margin: 12px 10px 8px; padding: 18px 14px;
-  background: linear-gradient(135deg, rgba(0,200,150,.12), rgba(100,128,255,.12));
-  border-radius: 14px; border: 1px solid rgba(0,200,150,.2); text-align: center;
-  box-shadow: 0 4px 24px rgba(0,200,150,.1), inset 0 1px 0 rgba(255,255,255,.05);
-}
-.sig-arrow {
-  font-family: var(--fh); font-size: 38px; font-weight: 700; line-height: 1; margin-bottom: 4px;
-  background: linear-gradient(135deg, #00c896, #6480ff);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-.sig-bias { font-family: var(--fh); font-size: 18px; font-weight: 700; color: rgba(255,255,255,.9); }
-.sig-meta { font-size: 10px; color: var(--muted); margin-top: 4px; }
+/* OI TICKER TABLE */
+.oi-ticker-table{border:1px solid rgba(255,255,255,.07);border-radius:14px;overflow:hidden}
+.oi-ticker-hdr{display:grid;grid-template-columns:130px repeat(5,1fr);padding:9px 18px;align-items:center;gap:6px}
+.oi-ticker-hdr-label{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+.oi-ticker-hdr-cell{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.35);text-align:center}
+.oi-ticker-row{display:grid;grid-template-columns:130px repeat(5,1fr);padding:15px 18px;
+  border-top:1px solid rgba(255,255,255,.04);align-items:center;gap:6px;transition:background .15s}
+.oi-ticker-row:hover{background:rgba(255,255,255,.03)}
+.oi-ticker-metric{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.35)}
+.oi-ticker-cell{text-align:center}
 
-.content { overflow-y: auto; }
+/* KEY LEVELS */
+.kl-zone-labels{display:flex;justify-content:space-between;margin-bottom:6px;font-size:11px;font-weight:700}
+.kl-node{position:absolute;text-align:center}
+.kl-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;line-height:1.3;white-space:nowrap}
+.kl-val{font-size:12px;font-weight:700;color:rgba(255,255,255,.7);white-space:nowrap;margin-top:2px}
+.kl-dot{width:11px;height:11px;border-radius:50%;border:2px solid var(--bg)}
+.kl-gradient-bar{position:relative;height:6px;border-radius:3px;
+  background:linear-gradient(90deg,#00a07a 0%,#00c896 25%,#6480ff 55%,#ff6b6b 80%,#cc4040 100%);
+  box-shadow:0 0 12px rgba(0,200,150,.2)}
+.kl-price-tick{position:absolute;top:50%;transform:translate(-50%,-50%);
+  width:3px;height:18px;background:#fff;border-radius:2px;
+  box-shadow:0 0 12px rgba(255,255,255,.6);z-index:10}
+.kl-dist-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+.kl-dist-box{background:rgba(255,255,255,.03);border:1px solid;border-radius:10px;
+  padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
 
-.section {
-  padding: 26px 28px;
-  border-bottom: 1px solid rgba(255,255,255,.05);
-  background: transparent; position: relative;
-}
-.section:nth-child(odd) { background: rgba(255,255,255,.015); }
-
-.sec-title {
-  font-family: var(--fh); font-size: 11px; font-weight: 700; letter-spacing: 2.5px;
-  color: var(--aurora1); text-transform: uppercase;
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  margin-bottom: 20px; padding-bottom: 12px;
-  border-bottom: 1px solid rgba(0,200,150,.15);
-}
-.sec-sub {
-  font-size: 11px; color: var(--muted2); font-weight: 400;
-  letter-spacing: .5px; text-transform: none; margin-left: auto;
-}
-
-/* ── TICKER TABLE ── */
-.oi-ticker-table {
-  border: 1px solid rgba(255,255,255,.07);
-  border-radius: 14px; overflow: hidden;
-}
-.oi-ticker-hdr {
-  display: grid;
-  grid-template-columns: 130px repeat(5, 1fr);
-  padding: 9px 18px;
-  align-items: center; gap: 6px;
-}
-.oi-ticker-hdr-label {
-  font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
-}
-.oi-ticker-hdr-cell {
-  font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
-  color: rgba(255,255,255,.35); text-align: center;
-}
-.oi-ticker-row {
-  display: grid;
-  grid-template-columns: 130px repeat(5, 1fr);
-  padding: 15px 18px;
-  border-top: 1px solid rgba(255,255,255,.04);
-  align-items: center; gap: 6px;
-  transition: background .15s;
-}
-.oi-ticker-row:hover { background: rgba(255,255,255,.03); }
-.oi-ticker-metric {
-  font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
-  color: rgba(255,255,255,.35);
-}
-.oi-ticker-cell { text-align: center; }
-
-/* ── KEY LEVELS ── */
-.kl-zone-labels { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; font-weight: 700; }
-.kl-node { position: absolute; text-align: center; }
-.kl-lbl  { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; line-height: 1.3; white-space: nowrap; }
-.kl-val  { font-size: 12px; font-weight: 700; color: rgba(255,255,255,.7); white-space: nowrap; margin-top: 2px; }
-.kl-dot  { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--bg); }
-.kl-gradient-bar {
-  position: relative; height: 6px; border-radius: 3px;
-  background: linear-gradient(90deg, #00a07a 0%, #00c896 25%, #6480ff 55%, #ff6b6b 80%, #cc4040 100%);
-  box-shadow: 0 0 12px rgba(0,200,150,.2);
-}
-.kl-price-tick {
-  position: absolute; top: 50%; transform: translate(-50%,-50%);
-  width: 3px; height: 18px; background: #fff; border-radius: 2px;
-  box-shadow: 0 0 12px rgba(255,255,255,.6); z-index: 10;
-}
-.kl-dist-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
-.kl-dist-box {
-  background: rgba(255,255,255,.03); border: 1px solid; border-radius: 10px;
-  padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;
-}
+/* STRIKES TABLE */
+.strikes-head{font-weight:700;margin-bottom:10px;font-size:13px}
+.strikes-wrap{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.s-table{width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden}
+.s-table th{background:linear-gradient(90deg,rgba(0,200,150,.15),rgba(100,128,255,.15));
+  color:rgba(255,255,255,.7);padding:10px 12px;font-size:11px;font-weight:600;text-align:left;
+  letter-spacing:.5px;border-bottom:1px solid rgba(255,255,255,.08)}
+.s-table td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);
+  font-size:12px;color:rgba(255,255,255,.8);background:rgba(255,255,255,.02)}
+.s-table tr:last-child td{border-bottom:none}
+.s-table tr:hover td{background:rgba(0,200,150,.05)}
 
 /* ── STRATEGY CARDS ── */
-.strat-dir        { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
-.strat-group      { display: flex; flex-direction: column; gap: 10px; }
-.strat-group-title { font-family: var(--fh); font-size: 13px; font-weight: 700; margin-bottom: 4px; }
-.strat-card {
-  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07); border-radius: 12px; padding: 14px;
-  transition: all .2s;
-}
-.strat-card:hover {
-  border-color: rgba(0,200,150,.25); transform: translateY(-2px);
-  background: rgba(0,200,150,.04); box-shadow: 0 8px 24px rgba(0,200,150,.08);
-}
-.strat-top  { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
-.strat-name { font-family: var(--fh); font-size: 14px; font-weight: 700; color: rgba(255,255,255,.9); }
-.strat-desc { font-size: 11px; color: var(--muted); line-height: 1.7; margin-bottom: 8px; }
-.strat-legs { font-family: var(--fm); font-size: 10px; color: var(--aurora3); margin-bottom: 10px; letter-spacing: .5px; }
-.strat-metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
-.strat-metrics > div {
-  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06); border-radius: 8px; padding: 6px 8px;
-}
-.sm-lbl { display: block; font-size: 9px; color: var(--muted2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+.sc-tabs{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.sc-tab{padding:8px 20px;border-radius:24px;border:1px solid;cursor:pointer;
+  font-family:var(--fh);font-size:12px;font-weight:600;transition:all .2s;
+  display:flex;align-items:center;gap:8px;background:transparent}
+.sc-tab:hover{opacity:.85}
+.sc-cnt{font-size:10px;padding:1px 7px;border-radius:10px;color:#fff;font-weight:700}
 
-/* ── STRIKES TABLE ── */
-.strikes-head { font-weight: 700; margin-bottom: 10px; font-size: 13px; }
-.strikes-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.s-table { width: 100%; border-collapse: collapse; border-radius: 10px; overflow: hidden; }
-.s-table th {
-  background: linear-gradient(90deg, rgba(0,200,150,.15), rgba(100,128,255,.15));
-  color: rgba(255,255,255,.7); padding: 10px 12px;
-  font-size: 11px; font-weight: 600; text-align: left; letter-spacing: .5px;
-  border-bottom: 1px solid rgba(255,255,255,.08);
-}
-.s-table td {
-  padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.05);
-  font-size: 12px; color: rgba(255,255,255,.8); background: rgba(255,255,255,.02);
-}
-.s-table tr:last-child td { border-bottom: none; }
-.s-table tr:hover td { background: rgba(0,200,150,.05); }
+.sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
 
-footer {
-  padding: 16px 32px; border-top: 1px solid rgba(255,255,255,.06);
-  background: rgba(6,8,15,.9); backdrop-filter: blur(12px);
-  display: flex; justify-content: space-between;
-  font-size: 11px; color: var(--muted2); font-family: var(--fm);
-}
+.sc-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);
+  border-radius:14px;overflow:hidden;cursor:pointer;
+  transition:all .2s;display:flex;flex-direction:column}
+.sc-card:hover{border-color:rgba(0,200,150,.3);transform:translateY(-3px);
+  box-shadow:0 8px 28px rgba(0,200,150,.1)}
+.sc-card.hidden{display:none}
+.sc-card.expanded .sc-detail{display:block}
+.sc-card.expanded{border-color:rgba(0,200,150,.35);
+  box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12)}
 
-@media(max-width:1024px) {
-  .main { grid-template-columns: 1fr; }
-  .sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid rgba(255,255,255,.06); }
-  .hero-dir { font-size: 38px; }
-  .oi-ticker-hdr, .oi-ticker-row { grid-template-columns: 100px repeat(3, 1fr); }
-  .oi-ticker-hdr-cell:nth-child(n+5), .oi-ticker-cell:nth-child(n+5) { display: none; }
-  .strat-dir { grid-template-columns: 1fr; }
-  .strikes-wrap { grid-template-columns: 1fr; }
+.sc-svg{display:flex;align-items:center;justify-content:center;
+  padding:12px 0 6px;background:rgba(255,255,255,.02)}
+.sc-body{padding:10px 12px 12px}
+.sc-name{font-family:var(--fh);font-size:12px;font-weight:700;
+  color:rgba(255,255,255,.9);margin-bottom:4px;line-height:1.3}
+.sc-legs{font-family:var(--fm);font-size:9px;color:rgba(0,200,220,.7);
+  margin-bottom:8px;letter-spacing:.3px;line-height:1.4}
+.sc-tags{display:flex;flex-direction:column;gap:4px}
+.sc-tag{font-size:9px;padding:2px 8px;border-radius:6px;
+  border:1px solid;background:rgba(0,0,0,.2);display:inline-block;width:fit-content}
+
+.sc-detail{display:none;padding:12px;border-top:1px solid rgba(255,255,255,.06);
+  background:rgba(0,200,150,.03)}
+.sc-desc{font-size:11px;color:rgba(255,255,255,.55);line-height:1.7;margin-bottom:10px}
+.sc-metrics{display:grid;grid-template-columns:1fr;gap:5px}
+.sc-metrics>div{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);
+  border-radius:6px;padding:5px 8px;font-size:11px;display:flex;justify-content:space-between;gap:8px}
+.sc-ml{font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;white-space:nowrap}
+
+/* FOOTER */
+footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);
+  background:rgba(6,8,15,.9);backdrop-filter:blur(12px);
+  display:flex;justify-content:space-between;
+  font-size:11px;color:var(--muted2);font-family:var(--fm)}
+
+/* RESPONSIVE */
+@media(max-width:1024px){
+  .main{grid-template-columns:1fr}
+  .sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid rgba(255,255,255,.06)}
+  .hero-dir{font-size:38px}
+  .oi-ticker-hdr,.oi-ticker-row{grid-template-columns:100px repeat(3,1fr)}
+  .oi-ticker-hdr-cell:nth-child(n+5),.oi-ticker-cell:nth-child(n+5){display:none}
+  .strikes-wrap{grid-template-columns:1fr}
+  .sc-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
 }
-@media(max-width:640px) {
-  header { padding: 12px 16px; }
-  .hero  { padding: 18px; flex-direction: column; }
-  .hero-dir { font-size: 30px; }
-  .section  { padding: 18px 16px; }
-  .oi-ticker-hdr, .oi-ticker-row { grid-template-columns: 90px repeat(2, 1fr); }
-  .oi-ticker-hdr-cell:nth-child(n+4), .oi-ticker-cell:nth-child(n+4) { display: none; }
-  .strat-metrics { grid-template-columns: 1fr; }
-  .kl-dist-row   { grid-template-columns: 1fr; }
-  footer { flex-direction: column; gap: 6px; }
+@media(max-width:640px){
+  header{padding:12px 16px}
+  .hero{padding:18px;flex-direction:column}
+  .hero-dir{font-size:30px}
+  .section{padding:18px 16px}
+  .oi-ticker-hdr,.oi-ticker-row{grid-template-columns:90px repeat(2,1fr)}
+  .oi-ticker-hdr-cell:nth-child(n+4),.oi-ticker-cell:nth-child(n+4){display:none}
+  .kl-dist-row{grid-template-columns:1fr}
+  footer{flex-direction:column;gap:6px}
+  .sc-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
 }
 """
-
 
 # =================================================================
 #  SECTION 8 -- MASTER HTML ASSEMBLER
@@ -986,14 +989,13 @@ def generate_html(tech, oc, md, ts):
     b_arrow = "&#9650;" if bias == "BULLISH" else ("&#9660;" if bias == "BEARISH" else "&#8596;")
     pcr_col = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
 
-    oi_html      = build_oi_html(oc)           if oc   else ""
+    oi_html      = build_oi_html(oc)               if oc   else ""
     kl_html      = build_key_levels_html(tech, oc) if tech else ""
     strat_html   = build_strategies_html()
     strikes_html = build_strikes_html(oc)
 
     sig_card = (
-        f"<div class=\"sb-sec\">"
-        f"<div class=\"sb-lbl\">TODAY'S SIGNAL</div>"
+        f"<div class=\"sb-sec\"><div class=\"sb-lbl\">TODAY'S SIGNAL</div>"
         f"<div class=\"sig-card\">"
         f"<div class=\"sig-arrow\">{b_arrow}</div>"
         f"<div class=\"sig-bias\">{bias}</div>"
@@ -1029,9 +1031,7 @@ def generate_html(tech, oc, md, ts):
   <div>
     <div class="hero-dir">{bias}</div>
     <div class="hero-sub">Market Direction &middot; {conf} Confidence</div>
-    <span class="hero-conf">
-      Bull {bull} pt &nbsp;&middot;&nbsp; Bear {bear} pt &nbsp;&middot;&nbsp; Diff {diff:+d}
-    </span>
+    <span class="hero-conf">Bull {bull} pt &nbsp;&middot;&nbsp; Bear {bear} pt &nbsp;&middot;&nbsp; Diff {diff:+d}</span>
   </div>
   <div class="hero-stats">
     <div class="hstat"><div class="hstat-lbl">NIFTY Spot</div><div class="hstat-val">&#8377;{cp:,.2f}</div></div>
@@ -1052,9 +1052,9 @@ def generate_html(tech, oc, md, ts):
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">STRATEGIES</div>
-      <button class="sb-btn" onclick="go('strat',this)">Bullish <span class="sb-badge" style="color:var(--bull);">4</span></button>
-      <button class="sb-btn" onclick="go('strat',this)">Bearish <span class="sb-badge" style="color:var(--bear);">3</span></button>
-      <button class="sb-btn" onclick="go('strat',this)">Neutral <span class="sb-badge" style="color:var(--neut);">4</span></button>
+      <button class="sb-btn" onclick="go('strat',this);filterStrat('bullish',null)">&#9650; Bullish <span class="sb-badge" style="color:var(--bull);">9</span></button>
+      <button class="sb-btn" onclick="go('strat',this);filterStrat('bearish',null)">&#9660; Bearish <span class="sb-badge" style="color:var(--bear);">9</span></button>
+      <button class="sb-btn" onclick="go('strat',this);filterStrat('nondirectional',null)">&#8596; Non-Directional <span class="sb-badge" style="color:var(--neut);">20</span></button>
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">OPTION CHAIN</div>
@@ -1065,7 +1065,7 @@ def generate_html(tech, oc, md, ts):
   <main class="content">
     <div id="oi">{oi_html}</div>
     <div id="kl">{kl_html}</div>
-    <div id="strat">{strat_html}</div>
+    {strat_html}
     <div id="strikes">{strikes_html}</div>
     <div class="section">
       <div style="background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.18);
@@ -1088,10 +1088,59 @@ def generate_html(tech, oc, md, ts):
 <script>
 function go(id, btn) {{
   const el = document.getElementById(id);
-  if (el) el.scrollIntoView({{ behavior: "smooth", block: "start" }});
-  document.querySelectorAll(".sb-btn").forEach(b => b.classList.remove("active"));
-  if (btn) btn.classList.add("active");
+  if (el) el.scrollIntoView({{ behavior:"smooth", block:"start" }});
+  if (btn) {{
+    document.querySelectorAll(".sb-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+  }}
 }}
+
+function filterStrat(cat, btn) {{
+  // Filter cards
+  document.querySelectorAll(".sc-card").forEach(c => {{
+    c.classList.toggle("hidden", c.dataset.cat !== cat);
+  }});
+
+  // Update tab styles
+  const colors = {{ bullish:"#00c896", bearish:"#ff6b6b", nondirectional:"#6480ff" }};
+  const col = colors[cat] || "#00c896";
+  document.querySelectorAll(".sc-tab").forEach(t => {{
+    t.style.borderColor = "rgba(255,255,255,.15)";
+    t.style.color       = "rgba(255,255,255,.5)";
+    t.style.background  = "transparent";
+  }});
+  if (btn) {{
+    btn.style.borderColor = col;
+    btn.style.color       = col;
+    btn.style.background  = col + "20";
+  }} else {{
+    // called from sidebar — find the matching tab
+    document.querySelectorAll(".sc-tab").forEach(t => {{
+      if ((cat === "bullish" && t.textContent.includes("BULLISH")) ||
+          (cat === "bearish" && t.textContent.includes("BEARISH")) ||
+          (cat === "nondirectional" && t.textContent.includes("NON"))) {{
+        t.style.borderColor = col;
+        t.style.color       = col;
+        t.style.background  = col + "20";
+      }}
+    }});
+  }}
+}}
+
+// Toggle card expand
+document.addEventListener("click", function(e) {{
+  const card = e.target.closest(".sc-card");
+  if (card) {{
+    const wasExpanded = card.classList.contains("expanded");
+    document.querySelectorAll(".sc-card.expanded").forEach(c => c.classList.remove("expanded"));
+    if (!wasExpanded) card.classList.add("expanded");
+  }}
+}});
+
+// Show bullish by default on load
+window.addEventListener("load", function() {{
+  filterStrat("bullish", document.querySelector(".sc-tab"));
+}});
 </script>
 </body>
 </html>"""
