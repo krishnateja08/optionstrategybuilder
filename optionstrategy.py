@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
+Aurora Borealis Theme
 Fetches live data from NSE -> runs analysis -> writes docs/index.html
 Triggered by GitHub Actions on every push / scheduled run.
 
@@ -313,7 +314,7 @@ def compute_market_direction(tech, oc_analysis):
 
 ALL_STRATEGIES = {
     "bullish": {
-        "label": "Bullish", "color": "#0d8a9e",
+        "label": "Bullish", "color": "#00c896",
         "items": [
             {"name": "Long Call",
              "risk": "Limited",  "reward": "Unlimited",
@@ -338,7 +339,7 @@ ALL_STRATEGIES = {
         ]
     },
     "bearish": {
-        "label": "Bearish", "color": "#c0392b",
+        "label": "Bearish", "color": "#ff6b6b",
         "items": [
             {"name": "Long Put",
              "risk": "Limited",  "reward": "High",
@@ -358,7 +359,7 @@ ALL_STRATEGIES = {
         ]
     },
     "neutral": {
-        "label": "Neutral / Volatility", "color": "#d4a017",
+        "label": "Neutral / Volatility", "color": "#6480ff",
         "items": [
             {"name": "Iron Condor",
              "risk": "Limited",  "reward": "Limited",
@@ -418,7 +419,7 @@ def recommend_strategies(bias, atm_strike, oi_dir):
 
 
 # =================================================================
-#  SECTION 6 -- HTML SECTION BUILDERS  (Ocean Teal + Cool Blue-Grey)
+#  SECTION 6 -- HTML SECTION BUILDERS  (Aurora Borealis Theme)
 # =================================================================
 
 def build_oi_html(oc):
@@ -432,10 +433,10 @@ def build_oi_html(oc):
     bear_pct   = 100 - bull_pct
 
     def oi_card(lbl, val, is_bull, sub):
-        col = "#0fa86b" if is_bull else "#c0392b"
+        col = "#00c896" if is_bull else "#ff6b6b"
         sig = "Bullish Signal" if is_bull else "Bearish Signal"
-        bg  = "rgba(15,168,107,.07)"  if is_bull else "rgba(192,57,43,.07)"
-        bdr = "rgba(15,168,107,.25)"  if is_bull else "rgba(192,57,43,.25)"
+        bg  = "rgba(0,200,150,.07)"  if is_bull else "rgba(255,107,107,.07)"
+        bdr = "rgba(0,200,150,.2)"   if is_bull else "rgba(255,107,107,.2)"
         return (
             f"<div class=\"oi-card\">"
             f"<div class=\"oi-lbl\">{lbl}</div>"
@@ -449,11 +450,11 @@ def build_oi_html(oc):
     oi_dir = oc["oi_dir"]
     oi_sig = oc["oi_sig"]
     expiry = oc["expiry"]
-    dir_col = "#0fa86b" if oi_cls == "bullish" else ("#c0392b" if oi_cls == "bearish" else "#d4a017")
-    dir_bg  = ("rgba(15,168,107,.06)"  if oi_cls == "bullish" else
-               "rgba(192,57,43,.06)"   if oi_cls == "bearish" else "rgba(212,160,23,.06)")
-    dir_bdr = ("rgba(15,168,107,.22)"  if oi_cls == "bullish" else
-               "rgba(192,57,43,.22)"   if oi_cls == "bearish" else "rgba(212,160,23,.22)")
+    dir_col = "#00c896" if oi_cls == "bullish" else ("#ff6b6b" if oi_cls == "bearish" else "#6480ff")
+    dir_bg  = ("rgba(0,200,150,.06)"   if oi_cls == "bullish" else
+               "rgba(255,107,107,.06)" if oi_cls == "bearish" else "rgba(100,128,255,.06)")
+    dir_bdr = ("rgba(0,200,150,.2)"    if oi_cls == "bullish" else
+               "rgba(255,107,107,.2)"  if oi_cls == "bearish" else "rgba(100,128,255,.2)")
 
     return (
         f"<div class=\"section\"><div class=\"sec-title\">CHANGE IN OPEN INTEREST"
@@ -465,8 +466,9 @@ def build_oi_html(oc):
         f"<div class=\"oi-meter-wrap\">"
         f"<div class=\"oi-meter-lbl\">BULL STRENGTH</div>"
         f"<div class=\"oi-meter-track\"><div style=\"width:{bull_pct}%;height:100%;"
-        f"background:linear-gradient(90deg,#0d8a9e,#26d0a0);border-radius:4px;\"></div></div>"
-        f"<div class=\"oi-meter-pct\" style=\"color:#0d8a9e;\">{bull_pct}% Bull &middot; {bear_pct}% Bear</div>"
+        f"background:linear-gradient(90deg,#00c896,#6480ff);border-radius:4px;"
+        f"box-shadow:0 0 10px rgba(0,200,150,.3);\"></div></div>"
+        f"<div class=\"oi-meter-pct\" style=\"color:#00c896;\">{bull_pct}% Bull &middot; {bear_pct}% Bear</div>"
         f"</div></div>"
         f"<div class=\"oi-cards\">"
         f"{oi_card('CALL OI CHANGE', ce,  ce < 0,  'CE open interest delta')}"
@@ -474,10 +476,10 @@ def build_oi_html(oc):
         f"{oi_card('NET OI CHANGE',  net, net > 0, 'PE delta + CE delta')}"
         f"</div>"
         f"<div class=\"oi-legend\">"
-        f"<span>Call OI + = Writers selling calls <b style=\"color:#c0392b;\">Bearish</b></span>"
-        f"<span>Call OI - = Unwinding <b style=\"color:#0fa86b;\">Bullish</b></span>"
-        f"<span>Put OI + = Writers selling puts <b style=\"color:#0fa86b;\">Bullish</b></span>"
-        f"<span>Put OI - = Unwinding <b style=\"color:#c0392b;\">Bearish</b></span>"
+        f"<span>Call OI + = Writers selling calls <b style=\"color:#ff6b6b;\">Bearish</b></span>"
+        f"<span>Call OI - = Unwinding <b style=\"color:#00c896;\">Bullish</b></span>"
+        f"<span>Put OI + = Writers selling puts <b style=\"color:#00c896;\">Bullish</b></span>"
+        f"<span>Put OI - = Unwinding <b style=\"color:#ff6b6b;\">Bearish</b></span>"
         f"</div></div>"
     )
 
@@ -503,9 +505,9 @@ def build_key_levels_html(tech, oc):
         max_pain = oc['max_pain']
         mp_html  = (
             f"<div class=\"kl-node\" style=\"left:{mp_p}%;top:0;transform:translateX(-50%);\">"
-            f"<div class=\"kl-dot\" style=\"background:#d4a017;box-shadow:0 0 8px #d4a01760;margin:0 auto 4px;\"></div>"
-            f"<div class=\"kl-lbl\" style=\"color:#d4a017;\">Max Pain</div>"
-            f"<div class=\"kl-val\" style=\"color:#b8880e;\">Rs{max_pain:,}</div>"
+            f"<div class=\"kl-dot\" style=\"background:#6480ff;box-shadow:0 0 8px rgba(100,128,255,.5);margin:0 auto 4px;\"></div>"
+            f"<div class=\"kl-lbl\" style=\"color:#6480ff;\">Max Pain</div>"
+            f"<div class=\"kl-val\" style=\"color:#8aa0ff;\">&#8377;{max_pain:,}</div>"
             f"</div>"
         )
 
@@ -513,40 +515,40 @@ def build_key_levels_html(tech, oc):
         f"<div class=\"section\"><div class=\"sec-title\">KEY LEVELS"
         f"<span class=\"sec-sub\">1H Candles &middot; Last 120 bars &middot; ATM +-200 pts &middot; Rounded to 25</span></div>"
         f"<div class=\"kl-zone-labels\">"
-        f"<span style=\"color:#0d8a9e;\">SUPPORT ZONE</span>"
-        f"<span style=\"color:#c0392b;\">RESISTANCE ZONE</span>"
+        f"<span style=\"color:#00c896;\">SUPPORT ZONE</span>"
+        f"<span style=\"color:#ff6b6b;\">RESISTANCE ZONE</span>"
         f"</div>"
         f"<div style=\"position:relative;height:58px;\">"
         f"<div class=\"kl-node\" style=\"left:3%;bottom:0;transform:translateX(-50%);\">"
-        f"<div class=\"kl-lbl\" style=\"color:#0d6e80;\">Strong Sup</div>"
-        f"<div class=\"kl-val\" style=\"color:#0d4a5a;\">Rs{ss:,.0f}</div>"
-        f"<div class=\"kl-dot\" style=\"background:#0d6e80;margin:5px auto 0;\"></div></div>"
+        f"<div class=\"kl-lbl\" style=\"color:#00a07a;\">Strong Sup</div>"
+        f"<div class=\"kl-val\" style=\"color:#00c896;\">&#8377;{ss:,.0f}</div>"
+        f"<div class=\"kl-dot\" style=\"background:#00a07a;margin:5px auto 0;\"></div></div>"
         f"<div class=\"kl-node\" style=\"left:22%;bottom:0;transform:translateX(-50%);\">"
-        f"<div class=\"kl-lbl\" style=\"color:#0d8a9e;\">Support</div>"
-        f"<div class=\"kl-val\" style=\"color:#0d5c6e;\">Rs{s1:,.0f}</div>"
-        f"<div class=\"kl-dot\" style=\"background:#0d8a9e;box-shadow:0 0 8px #0d8a9e70;margin:5px auto 0;\"></div></div>"
+        f"<div class=\"kl-lbl\" style=\"color:#00c896;\">Support</div>"
+        f"<div class=\"kl-val\" style=\"color:#4de8b8;\">&#8377;{s1:,.0f}</div>"
+        f"<div class=\"kl-dot\" style=\"background:#00c896;box-shadow:0 0 8px rgba(0,200,150,.5);margin:5px auto 0;\"></div></div>"
         f"<div style=\"position:absolute;left:{cp_pct}%;bottom:6px;transform:translateX(-50%);"
-        f"background:#1a9aad;color:#fff;font-size:11px;font-weight:700;"
-        f"padding:3px 12px;border-radius:6px;white-space:nowrap;"
-        f"box-shadow:0 2px 10px rgba(26,154,173,.45);z-index:10;\">NOW Rs{cp:,.0f}</div>"
+        f"background:linear-gradient(90deg,#00c896,#6480ff);color:#fff;font-size:11px;font-weight:700;"
+        f"padding:3px 14px;border-radius:20px;white-space:nowrap;"
+        f"box-shadow:0 2px 14px rgba(0,200,150,.35);z-index:10;\">NOW &#8377;{cp:,.0f}</div>"
         f"<div class=\"kl-node\" style=\"left:75%;bottom:0;transform:translateX(-50%);\">"
-        f"<div class=\"kl-lbl\" style=\"color:#c0392b;\">Resistance</div>"
-        f"<div class=\"kl-val\" style=\"color:#8b2318;\">Rs{r1:,.0f}</div>"
-        f"<div class=\"kl-dot\" style=\"background:#c0392b;box-shadow:0 0 8px #c0392b70;margin:5px auto 0;\"></div></div>"
+        f"<div class=\"kl-lbl\" style=\"color:#ff6b6b;\">Resistance</div>"
+        f"<div class=\"kl-val\" style=\"color:#ff9090;\">&#8377;{r1:,.0f}</div>"
+        f"<div class=\"kl-dot\" style=\"background:#ff6b6b;box-shadow:0 0 8px rgba(255,107,107,.5);margin:5px auto 0;\"></div></div>"
         f"<div class=\"kl-node\" style=\"left:95%;bottom:0;transform:translateX(-50%);\">"
-        f"<div class=\"kl-lbl\" style=\"color:#96281b;\">Strong Res</div>"
-        f"<div class=\"kl-val\" style=\"color:#6b1c12;\">Rs{sr:,.0f}</div>"
-        f"<div class=\"kl-dot\" style=\"background:#96281b;margin:5px auto 0;\"></div></div>"
+        f"<div class=\"kl-lbl\" style=\"color:#cc4040;\">Strong Res</div>"
+        f"<div class=\"kl-val\" style=\"color:#ff6b6b;\">&#8377;{sr:,.0f}</div>"
+        f"<div class=\"kl-dot\" style=\"background:#cc4040;margin:5px auto 0;\"></div></div>"
         f"</div>"
         f"<div class=\"kl-gradient-bar\"><div class=\"kl-price-tick\" style=\"left:{cp_pct}%;\"></div></div>"
         f"<div style=\"position:relative;height:54px;\">{mp_html}</div>"
         f"<div class=\"kl-dist-row\">"
-        f"<div class=\"kl-dist-box\" style=\"border-color:rgba(192,57,43,.18);\">"
-        f"<span style=\"color:#5a6a7a;\">To Resistance</span>"
-        f"<span style=\"color:#c0392b;font-weight:700;\">+{pts_r:,} pts</span></div>"
-        f"<div class=\"kl-dist-box\" style=\"border-color:rgba(13,138,158,.18);\">"
-        f"<span style=\"color:#5a6a7a;\">To Support</span>"
-        f"<span style=\"color:#0d8a9e;font-weight:700;\">-{pts_s:,} pts</span></div>"
+        f"<div class=\"kl-dist-box\" style=\"border-color:rgba(255,107,107,.18);\">"
+        f"<span style=\"color:var(--muted);\">To Resistance</span>"
+        f"<span style=\"color:#ff6b6b;font-weight:700;\">+{pts_r:,} pts</span></div>"
+        f"<div class=\"kl-dist-box\" style=\"border-color:rgba(0,200,150,.18);\">"
+        f"<span style=\"color:var(--muted);\">To Support</span>"
+        f"<span style=\"color:#00c896;font-weight:700;\">-{pts_s:,} pts</span></div>"
         f"</div></div>"
     )
 
@@ -558,36 +560,28 @@ def build_strategies_html(md, tech, oc):
 
     tech_strats, oi_strat = recommend_strategies(bias, atm, oi_dir)
 
-    bc = "#0d8a9e" if bias == "BULLISH" else ("#c0392b" if bias == "BEARISH" else "#d4a017")
+    bc = "#00c896" if bias == "BULLISH" else ("#ff6b6b" if bias == "BEARISH" else "#6480ff")
 
     rec_cards = ""
     for s in tech_strats:
-        s_name = s['name']
-        s_legs = s['legs']
-        s_type = s['type']
-        s_risk = s['risk']
         rec_cards += (
             f"<div class=\"rec-card\" style=\"border-color:{bc}28;\">"
-            f"<div class=\"rec-name\">{s_name}</div>"
-            f"<div class=\"rec-legs\">{s_legs}</div>"
+            f"<div class=\"rec-name\" style=\"color:{bc};\">{s['name']}</div>"
+            f"<div class=\"rec-legs\">{s['legs']}</div>"
             f"<div style=\"display:flex;gap:6px;margin-top:8px;\">"
-            f"<span class=\"rec-tag\">{s_type}</span>"
-            f"<span class=\"rec-tag\">{s_risk} Risk</span></div></div>"
+            f"<span class=\"rec-tag\">{s['type']}</span>"
+            f"<span class=\"rec-tag\">{s['risk']} Risk</span></div></div>"
         )
 
-    oi_name = oi_strat['name']
-    oi_legs = oi_strat['legs']
-    oi_sig  = oi_strat['signal']
-
     rec_block = (
-        f"<div class=\"rec-banner\" style=\"border-color:{bc}30;background:{bc}05;\">"
+        f"<div class=\"rec-banner\" style=\"border-color:{bc}30;background:linear-gradient(135deg,{bc}06,rgba(100,128,255,.04));\">"
         f"<div class=\"rec-title\" style=\"color:{bc};\">TODAY'S RECOMMENDED STRATEGIES &mdash; {bias}</div>"
         f"<div class=\"rec-grid\">{rec_cards}</div>"
         f"<div class=\"rec-oi-box\">"
         f"<span class=\"rec-oi-lbl\">OI Signal Strategy:</span>"
-        f"<span class=\"rec-oi-name\">{oi_name}</span>"
-        f"<span class=\"rec-oi-legs\">{oi_legs}</span>"
-        f"<span class=\"rec-oi-sig\">{oi_sig}</span>"
+        f"<span class=\"rec-oi-name\">{oi_strat['name']}</span>"
+        f"<span class=\"rec-oi-legs\">{oi_strat['legs']}</span>"
+        f"<span class=\"rec-oi-sig\">{oi_strat['signal']}</span>"
         f"</div></div>"
     )
 
@@ -595,38 +589,30 @@ def build_strategies_html(md, tech, oc):
     for direction, info in ALL_STRATEGIES.items():
         col   = info["color"]
         label = info["label"]
-        emoji = "UP" if direction == "bullish" else ("DOWN" if direction == "bearish" else "SIDEWAYS")
+        emoji = "&#9650;" if direction == "bullish" else ("&#9660;" if direction == "bearish" else "&#8596;")
         dir_html += (
             f"<div class=\"strat-group\">"
             f"<div class=\"strat-group-title\" style=\"color:{col};\">{emoji} {label} Strategies</div>"
         )
         for s in info["items"]:
-            s_risk   = s["risk"]
-            s_reward = s["reward"]
-            s_name   = s["name"]
-            s_desc   = s["desc"]
-            s_legs   = s["legs"]
-            s_mp     = s["mp"]
-            s_ml     = s["ml"]
-            s_be     = s["be"]
-            rc  = "#0fa86b" if s_risk   == "Limited"   else "#c0392b" if s_risk   == "High" else "#d4a017"
-            rwc = "#0fa86b" if s_reward == "Unlimited" else "#d4a017"
+            rc  = "#00c896" if s["risk"]   == "Limited"   else "#ff6b6b" if s["risk"]   == "High" else "#6480ff"
+            rwc = "#00c896" if s["reward"] == "Unlimited" else "#6480ff"
             dir_html += (
                 f"<div class=\"strat-card\">"
                 f"<div class=\"strat-top\">"
-                f"<div class=\"strat-name\">{s_name}</div>"
+                f"<div class=\"strat-name\">{s['name']}</div>"
                 f"<div style=\"display:flex;gap:5px;flex-wrap:wrap;\">"
-                f"<span style=\"font-size:10px;padding:2px 8px;border-radius:4px;"
-                f"color:{rc};background:{rc}10;border:1px solid {rc}28;\">Risk: {s_risk}</span>"
-                f"<span style=\"font-size:10px;padding:2px 8px;border-radius:4px;"
-                f"color:{rwc};background:{rwc}10;border:1px solid {rwc}28;\">Reward: {s_reward}</span>"
+                f"<span style=\"font-size:10px;padding:2px 8px;border-radius:10px;"
+                f"color:{rc};background:{rc}12;border:1px solid {rc}30;\">Risk: {s['risk']}</span>"
+                f"<span style=\"font-size:10px;padding:2px 8px;border-radius:10px;"
+                f"color:{rwc};background:{rwc}12;border:1px solid {rwc}30;\">Reward: {s['reward']}</span>"
                 f"</div></div>"
-                f"<div class=\"strat-desc\">{s_desc}</div>"
-                f"<div class=\"strat-legs\">{s_legs}</div>"
+                f"<div class=\"strat-desc\">{s['desc']}</div>"
+                f"<div class=\"strat-legs\">{s['legs']}</div>"
                 f"<div class=\"strat-metrics\">"
-                f"<div><span class=\"sm-lbl\">Max Profit</span><span style=\"color:#0fa86b;\">{s_mp}</span></div>"
-                f"<div><span class=\"sm-lbl\">Max Loss</span><span style=\"color:#c0392b;\">{s_ml}</span></div>"
-                f"<div><span class=\"sm-lbl\">Breakeven</span><span style=\"color:#b8880e;\">{s_be}</span></div>"
+                f"<div><span class=\"sm-lbl\">Max Profit</span><span style=\"color:#00c896;\">{s['mp']}</span></div>"
+                f"<div><span class=\"sm-lbl\">Max Loss</span><span style=\"color:#ff6b6b;\">{s['ml']}</span></div>"
+                f"<div><span class=\"sm-lbl\">Breakeven</span><span style=\"color:#6480ff;\">{s['be']}</span></div>"
                 f"</div></div>"
             )
         dir_html += "</div>"
@@ -652,9 +638,9 @@ def build_strikes_html(oc):
             ce_oi  = int(r['CE_OI'])
             ce_ltp = r['CE_LTP']
             out += (
-                f"<tr><td>{i}</td><td><b>Rs{strike:,}</b></td>"
+                f"<tr><td>{i}</td><td><b>&#8377;{strike:,}</b></td>"
                 f"<td>{ce_oi:,}</td>"
-                f"<td style=\"color:#0d8a9e;font-weight:700;\">Rs{ce_ltp:.2f}</td></tr>"
+                f"<td style=\"color:#00c8e0;font-weight:700;\">&#8377;{ce_ltp:.2f}</td></tr>"
             )
         return out
 
@@ -665,31 +651,28 @@ def build_strikes_html(oc):
             pe_oi  = int(r['PE_OI'])
             pe_ltp = r['PE_LTP']
             out += (
-                f"<tr><td>{i}</td><td><b>Rs{strike:,}</b></td>"
+                f"<tr><td>{i}</td><td><b>&#8377;{strike:,}</b></td>"
                 f"<td>{pe_oi:,}</td>"
-                f"<td style=\"color:#c0392b;font-weight:700;\">Rs{pe_ltp:.2f}</td></tr>"
+                f"<td style=\"color:#ff6b6b;font-weight:700;\">&#8377;{pe_ltp:.2f}</td></tr>"
             )
         return out
 
-    top_ce = oc['top_ce']
-    top_pe = oc['top_pe']
-
     return (
         f"<div class=\"section\"><div class=\"sec-title\">TOP 5 STRIKES BY OPEN INTEREST"
-        f"<span class=\"sec-sub\">Full Chain</span></div>"
+        f"<span class=\"sec-sub\">Full Chain &middot; Top 5 CE + Top 5 PE</span></div>"
         f"<div class=\"strikes-wrap\">"
-        f"<div><div style=\"color:#0d8a9e;font-weight:700;margin-bottom:10px;\">CALL Options (CE)</div>"
+        f"<div><div class=\"strikes-head\" style=\"color:#00c8e0;\">&#9651; CALL Options (CE)</div>"
         f"<table class=\"s-table\"><thead><tr><th>#</th><th>Strike</th><th>OI</th><th>LTP</th></tr></thead>"
-        f"<tbody>{ce_rows(top_ce)}</tbody></table></div>"
-        f"<div><div style=\"color:#c0392b;font-weight:700;margin-bottom:10px;\">PUT Options (PE)</div>"
+        f"<tbody>{ce_rows(oc['top_ce'])}</tbody></table></div>"
+        f"<div><div class=\"strikes-head\" style=\"color:#ff6b6b;\">&#9661; PUT Options (PE)</div>"
         f"<table class=\"s-table\"><thead><tr><th>#</th><th>Strike</th><th>OI</th><th>LTP</th></tr></thead>"
-        f"<tbody>{pe_rows(top_pe)}</tbody></table></div>"
+        f"<tbody>{pe_rows(oc['top_pe'])}</tbody></table></div>"
         f"</div></div>"
     )
 
 
 # =================================================================
-#  SECTION 7 -- CSS  (Ocean Teal header/hero + Cool Blue-Grey content)
+#  SECTION 7 -- CSS  (Aurora Borealis Theme)
 # =================================================================
 
 CSS = """
@@ -698,22 +681,20 @@ CSS = """
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:      #e8edf2;
-  --surf:    #dde4ec;
-  --card:    #d0d9e4;
-  --bdr:     #bfcad8;
-  --bdr2:    #a8b8cc;
-  --teal-dark:  #0d5c6e;
-  --teal:       #1a9aad;
-  --teal-light: #26d0a0;
-  --teal-pale:  #c8d8e4;
-  --text:   #0d2d38;
-  --muted:  #4a5a6a;
-  --muted2: #6a7a8a;
-  --bull:   #0fa86b;
-  --bear:   #c0392b;
-  --neut:   #d4a017;
-  --accent: #0d8a9e;
+  --bg:      #06080f;
+  --surf:    #080b14;
+  --card:    #0c1020;
+  --bdr:     rgba(255,255,255,.07);
+  --bdr2:    rgba(255,255,255,.12);
+  --aurora1: #00c896;
+  --aurora2: #6480ff;
+  --aurora3: #00c8e0;
+  --bull:    #00c896;
+  --bear:    #ff6b6b;
+  --neut:    #6480ff;
+  --text:    rgba(255,255,255,.9);
+  --muted:   rgba(255,255,255,.45);
+  --muted2:  rgba(255,255,255,.28);
   --fh: 'Sora', sans-serif;
   --fm: 'DM Mono', monospace;
 }
@@ -729,70 +710,95 @@ body {
   min-height: 100vh;
 }
 
+/* Aurora ambient glow layers fixed to background */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   background-image:
-    radial-gradient(circle at 15% 25%, rgba(26,154,173,.05) 0%, transparent 45%),
-    radial-gradient(circle at 85% 75%, rgba(13,92,110,.05) 0%, transparent 45%),
-    linear-gradient(rgba(13,92,110,.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(13,92,110,.025) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 36px 36px, 36px 36px;
+    radial-gradient(ellipse at 15% 0%,   rgba(0,200,150,.10) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 10%,  rgba(100,128,255,.10) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 90%,  rgba(0,200,220,.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 10% 80%,  rgba(0,200,150,.05) 0%, transparent 40%),
+    radial-gradient(ellipse at 90% 60%,  rgba(100,128,255,.05) 0%, transparent 40%);
   pointer-events: none;
   z-index: 0;
 }
 
 .app { position: relative; z-index: 1; display: grid; grid-template-rows: auto auto 1fr auto; min-height: 100vh; }
 
+/* ── HEADER ── */
 header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 32px;
-  border-bottom: 2px solid rgba(255,255,255,.15);
-  background: linear-gradient(135deg, #0d4a5a, #0d6e80);
+  background: rgba(6,8,15,.85);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255,255,255,.07);
   position: sticky; top: 0; z-index: 200;
-  box-shadow: 0 2px 12px rgba(13,74,90,.3);
+  box-shadow: 0 1px 0 rgba(0,200,150,.1);
 }
-.logo { font-family: var(--fh); font-size: 20px; font-weight: 700; color: #fff; letter-spacing: .5px; }
-.logo span { color: #a8eee0; }
-.hdr-meta { display: flex; align-items: center; gap: 14px; font-size: 11px; color: rgba(255,255,255,.55); font-family: var(--fm); }
-.live-dot { width: 7px; height: 7px; border-radius: 50%; background: #26d0a0; box-shadow: 0 0 8px #26d0a0; animation: pulse 2s infinite; }
-@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.3 } }
+.logo {
+  font-family: var(--fh); font-size: 20px; font-weight: 700;
+  background: linear-gradient(90deg, #00c896, #6480ff);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 12px rgba(0,200,150,.3));
+}
+.logo span { /* inner span not needed in aurora — keep for compat */ }
+.hdr-meta { display: flex; align-items: center; gap: 14px; font-size: 11px; color: var(--muted); font-family: var(--fm); }
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: #00c896; box-shadow: 0 0 10px #00c896; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.2 } }
 
+/* ── HERO ── */
 .hero {
-  padding: 26px 32px;
-  background: linear-gradient(135deg, #0d4a5a 0%, #0d6e80 50%, #1a9aad 100%);
-  border-bottom: 1px solid rgba(255,255,255,.1);
+  padding: 28px 32px;
+  background: rgba(6,8,15,.6);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,.06);
   display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
-  box-shadow: 0 3px 16px rgba(13,74,90,.2);
+  position: relative; overflow: hidden;
 }
-.hero-dir { font-family: var(--fh); font-size: 52px; font-weight: 700; line-height: 1; letter-spacing: -2px; color: #fff; }
-.hero-sub { font-size: 13px; color: rgba(255,255,255,.55); margin-top: 5px; }
+.hero::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 0% 50%, rgba(0,200,150,.08), transparent 60%),
+              radial-gradient(ellipse at 100% 50%, rgba(100,128,255,.08), transparent 60%);
+  pointer-events: none;
+}
+.hero-dir {
+  font-family: var(--fh); font-size: 54px; font-weight: 700; line-height: 1; letter-spacing: -2px;
+  background: linear-gradient(90deg, #00c896 0%, #6480ff 50%, #00c8e0 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 28px rgba(0,200,150,.25));
+}
+.hero-sub { font-size: 13px; color: var(--muted); margin-top: 6px; }
 .hero-conf {
-  display: inline-block; margin-top: 10px; font-size: 11px; font-weight: 600;
-  padding: 4px 16px; border-radius: 20px; letter-spacing: 1px;
-  border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.1); color: #a8eee0;
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 10px;
+  font-size: 11px; font-weight: 600; padding: 5px 18px; border-radius: 20px;
+  border: 1px solid rgba(0,200,150,.25); background: rgba(0,200,150,.07); color: #00c896;
+  letter-spacing: .5px;
 }
-.hero-stats { display: flex; gap: 28px; align-items: center; flex-wrap: wrap; }
+.hero-stats { display: flex; gap: 28px; align-items: center; flex-wrap: wrap; position: relative; }
 .hstat { text-align: center; }
-.hstat-lbl { font-size: 10px; color: rgba(255,255,255,.45); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 3px; }
-.hstat-val { font-family: var(--fm); font-size: 18px; font-weight: 600; color: #fff; }
+.hstat-lbl { font-size: 10px; color: var(--muted2); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 3px; }
+.hstat-val { font-family: var(--fm); font-size: 18px; font-weight: 600; color: rgba(255,255,255,.9); }
 
+/* ── LAYOUT ── */
 .main { display: grid; grid-template-columns: 268px 1fr; min-height: 0; }
 
+/* ── SIDEBAR ── */
 .sidebar {
-  border-right: 1px solid var(--bdr2);
-  background: linear-gradient(180deg, #d0dae6 0%, #c8d4e2 100%);
+  background: rgba(8,11,20,.7);
+  backdrop-filter: blur(12px);
+  border-right: 1px solid rgba(255,255,255,.06);
   position: sticky; top: 57px; height: calc(100vh - 57px); overflow-y: auto;
-  box-shadow: inset -1px 0 0 var(--bdr2);
 }
 .sidebar::-webkit-scrollbar { width: 3px; }
-.sidebar::-webkit-scrollbar-thumb { background: var(--bdr2); border-radius: 2px; }
+.sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 2px; }
 .sb-sec { padding: 16px 12px 8px; }
 .sb-lbl {
   font-size: 9px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase;
-  color: var(--teal); margin-bottom: 8px;
-  padding: 0 0 0 8px; border-left: 3px solid var(--teal);
+  color: var(--aurora1); margin-bottom: 8px;
+  padding: 0 0 0 8px; border-left: 2px solid var(--aurora1);
 }
 .sb-btn {
   display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 12px;
@@ -800,147 +806,173 @@ header {
   background: transparent; color: var(--muted); font-family: var(--fh);
   font-size: 12px; text-align: left; transition: all .15s;
 }
-.sb-btn:hover { background: rgba(13,138,158,.1); color: var(--teal-dark); border-color: var(--bdr); }
-.sb-btn.active { background: rgba(13,138,158,.14); border-color: var(--bdr2); color: var(--teal-dark); font-weight: 600; }
+.sb-btn:hover { background: rgba(0,200,150,.08); color: rgba(255,255,255,.8); border-color: rgba(0,200,150,.2); }
+.sb-btn.active { background: rgba(0,200,150,.1); border-color: rgba(0,200,150,.25); color: #00c896; font-weight: 600; }
 .sb-badge { font-size: 10px; margin-left: auto; font-weight: 700; }
 
 .sig-card {
-  margin: 12px 10px 8px; padding: 16px 14px;
-  background: linear-gradient(135deg, #0d4a5a, #0d8a9e);
-  border-radius: 12px; border: 1px solid rgba(255,255,255,.1);
-  text-align: center; box-shadow: 0 4px 16px rgba(13,74,90,.25);
+  margin: 12px 10px 8px; padding: 18px 14px;
+  background: linear-gradient(135deg, rgba(0,200,150,.12), rgba(100,128,255,.12));
+  border-radius: 14px; border: 1px solid rgba(0,200,150,.2);
+  text-align: center;
+  box-shadow: 0 4px 24px rgba(0,200,150,.1), inset 0 1px 0 rgba(255,255,255,.05);
 }
-.sig-arrow { font-family: var(--fh); font-size: 38px; font-weight: 700; line-height: 1; margin-bottom: 4px; color: #a8eee0; }
-.sig-bias  { font-family: var(--fh); font-size: 18px; font-weight: 700; color: #fff; }
-.sig-meta  { font-size: 10px; color: rgba(255,255,255,.5); margin-top: 4px; }
+.sig-arrow {
+  font-family: var(--fh); font-size: 38px; font-weight: 700; line-height: 1; margin-bottom: 4px;
+  background: linear-gradient(135deg, #00c896, #6480ff);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.sig-bias  { font-family: var(--fh); font-size: 18px; font-weight: 700; color: rgba(255,255,255,.9); }
+.sig-meta  { font-size: 10px; color: var(--muted); margin-top: 4px; }
 
+/* ── CONTENT ── */
 .content { overflow-y: auto; }
 
 .section {
-  padding: 24px 28px;
-  border-bottom: 1px solid var(--bdr);
-  background: var(--bg);
+  padding: 26px 28px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  background: transparent;
+  position: relative;
 }
-.section:nth-child(odd) { background: var(--surf); }
+.section:nth-child(odd) { background: rgba(255,255,255,.015); }
 
 .sec-title {
-  font-family: var(--fh); font-size: 12px; font-weight: 700; letter-spacing: 2px;
-  color: var(--teal-dark); text-transform: uppercase;
+  font-family: var(--fh); font-size: 11px; font-weight: 700; letter-spacing: 2.5px;
+  color: var(--aurora1); text-transform: uppercase;
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  margin-bottom: 18px; padding-bottom: 12px;
-  border-bottom: 2px solid var(--teal-pale);
+  margin-bottom: 20px; padding-bottom: 12px;
+  border-bottom: 1px solid rgba(0,200,150,.15);
 }
 .sec-sub {
   font-size: 11px; color: var(--muted2); font-weight: 400;
   letter-spacing: .5px; text-transform: none; margin-left: auto;
 }
 
-.oi-dir-box  { border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+/* ── OI SECTION ── */
+.oi-dir-box  { border-radius: 14px; padding: 18px 20px; margin-bottom: 16px; }
 .oi-dir-tag  { font-size: 10px; letter-spacing: 2px; color: var(--muted2); margin-bottom: 6px; text-transform: uppercase; }
 .oi-dir-name { font-family: var(--fh); font-size: 26px; font-weight: 700; margin-bottom: 4px; }
 .oi-dir-sig  { font-size: 13px; }
 .oi-meter-wrap { margin-top: 16px; }
 .oi-meter-lbl  { font-size: 10px; color: var(--muted2); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 5px; }
-.oi-meter-track { height: 8px; background: rgba(13,92,110,.1); border-radius: 4px; overflow: hidden; width: 100%; max-width: 320px; }
+.oi-meter-track { height: 6px; background: rgba(255,255,255,.06); border-radius: 4px; overflow: hidden; width: 100%; max-width: 320px; }
 .oi-meter-pct  { font-size: 12px; margin-top: 4px; }
 .oi-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 12px; }
 .oi-card {
-  background: var(--card); border: 1px solid var(--bdr); border-radius: 12px; padding: 16px;
-  box-shadow: 0 1px 6px rgba(13,60,80,.07);
+  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; padding: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.2);
+  transition: border-color .2s;
 }
+.oi-card:hover { border-color: rgba(0,200,150,.2); }
 .oi-lbl  { font-size: 9px; letter-spacing: 2px; color: var(--muted2); text-transform: uppercase; margin-bottom: 8px; }
 .oi-val  { font-family: var(--fm); font-size: 24px; font-weight: 600; margin-bottom: 4px; }
 .oi-sub  { font-size: 10px; color: var(--muted2); margin-bottom: 12px; }
-.oi-sig  { display: block; padding: 7px 12px; border-radius: 6px; text-align: center; font-size: 12px; font-weight: 600; }
+.oi-sig  { display: block; padding: 7px 12px; border-radius: 8px; text-align: center; font-size: 12px; font-weight: 600; }
 .oi-legend { display: flex; flex-wrap: wrap; gap: 10px 20px; font-size: 11px; color: var(--muted); padding: 10px 0; }
 
+/* ── KEY LEVELS ── */
 .kl-zone-labels { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; font-weight: 700; }
 .kl-node { position: absolute; text-align: center; }
 .kl-lbl  { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; line-height: 1.3; white-space: nowrap; }
-.kl-val  { font-size: 12px; font-weight: 700; color: var(--text); white-space: nowrap; margin-top: 2px; }
-.kl-dot  { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--surf); }
+.kl-val  { font-size: 12px; font-weight: 700; color: rgba(255,255,255,.7); white-space: nowrap; margin-top: 2px; }
+.kl-dot  { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--bg); }
 .kl-gradient-bar {
-  position: relative; height: 8px; border-radius: 4px;
-  background: linear-gradient(90deg,#0d6e80 0%,#0d8a9e 20%,#26d0a0 40%,#d4a017 58%,#c0392b 80%,#96281b 100%);
+  position: relative; height: 6px; border-radius: 3px;
+  background: linear-gradient(90deg, #00a07a 0%, #00c896 25%, #6480ff 55%, #ff6b6b 80%, #cc4040 100%);
+  box-shadow: 0 0 12px rgba(0,200,150,.2);
 }
 .kl-price-tick {
   position: absolute; top: 50%; transform: translate(-50%,-50%);
-  width: 4px; height: 20px; background: var(--teal-dark); border-radius: 2px;
-  box-shadow: 0 0 10px rgba(13,92,110,.5); z-index: 10;
+  width: 3px; height: 18px;
+  background: #fff; border-radius: 2px;
+  box-shadow: 0 0 12px rgba(255,255,255,.6); z-index: 10;
 }
 .kl-dist-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
 .kl-dist-box {
-  background: var(--card); border: 1px solid; border-radius: 8px;
-  padding: 9px 14px; display: flex; justify-content: space-between; align-items: center;
-  box-shadow: 0 1px 4px rgba(13,60,80,.06);
+  background: rgba(255,255,255,.03); border: 1px solid; border-radius: 10px;
+  padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;
 }
 
-.rec-banner { border: 1px solid; border-radius: 14px; padding: 18px 20px; margin-bottom: 20px; }
+/* ── RECOMMENDATIONS ── */
+.rec-banner { border: 1px solid; border-radius: 16px; padding: 20px; margin-bottom: 20px; }
 .rec-title  { font-family: var(--fh); font-size: 15px; font-weight: 700; margin-bottom: 14px; }
 .rec-grid   { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 14px; }
 .rec-card   {
-  background: var(--card); border: 1px solid; border-radius: 10px; padding: 14px;
-  box-shadow: 0 1px 6px rgba(13,60,80,.07);
+  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px; padding: 14px;
+  transition: border-color .2s, background .2s;
 }
-.rec-name { font-family: var(--fh); font-size: 14px; font-weight: 700; color: var(--teal-dark); margin-bottom: 5px; }
+.rec-card:hover { background: rgba(255,255,255,.05); }
+.rec-name { font-family: var(--fh); font-size: 14px; font-weight: 700; margin-bottom: 5px; }
 .rec-legs { font-family: var(--fm); font-size: 11px; color: var(--muted); }
 .rec-tag  {
-  font-size: 10px; padding: 2px 8px; border-radius: 4px;
-  background: rgba(13,138,158,.07); color: var(--teal); border: 1px solid var(--bdr);
+  font-size: 10px; padding: 2px 10px; border-radius: 10px;
+  background: rgba(0,200,150,.07); color: var(--aurora1); border: 1px solid rgba(0,200,150,.2);
 }
 .rec-oi-box {
-  background: var(--card); border: 1px solid var(--bdr); border-radius: 8px;
+  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 10px;
   padding: 12px 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px;
-  box-shadow: 0 1px 4px rgba(13,60,80,.06);
 }
 .rec-oi-lbl  { color: var(--muted2); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
-.rec-oi-name { font-weight: 700; color: var(--teal-dark); }
+.rec-oi-name { font-weight: 700; color: var(--aurora1); }
 .rec-oi-legs { font-family: var(--fm); font-size: 11px; color: var(--muted); }
 .rec-oi-sig  { margin-left: auto; font-style: italic; color: var(--muted2); }
 
+/* ── STRATEGY CARDS ── */
 .strat-dir        { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
 .strat-group      { display: flex; flex-direction: column; gap: 10px; }
 .strat-group-title { font-family: var(--fh); font-size: 13px; font-weight: 700; margin-bottom: 4px; }
 .strat-card {
-  background: var(--card); border: 1px solid var(--bdr); border-radius: 10px; padding: 14px;
-  transition: all .2s; box-shadow: 0 1px 6px rgba(13,60,80,.06);
+  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07); border-radius: 12px; padding: 14px;
+  transition: all .2s;
 }
-.strat-card:hover { border-color: var(--teal); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(13,92,110,.13); }
+.strat-card:hover {
+  border-color: rgba(0,200,150,.25); transform: translateY(-2px);
+  background: rgba(0,200,150,.04);
+  box-shadow: 0 8px 24px rgba(0,200,150,.08);
+}
 .strat-top    { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
-.strat-name   { font-family: var(--fh); font-size: 14px; font-weight: 700; color: var(--teal-dark); }
+.strat-name   { font-family: var(--fh); font-size: 14px; font-weight: 700; color: rgba(255,255,255,.9); }
 .strat-desc   { font-size: 11px; color: var(--muted); line-height: 1.7; margin-bottom: 8px; }
-.strat-legs   { font-family: var(--fm); font-size: 10px; color: var(--teal); margin-bottom: 10px; letter-spacing: .5px; }
+.strat-legs   { font-family: var(--fm); font-size: 10px; color: var(--aurora3); margin-bottom: 10px; letter-spacing: .5px; }
 .strat-metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
 .strat-metrics > div {
-  background: var(--surf); border: 1px solid var(--bdr); border-radius: 6px; padding: 6px 8px;
+  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06); border-radius: 8px; padding: 6px 8px;
 }
 .sm-lbl { display: block; font-size: 9px; color: var(--muted2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
 
+/* ── STRIKES TABLE ── */
+.strikes-head { font-weight: 700; margin-bottom: 10px; font-size: 13px; }
 .strikes-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.s-table { width: 100%; border-collapse: collapse; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(13,60,80,.09); }
+.s-table { width: 100%; border-collapse: collapse; border-radius: 10px; overflow: hidden; }
 .s-table th {
-  background: linear-gradient(135deg, #0d4a5a, #0d8a9e);
-  color: #fff; padding: 10px 12px; font-size: 11px; font-weight: 600; text-align: left; letter-spacing: .5px;
+  background: linear-gradient(90deg, rgba(0,200,150,.15), rgba(100,128,255,.15));
+  color: rgba(255,255,255,.7); padding: 10px 12px;
+  font-size: 11px; font-weight: 600; text-align: left; letter-spacing: .5px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
 }
 .s-table td {
-  padding: 10px 12px; border-bottom: 1px solid var(--bdr);
-  font-size: 12px; color: var(--text); background: var(--card);
+  padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.05);
+  font-size: 12px; color: rgba(255,255,255,.8); background: rgba(255,255,255,.02);
 }
 .s-table tr:last-child td { border-bottom: none; }
-.s-table tr:hover td { background: var(--surf); }
+.s-table tr:hover td { background: rgba(0,200,150,.05); }
 
+/* ── FOOTER ── */
 footer {
   padding: 16px 32px;
-  border-top: 2px solid rgba(255,255,255,.12);
-  background: linear-gradient(135deg, #0d4a5a, #0d6e80);
+  border-top: 1px solid rgba(255,255,255,.06);
+  background: rgba(6,8,15,.9);
+  backdrop-filter: blur(12px);
   display: flex; justify-content: space-between;
-  font-size: 11px; color: rgba(255,255,255,.45); font-family: var(--fm);
+  font-size: 11px; color: var(--muted2); font-family: var(--fm);
 }
 
+/* ── RESPONSIVE ── */
 @media(max-width:1024px) {
   .main { grid-template-columns: 1fr; }
-  .sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--bdr); }
-  .hero-dir { font-size: 36px; }
+  .sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .hero-dir { font-size: 38px; }
   .oi-cards { grid-template-columns: 1fr; }
   .strat-dir { grid-template-columns: 1fr; }
   .rec-grid { grid-template-columns: 1fr; }
@@ -948,9 +980,9 @@ footer {
 }
 @media(max-width:640px) {
   header { padding: 12px 16px; }
-  .hero { padding: 16px; flex-direction: column; }
+  .hero { padding: 18px; flex-direction: column; }
   .hero-dir { font-size: 30px; }
-  .section { padding: 16px; }
+  .section { padding: 18px 16px; }
   .strat-metrics { grid-template-columns: 1fr; }
   .kl-dist-row { grid-template-columns: 1fr; }
   footer { flex-direction: column; gap: 6px; }
@@ -975,21 +1007,17 @@ def generate_html(tech, oc, md, ts):
     bear = md["bear"]
     diff = md["diff"]
 
-    if bias == "BULLISH":
-        b_arrow = "UP"
-    elif bias == "BEARISH":
-        b_arrow = "DOWN"
-    else:
-        b_arrow = "SIDEWAYS"
+    b_arrow = "&#9650;" if bias == "BULLISH" else ("&#9660;" if bias == "BEARISH" else "&#8596;")
 
-    bc      = "#0d8a9e" if bias == "BULLISH" else ("#c0392b" if bias == "BEARISH" else "#d4a017")
-    pcr_col = "var(--bull)" if pcr > 1.2 else ("var(--bear)" if pcr < 0.7 else "var(--neut)")
+    # Aurora theme: PCR colour uses aurora palette
+    pcr_col = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
 
     oi_html      = build_oi_html(oc)               if oc   else ""
     kl_html      = build_key_levels_html(tech, oc) if tech else ""
     strat_html   = build_strategies_html(md, tech, oc)
     strikes_html = build_strikes_html(oc)
 
+    # Sidebar signal card
     sig_card = (
         f"<div class=\"sb-sec\">"
         f"<div class=\"sb-lbl\">TODAY'S SIGNAL</div>"
@@ -1015,11 +1043,11 @@ def generate_html(tech, oc, md, ts):
 <div class="app">
 
 <header>
-  <div class="logo">NIFTY<span>CRAFT</span></div>
+  <div class="logo">NIFTYCRAFT</div>
   <div class="hdr-meta">
     <div class="live-dot"></div>
     <span>NSE Options Dashboard</span>
-    <span style="color:rgba(255,255,255,.2);">|</span>
+    <span style="color:rgba(255,255,255,.15);">|</span>
     <span>{ts}</span>
   </div>
 </header>
@@ -1039,11 +1067,11 @@ def generate_html(tech, oc, md, ts):
     </div>
     <div class="hstat">
       <div class="hstat-lbl">ATM Strike</div>
-      <div class="hstat-val" style="color:#a8eee0;">&#8377;{atm:,}</div>
+      <div class="hstat-val" style="color:#00c896;">&#8377;{atm:,}</div>
     </div>
     <div class="hstat">
       <div class="hstat-lbl">Expiry</div>
-      <div class="hstat-val" style="color:#f5d77a;">{expiry}</div>
+      <div class="hstat-val" style="color:#6480ff;">{expiry}</div>
     </div>
     <div class="hstat">
       <div class="hstat-lbl">PCR (OI)</div>
@@ -1051,7 +1079,7 @@ def generate_html(tech, oc, md, ts):
     </div>
     <div class="hstat">
       <div class="hstat-lbl">Max Pain</div>
-      <div class="hstat-val" style="color:#f5d77a;">&#8377;{mp:,}</div>
+      <div class="hstat-val" style="color:#00c8e0;">&#8377;{mp:,}</div>
     </div>
   </div>
 </div>
@@ -1083,10 +1111,10 @@ def generate_html(tech, oc, md, ts):
     <div id="strat">{strat_html}</div>
     <div id="strikes">{strikes_html}</div>
     <div class="section">
-      <div style="background:rgba(212,160,23,.06);border:1px solid rgba(212,160,23,.22);
-                  border-left:3px solid #d4a017;border-radius:10px;padding:16px 18px;
-                  font-size:13px;color:#7a5c00;line-height:1.8;">
-        <strong>DISCLAIMER</strong><br>
+      <div style="background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.18);
+                  border-left:3px solid #6480ff;border-radius:12px;padding:16px 18px;
+                  font-size:13px;color:rgba(255,255,255,.5);line-height:1.8;">
+        <strong style="color:rgba(255,255,255,.7);">DISCLAIMER</strong><br>
         This dashboard is for EDUCATIONAL purposes only &mdash; NOT financial advice.<br>
         Always use stop losses. Consult a SEBI-registered investment advisor before trading.
       </div>
@@ -1120,7 +1148,7 @@ def main():
     ist_tz = pytz.timezone("Asia/Kolkata")
     ts     = datetime.now(ist_tz).strftime("%d-%b-%Y %H:%M IST")
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD -- GitHub Pages Generator")
+    print("  NIFTY 50 OPTIONS DASHBOARD -- Aurora Borealis Theme")
     print(f"  {ts}")
     print("=" * 65)
 
@@ -1146,7 +1174,7 @@ def main():
     bear = md['bear']
     print(f"  OK  {bias} ({conf} confidence)  Bull={bull} Bear={bear}")
 
-    print("\nGenerating HTML dashboard...")
+    print("\nGenerating HTML dashboard (Aurora Borealis theme)...")
     html = generate_html(tech, oc_analysis, md, ts)
     os.makedirs("docs", exist_ok=True)
 
