@@ -518,56 +518,57 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     </div>
   </div>
 
-  <!-- ② MIDDLE: signal + pill bars -->
+  <!-- ② MIDDLE: signal + pill bars + bear gauge inline -->
   <div class="h-mid">
     <div class="h-eyebrow">OI NET SIGNAL &middot; {expiry} &middot; SPOT &#8377;{underlying:,.0f}</div>
     <div class="h-signal" style="color:{dir_col};">{oi_dir.upper()}</div>
     <div class="h-sub">{oi_sig} &middot; PCR&nbsp;<span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
     <div class="h-divider"></div>
-    <div class="pill-bars">
-      <div class="pill-row">
-        <div class="pill-dot" style="background:#00c896;box-shadow:0 0 5px rgba(0,200,150,.5);"></div>
-        <div class="pill-lbl">BULL STRENGTH</div>
-        <div class="pill-track-wrap">
-          <div class="pill-track">
-            <div class="pill-fill" style="width:{oi_bar_w}%;background:linear-gradient(90deg,#00c896,#4de8b8);"></div>
+    <div class="bars-with-bear">
+      <div class="bars-col">
+        <div class="pill-bars">
+          <div class="pill-row">
+            <div class="pill-dot" style="background:#00c896;box-shadow:0 0 5px rgba(0,200,150,.5);"></div>
+            <div class="pill-lbl">BULL STRENGTH</div>
+            <div class="pill-track-wrap">
+              <div class="pill-track">
+                <div class="pill-fill" style="width:{oi_bar_w}%;background:linear-gradient(90deg,#00c896,#4de8b8);"></div>
+              </div>
+              <div class="pill-num" style="color:#00c896;">{bull_pct}%</div>
+            </div>
           </div>
-          <div class="pill-num" style="color:#00c896;">{bull_pct}%</div>
+          <div class="pill-row">
+            <div class="pill-dot" style="background:#ff6b6b;box-shadow:0 0 5px rgba(255,107,107,.4);"></div>
+            <div class="pill-lbl">BEAR STRENGTH</div>
+            <div class="pill-track-wrap">
+              <div class="pill-track">
+                <div class="pill-fill" style="width:{bear_bar_w}%;background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div>
+              </div>
+              <div class="pill-num" style="color:#ff6b6b;">{bear_pct}%</div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="pill-row">
-        <div class="pill-dot" style="background:#ff6b6b;box-shadow:0 0 5px rgba(255,107,107,.4);"></div>
-        <div class="pill-lbl">BEAR STRENGTH</div>
-        <div class="pill-track-wrap">
-          <div class="pill-track">
-            <div class="pill-fill" style="width:{bear_bar_w}%;background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div>
-          </div>
-          <div class="pill-num" style="color:#ff6b6b;">{bear_pct}%</div>
+      <!-- BEAR GAUGE — same 76px, sits right next to numbers, no separator -->
+      <div class="gauge-wrap">
+        <svg width="76" height="76" viewBox="0 0 76 76">
+          <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="6"/>
+          <circle cx="38" cy="38" r="31" fill="none"
+            stroke="url(#bear-g)" stroke-width="6" stroke-linecap="round"
+            stroke-dasharray="{C}" stroke-dashoffset="{bear_offset:.1f}"
+            style="transform:rotate(-90deg);transform-origin:38px 38px;
+                   transition:stroke-dashoffset 1s ease;"/>
+          <defs>
+            <linearGradient id="bear-g" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#ff6b6b"/>
+              <stop offset="100%" stop-color="#ff9090"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="gauge-inner">
+          <div class="g-val" style="color:#ff6b6b;">{bear_label}</div>
+          <div class="g-lbl">OI BEAR</div>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ③ BEAR GAUGE -->
-  <div class="h-bear">
-    <div class="gauge-wrap">
-      <svg width="76" height="76" viewBox="0 0 76 76">
-        <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="6"/>
-        <circle cx="38" cy="38" r="31" fill="none"
-          stroke="url(#bear-g)" stroke-width="6" stroke-linecap="round"
-          stroke-dasharray="{C}" stroke-dashoffset="{bear_offset:.1f}"
-          style="transform:rotate(-90deg);transform-origin:38px 38px;
-                 transition:stroke-dashoffset 1s ease;"/>
-        <defs>
-          <linearGradient id="bear-g" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stop-color="#ff6b6b"/>
-            <stop offset="100%" stop-color="#ff9090"/>
-          </linearGradient>
-        </defs>
-      </svg>
-      <div class="gauge-inner">
-        <div class="g-val" style="color:#ff6b6b;">{bear_label}</div>
-        <div class="g-lbl">OI BEAR</div>
       </div>
     </div>
   </div>
@@ -1878,12 +1879,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   flex-shrink:0;display:flex;align-items:center;justify-content:center;
   padding:0 11px 0 17px;
 }
-/* ③ Bear gauge col */
-.h-bear{
-  flex-shrink:0;display:flex;align-items:center;justify-content:center;
-  padding:0 13px 0 9px;
-  border-left:1px solid rgba(255,255,255,.05);
-}
+/* Bear gauge now lives inside h-mid, inline with pill bars */
+.bars-with-bear{display:flex;align-items:center;gap:8px;}
+.bars-col{flex:1;min-width:0;}
 /* Gauge shared */
 .gauge-wrap{position:relative;width:76px;height:76px;}
 .gauge-wrap svg{display:block;}
