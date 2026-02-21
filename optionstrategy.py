@@ -429,33 +429,30 @@ def _cls_bdr(cls):
 
 
 # =================================================================
-#  SECTION 5A -- DUAL GAUGE HERO (replaces SIDEWAYS header)
+#  SECTION 5A -- COMPACT DUAL GAUGE HERO
 # =================================================================
 
 def build_dual_gauge_hero(oc, tech, md, ts):
     """
-    Build the Dual Gauge Ring hero widget.
-    Shows OI Net Change (bull gauge) and OI Net Value / bear pressure (bear gauge)
-    with progress bars for OI Net Chg %, Bear Force %, and PCR.
+    Compact single-row hero:
+      [Bull Gauge] | [Signal + Bars] | [Bear Gauge] | [5 Stats + Bias/Ts]
+    Fixed height ~92px so it never dominates the page.
     """
     # ── Pull data ──────────────────────────────────────────────
     if oc:
-        ce_chg      = oc["ce_chg"]
-        pe_chg      = oc["pe_chg"]
-        net_chg     = oc["net_chg"]
-        bull_pct    = oc["bull_pct"]
-        bear_pct    = oc["bear_pct"]
-        bull_force  = oc["bull_force"]
-        bear_force  = oc["bear_force"]
-        pcr         = oc["pcr_oi"]
-        oi_sig      = oc["oi_sig"]
-        oi_dir      = oc["oi_dir"]
-        oi_cls      = oc["oi_cls"]
-        expiry      = oc["expiry"]
-        underlying  = oc["underlying"]
-        atm         = oc["atm_strike"]
-        max_pain    = oc["max_pain"]
-        # Format bull/bear OI numbers nicely
+        ce_chg     = oc["ce_chg"]
+        pe_chg     = oc["pe_chg"]
+        net_chg    = oc["net_chg"]
+        bull_pct   = oc["bull_pct"]
+        bear_pct   = oc["bear_pct"]
+        pcr        = oc["pcr_oi"]
+        oi_sig     = oc["oi_sig"]
+        oi_dir     = oc["oi_dir"]
+        oi_cls     = oc["oi_cls"]
+        expiry     = oc["expiry"]
+        underlying = oc["underlying"]
+        atm        = oc["atm_strike"]
+        max_pain   = oc["max_pain"]
         def fmt_oi(n):
             if abs(n) >= 1_000_000: return f"{'+' if n>0 else ''}{n/1_000_000:.1f}M"
             if abs(n) >= 1_000:     return f"{'+' if n>0 else ''}{n/1_000:.0f}K"
@@ -465,162 +462,153 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     else:
         ce_chg = pe_chg = net_chg = 0
         bull_pct = bear_pct = 50
-        bull_force = bear_force = 0
         pcr = 1.0
-        oi_sig = "No Data"
-        oi_dir = "UNKNOWN"
-        oi_cls = "neutral"
-        expiry = "N/A"
-        underlying = 0
-        atm = 0
-        max_pain = 0
-        bull_label = "N/A"
-        bear_label = "N/A"
+        oi_sig = "No Data"; oi_dir = "UNKNOWN"; oi_cls = "neutral"
+        expiry = "N/A"; underlying = 0; atm = 0; max_pain = 0
+        bull_label = "N/A"; bear_label = "N/A"
 
-    cp       = tech["price"] if tech else 0
-    bias     = md["bias"]
-    conf     = md["confidence"]
-    bull_sc  = md["bull"]
-    bear_sc  = md["bear"]
+    cp   = tech["price"] if tech else 0
+    bias = md["bias"]
+    conf = md["confidence"]
+    bull_sc = md["bull"]
+    bear_sc = md["bear"]
+    diff    = md["diff"]
 
-    dir_col  = _cls_color(oi_cls)
-    dir_bg   = _cls_bg(oi_cls)
-    dir_bdr  = _cls_bdr(oi_cls)
-
-    # PCR colour
+    dir_col = _cls_color(oi_cls)
     pcr_col = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
+    b_col   = _cls_color(md.get("bias_cls", "neutral"))
+    b_bg    = _cls_bg(md.get("bias_cls", "neutral"))
+    b_bdr   = _cls_bdr(md.get("bias_cls", "neutral"))
 
-    # SVG gauge circumference for r=54 → 2πr ≈ 339.3
-    C = 339.3
-
-    # Bull gauge: fill = bull_pct%
-    bull_offset = C * (1 - bull_pct / 100)
-    # Bear gauge: fill = bear_pct%
-    bear_offset = C * (1 - bear_pct / 100)
-
-    # Progress bar widths (clamped 3-97)
+    # SVG gauge — r=29, circumference=182.2
+    C = 182.2
     def clamp(v, lo=3, hi=97): return max(lo, min(hi, v))
-    oi_bar_w   = clamp(bull_pct)
-    bear_bar_w = clamp(bear_pct)
-    pcr_bar_w  = clamp(min(pcr / 2.0 * 100, 97))   # map 0-2.0 → 0-100%
+    bull_offset = C * (1 - clamp(bull_pct) / 100)
+    bear_offset = C * (1 - clamp(bear_pct) / 100)
+    oi_bar_w    = clamp(bull_pct)
+    bear_bar_w  = clamp(bear_pct)
+    pcr_bar_w   = clamp(min(pcr / 2.0 * 100, 97))
+
+    b_arrow = "▲" if bias == "BULLISH" else ("▼" if bias == "BEARISH" else "◆")
 
     return f"""
-<div class="hero-gauge-wrap">
-  <!-- Left glow -->
-  <div class="hg-glow hg-glow-bull"></div>
-  <div class="hg-glow hg-glow-bear"></div>
+<div class="hero">
 
-  <!-- BULL GAUGE -->
-  <div class="hg-gauge">
-    <svg width="140" height="140" viewBox="0 0 130 130">
-      <circle cx="65" cy="65" r="54" fill="none"
-        stroke="rgba(255,255,255,.06)" stroke-width="10"/>
-      <circle cx="65" cy="65" r="54" fill="none"
-        stroke="rgba(0,200,150,.12)" stroke-width="10"
-        stroke-dasharray="{C}" stroke-dashoffset="0"/>
-      <circle cx="65" cy="65" r="54" fill="none"
-        stroke="url(#bull-grad)" stroke-width="10"
-        stroke-dasharray="{C}" stroke-dashoffset="{bull_offset:.1f}"
-        stroke-linecap="round"
-        style="transform:rotate(-90deg);transform-origin:65px 65px;
-               transition:stroke-dashoffset 1.2s cubic-bezier(.34,1.56,.64,1);"/>
-      <defs>
-        <linearGradient id="bull-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#00c896"/>
-          <stop offset="100%" stop-color="#4de8b8"/>
-        </linearGradient>
-      </defs>
-    </svg>
-    <div class="hg-gauge-inner">
-      <div class="hg-gauge-val" style="color:#00c896;">{bull_label}</div>
-      <div class="hg-gauge-lbl">OI BULL</div>
-    </div>
-  </div>
-
-  <!-- MIDDLE PANEL -->
-  <div class="hg-mid">
-    <div class="hg-eyebrow">OI NET SIGNAL &middot; {expiry} &middot; Spot &#8377;{underlying:,.0f}</div>
-    <div class="hg-signal" style="color:{dir_col};">{oi_dir.upper()}</div>
-    <div class="hg-sub">{oi_sig} &middot; PCR&nbsp;<span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
-
-    <div class="hg-bars">
-      <div class="hg-bar-row">
-        <div class="hg-bar-key">OI Net Chg</div>
-        <div class="hg-bar-track">
-          <div class="hg-bar-fill" style="width:{oi_bar_w}%;
-            background:linear-gradient(90deg,#00c896,#4de8b8);
-            box-shadow:0 0 8px rgba(0,200,150,.4);"></div>
-        </div>
-        <div class="hg-bar-num" style="color:#00c896;">+{bull_pct}%</div>
-      </div>
-      <div class="hg-bar-row">
-        <div class="hg-bar-key">Bear Force</div>
-        <div class="hg-bar-track">
-          <div class="hg-bar-fill" style="width:{bear_bar_w}%;
-            background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div>
-        </div>
-        <div class="hg-bar-num" style="color:#ff6b6b;">-{bear_pct}%</div>
-      </div>
-      <div class="hg-bar-row">
-        <div class="hg-bar-key">PCR (OI)</div>
-        <div class="hg-bar-track">
-          <div class="hg-bar-fill" style="width:{pcr_bar_w:.0f}%;
-            background:linear-gradient(90deg,#6480ff,#8aa0ff);"></div>
-        </div>
-        <div class="hg-bar-num" style="color:#8aa0ff;">{pcr:.2f}</div>
-      </div>
-    </div>
-
-    <!-- Bottom stat row -->
-    <div class="hg-statrow">
-      <div class="hg-stat">
-        <div class="hg-stat-lbl">MAX PAIN</div>
-        <div class="hg-stat-val" style="color:#6480ff;">&#8377;{max_pain:,}</div>
-      </div>
-      <div class="hg-stat">
-        <div class="hg-stat-lbl">ATM</div>
-        <div class="hg-stat-val" style="color:#00c896;">&#8377;{atm:,}</div>
-      </div>
-      <div class="hg-stat">
-        <div class="hg-stat-lbl">BIAS</div>
-        <div class="hg-stat-val" style="color:{_cls_color(md.get('bias_cls','neutral'))};">{bias}</div>
-      </div>
-      <div class="hg-stat">
-        <div class="hg-stat-lbl">CONF</div>
-        <div class="hg-stat-val" style="color:#ffd166;">{conf}</div>
+  <!-- ① BULL GAUGE -->
+  <div class="h-bull">
+    <div class="gauge-wrap">
+      <svg width="72" height="72" viewBox="0 0 72 72">
+        <circle cx="36" cy="36" r="29" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="6"/>
+        <circle cx="36" cy="36" r="29" fill="none"
+          stroke="url(#bull-g)" stroke-width="6" stroke-linecap="round"
+          stroke-dasharray="{C}" stroke-dashoffset="{bull_offset:.1f}"
+          style="transform:rotate(-90deg);transform-origin:36px 36px;
+                 transition:stroke-dashoffset 1s ease;"/>
+        <defs>
+          <linearGradient id="bull-g" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#00c896"/>
+            <stop offset="100%" stop-color="#4de8b8"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <div class="gauge-inner">
+        <div class="g-val" style="color:#00c896;">{bull_label}</div>
+        <div class="g-lbl">OI BULL</div>
       </div>
     </div>
   </div>
 
-  <!-- BEAR GAUGE -->
-  <div class="hg-gauge">
-    <svg width="140" height="140" viewBox="0 0 130 130">
-      <circle cx="65" cy="65" r="54" fill="none"
-        stroke="rgba(255,255,255,.06)" stroke-width="10"/>
-      <circle cx="65" cy="65" r="54" fill="none"
-        stroke="rgba(255,107,107,.08)" stroke-width="10"
-        stroke-dasharray="{C}" stroke-dashoffset="0"/>
-      <circle cx="65" cy="65" r="54" fill="none"
-        stroke="url(#bear-grad)" stroke-width="10"
-        stroke-dasharray="{C}" stroke-dashoffset="{bear_offset:.1f}"
-        stroke-linecap="round"
-        style="transform:rotate(-90deg);transform-origin:65px 65px;
-               transition:stroke-dashoffset 1.2s cubic-bezier(.34,1.56,.64,1);"/>
-      <defs>
-        <linearGradient id="bear-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#ff6b6b"/>
-          <stop offset="100%" stop-color="#ff9090"/>
-        </linearGradient>
-      </defs>
-    </svg>
-    <div class="hg-gauge-inner">
-      <div class="hg-gauge-val" style="color:#ff6b6b;">{bear_label}</div>
-      <div class="hg-gauge-lbl">OI BEAR</div>
+  <!-- ② MIDDLE: signal + 3 bars -->
+  <div class="h-mid">
+    <div class="h-eyebrow">OI NET SIGNAL &middot; {expiry} &middot; SPOT &#8377;{underlying:,.0f}</div>
+    <div class="h-signal" style="color:{dir_col};">{oi_dir.upper()}</div>
+    <div class="h-sub">{oi_sig} &middot; PCR&nbsp;<span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
+    <div class="h-bars">
+      <div class="h-bar-row">
+        <div class="h-bar-key">OI Net Chg</div>
+        <div class="h-bar-track"><div class="h-bar-fill" style="width:{oi_bar_w}%;
+          background:linear-gradient(90deg,#00c896,#4de8b8);
+          box-shadow:0 0 5px rgba(0,200,150,.35);"></div></div>
+        <div class="h-bar-num" style="color:#00c896;">+{bull_pct}%</div>
+      </div>
+      <div class="h-bar-row">
+        <div class="h-bar-key">Bear Force</div>
+        <div class="h-bar-track"><div class="h-bar-fill" style="width:{bear_bar_w}%;
+          background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div></div>
+        <div class="h-bar-num" style="color:#ff6b6b;">-{bear_pct}%</div>
+      </div>
+      <div class="h-bar-row">
+        <div class="h-bar-key">PCR (OI)</div>
+        <div class="h-bar-track"><div class="h-bar-fill" style="width:{pcr_bar_w:.0f}%;
+          background:linear-gradient(90deg,#6480ff,#8aa0ff);"></div></div>
+        <div class="h-bar-num" style="color:#8aa0ff;">{pcr:.2f}</div>
+      </div>
     </div>
   </div>
 
-  <!-- Timestamp -->
-  <div class="hg-ts">{ts}</div>
+  <!-- ③ BEAR GAUGE -->
+  <div class="h-bear">
+    <div class="gauge-wrap">
+      <svg width="72" height="72" viewBox="0 0 72 72">
+        <circle cx="36" cy="36" r="29" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="6"/>
+        <circle cx="36" cy="36" r="29" fill="none"
+          stroke="url(#bear-g)" stroke-width="6" stroke-linecap="round"
+          stroke-dasharray="{C}" stroke-dashoffset="{bear_offset:.1f}"
+          style="transform:rotate(-90deg);transform-origin:36px 36px;
+                 transition:stroke-dashoffset 1s ease;"/>
+        <defs>
+          <linearGradient id="bear-g" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#ff6b6b"/>
+            <stop offset="100%" stop-color="#ff9090"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <div class="gauge-inner">
+        <div class="g-val" style="color:#ff6b6b;">{bear_label}</div>
+        <div class="g-lbl">OI BEAR</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ④ RIGHT STAT PANEL -->
+  <div class="h-stats">
+    <!-- Top: 5 key stat cells -->
+    <div class="h-stat-row">
+      <div class="h-stat">
+        <div class="h-stat-lbl">NIFTY SPOT</div>
+        <div class="h-stat-val" style="color:rgba(255,255,255,.85);">&#8377;{cp:,.2f}</div>
+      </div>
+      <div class="h-stat">
+        <div class="h-stat-lbl">ATM STRIKE</div>
+        <div class="h-stat-val" style="color:#00c896;">&#8377;{atm:,}</div>
+      </div>
+      <div class="h-stat">
+        <div class="h-stat-lbl">EXPIRY</div>
+        <div class="h-stat-val" style="color:#00c8e0;">{expiry}</div>
+      </div>
+      <div class="h-stat">
+        <div class="h-stat-lbl">PCR (OI)</div>
+        <div class="h-stat-val" style="color:{pcr_col};">{pcr:.3f}</div>
+      </div>
+      <div class="h-stat">
+        <div class="h-stat-lbl">MAX PAIN</div>
+        <div class="h-stat-val" style="color:#ffd166;">&#8377;{max_pain:,}</div>
+      </div>
+    </div>
+    <!-- Bottom: bias chip + confidence + score + timestamp -->
+    <div class="h-stat-bottom">
+      <div class="h-bias-row">
+        <span class="h-chip" style="background:{b_bg};color:{b_col};border:1px solid {b_bdr};">
+          {b_arrow}&nbsp;{bias}
+        </span>
+        <span class="h-chip" style="background:rgba(255,209,102,.1);color:#ffd166;
+          border:1px solid rgba(255,209,102,.3);">{conf}&nbsp;CONF</span>
+        <span class="h-score">Bull&nbsp;{bull_sc} &middot; Bear&nbsp;{bear_sc} &middot; Diff&nbsp;{diff:+d}</span>
+      </div>
+      <div class="h-ts">{ts}</div>
+    </div>
+  </div>
+
 </div>
 """
 
@@ -1845,6 +1833,7 @@ body::before{
   pointer-events:none;z-index:0;
 }
 .app{position:relative;z-index:1;display:grid;grid-template-rows:auto auto auto 1fr auto;min-height:100vh}
+/* header / ticker / hero / main / footer */
 
 /* ── HEADER ── */
 header{display:flex;align-items:center;justify-content:space-between;padding:14px 32px;
@@ -1860,64 +1849,108 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
 
 /* ══════════════════════════════════════════════
-   DUAL GAUGE HERO
+   COMPACT HERO  (fixed 92px height single row)
 ══════════════════════════════════════════════ */
-.hero-gauge-wrap{
-  position:relative;
-  display:flex;align-items:center;gap:24px;flex-wrap:wrap;
-  padding:22px 36px 22px 28px;
-  background:linear-gradient(135deg,rgba(0,200,150,.06) 0%,rgba(100,128,255,.06) 100%);
+.hero{
+  display:flex;align-items:stretch;
+  background:linear-gradient(135deg,rgba(0,200,150,.055) 0%,rgba(100,128,255,.055) 100%);
   border-bottom:1px solid rgba(255,255,255,.07);
-  overflow:hidden;
+  overflow:hidden;position:relative;
+  height:92px;
 }
-.hg-glow{position:absolute;border-radius:50%;pointer-events:none;}
-.hg-glow-bull{top:-60px;left:-60px;width:280px;height:280px;
-  background:radial-gradient(circle,rgba(0,200,150,.12),transparent 70%);}
-.hg-glow-bear{bottom:-60px;right:-60px;width:280px;height:280px;
-  background:radial-gradient(circle,rgba(255,107,107,.09),transparent 70%);}
-
-/* Gauge circle */
-.hg-gauge{position:relative;width:140px;height:140px;flex-shrink:0;}
-.hg-gauge-inner{
-  position:absolute;inset:0;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;text-align:center;
+.hero::before{
+  content:'';position:absolute;top:-50px;left:-50px;
+  width:200px;height:200px;border-radius:50%;
+  background:radial-gradient(circle,rgba(0,200,150,.10),transparent 70%);
+  pointer-events:none;
 }
-.hg-gauge-val{font-family:'DM Mono',monospace;font-size:22px;font-weight:700;line-height:1;}
-.hg-gauge-lbl{font-size:9px;letter-spacing:2px;text-transform:uppercase;
-  color:rgba(255,255,255,.3);margin-top:3px;}
-
-/* Middle info */
-.hg-mid{flex:1;min-width:220px;z-index:1;}
-.hg-eyebrow{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
-  color:rgba(255,255,255,.3);margin-bottom:6px;}
-.hg-signal{font-family:'Sora',sans-serif;font-size:28px;font-weight:800;line-height:1.1;
-  letter-spacing:-.5px;margin-bottom:4px;}
-.hg-sub{font-size:11px;color:rgba(255,255,255,.4);margin-bottom:14px;line-height:1.6;}
-
-/* Progress bars */
-.hg-bars{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
-.hg-bar-row{display:flex;align-items:center;gap:10px;}
-.hg-bar-key{font-size:10px;color:rgba(255,255,255,.35);width:75px;
-  letter-spacing:.5px;text-transform:uppercase;}
-.hg-bar-track{flex:1;height:5px;background:rgba(255,255,255,.07);
-  border-radius:3px;overflow:hidden;}
-.hg-bar-fill{height:100%;border-radius:3px;}
-.hg-bar-num{font-family:'DM Mono',monospace;font-size:10px;font-weight:600;
-  width:40px;text-align:right;}
-
-/* Bottom stat row */
-.hg-statrow{display:flex;gap:20px;flex-wrap:wrap;}
-.hg-stat{text-align:center;}
-.hg-stat-lbl{font-size:9px;letter-spacing:2px;text-transform:uppercase;
-  color:rgba(255,255,255,.25);margin-bottom:3px;}
-.hg-stat-val{font-family:'DM Mono',monospace;font-size:16px;font-weight:700;}
-
-/* Timestamp overlay */
-.hg-ts{
-  position:absolute;bottom:10px;right:20px;
-  font-family:'DM Mono',monospace;font-size:10px;
-  color:rgba(255,255,255,.2);letter-spacing:1px;
+.hero::after{
+  content:'';position:absolute;bottom:-50px;right:350px;
+  width:200px;height:200px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,107,107,.07),transparent 70%);
+  pointer-events:none;
 }
+
+/* ① Bull gauge col */
+.h-bull{
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  padding:0 10px 0 16px;
+}
+/* ③ Bear gauge col */
+.h-bear{
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  padding:0 12px 0 8px;
+  border-left:1px solid rgba(255,255,255,.05);
+}
+/* Gauge shared */
+.gauge-wrap{position:relative;width:72px;height:72px;}
+.gauge-wrap svg{display:block;}
+.gauge-inner{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+}
+.g-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;line-height:1;}
+.g-lbl{font-size:7px;letter-spacing:1.5px;text-transform:uppercase;
+  color:rgba(255,255,255,.28);margin-top:2px;}
+
+/* ② Middle: signal + bars */
+.h-mid{
+  flex:1;min-width:0;
+  display:flex;flex-direction:column;justify-content:center;
+  padding:0 14px 0 12px;
+  border-left:1px solid rgba(255,255,255,.05);
+}
+.h-eyebrow{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  color:rgba(255,255,255,.22);margin-bottom:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.h-signal{font-size:17px;font-weight:800;letter-spacing:-.3px;line-height:1.1;margin-bottom:2px;}
+.h-sub{font-size:9px;color:rgba(255,255,255,.32);margin-bottom:5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.h-bars{display:flex;flex-direction:column;gap:4px;}
+.h-bar-row{display:flex;align-items:center;gap:6px;}
+.h-bar-key{font-size:7.5px;text-transform:uppercase;letter-spacing:.5px;
+  color:rgba(255,255,255,.28);width:56px;flex-shrink:0;}
+.h-bar-track{flex:1;height:3px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden;}
+.h-bar-fill{height:100%;border-radius:2px;}
+.h-bar-num{font-family:'DM Mono',monospace;font-size:8.5px;font-weight:600;
+  width:34px;text-align:right;flex-shrink:0;}
+
+/* ④ Right stat panel */
+.h-stats{
+  flex-shrink:0;min-width:360px;
+  display:flex;flex-direction:column;
+  border-left:1px solid rgba(255,255,255,.07);
+  background:rgba(255,255,255,.015);
+}
+.h-stat-row{
+  display:flex;align-items:stretch;flex:1;
+  border-bottom:1px solid rgba(255,255,255,.05);
+}
+.h-stat{
+  flex:1;display:flex;flex-direction:column;justify-content:center;
+  padding:5px 10px;text-align:center;
+  border-right:1px solid rgba(255,255,255,.04);
+}
+.h-stat:last-child{border-right:none;}
+.h-stat-lbl{font-size:7px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;
+  color:rgba(255,255,255,.22);margin-bottom:3px;white-space:nowrap;}
+.h-stat-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
+  line-height:1;white-space:nowrap;}
+
+/* Bottom: bias + conf + score + timestamp */
+.h-stat-bottom{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:4px 10px;
+}
+.h-bias-row{display:flex;align-items:center;gap:6px;}
+.h-chip{
+  font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;
+  padding:2px 9px;border-radius:20px;white-space:nowrap;
+}
+.h-score{font-family:'DM Mono',monospace;font-size:8px;
+  color:rgba(255,255,255,.22);letter-spacing:.5px;}
+.h-ts{font-family:'DM Mono',monospace;font-size:8px;
+  color:rgba(255,255,255,.18);letter-spacing:.5px;white-space:nowrap;}
 
 /* ── LAYOUT ── */
 .main{display:grid;grid-template-columns:268px 1fr;min-height:0}
@@ -2116,12 +2149,16 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);
   font-size:11px;color:var(--muted2);font-family:var(--fm)}
 
 /* ── RESPONSIVE ── */
+@media(max-width:1200px){
+  .h-stats{min-width:280px;}
+}
 @media(max-width:1024px){
   .main{grid-template-columns:1fr}
   .sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid rgba(255,255,255,.06)}
-  .hero-gauge-wrap{padding:18px 16px;}
-  .hg-gauge{width:110px;height:110px;}
-  .hg-signal{font-size:22px;}
+  .hero{height:auto;flex-wrap:wrap;}
+  .h-stats{min-width:100%;border-left:none;border-top:1px solid rgba(255,255,255,.07);}
+  .h-stat-row{flex-wrap:wrap;}
+  .h-stat{min-width:33%;}
   .oi-ticker-hdr,.oi-ticker-row{grid-template-columns:100px repeat(3,1fr)}
   .oi-ticker-hdr-cell:nth-child(n+5),.oi-ticker-cell:nth-child(n+5){display:none}
   .strikes-wrap{grid-template-columns:1fr}
@@ -2129,9 +2166,12 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);
 }
 @media(max-width:640px){
   header{padding:12px 16px}
-  .hero-gauge-wrap{flex-direction:column;align-items:flex-start;gap:16px;}
-  .hg-gauge{width:100px;height:100px;}
-  .hg-signal{font-size:18px;}
+  .hero{height:auto;}
+  .h-bull,.h-bear{padding:8px 12px;}
+  .gauge-wrap{width:60px;height:60px;}
+  .h-signal{font-size:14px;}
+  .h-stats{min-width:100%;}
+  .h-stat{min-width:50%;}
   .section{padding:18px 16px}
   .oi-ticker-hdr,.oi-ticker-row{grid-template-columns:90px repeat(2,1fr)}
   .oi-ticker-hdr-cell:nth-child(n+4),.oi-ticker-cell:nth-child(n+4){display:none}
