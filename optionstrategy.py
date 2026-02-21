@@ -179,9 +179,9 @@ def analyze_option_chain(oc_data):
     df["pain"]   = abs(df["CE_OI"] - df["PE_OI"])
     max_pain_row = df.loc[df["pain"].idxmin()]
 
-    # Top 10 strikes by OI (was 5 — more data now that we have all strikes)
-    top_ce = df.nlargest(10, "CE_OI")[["Strike", "CE_OI", "CE_LTP", "CE_Vol", "CE_OI_Change"]].to_dict("records")
-    top_pe = df.nlargest(10, "PE_OI")[["Strike", "PE_OI", "PE_LTP", "PE_Vol", "PE_OI_Change"]].to_dict("records")
+    # Top 5 CE + Top 5 PE — selected from the FULL chain (no ATM filter)
+    top_ce = df.nlargest(5, "CE_OI")[["Strike", "CE_OI", "CE_LTP", "CE_Vol", "CE_OI_Change"]].to_dict("records")
+    top_pe = df.nlargest(5, "PE_OI")[["Strike", "PE_OI", "PE_LTP", "PE_Vol", "PE_OI_Change"]].to_dict("records")
 
     return {
         "expiry":        oc_data["expiry"],
@@ -749,8 +749,8 @@ def build_strikes_html(oc):
         return out
 
     return (
-        f"<div class='section'><div class='sec-title'>TOP 10 STRIKES BY OPEN INTEREST"
-        f"<span class='sec-sub'>All {n_str} strikes &middot; Full chain, no filter</span></div>"
+        f"<div class='section'><div class='sec-title'>TOP 5 STRIKES BY OPEN INTEREST"
+        f"<span class='sec-sub'>Top 5 CE + Top 5 PE &middot; Full chain ({n_str} strikes), no filter</span></div>"
         f"<div class='strikes-wrap'>"
         f"<div>"
         f"<div style='color:#0d8a9e;font-weight:700;margin-bottom:10px;'>CALL Options (CE)</div>"
@@ -1028,7 +1028,7 @@ def generate_html(tech, oc, md, ts):
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">OPTION CHAIN</div>
-      <button class="sb-btn" onclick="go('strikes',this)">Top 10 Strikes</button>
+      <button class="sb-btn" onclick="go('strikes',this)">Top 5 Strikes</button>
     </div>
   </aside>
 
