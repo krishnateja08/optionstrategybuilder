@@ -128,8 +128,90 @@ class NSEOptionChain:
                 result = self._fetch_for_expiry(session, headers, real_expiry)
         if result is None:
             print("  ERROR Option chain fetch failed.")
-        return result
+        # Return session+headers so VIX fetcher can reuse the warm session
+        return result, session, headers
 
+
+
+
+# =================================================================
+#  SECTION 1B -- INDIA VIX FETCHER
+# =================================================================
+
+def fetch_india_vix(nse_session=None, nse_headers=None):
+    """
+    Fetch India VIX. Tries 3 sources in order:
+    1. NSE /api/allIndices  (uses warm session - best)
+    2. NSE option-chain vixClose field
+    3. yfinance ^INDIAVIX
+    Returns dict {value, prev_close, change, change_pct, high, low, status} or None.
+    """
+    # Source 1: NSE allIndices
+    if nse_session and nse_headers:
+        try:
+            resp = nse_session.get(
+                "https://www.nseindia.com/api/allIndices",
+                headers=nse_headers, impersonate="chrome", timeout=15)
+            if resp.status_code == 200:
+                for item in resp.json().get("data", []):
+                    if "INDIA VIX" in item.get("index", "").upper():
+                        last  = float(item.get("last", 0))
+                        prev  = float(item.get("previousClose", last))
+                        chg   = round(last - prev, 2)
+                        chg_p = round((chg / prev * 100), 2) if prev else 0
+                        print(f"  India VIX (allIndices): {last:.2f}  {chg:+.2f} ({chg_p:+.2f}%)")
+                        return {"value": round(last,2), "prev_close": round(prev,2),
+                                "change": chg, "change_pct": chg_p,
+                                "high": float(item.get("high", last)),
+                                "low":  float(item.get("low",  last)), "status": "live"}
+        except Exception as e:
+            print(f"  WARNING VIX source1: {e}")
+
+    # Source 2: option-chain vixClose
+    if nse_session and nse_headers:
+        try:
+            resp = nse_session.get(
+                "https://www.nseindia.com/api/option-chain-v3?type=Indices&symbol=NIFTY",
+                headers=nse_headers, impersonate="chrome", timeout=15)
+            if resp.status_code == 200:
+                v = float(resp.json().get("records", {}).get("vixClose") or 0)
+                if v > 0:
+                    print(f"  India VIX (vixClose): {v:.2f}")
+                    return {"value": round(v,2), "prev_close": round(v,2),
+                            "change": 0.0, "change_pct": 0.0,
+                            "high": round(v,2), "low": round(v,2), "status": "snapshot"}
+        except Exception as e:
+            print(f"  WARNING VIX source2: {e}")
+
+    # Source 3: yfinance ^INDIAVIX
+    try:
+        import yfinance as yf
+        hist = yf.Ticker("^INDIAVIX").history(period="2d")
+        if not hist.empty:
+            last = float(hist.iloc[-1]["Close"])
+            prev = float(hist.iloc[-2]["Close"]) if len(hist) > 1 else last
+            chg  = round(last - prev, 2)
+            chg_p = round((chg / prev * 100), 2) if prev else 0
+            print(f"  India VIX (yfinance): {last:.2f}  {chg:+.2f} ({chg_p:+.2f}%)")
+            return {"value": round(last,2), "prev_close": round(prev,2),
+                    "change": chg, "change_pct": chg_p,
+                    "high": float(hist.iloc[-1].get("High", last)),
+                    "low":  float(hist.iloc[-1].get("Low",  last)), "status": "live"}
+    except Exception as e:
+        print(f"  WARNING VIX source3 (yfinance): {e}")
+
+    print("  ERROR: All VIX sources failed.")
+    return None
+
+
+def vix_label(v):
+    """Return (label, color, bg, border, signal) based on VIX level."""
+    if   v < 12:  return "Extremely Low",  "#00c896", "rgba(0,200,150,.12)",  "rgba(0,200,150,.35)",  "Sell Premium"
+    elif v < 15:  return "Low",            "#4de8b8", "rgba(0,200,150,.08)",  "rgba(0,200,150,.25)",  "Sell Premium"
+    elif v < 20:  return "Normal",         "#6480ff", "rgba(100,128,255,.1)", "rgba(100,128,255,.3)", "Balanced"
+    elif v < 25:  return "Elevated",       "#ffd166", "rgba(255,209,102,.1)", "rgba(255,209,102,.3)", "Buy Premium"
+    elif v < 30:  return "High",           "#ff9a3c", "rgba(255,154,60,.1)",  "rgba(255,154,60,.3)",  "Buy Straddles"
+    else:         return "Extreme Fear",   "#ff6b6b", "rgba(255,107,107,.1)", "rgba(255,107,107,.3)", "Buy Puts/Hedge"
 
 # =================================================================
 #  SECTION 2 -- OPTION CHAIN ANALYSIS
@@ -1532,6 +1614,133 @@ window.addEventListener('load', function() {{
 """
 
 
+
+
+# =================================================================
+#  SECTION 5B -- SCROLLING TICKER BAR
+# =================================================================
+
+def rsi_label(rsi):
+    """RSI colour + signal."""
+    if   rsi >= 70: return "Overbought", "#ff6b6b", "bearish"
+    elif rsi >= 60: return "Strong",     "#ffd166", "neutral"
+    elif rsi >= 40: return "Neutral",    "#6480ff", "neutral"
+    elif rsi >= 30: return "Weak",       "#ffd166", "neutral"
+    else:           return "Oversold",   "#00c896", "bullish"
+
+def macd_label(macd, signal):
+    """MACD colour + signal."""
+    diff = macd - signal
+    if   diff >  0.5: return "Bullish",         "#00c896", "bullish"
+    elif diff >  0:   return "Mildly Bullish",   "#4de8b8", "bullish"
+    elif diff > -0.5: return "Mildly Bearish",   "#ffd166", "neutral"
+    else:             return "Bearish",          "#ff6b6b", "bearish"
+
+def pcr_label(pcr):
+    """PCR colour + signal."""
+    if   pcr > 1.3: return "Very Bullish",  "#00c896", "bullish"
+    elif pcr > 1.1: return "Bullish",       "#4de8b8", "bullish"
+    elif pcr > 0.9: return "Neutral",       "#6480ff", "neutral"
+    elif pcr > 0.7: return "Bearish",       "#ffd166", "neutral"
+    else:           return "Very Bearish",  "#ff6b6b", "bearish"
+
+def bias_color(bias_cls):
+    return "#00c896" if bias_cls == "bullish" else ("#ff6b6b" if bias_cls == "bearish" else "#ffd166")
+
+def build_ticker_bar(tech, oc, vix_data):
+    """Build the scrolling ticker HTML with India VIX, RSI, MACD, PCR."""
+
+    items = []
+
+    # ── India VIX ────────────────────────────────────────────────
+    if vix_data:
+        v     = vix_data["value"]
+        chg   = vix_data["change"]
+        chg_p = vix_data["change_pct"]
+        lbl, col, bg, bdr, sig = vix_label(v)
+        chg_str  = f"{chg:+.2f} ({chg_p:+.2f}%)"
+        chg_col  = "#ff6b6b" if chg > 0 else ("#00c896" if chg < 0 else "#6480ff")
+        items.append(
+            f'<div class="tk-item" style="--tk-col:{col};--tk-bg:{bg};--tk-bdr:{bdr}">' 
+            f'<span class="tk-icon">&#9650;</span>' 
+            f'<span class="tk-key">India VIX</span>' 
+            f'<span class="tk-val" style="color:{col};">{v:.2f}</span>' 
+            f'<span class="tk-sub" style="color:{chg_col};">{chg_str}</span>' 
+            f'<span class="tk-badge" style="background:{bg};color:{col};border:1px solid {bdr};">{lbl} &middot; {sig}</span>' 
+            f'</div>'
+        )
+    else:
+        items.append(
+            '<div class="tk-item" style="--tk-col:#6480ff;--tk-bg:rgba(100,128,255,.1);--tk-bdr:rgba(100,128,255,.3)">' 
+            '<span class="tk-icon">&#9650;</span>' 
+            '<span class="tk-key">India VIX</span>' 
+            '<span class="tk-val" style="color:#6480ff;">N/A</span>' 
+            '<span class="tk-badge" style="background:rgba(100,128,255,.1);color:#6480ff;border:1px solid rgba(100,128,255,.3);">Unavailable</span>' 
+            '</div>'
+        )
+
+    # ── RSI ──────────────────────────────────────────────────────
+    if tech:
+        rsi = tech["rsi"]
+        lbl, col, cls = rsi_label(rsi)
+        bg  = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.1)"
+        bdr = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.3)"
+        items.append(
+            f'<div class="tk-item" style="--tk-col:{col};--tk-bg:{bg};--tk-bdr:{bdr}">' 
+            f'<span class="tk-icon">&#9643;</span>' 
+            f'<span class="tk-key">RSI (14)</span>' 
+            f'<span class="tk-val" style="color:{col};">{rsi:.1f}</span>' 
+            f'<span class="tk-badge" style="background:{bg};color:{col};border:1px solid {bdr};">{lbl}</span>' 
+            f'</div>'
+        )
+
+    # ── MACD ─────────────────────────────────────────────────────
+    if tech:
+        macd   = tech["macd"]
+        signal = tech["signal_line"]
+        lbl, col, cls = macd_label(macd, signal)
+        bg  = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.1)"
+        bdr = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.3)"
+        diff = macd - signal
+        items.append(
+            f'<div class="tk-item" style="--tk-col:{col};--tk-bg:{bg};--tk-bdr:{bdr}">' 
+            f'<span class="tk-icon">&#9654;</span>' 
+            f'<span class="tk-key">MACD</span>' 
+            f'<span class="tk-val" style="color:{col};">{macd:.2f}</span>' 
+            f'<span class="tk-sub" style="color:rgba(255,255,255,.4);">Sig: {signal:.2f} &nbsp; Hist: {diff:+.2f}</span>' 
+            f'<span class="tk-badge" style="background:{bg};color:{col};border:1px solid {bdr};">{lbl}</span>' 
+            f'</div>'
+        )
+
+    # ── PCR ──────────────────────────────────────────────────────
+    if oc:
+        pcr = oc["pcr_oi"]
+        lbl, col, cls = pcr_label(pcr)
+        bg  = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.1)"
+        bdr = f"rgba({'0,200,150' if cls=='bullish' else ('255,107,107' if cls=='bearish' else '100,128,255')},.3)"
+        items.append(
+            f'<div class="tk-item" style="--tk-col:{col};--tk-bg:{bg};--tk-bdr:{bdr}">' 
+            f'<span class="tk-icon">&#9670;</span>' 
+            f'<span class="tk-key">PCR (OI)</span>' 
+            f'<span class="tk-val" style="color:{col};">{pcr:.3f}</span>' 
+            f'<span class="tk-badge" style="background:{bg};color:{col};border:1px solid {bdr};">{lbl}</span>' 
+            f'</div>'
+        )
+
+    # Duplicate items so the scroll loop is seamless
+    track_inner = "".join(items) * 3
+
+    return f'''
+<div class="ticker-wrap">
+  <div class="ticker-label">LIVE&nbsp;&#9654;</div>
+  <div class="ticker-viewport">
+    <div class="ticker-track" id="tkTrack">
+      {track_inner}
+    </div>
+  </div>
+</div>
+'''
+
 # =================================================================
 #  SECTION 7 -- CSS
 # =================================================================
@@ -1738,6 +1947,63 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   letter-spacing:.5px;text-transform:uppercase;font-family:'DM Mono',monospace;}
 .metric-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:600;text-align:right;}
 
+
+/* ── SCROLLING TICKER BAR ── */
+.ticker-wrap{
+  display:flex;align-items:center;
+  background:rgba(6,8,15,.95);
+  border-bottom:1px solid rgba(255,255,255,.07);
+  height:46px;overflow:hidden;position:relative;z-index:190;
+  box-shadow:0 2px 20px rgba(0,0,0,.4);
+}
+.ticker-label{
+  flex-shrink:0;padding:0 16px;
+  font-family:var(--fm);font-size:9px;font-weight:700;
+  letter-spacing:3px;color:#00c896;text-transform:uppercase;
+  border-right:1px solid rgba(0,200,150,.2);height:100%;
+  display:flex;align-items:center;
+  background:rgba(0,200,150,.06);
+  white-space:nowrap;
+}
+.ticker-viewport{flex:1;overflow:hidden;height:100%}
+.ticker-track{
+  display:flex;align-items:center;gap:0;
+  height:100%;white-space:nowrap;
+  animation:ticker-scroll 38s linear infinite;
+  will-change:transform;
+}
+.ticker-track:hover{animation-play-state:paused}
+@keyframes ticker-scroll{
+  0%   {transform:translateX(0)}
+  100% {transform:translateX(-33.333%)}
+}
+.tk-item{
+  display:inline-flex;align-items:center;gap:10px;
+  padding:0 22px;height:100%;
+  border-right:1px solid rgba(255,255,255,.05);
+  flex-shrink:0;cursor:default;
+  transition:background .2s;
+}
+.tk-item:hover{background:var(--tk-bg,rgba(255,255,255,.04))}
+.tk-icon{font-size:10px;color:rgba(255,255,255,.2)}
+.tk-key{
+  font-family:var(--fm);font-size:9px;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;
+  color:rgba(255,255,255,.35);white-space:nowrap;
+}
+.tk-val{
+  font-family:var(--fm);font-size:18px;font-weight:700;
+  line-height:1;white-space:nowrap;
+}
+.tk-sub{
+  font-family:var(--fm);font-size:10px;
+  color:rgba(255,255,255,.35);white-space:nowrap;
+}
+.tk-badge{
+  font-family:var(--fh);font-size:10px;font-weight:700;
+  padding:3px 10px;border-radius:20px;
+  white-space:nowrap;letter-spacing:.3px;
+}
 /* FOOTER */
 footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);
   background:rgba(6,8,15,.9);backdrop-filter:blur(12px);
@@ -1771,7 +2037,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);
 #  SECTION 8 -- MASTER HTML ASSEMBLER
 # =================================================================
 
-def generate_html(tech, oc, md, ts):
+def generate_html(tech, oc, md, ts, vix_data=None):
     cp     = tech["price"]    if tech else 0
     expiry = oc["expiry"]     if oc   else "N/A"
     atm    = oc["atm_strike"] if oc   else (round(cp / 50) * 50 if cp else 0)
@@ -1791,6 +2057,7 @@ def generate_html(tech, oc, md, ts):
     kl_html      = build_key_levels_html(tech, oc) if tech else ""
     strat_html   = build_strategies_html(oc)
     strikes_html = build_strikes_html(oc)
+    ticker_html  = build_ticker_bar(tech, oc, vix_data)
 
     sig_card = (
         f"<div class=\"sb-sec\"><div class=\"sb-lbl\">TODAY'S SIGNAL</div>"
@@ -1824,6 +2091,8 @@ def generate_html(tech, oc, md, ts):
     <span>{ts}</span>
   </div>
 </header>
+
+{ticker_html}
 
 <div class="hero">
   <div>
@@ -1956,7 +2225,7 @@ def main():
     ist_tz = pytz.timezone("Asia/Kolkata")
     ts     = datetime.now(ist_tz).strftime("%d-%b-%Y %H:%M IST")
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v2")
+    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v5")
     print(f"  {ts}")
     print("=" * 65)
 
@@ -1995,6 +2264,7 @@ def main():
         "expiry":     oc_analysis["expiry"]   if oc_analysis else None,
         "pcr":        oc_analysis["pcr_oi"]   if oc_analysis else None,
         "oi_dir":     oc_analysis["oi_dir"]   if oc_analysis else None,
+        "india_vix":  vix_data["value"]       if vix_data    else None,
     }
     with open(os.path.join("docs", "latest.json"), "w") as f:
         json.dump(meta, f, indent=2)
