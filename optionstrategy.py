@@ -1293,6 +1293,103 @@ function calcMetrics(shape) {{
   // Clamp PoP to 5–95%
   pop = Math.min(95, Math.max(5, pop));
 
+  // ── Build strike price label per strategy ──
+  let strikeStr = '';
+  switch(shape) {{
+    case 'long_call':
+    case 'short_put':
+    case 'long_put':
+    case 'short_call':
+    case 'long_straddle':
+    case 'short_straddle':
+    case 'long_synthetic':
+    case 'short_synthetic':
+      strikeStr = '₹' + atm.toLocaleString('en-IN') + ' (ATM)';
+      break;
+    case 'bull_call_spread':
+      strikeStr = 'Buy ₹' + atm.toLocaleString('en-IN') + ' · Sell ₹' + ce_otm1.strike.toLocaleString('en-IN');
+      break;
+    case 'bull_put_spread':
+      strikeStr = 'Sell ₹' + atm.toLocaleString('en-IN') + ' · Buy ₹' + pe_otm1.strike.toLocaleString('en-IN');
+      break;
+    case 'bear_call_spread':
+      strikeStr = 'Sell ₹' + atm.toLocaleString('en-IN') + ' · Buy ₹' + ce_otm1.strike.toLocaleString('en-IN');
+      break;
+    case 'bear_put_spread':
+      strikeStr = 'Buy ₹' + atm.toLocaleString('en-IN') + ' · Sell ₹' + pe_otm1.strike.toLocaleString('en-IN');
+      break;
+    case 'long_strangle':
+      strikeStr = 'CE ₹' + ce_otm1.strike.toLocaleString('en-IN') + ' · PE ₹' + pe_otm1.strike.toLocaleString('en-IN');
+      break;
+    case 'short_strangle':
+      strikeStr = 'CE ₹' + ce_otm1.strike.toLocaleString('en-IN') + ' · PE ₹' + pe_otm1.strike.toLocaleString('en-IN');
+      break;
+    case 'short_iron_condor':
+    case 'long_iron_condor':
+      strikeStr = 'PE ₹' + pe_otm2.strike.toLocaleString('en-IN') + '/' + pe_otm1.strike.toLocaleString('en-IN')
+               + ' · CE ₹' + ce_otm1.strike.toLocaleString('en-IN') + '/' + ce_otm2.strike.toLocaleString('en-IN');
+      break;
+    case 'short_iron_fly':
+    case 'long_iron_fly':
+      strikeStr = 'Wings ₹' + pe_otm1.strike.toLocaleString('en-IN') + ' / ₹' + ce_otm1.strike.toLocaleString('en-IN')
+               + ' · ATM ₹' + atm.toLocaleString('en-IN');
+      break;
+    case 'call_butterfly':
+    case 'bull_butterfly':
+      strikeStr = '₹' + atm.toLocaleString('en-IN') + ' / ₹' + ce_otm1.strike.toLocaleString('en-IN')
+               + ' / ₹' + ce_otm2.strike.toLocaleString('en-IN');
+      break;
+    case 'put_butterfly':
+    case 'bear_butterfly':
+      strikeStr = '₹' + pe_otm2.strike.toLocaleString('en-IN') + ' / ₹' + pe_otm1.strike.toLocaleString('en-IN')
+               + ' / ₹' + atm.toLocaleString('en-IN');
+      break;
+    case 'call_ratio_back':
+      strikeStr = 'Sell ₹' + atm.toLocaleString('en-IN') + ' · Buy 2x ₹' + ce_otm1.strike.toLocaleString('en-IN');
+      break;
+    case 'put_ratio_back':
+      strikeStr = 'Sell ₹' + atm.toLocaleString('en-IN') + ' · Buy 2x ₹' + pe_otm1.strike.toLocaleString('en-IN');
+      break;
+    case 'call_ratio_spread':
+      strikeStr = 'Buy ₹' + atm.toLocaleString('en-IN') + ' · Sell 2x ₹' + ce_otm1.strike.toLocaleString('en-IN');
+      break;
+    case 'put_ratio_spread':
+      strikeStr = 'Buy ₹' + atm.toLocaleString('en-IN') + ' · Sell 2x ₹' + pe_otm1.strike.toLocaleString('en-IN');
+      break;
+    case 'jade_lizard':
+      strikeStr = 'PE ₹' + pe_otm1.strike.toLocaleString('en-IN')
+               + ' · CE ₹' + ce_otm1.strike.toLocaleString('en-IN') + '/' + ce_otm2.strike.toLocaleString('en-IN');
+      break;
+    case 'reverse_jade':
+      strikeStr = 'CE ₹' + ce_otm1.strike.toLocaleString('en-IN')
+               + ' · PE ₹' + pe_otm1.strike.toLocaleString('en-IN') + '/' + pe_otm2.strike.toLocaleString('en-IN');
+      break;
+    case 'bull_condor':
+      strikeStr = 'Buy ₹' + atm.toLocaleString('en-IN') + ' · Sell ₹' + ce_otm1.strike.toLocaleString('en-IN')
+               + '/' + ce_otm2.strike.toLocaleString('en-IN') + ' · Buy higher';
+      break;
+    case 'bear_condor':
+      strikeStr = 'Buy ₹' + atm.toLocaleString('en-IN') + ' · Sell ₹' + pe_otm1.strike.toLocaleString('en-IN')
+               + '/' + pe_otm2.strike.toLocaleString('en-IN') + ' · Buy lower';
+      break;
+    case 'risk_reversal':
+      strikeStr = 'Buy PE ₹' + pe_otm1.strike.toLocaleString('en-IN') + ' · Sell CE ₹' + ce_otm1.strike.toLocaleString('en-IN');
+      break;
+    case 'range_forward':
+      strikeStr = 'Buy CE ₹' + ce_otm1.strike.toLocaleString('en-IN') + ' · Sell PE ₹' + pe_otm1.strike.toLocaleString('en-IN');
+      break;
+    case 'batman':
+      strikeStr = 'CE: ₹' + atm.toLocaleString('en-IN') + ' / ₹' + ce_otm1.strike.toLocaleString('en-IN')
+               + ' / ₹' + ce_otm2.strike.toLocaleString('en-IN');
+      break;
+    case 'double_fly':
+    case 'double_condor':
+      strikeStr = 'ATM ₹' + atm.toLocaleString('en-IN') + ' (two spreads)';
+      break;
+    default:
+      strikeStr = 'ATM ₹' + atm.toLocaleString('en-IN');
+  }}
+
   // Format Breakevens
   const beStr = be.map(v => '₹' + Math.round(v).toLocaleString('en-IN')).join(' / ');
   const mpStr = mp === 999999 ? 'Unlimited' : '₹' + Math.round(mp).toLocaleString('en-IN');
@@ -1305,6 +1402,7 @@ function calcMetrics(shape) {{
 
   return {{
     pop, mpStr, mlStr, rrStr, beStr, ncStr, marginStr, pnlStr, mpPct,
+    strikeStr,
     mpRaw: mp, mlRaw: ml,
     ncRaw: Math.round(nc),
     pnlPositive: pnl >= 0,
@@ -1321,6 +1419,10 @@ function renderMetrics(m, cardEl) {{
   const pnlColor  = m.pnlPositive ? '#00c896' : '#ff6b6b';
 
   return `
+    <div class="metric-row metric-strike">
+      <span class="metric-lbl">Strike Price</span>
+      <span class="metric-val" style="color:#ffd166;font-size:11px;text-align:right;max-width:160px;line-height:1.4;">${{m.strikeStr}}</span>
+    </div>
     <div class="metric-row">
       <span class="metric-lbl">Prob. of Profit</span>
       <span class="metric-val" style="color:${{probColor}};font-weight:800;font-size:15px;">${{m.pop}}%</span>
@@ -1628,6 +1730,10 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   transition:background .15s;
 }
 .metric-row:hover{background:rgba(255,255,255,.03)}
+.metric-strike{
+  background:rgba(255,209,102,.04);
+  border-bottom:1px solid rgba(255,209,102,.12) !important;
+}
 .metric-lbl{font-size:10px;color:rgba(255,255,255,.35);
   letter-spacing:.5px;text-transform:uppercase;font-family:'DM Mono',monospace;}
 .metric-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:600;text-align:right;}
