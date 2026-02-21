@@ -526,27 +526,21 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     <div class="h-divider"></div>
     <div class="bars-with-bear">
       <div class="bars-col">
-        <div class="pill-bars">
-          <div class="pill-row">
-            <div class="pill-dot" style="background:#00c896;box-shadow:0 0 5px rgba(0,200,150,.5);"></div>
-            <div class="pill-lbl">BULL STRENGTH</div>
-            <div class="pill-track-wrap">
-              <div class="pill-track">
-                <div class="pill-fill" style="width:{oi_bar_w}%;background:linear-gradient(90deg,#00c896,#4de8b8);"></div>
-              </div>
-              <div class="pill-num" style="color:#00c896;">{bull_pct}%</div>
-            </div>
+        <div class="pill-row">
+          <div class="pill-dot" style="background:#00c896;box-shadow:0 0 5px rgba(0,200,150,.5);"></div>
+          <div class="pill-lbl">BULL STRENGTH</div>
+          <div class="pill-track">
+            <div class="pill-fill" style="width:{oi_bar_w}%;background:linear-gradient(90deg,#00c896,#4de8b8);"></div>
           </div>
-          <div class="pill-row">
-            <div class="pill-dot" style="background:#ff6b6b;box-shadow:0 0 5px rgba(255,107,107,.4);"></div>
-            <div class="pill-lbl">BEAR STRENGTH</div>
-            <div class="pill-track-wrap">
-              <div class="pill-track">
-                <div class="pill-fill" style="width:{bear_bar_w}%;background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div>
-              </div>
-              <div class="pill-num" style="color:#ff6b6b;">{bear_pct}%</div>
-            </div>
+          <div class="pill-num" style="color:#00c896;">{bull_pct}%</div>
+        </div>
+        <div class="pill-row">
+          <div class="pill-dot" style="background:#ff6b6b;box-shadow:0 0 5px rgba(255,107,107,.4);"></div>
+          <div class="pill-lbl">BEAR STRENGTH</div>
+          <div class="pill-track">
+            <div class="pill-fill" style="width:{bear_bar_w}%;background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div>
           </div>
+          <div class="pill-num" style="color:#ff6b6b;">{bear_pct}%</div>
         </div>
       </div>
       <!-- BEAR GAUGE — same 76px, sits right next to numbers, no separator -->
@@ -1879,9 +1873,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   flex-shrink:0;display:flex;align-items:center;justify-content:center;
   padding:0 11px 0 17px;
 }
-/* Bear gauge now lives inside h-mid, inline with pill bars */
-.bars-with-bear{display:flex;align-items:center;gap:8px;}
-.bars-col{flex:1;min-width:0;}
+/* Bear gauge inline with pill bars — no stretch */
+.bars-with-bear{display:flex;align-items:center;gap:10px;}
+.bars-col{display:flex;flex-direction:column;gap:5px;flex-shrink:0;}
 /* Gauge shared */
 .gauge-wrap{position:relative;width:76px;height:76px;}
 .gauge-wrap svg{display:block;}
@@ -1913,8 +1907,8 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .pill-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 .pill-lbl{font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
   color:rgba(255,255,255,.35);width:96px;flex-shrink:0;}
-.pill-track-wrap{flex:1;display:flex;align-items:center;}
-.pill-track{width:35%;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;}
+.pill-track-wrap{display:flex;align-items:center;}
+.pill-track{width:120px;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;flex-shrink:0;}
 .pill-fill{height:100%;border-radius:3px;}
 .pill-num{font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
   margin-left:8px;flex-shrink:0;}
