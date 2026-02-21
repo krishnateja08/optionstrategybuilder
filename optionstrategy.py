@@ -96,19 +96,11 @@ class NSEOptionChain:
                         "CE_OI_Change": ce.get("changeinOpenInterest", 0),
                         "PE_OI_Change": pe.get("changeinOpenInterest", 0),
                     })
-                df_full    = pd.DataFrame(rows).sort_values("Strike").reset_index(drop=True)
+                # Use FULL option chain — no ATM +-10 filter
+                df         = pd.DataFrame(rows).sort_values("Strike").reset_index(drop=True)
                 underlying = json_data.get("records", {}).get("underlyingValue", 0)
                 atm_strike = round(underlying / 50) * 50
-                all_strikes = sorted(df_full["Strike"].unique())
-                if atm_strike in all_strikes:
-                    atm_idx = all_strikes.index(atm_strike)
-                else:
-                    atm_idx    = min(range(len(all_strikes)), key=lambda i: abs(all_strikes[i] - underlying))
-                    atm_strike = all_strikes[atm_idx]
-                lo = max(0, atm_idx - 10)
-                hi = min(len(all_strikes) - 1, atm_idx + 10)
-                df = df_full[df_full["Strike"].isin(all_strikes[lo:hi + 1])].reset_index(drop=True)
-                print(f"    OK {len(df_full)} strikes -> ATM+-10 -> {len(df)} rows")
+                print(f"    OK {len(df)} strikes (full chain) | Underlying={underlying} ATM={atm_strike}")
                 return {"expiry": expiry, "df": df, "underlying": underlying, "atm_strike": atm_strike}
             except Exception as e:
                 print(f"    FAIL Attempt {attempt}: {e}")
@@ -465,7 +457,7 @@ def build_oi_html(oc):
 
     return (
         f"<div class=\"section\"><div class=\"sec-title\">CHANGE IN OPEN INTEREST"
-        f"<span class=\"sec-sub\">ATM +-10 strikes only &middot; Expiry: {expiry}</span></div>"
+        f"<span class=\"sec-sub\">Full Option Chain &middot; Expiry: {expiry}</span></div>"
         f"<div class=\"oi-dir-box\" style=\"background:{dir_bg};border:1px solid {dir_bdr};\">"
         f"<div class=\"oi-dir-tag\">OI DIRECTION</div>"
         f"<div class=\"oi-dir-name\" style=\"color:{dir_col};\">{oi_dir}</div>"
@@ -684,7 +676,7 @@ def build_strikes_html(oc):
 
     return (
         f"<div class=\"section\"><div class=\"sec-title\">TOP 5 STRIKES BY OPEN INTEREST"
-        f"<span class=\"sec-sub\">ATM +-10 only</span></div>"
+        f"<span class=\"sec-sub\">Full Chain</span></div>"
         f"<div class=\"strikes-wrap\">"
         f"<div><div style=\"color:#0d8a9e;font-weight:700;margin-bottom:10px;\">CALL Options (CE)</div>"
         f"<table class=\"s-table\"><thead><tr><th>#</th><th>Strike</th><th>OI</th><th>LTP</th></tr></thead>"
@@ -706,30 +698,22 @@ CSS = """
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* ---- Cool Blue-Grey content palette ---- */
-  --bg:      #e8edf2;   /* page background   */
-  --surf:    #dde4ec;   /* section surface   */
-  --card:    #d0d9e4;   /* card background   */
-  --bdr:     #bfcad8;   /* border            */
-  --bdr2:    #a8b8cc;   /* stronger border   */
-
-  /* ---- Ocean Teal brand colours ---- */
+  --bg:      #e8edf2;
+  --surf:    #dde4ec;
+  --card:    #d0d9e4;
+  --bdr:     #bfcad8;
+  --bdr2:    #a8b8cc;
   --teal-dark:  #0d5c6e;
   --teal:       #1a9aad;
   --teal-light: #26d0a0;
   --teal-pale:  #c8d8e4;
-
-  /* ---- Text ---- */
   --text:   #0d2d38;
   --muted:  #4a5a6a;
   --muted2: #6a7a8a;
-
-  /* ---- Signal colours ---- */
   --bull:   #0fa86b;
   --bear:   #c0392b;
   --neut:   #d4a017;
   --accent: #0d8a9e;
-
   --fh: 'Sora', sans-serif;
   --fm: 'DM Mono', monospace;
 }
@@ -745,7 +729,6 @@ body {
   min-height: 100vh;
 }
 
-/* Subtle grid texture over the blue-grey bg */
 body::before {
   content: '';
   position: fixed;
@@ -762,7 +745,6 @@ body::before {
 
 .app { position: relative; z-index: 1; display: grid; grid-template-rows: auto auto 1fr auto; min-height: 100vh; }
 
-/* ---- Header ---- */
 header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 32px;
@@ -777,7 +759,6 @@ header {
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #26d0a0; box-shadow: 0 0 8px #26d0a0; animation: pulse 2s infinite; }
 @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.3 } }
 
-/* ---- Hero ---- */
 .hero {
   padding: 26px 32px;
   background: linear-gradient(135deg, #0d4a5a 0%, #0d6e80 50%, #1a9aad 100%);
@@ -797,10 +778,8 @@ header {
 .hstat-lbl { font-size: 10px; color: rgba(255,255,255,.45); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 3px; }
 .hstat-val { font-family: var(--fm); font-size: 18px; font-weight: 600; color: #fff; }
 
-/* ---- Main grid ---- */
 .main { display: grid; grid-template-columns: 268px 1fr; min-height: 0; }
 
-/* ---- Sidebar ---- */
 .sidebar {
   border-right: 1px solid var(--bdr2);
   background: linear-gradient(180deg, #d0dae6 0%, #c8d4e2 100%);
@@ -825,7 +804,6 @@ header {
 .sb-btn.active { background: rgba(13,138,158,.14); border-color: var(--bdr2); color: var(--teal-dark); font-weight: 600; }
 .sb-badge { font-size: 10px; margin-left: auto; font-weight: 700; }
 
-/* Signal card */
 .sig-card {
   margin: 12px 10px 8px; padding: 16px 14px;
   background: linear-gradient(135deg, #0d4a5a, #0d8a9e);
@@ -836,10 +814,8 @@ header {
 .sig-bias  { font-family: var(--fh); font-size: 18px; font-weight: 700; color: #fff; }
 .sig-meta  { font-size: 10px; color: rgba(255,255,255,.5); margin-top: 4px; }
 
-/* ---- Content ---- */
 .content { overflow-y: auto; }
 
-/* ---- Section — alternating surface colours ---- */
 .section {
   padding: 24px 28px;
   border-bottom: 1px solid var(--bdr);
@@ -859,7 +835,6 @@ header {
   letter-spacing: .5px; text-transform: none; margin-left: auto;
 }
 
-/* ---- OI ---- */
 .oi-dir-box  { border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
 .oi-dir-tag  { font-size: 10px; letter-spacing: 2px; color: var(--muted2); margin-bottom: 6px; text-transform: uppercase; }
 .oi-dir-name { font-family: var(--fh); font-size: 26px; font-weight: 700; margin-bottom: 4px; }
@@ -879,7 +854,6 @@ header {
 .oi-sig  { display: block; padding: 7px 12px; border-radius: 6px; text-align: center; font-size: 12px; font-weight: 600; }
 .oi-legend { display: flex; flex-wrap: wrap; gap: 10px 20px; font-size: 11px; color: var(--muted); padding: 10px 0; }
 
-/* ---- Key Levels ---- */
 .kl-zone-labels { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; font-weight: 700; }
 .kl-node { position: absolute; text-align: center; }
 .kl-lbl  { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; line-height: 1.3; white-space: nowrap; }
@@ -901,7 +875,6 @@ header {
   box-shadow: 0 1px 4px rgba(13,60,80,.06);
 }
 
-/* ---- Strategies ---- */
 .rec-banner { border: 1px solid; border-radius: 14px; padding: 18px 20px; margin-bottom: 20px; }
 .rec-title  { font-family: var(--fh); font-size: 15px; font-weight: 700; margin-bottom: 14px; }
 .rec-grid   { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 14px; }
@@ -943,7 +916,6 @@ header {
 }
 .sm-lbl { display: block; font-size: 9px; color: var(--muted2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
 
-/* ---- Strikes table ---- */
 .strikes-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .s-table { width: 100%; border-collapse: collapse; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(13,60,80,.09); }
 .s-table th {
@@ -957,7 +929,6 @@ header {
 .s-table tr:last-child td { border-bottom: none; }
 .s-table tr:hover td { background: var(--surf); }
 
-/* ---- Footer ---- */
 footer {
   padding: 16px 32px;
   border-top: 2px solid rgba(255,255,255,.12);
@@ -966,7 +937,6 @@ footer {
   font-size: 11px; color: rgba(255,255,255,.45); font-family: var(--fm);
 }
 
-/* ---- Responsive ---- */
 @media(max-width:1024px) {
   .main { grid-template-columns: 1fr; }
   .sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--bdr); }
