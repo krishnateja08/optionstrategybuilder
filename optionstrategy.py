@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v14 · Countdown timer + rotating logo name + ATM Greeks Panel
+Aurora Borealis Theme · v15 · Sticky Greeks panel · Brighter colors · No signal card
 pip install curl_cffi pandas numpy yfinance pytz
 """
 
@@ -576,16 +576,16 @@ def build_greeks_sidebar_html(oc_analysis):
     <span style="font-size:8.5px;color:rgba(255,255,255,.3);">ATM</span>
     <span class="greeks-atm-strike">&#8377;{atm:,}</span>
     <span style="font-size:8px;color:rgba(255,255,255,.2);">|</span>
-    <span style="font-size:8.5px;color:rgba(0,200,220,.6);">CE &#8377;{ce_ltp:.1f}</span>
-    <span style="font-size:8px;color:rgba(255,255,255,.15);">/</span>
-    <span style="font-size:8.5px;color:rgba(255,107,107,.6);">PE &#8377;{pe_ltp:.1f}</span>
+    <span style="font-size:8.5px;color:rgba(0,200,220,.8);">CE &#8377;{ce_ltp:.1f}</span>
+    <span style="font-size:8px;color:rgba(255,255,255,.25);">/</span>
+    <span style="font-size:8.5px;color:rgba(255,107,107,.8);">PE &#8377;{pe_ltp:.1f}</span>
   </div>
 
   <!-- Δ Delta -->
   <div class="greeks-row">
     <div style="display:flex;flex-direction:column;">
       <span class="greek-name">&#916; Delta</span>
-      <span style="font-size:8px;color:rgba(255,255,255,.2);margin-top:1px;">CE / PE</span>
+      <span style="font-size:8px;color:rgba(255,255,255,.45);margin-top:1px;">CE / PE</span>
     </div>
     <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end;">
       {_delta_bar_html(ce_delta, True)}
@@ -601,11 +601,11 @@ def build_greeks_sidebar_html(oc_analysis):
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
       <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:8.5px;color:rgba(0,200,220,.5);">CE</span>
+        <span style="font-size:8.5px;color:rgba(0,200,220,.85);">CE</span>
         <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#00c8e0;">{ce_iv:.1f}%</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:8.5px;color:rgba(255,144,144,.5);">PE</span>
+        <span style="font-size:8.5px;color:rgba(255,144,144,.85);">PE</span>
         <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#ff9090;">{pe_iv:.1f}%</span>
       </div>
     </div>
@@ -615,15 +615,15 @@ def build_greeks_sidebar_html(oc_analysis):
   <div class="greeks-row">
     <div style="display:flex;flex-direction:column;">
       <span class="greek-name">&#920; Theta</span>
-      <span style="font-size:8px;color:rgba(255,255,255,.2);margin-top:1px;">per day</span>
+      <span style="font-size:8px;color:rgba(255,255,255,.45);margin-top:1px;">per day</span>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
       <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:8.5px;color:rgba(0,200,220,.5);">CE</span>
+        <span style="font-size:8.5px;color:rgba(0,200,220,.85);">CE</span>
         <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#ff9090;">{tfmt(ce_theta)}</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:8.5px;color:rgba(255,144,144,.5);">PE</span>
+        <span style="font-size:8.5px;color:rgba(255,144,144,.85);">PE</span>
         <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#ff9090;">{tfmt(pe_theta)}</span>
       </div>
     </div>
@@ -633,15 +633,15 @@ def build_greeks_sidebar_html(oc_analysis):
   <div class="greeks-row">
     <div style="display:flex;flex-direction:column;">
       <span class="greek-name">&#957; Vega</span>
-      <span style="font-size:8px;color:rgba(255,255,255,.2);margin-top:1px;">per 1% IV</span>
+      <span style="font-size:8px;color:rgba(255,255,255,.45);margin-top:1px;">per 1% IV</span>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
       <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:8.5px;color:rgba(0,200,220,.5);">CE</span>
+        <span style="font-size:8.5px;color:rgba(0,200,220,.85);">CE</span>
         <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#6480ff;">{vfmt(ce_vega)}</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:8.5px;color:rgba(255,144,144,.5);">PE</span>
+        <span style="font-size:8.5px;color:rgba(255,144,144,.85);">PE</span>
         <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#6480ff;">{vfmt(pe_vega)}</span>
       </div>
     </div>
@@ -1238,9 +1238,14 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .h-score{font-family:'DM Mono',monospace;font-size:8px;color:rgba(255,255,255,.22);letter-spacing:.5px;}
 .h-ts{font-family:'DM Mono',monospace;font-size:8px;color:rgba(255,255,255,.18);letter-spacing:.5px;white-space:nowrap;}
 .main{display:grid;grid-template-columns:268px 1fr;min-height:0}
-.sidebar{background:rgba(8,11,20,.7);backdrop-filter:blur(12px);border-right:1px solid rgba(255,255,255,.06);position:sticky;top:57px;height:calc(100vh - 57px);overflow-y:auto}
+.sidebar{background:rgba(8,11,20,.7);backdrop-filter:blur(12px);border-right:1px solid rgba(255,255,255,.06);position:sticky;top:57px;height:calc(100vh - 57px);overflow-y:auto;display:flex;flex-direction:column;}
+.sidebar-sticky-top{position:sticky;top:0;z-index:50;background:rgba(8,11,20,.95);backdrop-filter:blur(16px);border-bottom:1px solid rgba(100,128,255,.15);padding-bottom:4px;}
+.sidebar-scroll{flex:1;overflow-y:auto;}
 .sidebar::-webkit-scrollbar{width:3px}
 .sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+.sidebar-scroll::-webkit-scrollbar{width:3px}
+.sidebar-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+.sidebar-scroll{overflow-y:auto;}
 .sb-sec{padding:16px 12px 8px}
 .sb-lbl{font-size:9px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--aurora1);margin-bottom:8px;padding:0 0 0 8px;border-left:2px solid var(--aurora1)}
 .sb-btn{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border-radius:8px;border:1px solid transparent;cursor:pointer;background:transparent;color:var(--muted);font-family:var(--fh);font-size:12px;text-align:left;transition:all .15s}
@@ -1320,16 +1325,16 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:rgba(6,8,15,.9);backdrop-filter:blur(12px);display:flex;justify-content:space-between;font-size:11px;color:var(--muted2);font-family:var(--fm)}
 
 /* ── GREEKS PANEL (sidebar) ────────────────────────────────────────────── */
-.greeks-panel{margin:12px 10px 8px;padding:14px 12px;background:linear-gradient(135deg,rgba(100,128,255,.10),rgba(0,200,220,.08));border-radius:14px;border:1px solid rgba(100,128,255,.22);box-shadow:0 4px 20px rgba(100,128,255,.08),inset 0 1px 0 rgba(255,255,255,.04);}
-.greeks-title{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(100,128,255,.85);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(100,128,255,.15);display:flex;align-items:center;justify-content:space-between;}
-.greeks-expiry-tag{font-size:8.5px;color:rgba(255,255,255,.25);font-weight:400;letter-spacing:.5px;text-transform:none;}
+.greeks-panel{margin:10px 10px 6px;padding:14px 12px;background:linear-gradient(135deg,rgba(100,128,255,.12),rgba(0,200,220,.10));border-radius:14px;border:1px solid rgba(100,128,255,.28);box-shadow:0 4px 20px rgba(100,128,255,.1),inset 0 1px 0 rgba(255,255,255,.06);}
+.greeks-title{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(138,160,255,1.0);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(100,128,255,.25);display:flex;align-items:center;justify-content:space-between;}
+.greeks-expiry-tag{font-size:8.5px;color:rgba(255,255,255,.5);font-weight:400;letter-spacing:.5px;text-transform:none;}
 .greeks-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);}
 .greeks-row:last-child{border-bottom:none;}
-.greek-name{font-family:'DM Mono',monospace;font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.32);}
+.greek-name{font-family:'DM Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.75);}
 .greeks-atm-badge{display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(100,128,255,.1);border:1px solid rgba(100,128,255,.25);border-radius:8px;padding:5px 8px;margin-bottom:10px;font-family:'DM Mono',monospace;font-size:11px;flex-wrap:wrap;}
 .greeks-atm-strike{font-weight:700;color:#8aa0ff;}
 .iv-bar-wrap{display:flex;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.05);}
-.iv-bar-label{font-size:8px;color:rgba(255,255,255,.28);letter-spacing:1px;text-transform:uppercase;font-weight:600;width:42px;flex-shrink:0;}
+.iv-bar-label{font-size:8px;color:rgba(255,255,255,.6);letter-spacing:1px;text-transform:uppercase;font-weight:600;width:42px;flex-shrink:0;}
 .iv-bar-track{flex:1;height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;}
 .iv-bar-fill{height:100%;border-radius:2px;transition:width .6s ease;}
 .iv-bar-num{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;min-width:38px;text-align:right;}
@@ -1482,15 +1487,7 @@ def generate_html(tech, oc, md, ts, vix_data=None):
     greeks_sidebar   = build_greeks_sidebar_html(oc)        # ← NEW
     greeks_table     = build_greeks_table_html(oc)          # ← NEW
 
-    sig_card = (
-        f'<div class="sb-sec"><div class="sb-lbl">TODAY\'S SIGNAL</div>'
-        f'<div class="sig-card">'
-        f'<div class="sig-arrow">{b_arrow}</div>'
-        f'<div class="sig-bias">{bias}</div>'
-        f'<div class="sig-meta">{conf} CONFIDENCE</div>'
-        f'<div class="sig-meta" style="margin-top:4px;">Bull {bull} pts &nbsp;&middot;&nbsp; Bear {bear} pts</div>'
-        f'</div></div>'
-    )
+    sig_card = ""  # Removed — signal now shown in hero bar only
 
     C = 2 * 3.14159 * 7
 
@@ -1499,7 +1496,7 @@ def generate_html(tech, oc, md, ts, vix_data=None):
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Nifty 50 Options Dashboard v14</title>
+<title>Nifty 50 Options Dashboard v15</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>{CSS}</style>
@@ -1534,11 +1531,12 @@ def generate_html(tech, oc, md, ts, vix_data=None):
 {gauge_html}
 <div class="main">
   <aside class="sidebar">
-    {sig_card}
-
-    <!-- ─── ATM GREEKS PANEL ──────────────────────────── -->
-    <div id="greeksPanel">{greeks_sidebar}</div>
-
+    <!-- ─── STICKY ATM GREEKS PANEL (always visible) ──────── -->
+    <div class="sidebar-sticky-top">
+      <div id="greeksPanel">{greeks_sidebar}</div>
+    </div>
+    <!-- ─── SCROLLABLE NAV BELOW ──────────────────────────── -->
+    <div class="sidebar-scroll">
     <div class="sb-sec">
       <div class="sb-lbl">LIVE ANALYSIS</div>
       <button class="sb-btn active" onclick="go('oi',this)">OI Dashboard</button>
@@ -1554,6 +1552,7 @@ def generate_html(tech, oc, md, ts, vix_data=None):
     <div class="sb-sec">
       <div class="sb-lbl">OPTION CHAIN</div>
       <button class="sb-btn" onclick="go('strikes',this)">Top 5 Strikes</button>
+    </div>
     </div>
   </aside>
   <main class="content">
@@ -1577,7 +1576,7 @@ def generate_html(tech, oc, md, ts, vix_data=None):
   </main>
 </div>
 <footer>
-  <span>NiftyCraft · Nifty Option Strategy Builder · v14</span>
+  <span>NiftyCraft · Nifty Option Strategy Builder · v15</span>
   <span>ATM Greeks · OI Dashboard · 30s Silent Refresh · Educational Only · &copy; 2025</span>
 </footer>
 </div>
