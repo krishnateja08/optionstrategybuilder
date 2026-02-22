@@ -2,7 +2,7 @@
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
 Aurora Borealis Theme · v15 · Sticky Greeks panel · Brighter colors · Golden Strike Dropdown
-pip install curl_cffi pandas numpy yfinance pytz
+pip install curl_cffi pandas numpy yfinance pytz scipy
 """
 
 import os, json, time, warnings, pytz
@@ -11,6 +11,8 @@ import numpy as np
 from datetime import datetime, timedelta
 from curl_cffi import requests as curl_requests
 import yfinance as yf
+from math import log, sqrt, exp
+from scipy.stats import norm as _norm
 
 warnings.filterwarnings("ignore")
 
@@ -201,42 +203,156 @@ def vix_label(v):
 
 
 # =================================================================
-#  SECTION 1C -- ATM GREEKS EXTRACTOR
+#  SECTION 1C -- BLACK-SCHOLES CALCULATOR + ATM GREEKS EXTRACTOR
 # =================================================================
 
-def extract_atm_greeks(df, atm_strike):
-    """Extract Greeks for ATM and nearby strikes (ATM-2 to ATM+2)."""
-    greeks_rows = []
-    strikes_to_show = [int(atm_strike) + (i * 50) for i in range(-2, 3)]
+from math import log, sqrt, exp
+from scipy.stats import norm as _norm
 
-    for target_strike in strikes_to_show:
-        row = df[df["Strike"] == target_strike]
-        if row.empty:
-            nearest_idx = (df["Strike"] - target_strike).abs().idxmin()
-            row = df.iloc[[nearest_idx]]
-        r = row.iloc[0]
+def _bs_greeks(S, K, T, r, sigma, option_type="CE"):
+    """
+    Compute Black-Scholes Greeks.
+    S     = spot price
+    K     = strike price
+    T     = time to expiry in years  (e.g. 7/365)
+    r     = risk-free rate (e.g. 0.065 for 6.5%)
+    sigma = implied volatility as decimal (e.g. 0.15 for 15%)
+    Returns dict with delta, gamma, theta (per day), vega (per 1% IV move).
+    Returns None if inputs are invalid.
+    """
+    try:
+        if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+            return None
+        d1 = (log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * sqrt(T))
+        d2 = d1 - sigma * sqrt(T)
+        nd1  = _norm.pdf(d1)
+        if option_type == "CE":
+            delta = _norm.cdf(d1)
+            theta = (-(S * nd1 * sigma) / (2 * sqrt(T))
+                     - r * K * exp(-r * T) * _norm.cdf(d2)) / 365
+        else:  # PE
+            delta = _norm.cdf(d1) - 1
+            theta = (-(S * nd1 * sigma) / (2 * sqrt(T))
+                     + r * K * exp(-r * T) * _norm.cdf(-d2)) / 365
+        gamma = nd1 / (S * sigma * sqrt(T))
+        vega  = S * nd1 * sqrt(T) / 100   # per 1% IV move
+        return {
+            "delta": round(delta, 4),
+            "gamma": round(gamma, 6),
+            "theta": round(theta, 4),
+            "vega":  round(vega,  4),
+        }
+    except Exception:
+        return None
+
+
+def _days_to_expiry(expiry_str):
+    """Parse NSE expiry string like '27-Feb-2026' → days remaining (min 1)."""
+    try:
+        ist_tz  = pytz.timezone("Asia/Kolkata")
+        today   = datetime.now(ist_tz).date()
+        exp_dt  = datetime.strptime(expiry_str, "%d-%b-%Y").date()
+        days    = (exp_dt - today).days
+        return max(days, 1)
+    except Exception:
+        return 7   # fallback: 1 week
+
+
+def _compute_greeks_for_row(r, spot, expiry_str, risk_free=0.065):
+    """
+    Given a DataFrame row r and spot price, compute BS Greeks.
+    Uses NSE Greeks if non-zero, otherwise falls back to Black-Scholes.
+    """
+    T    = _days_to_expiry(expiry_str) / 365.0
+    K    = float(r["Strike"])
+    ce_iv_raw = float(r.get("CE_IV", 0) or 0)
+    pe_iv_raw = float(r.get("PE_IV", 0) or 0)
+
+    # ── CE Greeks ──────────────────────────────────────────────────
+    ce_delta_nse = float(r.get("CE_Delta", 0) or 0)
+    ce_theta_nse = float(r.get("CE_Theta", 0) or 0)
+    ce_vega_nse  = float(r.get("CE_Vega",  0) or 0)
+    ce_gamma_nse = float(r.get("CE_Gamma", 0) or 0)
+
+    if abs(ce_delta_nse) > 0.001 and abs(ce_theta_nse) > 0.0001:
+        # NSE data is valid
+        ce_g = {"delta": round(ce_delta_nse, 4), "theta": round(ce_theta_nse, 4),
+                "vega":  round(ce_vega_nse,  4), "gamma": round(ce_gamma_nse, 6)}
+    elif ce_iv_raw > 0:
+        # Fall back to Black-Scholes using NSE's own IV
+        ce_g = _bs_greeks(spot, K, T, risk_free, ce_iv_raw / 100, "CE") or \
+               {"delta": 0, "gamma": 0, "theta": 0, "vega": 0}
+    else:
+        ce_g = {"delta": 0, "gamma": 0, "theta": 0, "vega": 0}
+
+    # ── PE Greeks ──────────────────────────────────────────────────
+    pe_delta_nse = float(r.get("PE_Delta", 0) or 0)
+    pe_theta_nse = float(r.get("PE_Theta", 0) or 0)
+    pe_vega_nse  = float(r.get("PE_Vega",  0) or 0)
+    pe_gamma_nse = float(r.get("PE_Gamma", 0) or 0)
+
+    if abs(pe_delta_nse) > 0.001 and abs(pe_theta_nse) > 0.0001:
+        pe_g = {"delta": round(pe_delta_nse, 4), "theta": round(pe_theta_nse, 4),
+                "vega":  round(pe_vega_nse,  4), "gamma": round(pe_gamma_nse, 6)}
+    elif pe_iv_raw > 0:
+        pe_g = _bs_greeks(spot, K, T, risk_free, pe_iv_raw / 100, "PE") or \
+               {"delta": 0, "gamma": 0, "theta": 0, "vega": 0}
+    else:
+        pe_g = {"delta": 0, "gamma": 0, "theta": 0, "vega": 0}
+
+    return ce_g, pe_g
+
+
+def extract_atm_greeks(df, atm_strike, underlying=None, expiry_str=""):
+    """
+    Extract Greeks for ALL strikes in df (for dropdown) plus ATM row.
+    Greeks are taken from NSE if valid, otherwise computed via Black-Scholes.
+    """
+    spot = underlying or float(atm_strike)
+    greeks_rows = []
+
+    for _, r in df.iterrows():
+        strike     = int(r["Strike"])
+        is_atm     = strike == int(atm_strike)
+        ce_iv_raw  = round(float(r.get("CE_IV",  0) or 0), 2)
+        pe_iv_raw  = round(float(r.get("PE_IV",  0) or 0), 2)
+        ce_ltp     = round(float(r.get("CE_LTP", 0) or 0), 2)
+        pe_ltp     = round(float(r.get("PE_LTP", 0) or 0), 2)
+
+        ce_g, pe_g = _compute_greeks_for_row(r, spot, expiry_str)
+
         greeks_rows.append({
-            "strike":    int(r["Strike"]),
-            "is_atm":    int(r["Strike"]) == int(atm_strike),
-            "ce_iv":     round(float(r.get("CE_IV", 0) or 0), 2),
-            "pe_iv":     round(float(r.get("PE_IV", 0) or 0), 2),
-            "ce_delta":  round(float(r.get("CE_Delta", 0) or 0), 4),
-            "pe_delta":  round(float(r.get("PE_Delta", 0) or 0), 4),
-            "ce_theta":  round(float(r.get("CE_Theta", 0) or 0), 4),
-            "pe_theta":  round(float(r.get("PE_Theta", 0) or 0), 4),
-            "ce_gamma":  round(float(r.get("CE_Gamma", 0) or 0), 6),
-            "pe_gamma":  round(float(r.get("PE_Gamma", 0) or 0), 6),
-            "ce_vega":   round(float(r.get("CE_Vega", 0) or 0), 4),
-            "pe_vega":   round(float(r.get("PE_Vega", 0) or 0), 4),
-            "ce_ltp":    round(float(r.get("CE_LTP", 0) or 0), 2),
-            "pe_ltp":    round(float(r.get("PE_LTP", 0) or 0), 2),
+            "strike":   strike,
+            "is_atm":   is_atm,
+            "ce_iv":    ce_iv_raw,
+            "pe_iv":    pe_iv_raw,
+            "ce_delta": ce_g["delta"],
+            "pe_delta": pe_g["delta"],
+            "ce_theta": ce_g["theta"],
+            "pe_theta": pe_g["theta"],
+            "ce_gamma": ce_g["gamma"],
+            "pe_gamma": pe_g["gamma"],
+            "ce_vega":  ce_g["vega"],
+            "pe_vega":  pe_g["vega"],
+            "ce_ltp":   ce_ltp,
+            "pe_ltp":   pe_ltp,
         })
 
-    atm_row = next((g for g in greeks_rows if g["is_atm"]),
-                   greeks_rows[2] if len(greeks_rows) > 2 else {})
+    # Sort by strike
+    greeks_rows.sort(key=lambda x: x["strike"])
+
+    atm_row = next((g for g in greeks_rows if g["is_atm"]), greeks_rows[len(greeks_rows)//2] if greeks_rows else {})
+
+    # Also build a ±2 slice for the greeks table section
+    atm_idx  = next((i for i, g in enumerate(greeks_rows) if g["is_atm"]), len(greeks_rows)//2)
+    lo       = max(0, atm_idx - 2)
+    hi       = min(len(greeks_rows), atm_idx + 3)
+    table_5  = greeks_rows[lo:hi]
+
     return {
-        "atm_greeks":   atm_row,
-        "greeks_table": greeks_rows,
+        "atm_greeks":    atm_row,
+        "greeks_table":  table_5,       # ±2 for the main table
+        "all_strikes":   greeks_rows,   # full list for the dropdown
     }
 
 
@@ -318,7 +434,9 @@ def analyze_option_chain(oc_data):
     chg_bear_force = (abs(ce_chg) if ce_chg > 0 else 0) + (abs(pe_chg) if pe_chg < 0 else 0)
 
     atm_strike = oc_data["atm_strike"]
-    greeks     = extract_atm_greeks(df, atm_strike)
+    greeks     = extract_atm_greeks(df, atm_strike,
+                                    underlying=oc_data["underlying"],
+                                    expiry_str=oc_data["expiry"])
 
     return {
         "expiry":          oc_data["expiry"],
@@ -353,7 +471,8 @@ def analyze_option_chain(oc_data):
         "chg_bull_force":  chg_bull_force,
         "chg_bear_force":  chg_bear_force,
         "atm_greeks":      greeks["atm_greeks"],
-        "greeks_table":    greeks["greeks_table"],
+        "greeks_table":    greeks["greeks_table"],   # ±2 strikes for main table
+        "all_strikes":     greeks["all_strikes"],    # all strikes for dropdown
     }
 
 
@@ -535,7 +654,8 @@ def build_greeks_sidebar_html(oc_analysis):
     atm  = oc_analysis.get("atm_strike", 0)
     spot = oc_analysis.get("underlying", 0)
     exp  = oc_analysis.get("expiry", "N/A")
-    rows = oc_analysis.get("greeks_table", [])
+    # Use all_strikes for the dropdown (full +-500pt range)
+    all_rows = oc_analysis.get("all_strikes", oc_analysis.get("greeks_table", []))
 
     if not g:
         return ""
@@ -566,25 +686,33 @@ def build_greeks_sidebar_html(oc_analysis):
     def tfmt(t): return f"&#8377;{abs(t):.2f}" if abs(t) >= 0.01 else f"{t:.4f}"
     def vfmt(v): return f"{v:.4f}" if abs(v) >= 0.0001 else "&#8212;"
 
-    # Build dropdown options (ATM ±2)
-    dropdown_options = ""
-    for row in rows:
-        s       = row["strike"]
-        is_atm  = row["is_atm"]
+    # Build dropdown options -- ALL strikes in +-500pt window with optgroups
+    otm_ce_opts = ""
+    atm_opt     = ""
+    otm_pe_opts = ""
+    for row in all_rows:
+        s      = row["strike"]
+        is_atm = row["is_atm"]
+        dist   = abs(s - atm) // 50
         if is_atm:
-            label = f"&#9733; ATM &#8377;{s:,}"
+            label   = f"★  ATM  ₹{s:,}"
+            atm_opt = f'<option value="{s}" selected>{label}</option>\n'
         elif s > atm:
-            diff  = (s - atm) // 50
-            label = f"&#9650; CE+{diff} &#8377;{s:,}"
+            label       = f"▲  CE+{dist}  ₹{s:,}"
+            otm_ce_opts += f'<option value="{s}">{label}</option>\n'
         else:
-            diff  = (atm - s) // 50
-            label = f"&#9660; PE-{diff} &#8377;{s:,}"
-        selected = 'selected' if is_atm else ''
-        dropdown_options += f'<option value="{s}" {selected}>{label}</option>\n'
+            label       = f"▼  PE-{dist}  ₹{s:,}"
+            otm_pe_opts += f'<option value="{s}">{label}</option>\n'
 
-    # Build per-strike JSON for JS
+    dropdown_options = (
+        f'<optgroup label="─ OTM CALLS (CE) ─">{otm_ce_opts}</optgroup>'
+        f'<optgroup label="─ ATM ─">{atm_opt}</optgroup>'
+        f'<optgroup label="─ OTM PUTS (PE) ─">{otm_pe_opts}</optgroup>'
+    )
+
+    # Build per-strike JSON for JS (all strikes)
     strikes_json = "{"
-    for row in rows:
+    for row in all_rows:
         s = row["strike"]
         strikes_json += (
             f'"{s}":{{ce_ltp:{row["ce_ltp"]},pe_ltp:{row["pe_ltp"]},'
