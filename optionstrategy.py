@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v12 · Silent 30s background refresh (no blink)
+Nifty 50 Options Strategy Dashboard \u2014 GitHub Pages Generator
+Aurora Borealis Theme \u00b7 v13 \u00b7 Countdown timer + rotating logo name
 pip install curl_cffi pandas numpy yfinance pytz
 """
 
@@ -258,28 +258,28 @@ def analyze_option_chain(oc_data):
 
     if   pcr_oi > 1.5:
         raw_oi_dir = "STRONG BULLISH"
-        raw_oi_sig = "Heavy Put Writing — Strong Support Floor"
+        raw_oi_sig = "Heavy Put Writing \u2014 Strong Support Floor"
         raw_oi_cls = "bullish"
     elif pcr_oi > 1.2:
         raw_oi_dir = "BULLISH"
-        raw_oi_sig = "Put OI > Call OI — Bulls in Control"
+        raw_oi_sig = "Put OI > Call OI \u2014 Bulls in Control"
         raw_oi_cls = "bullish"
     elif pcr_oi < 0.5:
         raw_oi_dir = "STRONG BEARISH"
-        raw_oi_sig = "Heavy Call Writing — Strong Resistance Cap"
+        raw_oi_sig = "Heavy Call Writing \u2014 Strong Resistance Cap"
         raw_oi_cls = "bearish"
     elif pcr_oi < 0.7:
         raw_oi_dir = "BEARISH"
-        raw_oi_sig = "Call OI > Put OI — Bears in Control"
+        raw_oi_sig = "Call OI > Put OI \u2014 Bears in Control"
         raw_oi_cls = "bearish"
     else:
         if int(total_pe_oi) >= int(total_ce_oi):
             raw_oi_dir = "CAUTIOUSLY BULLISH"
-            raw_oi_sig = "Balanced OI — Slight Put Dominance"
+            raw_oi_sig = "Balanced OI \u2014 Slight Put Dominance"
             raw_oi_cls = "bullish"
         else:
             raw_oi_dir = "CAUTIOUSLY BEARISH"
-            raw_oi_sig = "Balanced OI — Slight Call Dominance"
+            raw_oi_sig = "Balanced OI \u2014 Slight Call Dominance"
             raw_oi_cls = "bearish"
 
     chg_bull_force = (abs(pe_chg) if pe_chg > 0 else 0) + (abs(ce_chg) if ce_chg < 0 else 0)
@@ -514,14 +514,13 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     bear_offset = C * (1 - clamp(bear_pct) / 100)
     oi_bar_w    = clamp(bull_pct)
     bear_bar_w  = clamp(bear_pct)
-    b_arrow     = "▲" if bias == "BULLISH" else ("▼" if bias == "BEARISH" else "◆")
+    b_arrow     = "\u25b2" if bias == "BULLISH" else ("\u25bc" if bias == "BEARISH" else "\u25c6")
 
     glow_rgb = ("0,200,150" if dir_col == "#00c896" else
                 "255,107,107" if dir_col == "#ff6b6b" else "100,128,255")
 
     return f"""
 <div class="hero" id="heroWidget">
-
   <div class="h-gauges">
     <div class="gauge-wrap">
       <svg width="76" height="76" viewBox="0 0 76 76">
@@ -540,9 +539,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
         <div class="g-lbl">OI BULL</div>
       </div>
     </div>
-
     <div class="gauge-sep"></div>
-
     <div class="gauge-wrap">
       <svg width="76" height="76" viewBox="0 0 76 76">
         <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="6"/>
@@ -620,7 +617,6 @@ def build_dual_gauge_hero(oc, tech, md, ts):
       <div class="h-ts" id="lastUpdatedTs">{ts}</div>
     </div>
   </div>
-
 </div>
 """
 
@@ -657,11 +653,11 @@ def build_oi_html(oc):
     else:           pcr_interp, pcr_interp_col = "Very Bearish", "#ff6b6b"
 
     ce_col   = "#00c896" if ce < 0 else "#ff6b6b"
-    ce_label = "Call Unwinding ↓ (Bullish)" if ce < 0 else "Call Build-up ↑ (Bearish)"
+    ce_label = "Call Unwinding \u2193 (Bullish)" if ce < 0 else "Call Build-up \u2191 (Bearish)"
     ce_fmt   = _fmt_chg_oi(ce)
 
     pe_col   = "#00c896" if pe > 0 else "#ff6b6b"
-    pe_label = "Put Build-up ↑ (Bullish)" if pe > 0 else "Put Unwinding ↓ (Bearish)"
+    pe_label = "Put Build-up \u2191 (Bullish)" if pe > 0 else "Put Unwinding \u2193 (Bearish)"
     pe_fmt   = _fmt_chg_oi(pe)
 
     bull_force_pre = (abs(pe) if pe > 0 else 0) + (abs(ce) if ce < 0 else 0)
@@ -674,12 +670,12 @@ def build_oi_html(oc):
     total_abs = abs(ce) + abs(pe) or 1
     ce_pct      = round(abs(ce) / total_abs * 100)
     ce_bullish  = ce < 0
-    ce_pct_display = f"+{ce_pct}%" if ce_bullish else f"−{ce_pct}%"
+    ce_pct_display = f"+{ce_pct}%" if ce_bullish else f"\u2212{ce_pct}%"
     ce_bar_col  = "#00c896" if ce_bullish else "#ff6b6b"
 
     pe_pct      = round(abs(pe) / total_abs * 100)
     pe_bullish  = pe > 0
-    pe_pct_display = f"+{pe_pct}%" if pe_bullish else f"−{pe_pct}%"
+    pe_pct_display = f"+{pe_pct}%" if pe_bullish else f"\u2212{pe_pct}%"
     pe_bar_col  = "#00c896" if pe_bullish else "#ff6b6b"
 
     bull_force = bull_force_pre
@@ -689,7 +685,7 @@ def build_oi_html(oc):
     bear_pct   = 100 - bull_pct
     net_pct    = bull_pct if net_is_bullish else bear_pct
     net_bar_col = "#00c896" if net_is_bullish else "#ff6b6b"
-    net_pct_display = f"+{net_pct}%" if net_is_bullish else f"−{net_pct}%"
+    net_pct_display = f"+{net_pct}%" if net_is_bullish else f"\u2212{net_pct}%"
 
     ce_interp_col = "#00c896" if ce < 0 else "#ff6b6b"
     ce_interp_txt = f'Call OI&minus; &rarr; <b style="color:#00c896;">Bullish</b>' if ce < 0 \
@@ -1003,24 +999,24 @@ STRATEGIES_DATA = {
     "bullish": [
         {"name":"Long Call","shape":"long_call","risk":"Limited","reward":"Unlimited","legs":"BUY CALL (ATM)","desc":"Buy a call option. Profits as market rises above strike. Risk is limited to premium paid.","lot_size":75,"margin_mult":1.0},
         {"name":"Short Put","shape":"short_put","risk":"Moderate","reward":"Limited","legs":"SELL PUT (OTM)","desc":"Sell a put option below market. Collect premium. Profit if market stays above strike.","lot_size":75,"margin_mult":5.0},
-        {"name":"Bull Call Spread","shape":"bull_call_spread","risk":"Limited","reward":"Limited","legs":"BUY CALL (Low) · SELL CALL (High)","desc":"Buy lower call, sell higher call. Reduces cost; caps profit at upper strike.","lot_size":75,"margin_mult":1.5},
-        {"name":"Bull Put Spread","shape":"bull_put_spread","risk":"Limited","reward":"Limited","legs":"SELL PUT (High) · BUY PUT (Low)","desc":"Sell higher put, buy lower put. Credit received upfront. Profit if market stays above higher strike.","lot_size":75,"margin_mult":2.0},
-        {"name":"Call Ratio Back Spread","shape":"call_ratio_back","risk":"Limited","reward":"Unlimited","legs":"SELL 1 CALL (Low) · BUY 2 CALLS (High)","desc":"Sell fewer calls, buy more higher calls. Benefits from a big upside move.","lot_size":75,"margin_mult":2.5},
-        {"name":"Long Synthetic","shape":"long_synthetic","risk":"High","reward":"Unlimited","legs":"BUY CALL (ATM) · SELL PUT (ATM)","desc":"Replicates owning the underlying. Unlimited profit potential with high risk.","lot_size":75,"margin_mult":6.0},
-        {"name":"Range Forward","shape":"range_forward","risk":"Limited","reward":"Limited","legs":"BUY CALL (High) · SELL PUT (Low)","desc":"Collar-like structure. Profit in a range. Used to hedge existing positions.","lot_size":75,"margin_mult":2.0},
-        {"name":"Bull Butterfly","shape":"bull_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low CALL · SELL 2 Mid CALL · BUY High CALL","desc":"Max profit at middle strike. Low cost strategy for moderate bullish view.","lot_size":75,"margin_mult":1.2},
-        {"name":"Bull Condor","shape":"bull_condor","risk":"Limited","reward":"Limited","legs":"BUY Low · SELL Mid-Low · SELL Mid-High · BUY High","desc":"Four-leg bullish strategy. Profit in a range above current price.","lot_size":75,"margin_mult":1.8},
+        {"name":"Bull Call Spread","shape":"bull_call_spread","risk":"Limited","reward":"Limited","legs":"BUY CALL (Low) \u00b7 SELL CALL (High)","desc":"Buy lower call, sell higher call. Reduces cost; caps profit at upper strike.","lot_size":75,"margin_mult":1.5},
+        {"name":"Bull Put Spread","shape":"bull_put_spread","risk":"Limited","reward":"Limited","legs":"SELL PUT (High) \u00b7 BUY PUT (Low)","desc":"Sell higher put, buy lower put. Credit received upfront. Profit if market stays above higher strike.","lot_size":75,"margin_mult":2.0},
+        {"name":"Call Ratio Back Spread","shape":"call_ratio_back","risk":"Limited","reward":"Unlimited","legs":"SELL 1 CALL (Low) \u00b7 BUY 2 CALLS (High)","desc":"Sell fewer calls, buy more higher calls. Benefits from a big upside move.","lot_size":75,"margin_mult":2.5},
+        {"name":"Long Synthetic","shape":"long_synthetic","risk":"High","reward":"Unlimited","legs":"BUY CALL (ATM) \u00b7 SELL PUT (ATM)","desc":"Replicates owning the underlying. Unlimited profit potential with high risk.","lot_size":75,"margin_mult":6.0},
+        {"name":"Range Forward","shape":"range_forward","risk":"Limited","reward":"Limited","legs":"BUY CALL (High) \u00b7 SELL PUT (Low)","desc":"Collar-like structure. Profit in a range. Used to hedge existing positions.","lot_size":75,"margin_mult":2.0},
+        {"name":"Bull Butterfly","shape":"bull_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low CALL \u00b7 SELL 2 Mid CALL \u00b7 BUY High CALL","desc":"Max profit at middle strike. Low cost strategy for moderate bullish view.","lot_size":75,"margin_mult":1.2},
+        {"name":"Bull Condor","shape":"bull_condor","risk":"Limited","reward":"Limited","legs":"BUY Low \u00b7 SELL Mid-Low \u00b7 SELL Mid-High \u00b7 BUY High","desc":"Four-leg bullish strategy. Profit in a range above current price.","lot_size":75,"margin_mult":1.8},
     ],
     "bearish": [
         {"name":"Short Call","shape":"short_call","risk":"Unlimited","reward":"Limited","legs":"SELL CALL (ATM/OTM)","desc":"Sell a call option above market. Collect premium. Profit if market falls or stays below strike.","lot_size":75,"margin_mult":5.0},
         {"name":"Long Put","shape":"long_put","risk":"Limited","reward":"High","legs":"BUY PUT (ATM)","desc":"Buy a put option. Profits as market falls below strike. Risk is limited to premium paid.","lot_size":75,"margin_mult":1.0},
-        {"name":"Bear Call Spread","shape":"bear_call_spread","risk":"Limited","reward":"Limited","legs":"SELL CALL (Low) · BUY CALL (High)","desc":"Sell lower call, buy higher call. Credit received. Profit if market stays below lower strike.","lot_size":75,"margin_mult":2.0},
-        {"name":"Bear Put Spread","shape":"bear_put_spread","risk":"Limited","reward":"Limited","legs":"BUY PUT (High) · SELL PUT (Low)","desc":"Buy higher put, sell lower put. Cheaper bearish bet with capped profit.","lot_size":75,"margin_mult":1.5},
-        {"name":"Put Ratio Back Spread","shape":"put_ratio_back","risk":"Limited","reward":"High","legs":"SELL 1 PUT (High) · BUY 2 PUTS (Low)","desc":"Sell fewer puts, buy more lower puts. Benefits from a big downside move.","lot_size":75,"margin_mult":2.5},
-        {"name":"Short Synthetic","shape":"short_synthetic","risk":"High","reward":"High","legs":"SELL CALL (ATM) · BUY PUT (ATM)","desc":"Replicates shorting the underlying. Profit as market falls. High risk.","lot_size":75,"margin_mult":6.0},
-        {"name":"Risk Reversal","shape":"risk_reversal","risk":"High","reward":"High","legs":"BUY PUT (Low) · SELL CALL (High)","desc":"Protect downside while giving up upside. Common hedging structure.","lot_size":75,"margin_mult":3.0},
-        {"name":"Bear Butterfly","shape":"bear_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low PUT · SELL 2 Mid PUT · BUY High PUT","desc":"Max profit at middle strike. Low cost strategy for moderate bearish view.","lot_size":75,"margin_mult":1.2},
-        {"name":"Bear Condor","shape":"bear_condor","risk":"Limited","reward":"Limited","legs":"BUY High · SELL Mid-High · SELL Mid-Low · BUY Low","desc":"Four-leg bearish strategy. Profit in a range below current price.","lot_size":75,"margin_mult":1.8},
+        {"name":"Bear Call Spread","shape":"bear_call_spread","risk":"Limited","reward":"Limited","legs":"SELL CALL (Low) \u00b7 BUY CALL (High)","desc":"Sell lower call, buy higher call. Credit received. Profit if market stays below lower strike.","lot_size":75,"margin_mult":2.0},
+        {"name":"Bear Put Spread","shape":"bear_put_spread","risk":"Limited","reward":"Limited","legs":"BUY PUT (High) \u00b7 SELL PUT (Low)","desc":"Buy higher put, sell lower put. Cheaper bearish bet with capped profit.","lot_size":75,"margin_mult":1.5},
+        {"name":"Put Ratio Back Spread","shape":"put_ratio_back","risk":"Limited","reward":"High","legs":"SELL 1 PUT (High) \u00b7 BUY 2 PUTS (Low)","desc":"Sell fewer puts, buy more lower puts. Benefits from a big downside move.","lot_size":75,"margin_mult":2.5},
+        {"name":"Short Synthetic","shape":"short_synthetic","risk":"High","reward":"High","legs":"SELL CALL (ATM) \u00b7 BUY PUT (ATM)","desc":"Replicates shorting the underlying. Profit as market falls. High risk.","lot_size":75,"margin_mult":6.0},
+        {"name":"Risk Reversal","shape":"risk_reversal","risk":"High","reward":"High","legs":"BUY PUT (Low) \u00b7 SELL CALL (High)","desc":"Protect downside while giving up upside. Common hedging structure.","lot_size":75,"margin_mult":3.0},
+        {"name":"Bear Butterfly","shape":"bear_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low PUT \u00b7 SELL 2 Mid PUT \u00b7 BUY High PUT","desc":"Max profit at middle strike. Low cost strategy for moderate bearish view.","lot_size":75,"margin_mult":1.2},
+        {"name":"Bear Condor","shape":"bear_condor","risk":"Limited","reward":"Limited","legs":"BUY High \u00b7 SELL Mid-High \u00b7 SELL Mid-Low \u00b7 BUY Low","desc":"Four-leg bearish strategy. Profit in a range below current price.","lot_size":75,"margin_mult":1.8},
     ],
     "nondirectional": [
         {"name":"Long Straddle","shape":"long_straddle","risk":"Limited","reward":"Unlimited","legs":"BUY CALL (ATM) + BUY PUT (ATM)","desc":"Buy both ATM call and put. Profit from big move in either direction. Best before events.","lot_size":75,"margin_mult":1.0},
@@ -1029,20 +1025,20 @@ STRATEGIES_DATA = {
         {"name":"Short Strangle","shape":"short_strangle","risk":"Unlimited","reward":"Limited","legs":"SELL OTM CALL + SELL OTM PUT","desc":"Sell OTM call and put. Wider profit range than short straddle. Still high risk.","lot_size":75,"margin_mult":7.0},
         {"name":"Jade Lizard","shape":"jade_lizard","risk":"Limited","reward":"Limited","legs":"SELL OTM PUT + SELL CALL SPREAD","desc":"No upside risk. Collect premium. Bearish but risk-defined.","lot_size":75,"margin_mult":3.0},
         {"name":"Reverse Jade Lizard","shape":"reverse_jade","risk":"Limited","reward":"Limited","legs":"SELL OTM CALL + SELL PUT SPREAD","desc":"No downside risk. Collect premium. Bullish but risk-defined.","lot_size":75,"margin_mult":3.0},
-        {"name":"Call Ratio Spread","shape":"call_ratio_spread","risk":"Unlimited","reward":"Limited","legs":"BUY 1 CALL (Low) · SELL 2 CALLS (High)","desc":"Sell more calls than bought. Credit or debit. Risk if big upside move occurs.","lot_size":75,"margin_mult":4.0},
-        {"name":"Put Ratio Spread","shape":"put_ratio_spread","risk":"Unlimited","reward":"Limited","legs":"BUY 1 PUT (High) · SELL 2 PUTS (Low)","desc":"Sell more puts than bought. Risk if big downside move occurs.","lot_size":75,"margin_mult":4.0},
+        {"name":"Call Ratio Spread","shape":"call_ratio_spread","risk":"Unlimited","reward":"Limited","legs":"BUY 1 CALL (Low) \u00b7 SELL 2 CALLS (High)","desc":"Sell more calls than bought. Credit or debit. Risk if big upside move occurs.","lot_size":75,"margin_mult":4.0},
+        {"name":"Put Ratio Spread","shape":"put_ratio_spread","risk":"Unlimited","reward":"Limited","legs":"BUY 1 PUT (High) \u00b7 SELL 2 PUTS (Low)","desc":"Sell more puts than bought. Risk if big downside move occurs.","lot_size":75,"margin_mult":4.0},
         {"name":"Batman Strategy","shape":"batman","risk":"Limited","reward":"Limited","legs":"BUY 2 CALLS + SELL 4 CALLS + BUY 2 CALLS","desc":"Double butterfly. Two profit peaks. Complex strategy for range-bound markets.","lot_size":75,"margin_mult":2.0},
-        {"name":"Long Iron Fly","shape":"long_iron_fly","risk":"Limited","reward":"Limited","legs":"BUY CALL · BUY PUT · SELL ATM CALL · SELL ATM PUT","desc":"Debit iron fly. Profit from a big move. Max loss if price stays at ATM.","lot_size":75,"margin_mult":1.5},
-        {"name":"Short Iron Fly","shape":"short_iron_fly","risk":"Limited","reward":"Limited","legs":"SELL CALL · SELL PUT · BUY OTM CALL · BUY OTM PUT","desc":"Credit iron fly. Max profit at ATM. Common non-directional strategy.","lot_size":75,"margin_mult":3.0},
+        {"name":"Long Iron Fly","shape":"long_iron_fly","risk":"Limited","reward":"Limited","legs":"BUY CALL \u00b7 BUY PUT \u00b7 SELL ATM CALL \u00b7 SELL ATM PUT","desc":"Debit iron fly. Profit from a big move. Max loss if price stays at ATM.","lot_size":75,"margin_mult":1.5},
+        {"name":"Short Iron Fly","shape":"short_iron_fly","risk":"Limited","reward":"Limited","legs":"SELL CALL \u00b7 SELL PUT \u00b7 BUY OTM CALL \u00b7 BUY OTM PUT","desc":"Credit iron fly. Max profit at ATM. Common non-directional strategy.","lot_size":75,"margin_mult":3.0},
         {"name":"Double Fly","shape":"double_fly","risk":"Limited","reward":"Limited","legs":"TWO BUTTERFLY SPREADS","desc":"Two butterfly spreads at different strikes. Two profit peaks.","lot_size":75,"margin_mult":2.0},
         {"name":"Long Iron Condor","shape":"long_iron_condor","risk":"Limited","reward":"Limited","legs":"BUY CALL SPREAD + BUY PUT SPREAD","desc":"Debit condor. Profit from a big move. Opposite of short iron condor.","lot_size":75,"margin_mult":1.5},
         {"name":"Short Iron Condor","shape":"short_iron_condor","risk":"Limited","reward":"Limited","legs":"SELL CALL SPREAD + SELL PUT SPREAD","desc":"Collect premium from both sides. Profit if price stays in a range.","lot_size":75,"margin_mult":3.5},
         {"name":"Double Condor","shape":"double_condor","risk":"Limited","reward":"Limited","legs":"TWO CONDOR SPREADS","desc":"Two condor spreads. Wider profit range. Complex multi-leg strategy.","lot_size":75,"margin_mult":2.5},
-        {"name":"Call Calendar","shape":"call_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR-TERM CALL · BUY FAR-TERM CALL","desc":"Profit from time decay difference. Best when price stays near strike.","lot_size":75,"margin_mult":2.0},
-        {"name":"Put Calendar","shape":"put_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR-TERM PUT · BUY FAR-TERM PUT","desc":"Profit from time decay. Best when price stays near strike on expiry.","lot_size":75,"margin_mult":2.0},
-        {"name":"Diagonal Calendar","shape":"diagonal_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR CALL/PUT · BUY FAR DIFF STRIKE","desc":"Calendar spread with different strikes. Combines time and price movement.","lot_size":75,"margin_mult":2.0},
-        {"name":"Call Butterfly","shape":"call_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low CALL · SELL 2 Mid CALL · BUY High CALL","desc":"Max profit at middle strike using calls only. Low net debit strategy.","lot_size":75,"margin_mult":1.2},
-        {"name":"Put Butterfly","shape":"put_butterfly","risk":"Limited","reward":"Limited","legs":"BUY High PUT · SELL 2 Mid PUT · BUY Low PUT","desc":"Max profit at middle strike using puts only. Low net debit strategy.","lot_size":75,"margin_mult":1.2},
+        {"name":"Call Calendar","shape":"call_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR-TERM CALL \u00b7 BUY FAR-TERM CALL","desc":"Profit from time decay difference. Best when price stays near strike.","lot_size":75,"margin_mult":2.0},
+        {"name":"Put Calendar","shape":"put_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR-TERM PUT \u00b7 BUY FAR-TERM PUT","desc":"Profit from time decay. Best when price stays near strike on expiry.","lot_size":75,"margin_mult":2.0},
+        {"name":"Diagonal Calendar","shape":"diagonal_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR CALL/PUT \u00b7 BUY FAR DIFF STRIKE","desc":"Calendar spread with different strikes. Combines time and price movement.","lot_size":75,"margin_mult":2.0},
+        {"name":"Call Butterfly","shape":"call_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low CALL \u00b7 SELL 2 Mid CALL \u00b7 BUY High CALL","desc":"Max profit at middle strike using calls only. Low net debit strategy.","lot_size":75,"margin_mult":1.2},
+        {"name":"Put Butterfly","shape":"put_butterfly","risk":"Limited","reward":"Limited","legs":"BUY High PUT \u00b7 SELL 2 Mid PUT \u00b7 BUY Low PUT","desc":"Max profit at middle strike using puts only. Low net debit strategy.","lot_size":75,"margin_mult":1.2},
     ],
 }
 
@@ -1066,7 +1062,7 @@ def build_strategies_html(oc_analysis):
                 f'data-name="{s["name"]}" data-legs="{s["legs"]}" '
                 f'data-risk="{s["risk"]}" data-reward="{s["reward"]}" '
                 f'data-margin-mult="{s.get("margin_mult",1.0)}" data-lot-size="{s.get("lot_size",75)}" id="{cid}">'
-                f'<div class="sc-pop-badge" id="pop_{cid}">—%</div>'
+                f'<div class="sc-pop-badge" id="pop_{cid}">\u2014%</div>'
                 f'<div class="sc-svg">{svg}</div>'
                 f'<div class="sc-body">'
                 f'<div class="sc-name">{s["name"]}</div>'
@@ -1183,8 +1179,8 @@ function calcMetrics(shape){{
   const ncStr=(nc>=0?'+ ':'- ')+'\u20b9'+Math.abs(Math.round(nc)).toLocaleString('en-IN');
   const marginStr='\u20b9'+Math.round(margin).toLocaleString('en-IN');
   const pnlStr=pnl===0?'\u20b90':(pnl>=0?'+ ':'- ')+'\u20b9'+Math.abs(Math.round(pnl)).toLocaleString('en-IN');
-  const rrStr=rrRatio===0?'∞':('1:'+Math.abs(rrRatio));
-  const mpPct=mp===999999?'∞':(ml>0?(mp/ml*100).toFixed(0)+'%':'—');
+  const rrStr=rrRatio===0?'\u221e':('1:'+Math.abs(rrRatio));
+  const mpPct=mp===999999?'\u221e':(ml>0?(mp/ml*100).toFixed(0)+'%':'\u2014');
   return {{pop,mpStr,mlStr,rrStr,beStr,ncStr,marginStr,pnlStr,mpPct,strikeStr,
            mpRaw:mp,mlRaw:ml,ncRaw:Math.round(nc),pnlPositive:pnl>=0,ncPositive:nc>=0}};
 }}
@@ -1226,7 +1222,7 @@ function initAllCards(){{
       const m=calcMetrics(card.dataset.shape);
       card.dataset.pop=m.pop;
       if(badge){{badge.textContent=m.pop+'%';badge.setAttribute('style',badge.getAttribute('style')+';'+popBadgeStyle(m.pop));}}
-    }}catch(e){{card.dataset.pop=0;if(badge)badge.textContent='—%';}}
+    }}catch(e){{card.dataset.pop=0;if(badge)badge.textContent='\u2014%';}}
   }});
 }}
 
@@ -1358,32 +1354,59 @@ body::before{content:'';position:fixed;inset:0;
     radial-gradient(ellipse at 90% 60%,rgba(100,128,255,.05) 0%,transparent 40%);
   pointer-events:none;z-index:0;}
 .app{position:relative;z-index:1;display:grid;grid-template-rows:auto auto auto 1fr auto;min-height:100vh}
+
+/* \u2500\u2500 HEADER \u2500\u2500 */
 header{display:flex;align-items:center;justify-content:space-between;padding:14px 32px;
   background:rgba(6,8,15,.85);backdrop-filter:blur(16px);
   border-bottom:1px solid rgba(255,255,255,.07);position:sticky;top:0;z-index:200;
   box-shadow:0 1px 0 rgba(0,200,150,.1)}
-.logo{font-family:var(--fh);font-size:20px;font-weight:700;
+
+/* \u2500\u2500 ANIMATED LOGO \u2500\u2500 */
+.logo-wrap{position:relative;height:28px;overflow:hidden;min-width:280px;}
+.logo-slide{
+  position:absolute;top:0;left:0;width:100%;
+  font-family:var(--fh);font-size:20px;font-weight:700;
   background:linear-gradient(90deg,#00c896,#6480ff);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-  filter:drop-shadow(0 0 12px rgba(0,200,150,.3))}
+  filter:drop-shadow(0 0 12px rgba(0,200,150,.3));
+  opacity:0;transform:translateY(20px);
+  transition:opacity .5s ease, transform .5s ease;
+  white-space:nowrap;
+}
+.logo-slide.active{opacity:1;transform:translateY(0);}
+.logo-slide.exit{opacity:0;transform:translateY(-20px);}
+
 .hdr-meta{display:flex;align-items:center;gap:14px;font-size:11px;color:var(--muted);font-family:var(--fm)}
 .live-dot{width:7px;height:7px;border-radius:50%;background:#00c896;box-shadow:0 0 10px #00c896;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
 
-/* refresh indicator */
-.refresh-ring {
-  width:14px;height:14px;border-radius:50%;
-  border:2px solid rgba(0,200,150,.2);
-  border-top-color:#00c896;
-  display:none;
-  animation:spin 0.8s linear infinite;
+/* \u2500\u2500 COUNTDOWN TIMER \u2500\u2500 */
+.refresh-countdown{
+  display:flex;align-items:center;gap:8px;
+  background:rgba(0,200,150,.07);
+  border:1px solid rgba(0,200,150,.18);
+  border-radius:20px;padding:4px 12px;
+  font-family:var(--fm);font-size:11px;
 }
-@keyframes spin{to{transform:rotate(360deg)}}
+.countdown-arc-wrap{position:relative;width:18px;height:18px;flex-shrink:0;}
+.countdown-arc-wrap svg{display:block;}
+.countdown-num{
+  font-family:var(--fm);font-size:12px;font-weight:700;
+  color:#00c896;min-width:20px;text-align:center;
+  transition:color .3s;
+}
+.countdown-num.urgent{color:#ff6b6b;}
+.countdown-num.halfway{color:#ffd166;}
+.countdown-lbl{font-size:10px;color:rgba(255,255,255,.3);letter-spacing:.5px;}
+.refresh-ring{display:none;width:14px;height:14px;border-radius:50%;
+  border:2px solid rgba(0,200,150,.2);border-top-color:#00c896;
+  animation:spin 0.8s linear infinite;}
 .refresh-ring.active{display:inline-block;}
-#refreshStatus{font-size:10px;color:rgba(255,255,255,.25);transition:color .3s;}
-#refreshStatus.updated{color:#00c896;}
+@keyframes spin{to{transform:rotate(360deg)}}
+#refreshStatus{font-size:10px;color:rgba(255,255,255,.35);transition:color .3s;letter-spacing:.3px;}
+#refreshStatus.updated{color:#00c896;font-weight:600;}
 
-/* ── HERO ── */
+/* \u2500\u2500 HERO \u2500\u2500 */
 .hero{display:flex;align-items:stretch;
   background:linear-gradient(135deg,rgba(0,200,150,.055) 0%,rgba(100,128,255,.055) 100%);
   border-bottom:1px solid rgba(255,255,255,.07);overflow:hidden;position:relative;height:97px;}
@@ -1564,7 +1587,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);
   background:rgba(6,8,15,.9);backdrop-filter:blur(12px);
   display:flex;justify-content:space-between;font-size:11px;color:var(--muted2);font-family:var(--fm)}
 
-@media(max-width:1200px){.h-stats{min-width:280px;}}
+@media(max-width:1200px){.h-stats{min-width:280px;}.logo-wrap{min-width:220px;}}
 @media(max-width:1024px){
   .main{grid-template-columns:1fr}
   .sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid rgba(255,255,255,.06)}
@@ -1586,16 +1609,91 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);
   .oi-ticker-hdr-cell:nth-child(n+4),.oi-ticker-cell:nth-child(n+4){display:none}
   .kl-dist-row{grid-template-columns:1fr} footer{flex-direction:column;gap:6px}
   .sc-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .logo-wrap{min-width:160px;} .refresh-countdown{display:none;}
 }
 """
 
 # =================================================================
-#  SECTION 9 -- SILENT REFRESH JS
+#  SECTION 9 -- LOGO ROTATOR + COUNTDOWN + SILENT REFRESH JS
 # =================================================================
 
-SILENT_REFRESH_JS = """
+ANIMATED_JS = """
 <script>
-// ── Silent Background Refresh v12 (30s, no blink) ───────────────
+// \u2500\u2500 1. ROTATING LOGO \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+(function() {
+  const NAMES = [
+    'NIFTYCRAFT',
+    'Nifty Option Strategy Builder',
+    'OI Signal Dashboard',
+    'Options Analytics Hub',
+    'PCR &amp; Max Pain Tracker',
+  ];
+  const wrap = document.getElementById('logoWrap');
+  if (!wrap) return;
+
+  // Build slides
+  NAMES.forEach((name, i) => {
+    const el = document.createElement('div');
+    el.className = 'logo-slide' + (i === 0 ? ' active' : '');
+    el.innerHTML = name;
+    wrap.appendChild(el);
+  });
+
+  let cur = 0;
+  setInterval(() => {
+    const slides = wrap.querySelectorAll('.logo-slide');
+    slides[cur].classList.remove('active');
+    slides[cur].classList.add('exit');
+    setTimeout(() => { slides[cur].classList.remove('exit'); }, 600);
+    cur = (cur + 1) % slides.length;
+    slides[cur].classList.add('active');
+  }, 4000);
+})();
+
+// \u2500\u2500 2. COUNTDOWN TIMER + SVG ARC \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+(function() {
+  const TOTAL    = 30;
+  const R        = 7;
+  const C        = 2 * Math.PI * R; // \u2248 43.98
+  let   remaining = TOTAL;
+  let   countdownTimer = null;
+
+  const numEl  = document.getElementById('cdNum');
+  const lblEl  = document.getElementById('cdLbl');
+  const arcEl  = document.getElementById('cdArc');
+
+  function updateCountdown(secs) {
+    if (!numEl || !arcEl) return;
+    numEl.textContent = secs;
+
+    // colour
+    numEl.className = 'countdown-num' + (secs <= 5 ? ' urgent' : secs <= 15 ? ' halfway' : '');
+
+    // arc: full at 30, empty at 0
+    const fill   = secs / TOTAL;
+    const offset = C * (1 - fill);
+    arcEl.style.strokeDashoffset = offset.toFixed(2);
+    arcEl.style.stroke = secs <= 5  ? '#ff6b6b' :
+                         secs <= 15 ? '#ffd166' : '#00c896';
+  }
+
+  function startCountdown(from) {
+    clearInterval(countdownTimer);
+    remaining = from;
+    updateCountdown(remaining);
+    countdownTimer = setInterval(() => {
+      remaining = Math.max(0, remaining - 1);
+      updateCountdown(remaining);
+    }, 1000);
+  }
+
+  // Expose so refresh logic can reset it
+  window.__resetCountdown = function() { startCountdown(TOTAL); };
+
+  startCountdown(TOTAL);
+})();
+
+// \u2500\u2500 3. SILENT BACKGROUND REFRESH (30s, no blink) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 (function() {
   const INTERVAL_MS = 30000;
   let _lastBias = null;
@@ -1606,33 +1704,23 @@ SILENT_REFRESH_JS = """
     const ring = document.getElementById('refreshRing');
     const txt  = document.getElementById('refreshStatus');
     if (ring) ring.classList.toggle('active', on);
-    if (txt)  txt.textContent = on ? 'Refreshing…' : 'Auto-refresh: 30s';
+    if (txt)  txt.textContent = on ? 'Refreshing\u2026' : '';
   }
 
   function flashUpdated() {
     const txt = document.getElementById('refreshStatus');
     if (!txt) return;
-    txt.textContent = 'Updated ✓';
+    txt.textContent = 'Updated \u2713';
     txt.classList.add('updated');
     setTimeout(() => {
-      txt.textContent = 'Auto-refresh: 30s';
+      txt.textContent = '';
       txt.classList.remove('updated');
     }, 2500);
   }
 
-  // Patch a DOM element's innerHTML only if it changed
   function patchEl(cur, neo) {
     if (cur && neo && cur.innerHTML !== neo.innerHTML) {
       cur.innerHTML = neo.innerHTML;
-      return true;
-    }
-    return false;
-  }
-
-  // Patch an element's outerHTML by replacing with the new node
-  function patchOuter(cur, neo) {
-    if (cur && neo && cur.outerHTML !== neo.outerHTML) {
-      cur.parentNode.replaceChild(neo.cloneNode(true), cur);
       return true;
     }
     return false;
@@ -1643,7 +1731,7 @@ SILENT_REFRESH_JS = """
     const newDoc = parser.parseFromString(html, 'text/html');
     let changed = false;
 
-    // 1. Hero widget (outerHTML swap to keep SVG gradients intact)
+    // Hero widget
     const curHero = document.getElementById('heroWidget');
     const neoHero = newDoc.getElementById('heroWidget');
     if (curHero && neoHero && curHero.outerHTML !== neoHero.outerHTML) {
@@ -1651,19 +1739,15 @@ SILENT_REFRESH_JS = """
       changed = true;
     }
 
-    // 2. OI Dashboard section
-    changed |= patchEl(document.getElementById('oi'), newDoc.getElementById('oi'));
+    // OI, KL, Strikes sections
+    ['oi','kl','strikes'].forEach(id => {
+      changed |= patchEl(document.getElementById(id), newDoc.getElementById(id));
+    });
 
-    // 3. Key Levels section
-    changed |= patchEl(document.getElementById('kl'), newDoc.getElementById('kl'));
-
-    // 4. Strikes section
-    changed |= patchEl(document.getElementById('strikes'), newDoc.getElementById('strikes'));
-
-    // 5. Ticker track
+    // Ticker track
     changed |= patchEl(document.getElementById('tkTrack'), newDoc.getElementById('tkTrack'));
 
-    // 6. Header timestamp
+    // Timestamp
     const curTs = document.getElementById('lastUpdatedTs');
     const neoTs = newDoc.getElementById('lastUpdatedTs');
     if (curTs && neoTs && curTs.textContent !== neoTs.textContent) {
@@ -1671,38 +1755,34 @@ SILENT_REFRESH_JS = """
       changed = true;
     }
 
-    // 7. Re-run strategy PoP badges if the grid is still there
+    // Re-run PoP badges
     if (typeof initAllCards === 'function') {
-      try {
-        initAllCards();
-        ['bullish','bearish','nondirectional'].forEach(sortGridByPoP);
-      } catch(e) {}
+      try { initAllCards(); ['bullish','bearish','nondirectional'].forEach(sortGridByPoP); } catch(e) {}
     }
 
     return changed;
   }
 
   function silentRefresh() {
-    // First, do a lightweight JSON probe to see if anything changed
     fetch('latest.json?_=' + Date.now())
-      .then(r => { if (!r.ok) throw new Error('json fail'); return r.json(); })
+      .then(r => { if (!r.ok) throw new Error('json'); return r.json(); })
       .then(data => {
         const biasChanged = data.bias !== _lastBias;
         const pcrChanged  = String(data.pcr) !== String(_lastPCR);
 
+        // Always reset countdown on each 30s tick
+        if (window.__resetCountdown) window.__resetCountdown();
+
         if (_lastBias !== null && !biasChanged && !pcrChanged) {
-          // Nothing meaningful changed — skip full HTML fetch
-          schedule();
-          return;
+          schedule(); return;
         }
 
         _lastBias = data.bias;
         _lastPCR  = String(data.pcr);
 
-        // Something changed — do a full silent HTML swap
         showSpinner(true);
         fetch('index.html?_=' + Date.now())
-          .then(r => { if (!r.ok) throw new Error('html fail'); return r.text(); })
+          .then(r => { if (!r.ok) throw new Error('html'); return r.text(); })
           .then(html => {
             const changed = applyNewDoc(html);
             showSpinner(false);
@@ -1712,7 +1792,8 @@ SILENT_REFRESH_JS = """
           .catch(() => { showSpinner(false); schedule(); });
       })
       .catch(() => {
-        // JSON fetch failed (market closed / offline) — just reschedule quietly
+        // Offline / market closed \u2014 still reset countdown
+        if (window.__resetCountdown) window.__resetCountdown();
         schedule();
       });
   }
@@ -1722,14 +1803,7 @@ SILENT_REFRESH_JS = """
     _refreshTimer = setTimeout(silentRefresh, INTERVAL_MS);
   }
 
-  // Kick off after first full load
-  window.addEventListener('load', function() {
-    // Prime with current values from the page's embedded data if available
-    try {
-      _lastBias = typeof OC !== 'undefined' ? (window.__initBias || null) : null;
-    } catch(e) {}
-    schedule();
-  });
+  window.addEventListener('load', function() { schedule(); });
 })();
 </script>
 """
@@ -1762,6 +1836,9 @@ def generate_html(tech, oc, md, ts, vix_data=None):
         f"</div></div>"
     )
 
+    # SVG arc for countdown: r=7, C\u224843.98
+    C = 2 * 3.14159 * 7
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1775,15 +1852,33 @@ def generate_html(tech, oc, md, ts, vix_data=None):
 <body>
 <div class="app">
 <header>
-  <div class="logo">NIFTYCRAFT</div>
+  <!-- Animated rotating logo -->
+  <div class="logo-wrap" id="logoWrap"></div>
+
   <div class="hdr-meta">
     <div class="live-dot"></div>
     <span>NSE Options Dashboard</span>
     <span style="color:rgba(255,255,255,.15);">|</span>
     <span>{ts}</span>
     <span style="color:rgba(255,255,255,.15);">|</span>
-    <div class="refresh-ring" id="refreshRing"></div>
-    <span id="refreshStatus">Auto-refresh: 30s</span>
+
+    <!-- Countdown pill -->
+    <div class="refresh-countdown">
+      <div class="countdown-arc-wrap">
+        <svg width="18" height="18" viewBox="0 0 18 18">
+          <circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="2"/>
+          <circle id="cdArc" cx="9" cy="9" r="7" fill="none" stroke="#00c896" stroke-width="2"
+            stroke-linecap="round"
+            stroke-dasharray="{C:.2f}"
+            stroke-dashoffset="0"
+            style="transform:rotate(-90deg);transform-origin:9px 9px;transition:stroke-dashoffset 1s linear,stroke .3s;"/>
+        </svg>
+      </div>
+      <span class="countdown-num" id="cdNum">30</span>
+      <span class="countdown-lbl" id="cdLbl">s</span>
+      <div class="refresh-ring" id="refreshRing"></div>
+      <span id="refreshStatus"></span>
+    </div>
   </div>
 </header>
 {ticker_html}
@@ -1824,8 +1919,8 @@ def generate_html(tech, oc, md, ts, vix_data=None):
   </main>
 </div>
 <footer>
-  <span>NiftyCraft &middot; NSE Options Dashboard &middot; v12</span>
-  <span>Hero: Raw OI Signal &middot; OI Dashboard: OI Change &middot; Silent 30s Refresh &middot; For Educational Purposes Only &middot; &copy; 2025</span>
+  <span>NiftyCraft &middot; Nifty Option Strategy Builder &middot; v13</span>
+  <span>Raw OI Hero &middot; OI Change Dashboard &middot; 30s Silent Refresh &middot; Educational Only &middot; &copy; 2025</span>
 </footer>
 </div>
 
@@ -1862,7 +1957,7 @@ document.addEventListener("click",function(e){{
   }}
 }});
 </script>
-{SILENT_REFRESH_JS}
+{ANIMATED_JS}
 </body>
 </html>"""
 
@@ -1875,25 +1970,25 @@ def main():
     ist_tz = pytz.timezone("Asia/Kolkata")
     ts     = datetime.now(ist_tz).strftime("%d-%b-%Y %H:%M IST")
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v12")
+    print("  NIFTY 50 OPTIONS DASHBOARD \u2014 Aurora Theme v13")
     print(f"  {ts}")
-    print("  Hero widget: Raw OI (openInterest)")
-    print("  OI Dashboard: OI Change (changeinOpenInterest)")
-    print("  Silent 30s background refresh — no blink")
+    print("  + Rotating logo: NIFTYCRAFT / Nifty Option Strategy Builder / ...")
+    print("  + Countdown timer arc (30s) with colour shift")
+    print("  + Silent background refresh (no blink)")
     print("=" * 65)
 
-    print("\n[1/4] Fetching NSE Option Chain...")
+    print("\
+[1/4] Fetching NSE Option Chain...")
     nse = NSEOptionChain()
     oc_raw, nse_session, nse_headers = nse.fetch()
     oc_analysis = analyze_option_chain(oc_raw) if oc_raw else None
     if oc_analysis:
         print(f"  OK  Spot={oc_analysis['underlying']:.2f}  ATM={oc_analysis['atm_strike']}  PCR={oc_analysis['pcr_oi']:.3f}")
-        print(f"  Raw OI → Bull(PE):{oc_analysis['total_pe_oi']:,}  Bear(CE):{oc_analysis['total_ce_oi']:,}")
-        print(f"  Hero Signal: {oc_analysis['raw_oi_dir']}  ({oc_analysis['bull_pct']}% bull / {oc_analysis['bear_pct']}% bear)")
     else:
-        print("  WARNING  Option chain unavailable — technical-only mode")
+        print("  WARNING  Option chain unavailable \u2014 technical-only mode")
 
-    print("\n[2/4] Fetching India VIX...")
+    print("\
+[2/4] Fetching India VIX...")
     vix_data = fetch_india_vix(nse_session, nse_headers)
     if vix_data:
         lbl, col, bg, bdr, sig = vix_label(vix_data['value'])
@@ -1901,14 +1996,17 @@ def main():
     else:
         print("  WARNING  India VIX unavailable")
 
-    print("\n[3/4] Fetching Technical Indicators...")
+    print("\
+[3/4] Fetching Technical Indicators...")
     tech = get_technical_data()
 
-    print("\n[4/4] Scoring Market Direction...")
+    print("\
+[4/4] Scoring Market Direction...")
     md = compute_market_direction(tech, oc_analysis)
     print(f"  OK  {md['bias']} ({md['confidence']} confidence)  Bull={md['bull']} Bear={md['bear']}")
 
-    print("\nGenerating HTML dashboard...")
+    print("\
+Generating HTML dashboard...")
     html = generate_html(tech, oc_analysis, md, ts, vix_data=vix_data)
 
     os.makedirs("docs", exist_ok=True)
@@ -1918,30 +2016,31 @@ def main():
     print(f"  Saved: {out}  ({len(html)/1024:.1f} KB)")
 
     meta = {
-        "timestamp":       ts,
-        "bias":            md["bias"],
-        "confidence":      md["confidence"],
-        "bull":            md["bull"],
-        "bear":            md["bear"],
-        "diff":            md["diff"],
-        "price":           round(tech["price"], 2) if tech else None,
-        "expiry":          oc_analysis["expiry"]      if oc_analysis else None,
-        "pcr":             oc_analysis["pcr_oi"]      if oc_analysis else None,
-        "oi_dir":          oc_analysis["oi_dir"]      if oc_analysis else None,
-        "raw_oi_dir":      oc_analysis["raw_oi_dir"]  if oc_analysis else None,
-        "raw_bull_pct":    oc_analysis["bull_pct"]    if oc_analysis else None,
-        "raw_bear_pct":    oc_analysis["bear_pct"]    if oc_analysis else None,
-        "india_vix":       vix_data["value"]          if vix_data    else None,
+        "timestamp":    ts,
+        "bias":         md["bias"],
+        "confidence":   md["confidence"],
+        "bull":         md["bull"],
+        "bear":         md["bear"],
+        "diff":         md["diff"],
+        "price":        round(tech["price"], 2) if tech else None,
+        "expiry":       oc_analysis["expiry"]     if oc_analysis else None,
+        "pcr":          oc_analysis["pcr_oi"]     if oc_analysis else None,
+        "oi_dir":       oc_analysis["oi_dir"]     if oc_analysis else None,
+        "raw_oi_dir":   oc_analysis["raw_oi_dir"] if oc_analysis else None,
+        "raw_bull_pct": oc_analysis["bull_pct"]   if oc_analysis else None,
+        "raw_bear_pct": oc_analysis["bear_pct"]   if oc_analysis else None,
+        "india_vix":    vix_data["value"]          if vix_data   else None,
     }
     with open(os.path.join("docs", "latest.json"), "w") as f:
         json.dump(meta, f, indent=2)
     print("  Saved: docs/latest.json")
 
-    print("\n" + "=" * 65)
+    print("\
+" + "=" * 65)
     print(f"  DONE  |  Bias: {md['bias']}  |  Confidence: {md['confidence']}")
-    print(f"  Hero: {oc_analysis['raw_oi_dir'] if oc_analysis else 'N/A'}")
     print("  Push to GitHub to deploy to GitHub Pages")
-    print("=" * 65 + "\n")
+    print("=" * 65 + "\
+")
 
 
 if __name__ == "__main__":
