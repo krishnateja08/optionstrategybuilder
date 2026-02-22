@@ -641,8 +641,21 @@ def build_oi_html(oc):
 
     # ---------- Percentage bars ----------
     total_abs = abs(ce) + abs(pe) or 1
-    ce_pct    = round(abs(ce)  / total_abs * 100)
-    pe_pct    = round(abs(pe)  / total_abs * 100)
+
+    # CE: negative = Call Unwinding = Bullish contribution
+    #     positive = Call Build-up  = Bearish contribution
+    ce_pct      = round(abs(ce) / total_abs * 100)
+    ce_bullish  = ce < 0
+    ce_pct_display = f"+{ce_pct}%" if ce_bullish else f"−{ce_pct}%"
+    ce_bar_col  = "#00c896" if ce_bullish else "#ff6b6b"
+
+    # PE: positive = Put Build-up   = Bullish contribution
+    #     negative = Put Unwinding  = Bearish contribution
+    pe_pct      = round(abs(pe) / total_abs * 100)
+    pe_bullish  = pe > 0
+    pe_pct_display = f"+{pe_pct}%" if pe_bullish else f"−{pe_pct}%"
+    pe_bar_col  = "#00c896" if pe_bullish else "#ff6b6b"
+
     # Net bar: how strong is the dominant side (0–100%)
     bull_force = (abs(pe) if pe > 0 else 0) + (abs(ce) if ce < 0 else 0)
     bear_force = (abs(ce) if ce > 0 else 0) + (abs(pe) if pe < 0 else 0)
@@ -651,6 +664,7 @@ def build_oi_html(oc):
     bear_pct   = 100 - bull_pct
     net_pct    = bull_pct if bull_force >= bear_force else bear_pct
     net_bar_col = ("#00c896" if bull_force >= bear_force else "#ff6b6b")
+    net_pct_display = f"+{net_pct}%" if bull_force >= bear_force else f"−{net_pct}%"
 
     # ---------- Interpretation dots ----------
     ce_interp_col = "#00c896" if ce < 0 else "#ff6b6b"
@@ -693,10 +707,10 @@ def build_oi_html(oc):
       <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
         <div style="flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;">
           <div style="width:{ce_pct}%;height:100%;border-radius:3px;
-            background:linear-gradient(90deg,{ce_col},{ce_col}99);"></div>
+            background:linear-gradient(90deg,{ce_bar_col},{ce_bar_col}99);"></div>
         </div>
         <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
-          color:{ce_col};min-width:34px;text-align:right;">{ce_pct}%</div>
+          color:{ce_bar_col};min-width:38px;text-align:right;">{ce_pct_display}</div>
       </div>
       <div style="font-size:9px;color:rgba(255,255,255,.18);margin-top:1px;">of total OI change</div>
     </div>
@@ -712,10 +726,10 @@ def build_oi_html(oc):
       <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
         <div style="flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;">
           <div style="width:{pe_pct}%;height:100%;border-radius:3px;
-            background:linear-gradient(90deg,{pe_col},{pe_col}99);"></div>
+            background:linear-gradient(90deg,{pe_bar_col},{pe_bar_col}99);"></div>
         </div>
         <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
-          color:{pe_col};min-width:34px;text-align:right;">{pe_pct}%</div>
+          color:{pe_bar_col};min-width:38px;text-align:right;">{pe_pct_display}</div>
       </div>
       <div style="font-size:9px;color:rgba(255,255,255,.18);margin-top:1px;">of total OI change</div>
     </div>
@@ -735,7 +749,7 @@ def build_oi_html(oc):
             box-shadow:0 0 8px {net_bar_col}66;"></div>
         </div>
         <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
-          color:{net_col};min-width:34px;text-align:right;">{net_pct}%</div>
+          color:{net_bar_col};min-width:38px;text-align:right;">{net_pct_display}</div>
       </div>
       <div style="font-size:9px;color:rgba(255,255,255,.18);margin-top:1px;">dominant force</div>
     </div>
