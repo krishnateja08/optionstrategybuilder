@@ -684,12 +684,12 @@ def build_greeks_sidebar_html(oc_analysis):
     def tfmt(t): return f"&#8377;{abs(t):.2f}" if abs(t) >= 0.01 else f"{t:.4f}"
     def vfmt(v): return f"{v:.4f}" if abs(v) >= 0.0001 else "&#8212;"
 
-    # Build dropdown with OTM CE (above ATM), ATM, OTM PE (below ATM)
+    # Build dropdown — option values are always clean integers
     otm_ce_opts = ""
     atm_opt     = ""
     otm_pe_opts = ""
     for row in all_rows:
-        s      = row["strike"]
+        s      = int(row["strike"])   # force int
         is_atm = row["is_atm"]
         dist   = abs(s - atm) // 50
         if is_atm:
@@ -708,22 +708,22 @@ def build_greeks_sidebar_html(oc_analysis):
         f'<optgroup label="\u2500 OTM PUTS (PE) \u2500">{otm_pe_opts}</optgroup>'
     )
 
-    # Build per-strike JSON — includes full unique Greeks for every strike
+    # Build per-strike JSON — keys are always clean integers, no floats
     strikes_json_parts = []
     for row in all_rows:
-        s = row["strike"]
+        s = int(row["strike"])   # force int — prevents "25900.0" float keys
         strikes_json_parts.append(
             f'"{s}":{{' +
-            f'"ce_ltp":{row["ce_ltp"]},' +
-            f'"pe_ltp":{row["pe_ltp"]},' +
-            f'"ce_delta":{row["ce_delta"]},' +
-            f'"pe_delta":{row["pe_delta"]},' +
-            f'"ce_iv":{row["ce_iv"]},' +
-            f'"pe_iv":{row["pe_iv"]},' +
-            f'"ce_theta":{row["ce_theta"]},' +
-            f'"pe_theta":{row["pe_theta"]},' +
-            f'"ce_vega":{row["ce_vega"]},' +
-            f'"pe_vega":{row["pe_vega"]}' +
+            f'"ce_ltp":{round(float(row["ce_ltp"]),2)},' +
+            f'"pe_ltp":{round(float(row["pe_ltp"]),2)},' +
+            f'"ce_delta":{round(float(row["ce_delta"]),4)},' +
+            f'"pe_delta":{round(float(row["pe_delta"]),4)},' +
+            f'"ce_iv":{round(float(row["ce_iv"]),2)},' +
+            f'"pe_iv":{round(float(row["pe_iv"]),2)},' +
+            f'"ce_theta":{round(float(row["ce_theta"]),4)},' +
+            f'"pe_theta":{round(float(row["pe_theta"]),4)},' +
+            f'"ce_vega":{round(float(row["ce_vega"]),4)},' +
+            f'"pe_vega":{round(float(row["pe_vega"]),4)}' +
             f'}}'
         )
     strikes_json = "{" + ",".join(strikes_json_parts) + "}"
@@ -838,8 +838,13 @@ def build_greeks_sidebar_html(oc_analysis):
   var _gData = {strikes_json};
 
   window.greeksUpdateStrike = function(strike) {{
-    var d = _gData[String(strike)];
-    if (!d) return;
+    /* Normalize: try int key first, then float key, then original string */
+    var _key = String(parseInt(strike, 10));
+    var d = _gData[_key] || _gData[String(parseFloat(strike))] || _gData[String(strike)];
+    if (!d) {{
+      console.warn('greeksUpdateStrike: no data for strike', strike, '| tried key:', _key);
+      return;
+    }}
 
     /* Fade out */
     var ids = ['greeksStrikeTypeLabel','greeksStrikeLabel','greeksCeLtp','greeksPeLtp',
