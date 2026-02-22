@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v15 · Sticky Greeks panel · Brighter colors · No signal card
+Aurora Borealis Theme · v15 · Sticky Greeks panel · Brighter colors · Golden Strike Dropdown
 pip install curl_cffi pandas numpy yfinance pytz
 """
 
@@ -201,7 +201,7 @@ def vix_label(v):
 
 
 # =================================================================
-#  SECTION 1C -- ATM GREEKS EXTRACTOR  ← NEW
+#  SECTION 1C -- ATM GREEKS EXTRACTOR
 # =================================================================
 
 def extract_atm_greeks(df, atm_strike):
@@ -317,7 +317,6 @@ def analyze_option_chain(oc_data):
     chg_bull_force = (abs(pe_chg) if pe_chg > 0 else 0) + (abs(ce_chg) if ce_chg < 0 else 0)
     chg_bear_force = (abs(ce_chg) if ce_chg > 0 else 0) + (abs(pe_chg) if pe_chg < 0 else 0)
 
-    # ── NEW: extract ATM Greeks ──────────────────────────────────────────
     atm_strike = oc_data["atm_strike"]
     greeks     = extract_atm_greeks(df, atm_strike)
 
@@ -353,7 +352,6 @@ def analyze_option_chain(oc_data):
         "raw_oi_cls":      raw_oi_cls,
         "chg_bull_force":  chg_bull_force,
         "chg_bear_force":  chg_bear_force,
-        # ── Greeks ──────────────────────────────────────────────────────
         "atm_greeks":      greeks["atm_greeks"],
         "greeks_table":    greeks["greeks_table"],
     }
@@ -505,7 +503,7 @@ def _fmt_chg_oi(n):
 
 
 # =================================================================
-#  SECTION 5A -- GREEKS PANELS  ← NEW
+#  SECTION 5A -- GREEKS PANELS
 # =================================================================
 
 def _delta_bar_html(delta_val, is_ce=True):
@@ -513,15 +511,23 @@ def _delta_bar_html(delta_val, is_ce=True):
     col = "#00c896" if is_ce else "#ff6b6b"
     return (
         f'<div style="display:flex;align-items:center;gap:5px;">'
-        f'<div style="width:34px;height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;">'
+        f'<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">'
         f'<div style="width:{pct:.0f}%;height:100%;background:{col};border-radius:2px;"></div></div>'
-        f'<span style="font-family:\'DM Mono\',monospace;font-size:10px;font-weight:700;color:{col};">'
+        f'<span style="font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;color:{col};">'
         f'{delta_val:+.3f}</span></div>'
     )
 
 
 def build_greeks_sidebar_html(oc_analysis):
-    """Compact ATM Greeks panel for the sidebar."""
+    """
+    Compact ATM Greeks panel for the sidebar.
+    Changes vs original:
+      - Golden strike-price dropdown (colour #f5c518, glow on hover/focus)
+      - Greek name labels (Δ Delta, σ IV, Θ Theta, ν Vega) now bright white
+        font-size 11px, color rgba(255,255,255,.92)
+      - Sub-labels brightened to rgba(255,255,255,.55)
+      - Delta bar track slightly brighter rgba(255,255,255,.10)
+    """
     if not oc_analysis:
         return ""
 
@@ -529,6 +535,7 @@ def build_greeks_sidebar_html(oc_analysis):
     atm  = oc_analysis.get("atm_strike", 0)
     spot = oc_analysis.get("underlying", 0)
     exp  = oc_analysis.get("expiry", "N/A")
+    rows = oc_analysis.get("greeks_table", [])
 
     if not g:
         return ""
@@ -545,24 +552,48 @@ def build_greeks_sidebar_html(oc_analysis):
     pe_ltp   = g.get("pe_ltp",   0.0)
 
     # IV skew
-    iv_skew   = round(pe_iv - ce_iv, 2)
-    skew_col  = "#ff6b6b" if iv_skew > 1.5 else ("#00c896" if iv_skew < -1.5 else "#6480ff")
-    skew_txt  = f"PE Skew +{iv_skew:.1f}" if iv_skew > 0 else f"CE Skew {iv_skew:.1f}"
-
-    # Delta sentiment colour
-    ce_d_col = "#00c896" if ce_delta >= 0.5 else "#ffd166" if ce_delta >= 0.38 else "#ff6b6b"
+    iv_skew  = round(pe_iv - ce_iv, 2)
+    skew_col = "#ff6b6b" if iv_skew > 1.5 else ("#00c896" if iv_skew < -1.5 else "#6480ff")
+    skew_txt = f"PE Skew +{iv_skew:.1f}" if iv_skew > 0 else f"CE Skew {iv_skew:.1f}"
 
     # IV bar
-    iv_avg = (ce_iv + pe_iv) / 2
-    iv_pct = min(100, max(0, (iv_avg / 60) * 100))
-    iv_col = "#ff6b6b" if iv_avg > 25 else "#ffd166" if iv_avg > 18 else "#00c896"
+    iv_avg    = (ce_iv + pe_iv) / 2
+    iv_pct    = min(100, max(0, (iv_avg / 60) * 100))
+    iv_col    = "#ff6b6b" if iv_avg > 25 else "#ffd166" if iv_avg > 18 else "#00c896"
     iv_regime = "High IV · Buy Premium" if iv_avg > 25 else "Normal IV · Balanced" if iv_avg > 15 else "Low IV · Sell Premium"
 
-    # Theta format
-    def tfmt(t): return f"₹{abs(t):.2f}" if abs(t) >= 0.01 else f"{t:.4f}"
+    # Theta / Vega formatters
+    def tfmt(t): return f"&#8377;{abs(t):.2f}" if abs(t) >= 0.01 else f"{t:.4f}"
+    def vfmt(v): return f"{v:.4f}" if abs(v) >= 0.0001 else "&#8212;"
 
-    # Vega format
-    def vfmt(v): return f"{v:.4f}" if abs(v) >= 0.0001 else "—"
+    # Build dropdown options (ATM ±2)
+    dropdown_options = ""
+    for row in rows:
+        s       = row["strike"]
+        is_atm  = row["is_atm"]
+        if is_atm:
+            label = f"&#9733; ATM &#8377;{s:,}"
+        elif s > atm:
+            diff  = (s - atm) // 50
+            label = f"&#9650; CE+{diff} &#8377;{s:,}"
+        else:
+            diff  = (atm - s) // 50
+            label = f"&#9660; PE-{diff} &#8377;{s:,}"
+        selected = 'selected' if is_atm else ''
+        dropdown_options += f'<option value="{s}" {selected}>{label}</option>\n'
+
+    # Build per-strike JSON for JS
+    strikes_json = "{"
+    for row in rows:
+        s = row["strike"]
+        strikes_json += (
+            f'"{s}":{{ce_ltp:{row["ce_ltp"]},pe_ltp:{row["pe_ltp"]},'
+            f'ce_delta:{row["ce_delta"]},pe_delta:{row["pe_delta"]},'
+            f'ce_iv:{row["ce_iv"]},pe_iv:{row["pe_iv"]},'
+            f'ce_theta:{row["ce_theta"]},pe_theta:{row["pe_theta"]},'
+            f'ce_vega:{row["ce_vega"]},pe_vega:{row["pe_vega"]}}},'
+        )
+    strikes_json = strikes_json.rstrip(",") + "}"
 
     return f"""
 <div class="greeks-panel" id="greeksPanel">
@@ -571,23 +602,31 @@ def build_greeks_sidebar_html(oc_analysis):
     <span class="greeks-expiry-tag">{exp}</span>
   </div>
 
+  <!-- ══ GOLDEN STRIKE DROPDOWN ══ -->
+  <div class="greeks-strike-wrap">
+    <select class="greeks-strike-select" id="greeksStrikeSelect"
+            onchange="greeksUpdateStrike(this.value)">
+      {dropdown_options}
+    </select>
+  </div>
+
   <!-- ATM badge -->
-  <div class="greeks-atm-badge">
-    <span style="font-size:8.5px;color:rgba(255,255,255,.3);">ATM</span>
-    <span class="greeks-atm-strike">&#8377;{atm:,}</span>
+  <div class="greeks-atm-badge" id="greeksAtmBadge">
+    <span style="font-size:8.5px;color:rgba(255,255,255,.3);">Strike</span>
+    <span class="greeks-atm-strike" id="greeksStrikeLabel">&#8377;{atm:,}</span>
     <span style="font-size:8px;color:rgba(255,255,255,.2);">|</span>
-    <span style="font-size:8.5px;color:rgba(0,200,220,.8);">CE &#8377;{ce_ltp:.1f}</span>
+    <span style="font-size:8.5px;color:rgba(0,200,220,.8);" id="greeksCeLtp">CE &#8377;{ce_ltp:.1f}</span>
     <span style="font-size:8px;color:rgba(255,255,255,.25);">/</span>
-    <span style="font-size:8.5px;color:rgba(255,107,107,.8);">PE &#8377;{pe_ltp:.1f}</span>
+    <span style="font-size:8.5px;color:rgba(255,107,107,.8);" id="greeksPeLtp">PE &#8377;{pe_ltp:.1f}</span>
   </div>
 
   <!-- Δ Delta -->
   <div class="greeks-row">
     <div style="display:flex;flex-direction:column;">
       <span class="greek-name">&#916; Delta</span>
-      <span style="font-size:8px;color:rgba(255,255,255,.45);margin-top:1px;">CE / PE</span>
+      <span class="greek-sub">CE / PE</span>
     </div>
-    <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end;">
+    <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end;" id="greeksDeltaWrap">
       {_delta_bar_html(ce_delta, True)}
       {_delta_bar_html(pe_delta, False)}
     </div>
@@ -597,16 +636,16 @@ def build_greeks_sidebar_html(oc_analysis):
   <div class="greeks-row">
     <div style="display:flex;flex-direction:column;">
       <span class="greek-name">&#963; IV</span>
-      <span style="font-size:8px;color:{skew_col};margin-top:1px;font-weight:700;">{skew_txt}</span>
+      <span class="greek-sub" id="greeksSkewLbl" style="color:{skew_col};font-weight:700;">{skew_txt}</span>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
       <div style="display:flex;align-items:center;gap:6px;">
         <span style="font-size:8.5px;color:rgba(0,200,220,.85);">CE</span>
-        <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#00c8e0;">{ce_iv:.1f}%</span>
+        <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:#00c8e0;" id="greeksIvCe">{ce_iv:.1f}%</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
         <span style="font-size:8.5px;color:rgba(255,144,144,.85);">PE</span>
-        <span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#ff9090;">{pe_iv:.1f}%</span>
+        <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:#ff9090;" id="greeksIvPe">{pe_iv:.1f}%</span>
       </div>
     </div>
   </div>
@@ -615,34 +654,34 @@ def build_greeks_sidebar_html(oc_analysis):
   <div class="greeks-row">
     <div style="display:flex;flex-direction:column;">
       <span class="greek-name">&#920; Theta</span>
-      <span style="font-size:8px;color:rgba(255,255,255,.45);margin-top:1px;">per day</span>
+      <span class="greek-sub">per day</span>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
       <div style="display:flex;align-items:center;gap:6px;">
         <span style="font-size:8.5px;color:rgba(0,200,220,.85);">CE</span>
-        <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#ff9090;">{tfmt(ce_theta)}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#ff9090;" id="greeksThetaCe">{tfmt(ce_theta)}</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
         <span style="font-size:8.5px;color:rgba(255,144,144,.85);">PE</span>
-        <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#ff9090;">{tfmt(pe_theta)}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#ff9090;" id="greeksThetaPe">{tfmt(pe_theta)}</span>
       </div>
     </div>
   </div>
 
-  <!-- ν Vega (if available) -->
+  <!-- ν Vega -->
   <div class="greeks-row">
     <div style="display:flex;flex-direction:column;">
       <span class="greek-name">&#957; Vega</span>
-      <span style="font-size:8px;color:rgba(255,255,255,.45);margin-top:1px;">per 1% IV</span>
+      <span class="greek-sub">per 1% IV</span>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
       <div style="display:flex;align-items:center;gap:6px;">
         <span style="font-size:8.5px;color:rgba(0,200,220,.85);">CE</span>
-        <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#6480ff;">{vfmt(ce_vega)}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#8aa0ff;" id="greeksVegaCe">{vfmt(ce_vega)}</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
         <span style="font-size:8.5px;color:rgba(255,144,144,.85);">PE</span>
-        <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#6480ff;">{vfmt(pe_vega)}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#8aa0ff;" id="greeksVegaPe">{vfmt(pe_vega)}</span>
       </div>
     </div>
   </div>
@@ -651,13 +690,97 @@ def build_greeks_sidebar_html(oc_analysis):
   <div class="iv-bar-wrap">
     <span class="iv-bar-label">IV Avg</span>
     <div class="iv-bar-track">
-      <div class="iv-bar-fill" style="width:{iv_pct:.1f}%;background:{iv_col};box-shadow:0 0 6px {iv_col}88;"></div>
+      <div class="iv-bar-fill" id="greeksIvBar" style="width:{iv_pct:.1f}%;background:{iv_col};box-shadow:0 0 6px {iv_col}88;"></div>
     </div>
-    <span class="iv-bar-num" style="color:{iv_col};">{iv_avg:.1f}%</span>
+    <span class="iv-bar-num" id="greeksIvAvg" style="color:{iv_col};">{iv_avg:.1f}%</span>
   </div>
-  <div style="font-size:8.5px;color:{iv_col};text-align:center;margin-top:6px;
-    font-weight:700;letter-spacing:.5px;">{iv_regime}</div>
+  <div style="font-size:8.5px;text-align:center;margin-top:6px;font-weight:700;letter-spacing:.5px;"
+       id="greeksIvRegime" style="color:{iv_col};">{iv_regime}</div>
 </div>
+
+<script>
+(function() {{
+  var _gData = {strikes_json};
+
+  window.greeksUpdateStrike = function(strike) {{
+    var d = _gData[strike];
+    if (!d) return;
+
+    // Fade out
+    var ids = ['greeksStrikeLabel','greeksCeLtp','greeksPeLtp',
+               'greeksDeltaWrap','greeksSkewLbl','greeksIvCe','greeksIvPe',
+               'greeksThetaCe','greeksThetaPe','greeksVegaCe','greeksVegaPe',
+               'greeksIvBar','greeksIvAvg','greeksIvRegime'];
+    ids.forEach(function(id) {{
+      var el = document.getElementById(id);
+      if (el) {{ el.style.transition = 'opacity .18s'; el.style.opacity = '0.15'; }}
+    }});
+
+    setTimeout(function() {{
+      // Strike label & LTPs
+      document.getElementById('greeksStrikeLabel').innerHTML = '&#8377;' + parseInt(strike).toLocaleString('en-IN');
+      document.getElementById('greeksCeLtp').innerHTML = 'CE &#8377;' + d.ce_ltp.toFixed(1);
+      document.getElementById('greeksPeLtp').innerHTML = 'PE &#8377;' + d.pe_ltp.toFixed(1);
+
+      // Delta bars
+      var ceCol = '#00c896', peCol = '#ff6b6b';
+      var cePct = (Math.abs(d.ce_delta) * 100).toFixed(0);
+      var pePct = (Math.abs(d.pe_delta) * 100).toFixed(0);
+      var ceSign = d.ce_delta >= 0 ? '+' : '';
+      var peSign = d.pe_delta >= 0 ? '+' : '';
+      document.getElementById('greeksDeltaWrap').innerHTML =
+        '<div style="display:flex;align-items:center;gap:5px;">' +
+          '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">' +
+            '<div style="width:' + cePct + '%;height:100%;background:' + ceCol + ';border-radius:2px;"></div></div>' +
+          '<span style="font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;color:' + ceCol + ';">' +
+            ceSign + d.ce_delta.toFixed(3) + '</span></div>' +
+        '<div style="display:flex;align-items:center;gap:5px;margin-top:3px;">' +
+          '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">' +
+            '<div style="width:' + pePct + '%;height:100%;background:' + peCol + ';border-radius:2px;"></div></div>' +
+          '<span style="font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;color:' + peCol + ';">' +
+            peSign + d.pe_delta.toFixed(3) + '</span></div>';
+
+      // IV
+      document.getElementById('greeksIvCe').textContent = d.ce_iv.toFixed(1) + '%';
+      document.getElementById('greeksIvPe').textContent = d.pe_iv.toFixed(1) + '%';
+      var skew = (d.pe_iv - d.ce_iv).toFixed(1);
+      var skewEl = document.getElementById('greeksSkewLbl');
+      skewEl.textContent = parseFloat(skew) > 0 ? 'PE Skew +' + skew : 'CE Skew ' + skew;
+      skewEl.style.color = parseFloat(skew) > 1.5 ? '#ff6b6b' : parseFloat(skew) < -1.5 ? '#00c896' : '#6480ff';
+
+      // Theta
+      function tfmt(t) {{ return Math.abs(t) >= 0.01 ? '&#8377;' + Math.abs(t).toFixed(2) : t.toFixed(4); }}
+      document.getElementById('greeksThetaCe').innerHTML = tfmt(d.ce_theta);
+      document.getElementById('greeksThetaPe').innerHTML = tfmt(d.pe_theta);
+
+      // Vega
+      function vfmt(v) {{ return Math.abs(v) >= 0.0001 ? v.toFixed(4) : '&#8212;'; }}
+      document.getElementById('greeksVegaCe').innerHTML = vfmt(d.ce_vega);
+      document.getElementById('greeksVegaPe').innerHTML = vfmt(d.pe_vega);
+
+      // IV bar
+      var ivAvg = (d.ce_iv + d.pe_iv) / 2;
+      var ivCol = ivAvg > 25 ? '#ff6b6b' : ivAvg > 18 ? '#ffd166' : '#00c896';
+      var ivReg = ivAvg > 25 ? 'High IV \u00b7 Buy Premium' : ivAvg > 15 ? 'Normal IV \u00b7 Balanced' : 'Low IV \u00b7 Sell Premium';
+      var ivPct = Math.min(100, Math.max(0, (ivAvg / 60) * 100)).toFixed(1);
+      var barEl = document.getElementById('greeksIvBar');
+      barEl.style.width = ivPct + '%';
+      barEl.style.background = ivCol;
+      barEl.style.boxShadow = '0 0 6px ' + ivCol + '88';
+      document.getElementById('greeksIvAvg').textContent = ivAvg.toFixed(1) + '%';
+      document.getElementById('greeksIvAvg').style.color = ivCol;
+      document.getElementById('greeksIvRegime').textContent = ivReg;
+      document.getElementById('greeksIvRegime').style.color = ivCol;
+
+      // Fade back in
+      ids.forEach(function(id) {{
+        var el = document.getElementById(id);
+        if (el) el.style.opacity = '1';
+      }});
+    }}, 200);
+  }};
+}})();
+</script>
 """
 
 
@@ -700,8 +823,8 @@ def build_greeks_table_html(oc_analysis):
         is_atm   = g["is_atm"]
         row_cls  = 'style="background:rgba(100,128,255,.06);border-left:3px solid rgba(100,128,255,.45);"' if is_atm else ""
         sc       = 'style="color:#8aa0ff;"' if is_atm else ""
-        tfmt = lambda t: f"₹{abs(t):.2f}" if abs(t) >= 0.01 else f"{t:.4f}"
-        vfmt = lambda v: f"{v:.4f}" if abs(v) >= 0.0001 else "—"
+        tfmt = lambda t: f"&#8377;{abs(t):.2f}" if abs(t) >= 0.01 else f"{t:.4f}"
+        vfmt = lambda v: f"{v:.4f}" if abs(v) >= 0.0001 else "&#8212;"
         return (
             f'<div class="greeks-tbl-row" {row_cls}>'
             f'<div class="greeks-tbl-strike" {sc}>&#8377;{g["strike"]:,}{atm_tag_html(is_atm)}</div>'
@@ -742,7 +865,7 @@ def build_greeks_table_html(oc_analysis):
         </div>
         {dv_rows}
       </div>
-      <div style="font-size:9px;color:rgba(255,255,255,.18);margin-top:7px;padding:0 4px;line-height:1.6;">
+      <div style="font-size:9px;color:rgba(255,255,255,.25);margin-top:7px;padding:0 4px;line-height:1.6;">
         &#9432; CE &#916;&ge;0.5 = deep ITM &middot; CE &#916;&asymp;0.5 = ATM &middot; CE &#916;&le;0.3 = OTM
       </div>
     </div>
@@ -765,7 +888,7 @@ def build_greeks_table_html(oc_analysis):
         </div>
         {tv_rows}
       </div>
-      <div style="font-size:9px;color:rgba(255,255,255,.18);margin-top:7px;padding:0 4px;line-height:1.6;">
+      <div style="font-size:9px;color:rgba(255,255,255,.25);margin-top:7px;padding:0 4px;line-height:1.6;">
         &#9432; Theta = &#8377; lost per day &middot; Vega = &#8377; change per 1% IV move &middot;
         Gamma (&#915;) requires broker feed &mdash; not in NSE API
       </div>
@@ -777,7 +900,7 @@ def build_greeks_table_html(oc_analysis):
 
 
 # =================================================================
-#  SECTION 5B -- HERO (unchanged from v13)
+#  SECTION 5B -- HERO
 # =================================================================
 
 def build_dual_gauge_hero(oc, tech, md, ts):
@@ -881,7 +1004,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 
 
 # =================================================================
-#  SECTION 5C -- OI DASHBOARD (unchanged from v13 — abbreviated)
+#  SECTION 5C -- OI DASHBOARD
 # =================================================================
 
 def build_oi_html(oc):
@@ -923,10 +1046,6 @@ def build_oi_html(oc):
     net_pct = bull_pct if net_is_bullish else bear_pct
     net_bar_col = "#00c896" if net_is_bullish else "#ff6b6b"
     net_pct_display = f"+{net_pct}%" if net_is_bullish else f"−{net_pct}%"
-    ce_interp_col = "#00c896" if ce < 0 else "#ff6b6b"
-    ce_interp_txt = f'Call OI− → <b style="color:#00c896;">Bullish</b>' if ce < 0 else f'Call OI+ → <b style="color:#ff6b6b;">Bearish</b>'
-    pe_interp_col = "#00c896" if pe > 0 else "#ff6b6b"
-    pe_interp_txt = f'Put OI+  → <b style="color:#00c896;">Bullish</b>' if pe > 0 else f'Put OI− → <b style="color:#ff6b6b;">Bearish</b>'
 
     dir_card = f"""
 <div style="display:flex;align-items:stretch;border:1px solid {dir_bdr};border-radius:14px;
@@ -1062,22 +1181,17 @@ def build_strikes_html(oc):
 
 
 # =================================================================
-#  SECTION 6 -- STRATEGIES (identical to v13 — copy from original)
+#  SECTION 6 -- STRATEGIES (placeholder — paste your v13 content)
 # =================================================================
-# NOTE: Copy the full STRATEGIES_DATA dict and build_strategies_html()
-# from your original v13 script here unchanged.
-# They are omitted from this patch file to save space.
-# Just paste them in between this comment and Section 7.
 
-# ↓↓↓ PASTE YOUR v13 STRATEGIES_DATA AND build_strategies_html() HERE ↓↓↓
-STRATEGIES_DATA = {}  # placeholder — replace with v13 content
+STRATEGIES_DATA = {}  # Replace with your v13 STRATEGIES_DATA dict
+
 def build_strategies_html(oc_analysis):
     return '<div class="section" id="strat"><div class="sec-title">STRATEGIES REFERENCE</div><p style="color:rgba(255,255,255,.4);padding:20px;">Paste your v13 build_strategies_html() here.</p></div>'
-# ↑↑↑ END PLACEHOLDER ↑↑↑
 
 
 # =================================================================
-#  SECTION 7 -- TICKER BAR (unchanged from v13)
+#  SECTION 7 -- TICKER BAR
 # =================================================================
 
 def rsi_label(rsi):
@@ -1155,7 +1269,7 @@ def build_ticker_bar(tech, oc, vix_data):
 
 
 # =================================================================
-#  SECTION 8 -- CSS  (v13 CSS + Greeks additions)
+#  SECTION 8 -- CSS
 # =================================================================
 
 CSS = """
@@ -1168,6 +1282,7 @@ CSS = """
   --bull:#00c896;--bear:#ff6b6b;--neut:#6480ff;
   --text:rgba(255,255,255,.9);--muted:rgba(255,255,255,.45);--muted2:rgba(255,255,255,.28);
   --fh:'Sora',sans-serif;--fm:'DM Mono',monospace;
+  --gold:#f5c518;--gold-dim:rgba(245,197,24,.45);--gold-bg:rgba(245,197,24,.10);
 }
 html{scroll-behavior:smooth}
 body{background:var(--bg);color:var(--text);font-family:var(--fh);font-size:13px;line-height:1.6;min-height:100vh}
@@ -1245,17 +1360,12 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
 .sidebar-scroll::-webkit-scrollbar{width:3px}
 .sidebar-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
-.sidebar-scroll{overflow-y:auto;}
 .sb-sec{padding:16px 12px 8px}
 .sb-lbl{font-size:9px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--aurora1);margin-bottom:8px;padding:0 0 0 8px;border-left:2px solid var(--aurora1)}
 .sb-btn{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border-radius:8px;border:1px solid transparent;cursor:pointer;background:transparent;color:var(--muted);font-family:var(--fh);font-size:12px;text-align:left;transition:all .15s}
 .sb-btn:hover{background:rgba(0,200,150,.08);color:rgba(255,255,255,.8);border-color:rgba(0,200,150,.2)}
 .sb-btn.active{background:rgba(0,200,150,.1);border-color:rgba(0,200,150,.25);color:#00c896;font-weight:600}
 .sb-badge{font-size:10px;margin-left:auto;font-weight:700}
-.sig-card{margin:12px 10px 8px;padding:18px 14px;background:linear-gradient(135deg,rgba(0,200,150,.12),rgba(100,128,255,.12));border-radius:14px;border:1px solid rgba(0,200,150,.2);text-align:center;box-shadow:0 4px 24px rgba(0,200,150,.1),inset 0 1px 0 rgba(255,255,255,.05)}
-.sig-arrow{font-family:var(--fh);font-size:38px;font-weight:700;line-height:1;margin-bottom:4px;background:linear-gradient(135deg,#00c896,#6480ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.sig-bias{font-family:var(--fh);font-size:18px;font-weight:700;color:rgba(255,255,255,.9)}
-.sig-meta{font-size:10px;color:var(--muted);margin-top:4px}
 .content{overflow-y:auto}
 .section{padding:26px 28px;border-bottom:1px solid rgba(255,255,255,.05);background:transparent;position:relative}
 .section:nth-child(odd){background:rgba(255,255,255,.015)}
@@ -1324,22 +1434,71 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .tk-badge{font-family:var(--fh);font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;letter-spacing:.3px;}
 footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:rgba(6,8,15,.9);backdrop-filter:blur(12px);display:flex;justify-content:space-between;font-size:11px;color:var(--muted2);font-family:var(--fm)}
 
-/* ── GREEKS PANEL (sidebar) ────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   GREEKS PANEL (sidebar)
+   Changes: bright greek-name labels, golden strike dropdown
+══════════════════════════════════════════════════════════════ */
 .greeks-panel{margin:10px 10px 6px;padding:14px 12px;background:linear-gradient(135deg,rgba(100,128,255,.12),rgba(0,200,220,.10));border-radius:14px;border:1px solid rgba(100,128,255,.28);box-shadow:0 4px 20px rgba(100,128,255,.1),inset 0 1px 0 rgba(255,255,255,.06);}
 .greeks-title{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(138,160,255,1.0);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(100,128,255,.25);display:flex;align-items:center;justify-content:space-between;}
 .greeks-expiry-tag{font-size:8.5px;color:rgba(255,255,255,.5);font-weight:400;letter-spacing:.5px;text-transform:none;}
-.greeks-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+
+/* ── GOLDEN DROPDOWN ── */
+.greeks-strike-wrap{position:relative;margin-bottom:10px;}
+.greeks-strike-wrap::after{
+  content:'▼';
+  position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  font-size:8px;color:var(--gold);pointer-events:none;z-index:2;
+}
+.greeks-strike-select{
+  width:100%;appearance:none;-webkit-appearance:none;
+  background:linear-gradient(135deg,rgba(245,197,24,.12),rgba(200,155,10,.06));
+  border:1px solid var(--gold-dim);
+  border-radius:8px;
+  color:var(--gold);
+  font-family:'DM Mono',monospace;
+  font-size:11px;font-weight:700;
+  padding:7px 28px 7px 10px;
+  cursor:pointer;outline:none;letter-spacing:.5px;
+  transition:border-color .2s,background .2s,box-shadow .2s;
+}
+.greeks-strike-select:hover{
+  border-color:rgba(245,197,24,.75);
+  background:linear-gradient(135deg,rgba(245,197,24,.18),rgba(200,155,10,.10));
+  box-shadow:0 0 10px rgba(245,197,24,.18);
+}
+.greeks-strike-select:focus{
+  border-color:var(--gold);
+  box-shadow:0 0 0 2px rgba(245,197,24,.25);
+}
+.greeks-strike-select option{background:#0e1225;color:var(--gold);font-weight:700;}
+
+/* ── GREEK NAME labels — BRIGHT WHITE ── */
+.greek-name{
+  font-family:'DM Mono',monospace;
+  font-size:11px;          /* was 9.5px */
+  font-weight:700;
+  letter-spacing:1px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,.92);  /* was .55 — much brighter */
+}
+/* sub-labels under greek name */
+.greek-sub{
+  font-size:8px;
+  color:rgba(255,255,255,.55);  /* was .45 */
+  margin-top:1px;
+}
+
+.greeks-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06);}
 .greeks-row:last-child{border-bottom:none;}
-.greek-name{font-family:'DM Mono',monospace;font-size:9.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.75);}
 .greeks-atm-badge{display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(100,128,255,.1);border:1px solid rgba(100,128,255,.25);border-radius:8px;padding:5px 8px;margin-bottom:10px;font-family:'DM Mono',monospace;font-size:11px;flex-wrap:wrap;}
 .greeks-atm-strike{font-weight:700;color:#8aa0ff;}
-.iv-bar-wrap{display:flex;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.05);}
-.iv-bar-label{font-size:8px;color:rgba(255,255,255,.6);letter-spacing:1px;text-transform:uppercase;font-weight:600;width:42px;flex-shrink:0;}
+.iv-bar-wrap{display:flex;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06);}
+.iv-bar-label{font-size:8px;color:rgba(255,255,255,.7);letter-spacing:1px;text-transform:uppercase;font-weight:600;width:42px;flex-shrink:0;}
 .iv-bar-track{flex:1;height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;}
 .iv-bar-fill{height:100%;border-radius:2px;transition:width .6s ease;}
 .iv-bar-num{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;min-width:38px;text-align:right;}
 
-/* ── GREEKS TABLE (main content) ──────────────────────────────────────── */
+/* ── GREEKS TABLE (main content) ── */
 .greeks-table-section{padding:22px 28px;border-bottom:1px solid rgba(255,255,255,.05);}
 .greeks-table-wrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
 .greeks-tbl{border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;}
@@ -1476,7 +1635,6 @@ def generate_html(tech, oc, md, ts, vix_data=None):
     cp   = tech["price"]    if tech else 0
     bias = md["bias"]; conf = md["confidence"]
     bull = md["bull"]; bear = md["bear"]; diff = md["diff"]
-    b_arrow = "&#9650;" if bias=="BULLISH" else ("&#9660;" if bias=="BEARISH" else "&#8596;")
 
     oi_html          = build_oi_html(oc)               if oc   else ""
     kl_html          = build_key_levels_html(tech, oc) if tech else ""
@@ -1484,10 +1642,8 @@ def generate_html(tech, oc, md, ts, vix_data=None):
     strikes_html     = build_strikes_html(oc)
     ticker_html      = build_ticker_bar(tech, oc, vix_data)
     gauge_html       = build_dual_gauge_hero(oc, tech, md, ts)
-    greeks_sidebar   = build_greeks_sidebar_html(oc)        # ← NEW
-    greeks_table     = build_greeks_table_html(oc)          # ← NEW
-
-    sig_card = ""  # Removed — signal now shown in hero bar only
+    greeks_sidebar   = build_greeks_sidebar_html(oc)
+    greeks_table     = build_greeks_table_html(oc)
 
     C = 2 * 3.14159 * 7
 
@@ -1531,11 +1687,11 @@ def generate_html(tech, oc, md, ts, vix_data=None):
 {gauge_html}
 <div class="main">
   <aside class="sidebar">
-    <!-- ─── STICKY ATM GREEKS PANEL (always visible) ──────── -->
+    <!-- ─── STICKY ATM GREEKS PANEL ──────── -->
     <div class="sidebar-sticky-top">
       <div id="greeksPanel">{greeks_sidebar}</div>
     </div>
-    <!-- ─── SCROLLABLE NAV BELOW ──────────────────────────── -->
+    <!-- ─── SCROLLABLE NAV ──────────────── -->
     <div class="sidebar-scroll">
     <div class="sb-sec">
       <div class="sb-lbl">LIVE ANALYSIS</div>
@@ -1557,10 +1713,7 @@ def generate_html(tech, oc, md, ts, vix_data=None):
   </aside>
   <main class="content">
     <div id="oi">{oi_html}</div>
-
-    <!-- ─── GREEKS TABLE ──────────────────────────────── -->
     {greeks_table}
-
     <div id="kl">{kl_html}</div>
     {strat_html}
     <div id="strikes">{strikes_html}</div>
@@ -1627,9 +1780,9 @@ def main():
     ist_tz = pytz.timezone("Asia/Kolkata")
     ts     = datetime.now(ist_tz).strftime("%d-%b-%Y %H:%M IST")
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v14")
+    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v15")
     print(f"  {ts}")
-    print("  + ATM Greeks sidebar panel (Δ Delta, σ IV, Θ Theta, ν Vega)")
+    print("  + ATM Greeks: BRIGHT labels + GOLDEN strike dropdown")
     print("  + 5-Strike Greeks table (ATM ±2) in main content")
     print("  + 30s silent refresh updates Greeks automatically")
     print("=" * 65)
