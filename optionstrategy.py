@@ -1566,10 +1566,33 @@ ANIMATED_JS = """
     let changed = false;
     const curHero = document.getElementById('heroWidget'), neoHero = newDoc.getElementById('heroWidget');
     if (curHero && neoHero && curHero.outerHTML !== neoHero.outerHTML) { curHero.outerHTML = neoHero.outerHTML; changed = true; }
+
+    /* Save user's selected strike BEFORE patching greeksPanel */
+    var _savedStrike = null;
+    var _selEl = document.getElementById('greeksStrikeSelect');
+    if (_selEl) _savedStrike = _selEl.value;
+
     ['oi','kl','strikes','greeksTable','greeksPanel'].forEach(id => { changed |= patchEl(document.getElementById(id), newDoc.getElementById(id)); });
     changed |= patchEl(document.getElementById('tkTrack'), newDoc.getElementById('tkTrack'));
     const curTs = document.getElementById('lastUpdatedTs'), neoTs = newDoc.getElementById('lastUpdatedTs');
     if (curTs && neoTs && curTs.textContent !== neoTs.textContent) { curTs.textContent = neoTs.textContent; changed = true; }
+
+    /* Restore user's strike after patch — keep their view, don't reset to ATM */
+    setTimeout(function() {
+      var selAfter = document.getElementById('greeksStrikeSelect');
+      if (selAfter && _savedStrike) {
+        /* Check if saved strike still exists in the new dropdown */
+        var exists = Array.from(selAfter.options).some(function(o) { return o.value === _savedStrike; });
+        if (exists) {
+          selAfter.value = _savedStrike;
+          if (window.greeksUpdateStrike) window.greeksUpdateStrike(_savedStrike);
+        } else {
+          /* Saved strike no longer in chain (rare) — fall back to ATM */
+          if (window.greeksUpdateStrike) window.greeksUpdateStrike(selAfter.value);
+        }
+      }
+    }, 50);
+
     return changed;
   }
   function silentRefresh() {
