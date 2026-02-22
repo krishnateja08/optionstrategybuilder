@@ -261,45 +261,40 @@ def _days_to_expiry(expiry_str):
 
 def _compute_greeks_for_row(r, spot, expiry_str, risk_free=0.065, vix=18.0):
     """
-    FIXED: Compute BS Greeks for every strike.
-    Priority for Greeks:  NSE live data → Black-Scholes with NSE IV → BS with VIX fallback
-    Priority for IV:      Self IV → Other Side IV → India VIX → 18.0 default
-    Always returns valid (ce_g, pe_g) dicts — never None or zeros from missing data.
+    DEFINITIVE FIX: Always compute Greeks via Black-Scholes for every strike.
+    NSE data is ONLY used as the IV input — never for Delta/Theta/Vega/Gamma directly.
+    The old health-check approach was wrong: NSE returns non-zero delta/theta for ALL
+    strikes (not just ATM), causing every row to return the same NSE ATM Greeks.
+    BS with per-strike IV guarantees unique, mathematically correct values per strike.
+
+    IV priority per side: NSE own IV > NSE opposite side IV > India VIX > 18%
     """
     T = _days_to_expiry(expiry_str) / 365.0
     K = float(r["Strike"])
 
-    def process_side(side):
-        other_side = "PE" if side == "CE" else "CE"
+    ce_iv_nse = float(r.get("CE_IV", 0) or 0)
+    pe_iv_nse = float(r.get("PE_IV", 0) or 0)
 
-        # 1. Extract raw NSE data
-        delta_nse = float(r.get(f"{side}_Delta", 0) or 0)
-        theta_nse = float(r.get(f"{side}_Theta", 0) or 0)
-        iv_raw    = float(r.get(f"{side}_IV",    0) or 0)
-        other_iv  = float(r.get(f"{other_side}_IV", 0) or 0)
+    # CE IV to use for BS
+    if ce_iv_nse > 0.5:
+        ce_iv = ce_iv_nse
+    elif pe_iv_nse > 0.5:
+        ce_iv = pe_iv_nse
+    else:
+        ce_iv = vix
 
-        # 2. Smart IV fallback chain: Self IV > Other Side IV > India VIX > 18%
-        if iv_raw > 0.1:
-            iv_to_use = iv_raw
-        elif other_iv > 0.1:
-            iv_to_use = other_iv
-        else:
-            iv_to_use = vix   # live India VIX as last resort
+    # PE IV to use for BS
+    if pe_iv_nse > 0.5:
+        pe_iv = pe_iv_nse
+    elif ce_iv_nse > 0.5:
+        pe_iv = ce_iv_nse
+    else:
+        pe_iv = vix
 
-        # 3. Use NSE Greeks only if they pass health check (both delta & theta non-trivial)
-        if abs(delta_nse) > 0.001 and abs(theta_nse) > 0.0001:
-            return {
-                "delta": round(delta_nse, 4),
-                "theta": round(theta_nse, 4),
-                "vega":  round(float(r.get(f"{side}_Vega",  0) or 0), 4),
-                "gamma": round(float(r.get(f"{side}_Gamma", 0) or 0), 6),
-            }
-        else:
-            # ALWAYS fall back to Black-Scholes — never return zeros
-            return _bs_greeks(spot, K, T, risk_free, iv_to_use / 100, side)
+    # Black-Scholes gives unique Greeks for every strike based on K vs spot
+    ce_g = _bs_greeks(spot, K, T, risk_free, ce_iv / 100.0, "CE")
+    pe_g = _bs_greeks(spot, K, T, risk_free, pe_iv / 100.0, "PE")
 
-    ce_g = process_side("CE")
-    pe_g = process_side("PE")
     return ce_g, pe_g
 
 
