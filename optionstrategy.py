@@ -743,9 +743,9 @@ def build_greeks_sidebar_html(oc_analysis):
     </select>
   </div>
 
-  <!-- Strike badge -->
+  <!-- Strike badge — type label (ATM / CE+N / PE-N) + selected strike + LTPs -->
   <div class="greeks-atm-badge" id="greeksAtmBadge">
-    <span style="font-size:8.5px;color:rgba(255,255,255,.3);">Strike</span>
+    <span style="font-size:8.5px;font-weight:700;color:rgba(138,160,255,.9);" id="greeksStrikeTypeLabel">ATM</span>
     <span class="greeks-atm-strike" id="greeksStrikeLabel">&#8377;{atm:,}</span>
     <span style="font-size:8px;color:rgba(255,255,255,.2);">|</span>
     <span style="font-size:8.5px;color:rgba(0,200,220,.8);" id="greeksCeLtp">CE &#8377;{ce_ltp:.1f}</span>
@@ -842,7 +842,7 @@ def build_greeks_sidebar_html(oc_analysis):
     if (!d) return;
 
     /* Fade out */
-    var ids = ['greeksStrikeLabel','greeksCeLtp','greeksPeLtp',
+    var ids = ['greeksStrikeTypeLabel','greeksStrikeLabel','greeksCeLtp','greeksPeLtp',
                'greeksDeltaWrap','greeksSkewLbl',
                'greeksIvCe','greeksIvPe',
                'greeksThetaCe','greeksThetaPe',
@@ -854,9 +854,21 @@ def build_greeks_sidebar_html(oc_analysis):
     }});
 
     setTimeout(function() {{
-      /* Strike label */
+      /* Strike type label (ATM / CE+N / PE-N) + strike value + LTPs */
+      var _atmStrike = {atm};
+      var _selStrike = parseInt(strike);
+      var _dist = Math.round(Math.abs(_selStrike - _atmStrike) / 50);
+      var _typeLbl;
+      if (_selStrike === _atmStrike) {{
+        _typeLbl = 'ATM';
+      }} else if (_selStrike > _atmStrike) {{
+        _typeLbl = 'CE+' + _dist;
+      }} else {{
+        _typeLbl = 'PE-' + _dist;
+      }}
+      document.getElementById('greeksStrikeTypeLabel').textContent = _typeLbl;
       document.getElementById('greeksStrikeLabel').innerHTML =
-        '\u20b9' + parseInt(strike).toLocaleString('en-IN');
+        '\u20b9' + _selStrike.toLocaleString('en-IN');
       document.getElementById('greeksCeLtp').innerHTML =
         'CE \u20b9' + (d.ce_ltp || 0).toFixed(1);
       document.getElementById('greeksPeLtp').innerHTML =
@@ -941,6 +953,13 @@ def build_greeks_sidebar_html(oc_analysis):
       }});
     }}, 200);
   }};
+
+  /* Fix 3 — fire on page load so badge shows ATM data immediately (not frozen) */
+  (function() {{
+    var sel = document.getElementById('greeksStrikeSelect');
+    if (sel) setTimeout(function() {{ greeksUpdateStrike(sel.value); }}, 150);
+  }})();
+
 }})();
 </script>
 """
