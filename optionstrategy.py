@@ -635,9 +635,15 @@ def build_oi_html(oc):
     pe_fmt   = _fmt_oi(pe)
 
     # ---------- Net Change colours & label ----------
-    net_col   = dir_col
-    net_label = "Net Bullish Flow" if net > 0 else ("Net Bearish Flow" if net < 0 else "Balanced Flow")
-    net_fmt   = _fmt_oi(net)
+    # Use bull_force/bear_force for correct net direction
+    # CE negative = bullish, PE positive = bullish (cannot just add raw values)
+    bull_force_pre = (abs(pe) if pe > 0 else 0) + (abs(ce) if ce < 0 else 0)
+    bear_force_pre = (abs(ce) if ce > 0 else 0) + (abs(pe) if pe < 0 else 0)
+    net_is_bullish = bull_force_pre >= bear_force_pre
+    net_col   = "#00c896" if net_is_bullish else "#ff6b6b"
+    net_label = "Net Bullish Flow" if net_is_bullish else "Net Bearish Flow"
+    # Show dominant force value, not raw arithmetic net
+    net_fmt   = _fmt_oi(bull_force_pre) if net_is_bullish else _fmt_oi(-bear_force_pre)
 
     # ---------- Percentage bars ----------
     total_abs = abs(ce) + abs(pe) or 1
@@ -657,14 +663,14 @@ def build_oi_html(oc):
     pe_bar_col  = "#00c896" if pe_bullish else "#ff6b6b"
 
     # Net bar: how strong is the dominant side (0–100%)
-    bull_force = (abs(pe) if pe > 0 else 0) + (abs(ce) if ce < 0 else 0)
-    bear_force = (abs(ce) if ce > 0 else 0) + (abs(pe) if pe < 0 else 0)
+    bull_force = bull_force_pre
+    bear_force = bear_force_pre
     total_f    = bull_force + bear_force or 1
     bull_pct   = round(bull_force / total_f * 100)
     bear_pct   = 100 - bull_pct
-    net_pct    = bull_pct if bull_force >= bear_force else bear_pct
-    net_bar_col = ("#00c896" if bull_force >= bear_force else "#ff6b6b")
-    net_pct_display = f"+{net_pct}%" if bull_force >= bear_force else f"−{net_pct}%"
+    net_pct    = bull_pct if net_is_bullish else bear_pct
+    net_bar_col = "#00c896" if net_is_bullish else "#ff6b6b"
+    net_pct_display = f"+{net_pct}%" if net_is_bullish else f"−{net_pct}%"
 
     # ---------- Interpretation dots ----------
     ce_interp_col = "#00c896" if ce < 0 else "#ff6b6b"
