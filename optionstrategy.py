@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v10 · OI Direction card with Change in OI cells
+Aurora Borealis Theme · v11 · Hero widget now reads Raw OI (openInterest)
 pip install curl_cffi pandas numpy yfinance pytz
 """
 
@@ -214,6 +214,7 @@ def analyze_option_chain(oc_data):
     pe_chg       = int(df["PE_OI_Change"].sum())
     net_chg      = pe_chg + ce_chg
 
+    # OI direction signal (based on OI Change — used only in OI Dashboard section)
     if   ce_chg > 0 and pe_chg < 0:
         oi_dir, oi_sig, oi_icon, oi_cls = "Strong Bearish", "Call Build-up + Put Unwinding", "RED",    "bearish"
     elif ce_chg < 0 and pe_chg > 0:
@@ -251,40 +252,79 @@ def analyze_option_chain(oc_data):
             "pe_oi":  int(row["PE_OI"]),
         })
 
-    bull_force = (abs(pe_chg) if pe_chg > 0 else 0) + (abs(ce_chg) if ce_chg < 0 else 0)
-    bear_force = (abs(ce_chg) if ce_chg > 0 else 0) + (abs(pe_chg) if pe_chg < 0 else 0)
-    total_f    = bull_force + bear_force or 1
-    bull_pct   = round(bull_force / total_f * 100)
-    bear_pct   = 100 - bull_pct
+    # ── Raw OI hero signal (NEW) ──────────────────────────────────
+    # bull_force = total_pe_oi  (put writers = bulls defending support)
+    # bear_force = total_ce_oi  (call writers = bears capping upside)
+    raw_total   = int(total_pe_oi) + int(total_ce_oi)
+    raw_total   = raw_total if raw_total > 0 else 1
+    bull_pct    = round(int(total_pe_oi) / raw_total * 100)
+    bear_pct    = 100 - bull_pct
+
+    # PCR-based direction for the hero widget
+    if   pcr_oi > 1.5:
+        raw_oi_dir = "STRONG BULLISH"
+        raw_oi_sig = "Heavy Put Writing — Strong Support Floor"
+        raw_oi_cls = "bullish"
+    elif pcr_oi > 1.2:
+        raw_oi_dir = "BULLISH"
+        raw_oi_sig = "Put OI > Call OI — Bulls in Control"
+        raw_oi_cls = "bullish"
+    elif pcr_oi < 0.5:
+        raw_oi_dir = "STRONG BEARISH"
+        raw_oi_sig = "Heavy Call Writing — Strong Resistance Cap"
+        raw_oi_cls = "bearish"
+    elif pcr_oi < 0.7:
+        raw_oi_dir = "BEARISH"
+        raw_oi_sig = "Call OI > Put OI — Bears in Control"
+        raw_oi_cls = "bearish"
+    else:
+        if int(total_pe_oi) >= int(total_ce_oi):
+            raw_oi_dir = "CAUTIOUSLY BULLISH"
+            raw_oi_sig = "Balanced OI — Slight Put Dominance"
+            raw_oi_cls = "bullish"
+        else:
+            raw_oi_dir = "CAUTIOUSLY BEARISH"
+            raw_oi_sig = "Balanced OI — Slight Call Dominance"
+            raw_oi_cls = "bearish"
+
+    # OI Change force (kept for the OI Dashboard section only)
+    chg_bull_force = (abs(pe_chg) if pe_chg > 0 else 0) + (abs(ce_chg) if ce_chg < 0 else 0)
+    chg_bear_force = (abs(ce_chg) if ce_chg > 0 else 0) + (abs(pe_chg) if pe_chg < 0 else 0)
 
     return {
-        "expiry":        oc_data["expiry"],
-        "underlying":    oc_data["underlying"],
-        "atm_strike":    oc_data["atm_strike"],
-        "pcr_oi":        round(pcr_oi, 3),
-        "pcr_vol":       round(pcr_vol, 3),
-        "total_ce_oi":   int(total_ce_oi),
-        "total_pe_oi":   int(total_pe_oi),
-        "max_ce_strike": int(max_ce_row["Strike"]),
-        "max_ce_oi":     int(max_ce_row["CE_OI"]),
-        "max_pe_strike": int(max_pe_row["Strike"]),
-        "max_pe_oi":     int(max_pe_row["PE_OI"]),
-        "max_pain":      int(max_pain_row["Strike"]),
-        "ce_chg":        ce_chg,
-        "pe_chg":        pe_chg,
-        "net_chg":       net_chg,
-        "oi_dir":        oi_dir,
-        "oi_sig":        oi_sig,
-        "oi_icon":       oi_icon,
-        "oi_cls":        oi_cls,
-        "top_ce":        top_ce,
-        "top_pe":        top_pe,
-        "strikes_data":  strikes_data,
-        "bull_pct":      bull_pct,
-        "bear_pct":      bear_pct,
-        "bull_force":    bull_force,
-        "bear_force":    bear_force,
-        "df":            df,
+        "expiry":          oc_data["expiry"],
+        "underlying":      oc_data["underlying"],
+        "atm_strike":      oc_data["atm_strike"],
+        "pcr_oi":          round(pcr_oi, 3),
+        "pcr_vol":         round(pcr_vol, 3),
+        "total_ce_oi":     int(total_ce_oi),
+        "total_pe_oi":     int(total_pe_oi),
+        "max_ce_strike":   int(max_ce_row["Strike"]),
+        "max_ce_oi":       int(max_ce_row["CE_OI"]),
+        "max_pe_strike":   int(max_pe_row["Strike"]),
+        "max_pe_oi":       int(max_pe_row["PE_OI"]),
+        "max_pain":        int(max_pain_row["Strike"]),
+        "ce_chg":          ce_chg,
+        "pe_chg":          pe_chg,
+        "net_chg":         net_chg,
+        "oi_dir":          oi_dir,
+        "oi_sig":          oi_sig,
+        "oi_icon":         oi_icon,
+        "oi_cls":          oi_cls,
+        "top_ce":          top_ce,
+        "top_pe":          top_pe,
+        "strikes_data":    strikes_data,
+        # ── Raw OI hero fields ──
+        "bull_pct":        bull_pct,       # from raw OI
+        "bear_pct":        bear_pct,       # from raw OI
+        "bull_force":      int(total_pe_oi),
+        "bear_force":      int(total_ce_oi),
+        "raw_oi_dir":      raw_oi_dir,
+        "raw_oi_sig":      raw_oi_sig,
+        "raw_oi_cls":      raw_oi_cls,
+        # ── OI Change forces (for OI Dashboard section only) ──
+        "chg_bull_force":  chg_bull_force,
+        "chg_bear_force":  chg_bear_force,
     }
 
 
@@ -421,35 +461,67 @@ def _cls_bdr(cls):
             "rgba(255,107,107,.22)" if cls == "bearish" else "rgba(100,128,255,.22)")
 
 def _fmt_oi(n):
-    """Format OI number as K or M string with sign."""
+    """Format OI number: Lakhs (L) for Indian scale, K for thousands."""
+    abs_n = abs(n)
+    sign  = "+" if n > 0 else ("-" if n < 0 else "")
+    if abs_n >= 1_00_00_000:  return f"{sign}{abs_n / 1_00_00_000:.1f}Cr"
+    if abs_n >= 1_00_000:     return f"{sign}{abs_n / 1_00_000:.0f}L"
+    if abs_n >= 1_000:        return f"{sign}{abs_n / 1_000:.0f}K"
+    return f"{n:+,}"
+
+def _fmt_chg_oi(n):
+    """Format OI change number with sign."""
     if abs(n) >= 1_000_000: return f"{'+' if n > 0 else ''}{n / 1_000_000:.1f}M"
     if abs(n) >= 1_000:     return f"{'+' if n > 0 else ''}{n / 1_000:.0f}K"
     return f"{n:+,}"
 
 
 # =================================================================
-#  SECTION 5A -- HERO
+#  SECTION 5A -- HERO  (v11: reads Raw OI instead of OI Change)
 # =================================================================
 
 def build_dual_gauge_hero(oc, tech, md, ts):
+    """
+    Hero widget — dual circular gauges.
+
+    DATA SOURCE CHANGE (v11):
+      BEFORE: gauges read changeinOpenInterest (daily OI changes)
+              bull_label = pe_chg, bear_label = ce_chg
+              bull_pct / bear_pct from OI change forces
+
+      NOW:    gauges read openInterest (total accumulated positions)
+              OI BULL circle = total_pe_oi  (put writers = bulls defending support)
+              OI BEAR circle = total_ce_oi  (call writers = bears capping resistance)
+              bull_pct = total_pe_oi / (total_pe_oi + total_ce_oi) * 100
+              bear_pct = total_ce_oi / (total_pe_oi + total_ce_oi) * 100
+              Direction derived from PCR (total_pe_oi / total_ce_oi):
+                > 1.5  → STRONG BULLISH
+                > 1.2  → BULLISH
+                0.7–1.2 → CAUTIOUSLY BULLISH/BEARISH
+                < 0.7  → BEARISH
+                < 0.5  → STRONG BEARISH
+    """
     if oc:
-        ce_chg     = oc["ce_chg"]
-        pe_chg     = oc["pe_chg"]
-        net_chg    = oc["net_chg"]
-        bull_pct   = oc["bull_pct"]
-        bear_pct   = oc["bear_pct"]
-        pcr        = oc["pcr_oi"]
-        oi_sig     = oc["oi_sig"]
-        oi_dir     = oc["oi_dir"]
-        oi_cls     = oc["oi_cls"]
-        expiry     = oc["expiry"]
-        underlying = oc["underlying"]
-        atm        = oc["atm_strike"]
-        max_pain   = oc["max_pain"]
-        bull_label = _fmt_oi(pe_chg) if pe_chg > 0 else _fmt_oi(abs(ce_chg) if ce_chg < 0 else net_chg)
-        bear_label = _fmt_oi(ce_chg) if ce_chg > 0 else _fmt_oi(abs(pe_chg) if pe_chg < 0 else -net_chg)
+        # ── Raw OI values for gauges ──────────────────────────────
+        total_pe_oi = oc["total_pe_oi"]   # OI BULL source
+        total_ce_oi = oc["total_ce_oi"]   # OI BEAR source
+        bull_pct    = oc["bull_pct"]       # pe_oi / (pe_oi + ce_oi) * 100
+        bear_pct    = oc["bear_pct"]       # ce_oi / (pe_oi + ce_oi) * 100
+        pcr         = oc["pcr_oi"]         # total_pe_oi / total_ce_oi
+        oi_dir      = oc["raw_oi_dir"]     # PCR-based direction
+        oi_sig      = oc["raw_oi_sig"]     # signal description
+        oi_cls      = oc["raw_oi_cls"]     # bullish / bearish / neutral
+
+        # Formatted display values for circle centres
+        bull_label  = _fmt_oi(total_pe_oi)   # e.g. "341L"
+        bear_label  = _fmt_oi(total_ce_oi)   # e.g. "284L"
+
+        expiry      = oc["expiry"]
+        underlying  = oc["underlying"]
+        atm         = oc["atm_strike"]
+        max_pain    = oc["max_pain"]
     else:
-        ce_chg = pe_chg = net_chg = 0
+        total_pe_oi = total_ce_oi = 0
         bull_pct = bear_pct = 50
         pcr = 1.0
         oi_sig = "No Data"; oi_dir = "UNKNOWN"; oi_cls = "neutral"
@@ -469,9 +541,12 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     b_bg    = _cls_bg(md.get("bias_cls", "neutral"))
     b_bdr   = _cls_bdr(md.get("bias_cls", "neutral"))
 
+    # SVG gauge: circumference C = 2 * pi * r = 2 * pi * 31 ≈ 194.8
     C = 194.8
     def clamp(v, lo=10, hi=97): return max(lo, min(hi, v))
 
+    # stroke-dashoffset: higher offset = smaller arc drawn
+    # offset = C * (1 - fill_pct/100)
     bull_offset = C * (1 - clamp(bull_pct) / 100)
     bear_offset = C * (1 - clamp(bear_pct) / 100)
     oi_bar_w    = clamp(bull_pct)
@@ -484,9 +559,10 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     return f"""
 <div class="hero">
 
-  <!-- LEFT: OI BULL + OI BEAR side by side -->
+  <!-- LEFT: OI BULL + OI BEAR gauges (now from Raw OI) -->
   <div class="h-gauges">
 
+    <!-- OI BULL = total_pe_oi (put writers defending support floor) -->
     <div class="gauge-wrap">
       <svg width="76" height="76" viewBox="0 0 76 76">
         <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="6"/>
@@ -507,6 +583,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 
     <div class="gauge-sep"></div>
 
+    <!-- OI BEAR = total_ce_oi (call writers capping resistance) -->
     <div class="gauge-wrap">
       <svg width="76" height="76" viewBox="0 0 76 76">
         <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="6"/>
@@ -527,13 +604,13 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 
   </div>
 
-  <!-- MIDDLE: signal + bars only -->
+  <!-- MIDDLE: direction + strength bars -->
   <div class="h-mid">
     <div class="h-eyebrow">OI NET SIGNAL &middot; {expiry} &middot; SPOT &#8377;{underlying:,.0f}</div>
     <div class="h-signal" style="color:{dir_col};
       text-shadow:0 0 20px rgba({glow_rgb},.6),0 0 40px rgba({glow_rgb},.3);
       font-size:22px;font-weight:900;letter-spacing:1px;">
-      {oi_dir.upper()}
+      {oi_dir}
     </div>
     <div class="h-sub">{oi_sig} &middot; PCR&nbsp;<span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
     <div class="h-divider"></div>
@@ -593,7 +670,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 
 
 # =================================================================
-#  SECTION 5B -- OI DASHBOARD  (v10: Change in OI card, no bull/bear bar)
+#  SECTION 5B -- OI DASHBOARD (OI Change data — unchanged)
 # =================================================================
 
 def build_oi_html(oc):
@@ -617,52 +694,38 @@ def build_oi_html(oc):
     dir_bdr = _cls_bdr(oi_cls)
     pcr_col = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
 
-    # ---------- PCR interpretation text ----------
     if pcr > 1.3:   pcr_interp, pcr_interp_col = "Very Bullish", "#00c896"
     elif pcr > 1.1: pcr_interp, pcr_interp_col = "Bullish",      "#4de8b8"
     elif pcr > 0.9: pcr_interp, pcr_interp_col = "Neutral",      "#6480ff"
     elif pcr > 0.7: pcr_interp, pcr_interp_col = "Bearish",      "#ffd166"
     else:           pcr_interp, pcr_interp_col = "Very Bearish", "#ff6b6b"
 
-    # ---------- CE Change colours & label ----------
     ce_col   = "#00c896" if ce < 0 else "#ff6b6b"
     ce_label = "Call Unwinding ↓ (Bullish)" if ce < 0 else "Call Build-up ↑ (Bearish)"
-    ce_fmt   = _fmt_oi(ce)
+    ce_fmt   = _fmt_chg_oi(ce)
 
-    # ---------- PE Change colours & label ----------
     pe_col   = "#00c896" if pe > 0 else "#ff6b6b"
     pe_label = "Put Build-up ↑ (Bullish)" if pe > 0 else "Put Unwinding ↓ (Bearish)"
-    pe_fmt   = _fmt_oi(pe)
+    pe_fmt   = _fmt_chg_oi(pe)
 
-    # ---------- Net Change colours & label ----------
-    # Use bull_force/bear_force for correct net direction
-    # CE negative = bullish, PE positive = bullish (cannot just add raw values)
     bull_force_pre = (abs(pe) if pe > 0 else 0) + (abs(ce) if ce < 0 else 0)
     bear_force_pre = (abs(ce) if ce > 0 else 0) + (abs(pe) if pe < 0 else 0)
     net_is_bullish = bull_force_pre >= bear_force_pre
     net_col   = "#00c896" if net_is_bullish else "#ff6b6b"
     net_label = "Net Bullish Flow" if net_is_bullish else "Net Bearish Flow"
-    # Show dominant force value, not raw arithmetic net
-    net_fmt   = _fmt_oi(bull_force_pre) if net_is_bullish else _fmt_oi(-bear_force_pre)
+    net_fmt   = _fmt_chg_oi(bull_force_pre) if net_is_bullish else _fmt_chg_oi(-bear_force_pre)
 
-    # ---------- Percentage bars ----------
     total_abs = abs(ce) + abs(pe) or 1
-
-    # CE: negative = Call Unwinding = Bullish contribution
-    #     positive = Call Build-up  = Bearish contribution
     ce_pct      = round(abs(ce) / total_abs * 100)
     ce_bullish  = ce < 0
     ce_pct_display = f"+{ce_pct}%" if ce_bullish else f"−{ce_pct}%"
     ce_bar_col  = "#00c896" if ce_bullish else "#ff6b6b"
 
-    # PE: positive = Put Build-up   = Bullish contribution
-    #     negative = Put Unwinding  = Bearish contribution
     pe_pct      = round(abs(pe) / total_abs * 100)
     pe_bullish  = pe > 0
     pe_pct_display = f"+{pe_pct}%" if pe_bullish else f"−{pe_pct}%"
     pe_bar_col  = "#00c896" if pe_bullish else "#ff6b6b"
 
-    # Net bar: how strong is the dominant side (0–100%)
     bull_force = bull_force_pre
     bear_force = bear_force_pre
     total_f    = bull_force + bear_force or 1
@@ -672,7 +735,6 @@ def build_oi_html(oc):
     net_bar_col = "#00c896" if net_is_bullish else "#ff6b6b"
     net_pct_display = f"+{net_pct}%" if net_is_bullish else f"−{net_pct}%"
 
-    # ---------- Interpretation dots ----------
     ce_interp_col = "#00c896" if ce < 0 else "#ff6b6b"
     ce_interp_txt = f'Call OI&minus; &rarr; <b style="color:#00c896;">Bullish</b>' if ce < 0 \
                     else f'Call OI+ &rarr; <b style="color:#ff6b6b;">Bearish</b>'
@@ -680,29 +742,20 @@ def build_oi_html(oc):
     pe_interp_txt = f'Put OI+ &nbsp;&rarr; <b style="color:#00c896;">Bullish</b>' if pe > 0 \
                     else f'Put OI&minus; &rarr; <b style="color:#ff6b6b;">Bearish</b>'
 
-    # ================================================================
-    #  OI DIRECTION CARD  (replaces old bull/bear % bar row)
-    # ================================================================
     dir_card = f"""
 <div style="display:flex;align-items:stretch;border:1px solid {dir_bdr};border-radius:14px;
   background:{dir_bg};overflow:hidden;margin-bottom:16px;">
-
-  <!-- LEFT: Direction label -->
   <div style="padding:18px 24px;min-width:200px;border-right:1px solid rgba(255,255,255,.07);
     display:flex;flex-direction:column;justify-content:center;flex-shrink:0;">
     <div style="font-size:8.5px;letter-spacing:2px;text-transform:uppercase;
-      color:rgba(255,255,255,.28);margin-bottom:7px;">OI DIRECTION</div>
+      color:rgba(255,255,255,.28);margin-bottom:7px;">OI CHANGE DIRECTION</div>
     <div style="font-size:21px;font-weight:700;color:{dir_col};line-height:1.1;margin-bottom:5px;">{oi_dir}</div>
     <div style="font-size:10.5px;color:{dir_col};opacity:.7;">{oi_sig}</div>
     <div style="margin-top:10px;font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,.3);">
       PCR &nbsp;<span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span>
     </div>
   </div>
-
-  <!-- MIDDLE: CE / PE / Net / Interpretation cells -->
   <div style="display:flex;flex:1;align-items:stretch;">
-
-    <!-- CE OI Change -->
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center;
       padding:16px 20px;border-right:1px solid rgba(255,255,255,.05);gap:5px;">
       <div style="font-size:8.5px;letter-spacing:1.8px;text-transform:uppercase;
@@ -720,8 +773,6 @@ def build_oi_html(oc):
       </div>
       <div style="font-size:9px;color:rgba(255,255,255,.18);margin-top:1px;">of total OI change</div>
     </div>
-
-    <!-- PE OI Change -->
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center;
       padding:16px 20px;border-right:1px solid rgba(255,255,255,.05);gap:5px;">
       <div style="font-size:8.5px;letter-spacing:1.8px;text-transform:uppercase;
@@ -739,8 +790,6 @@ def build_oi_html(oc):
       </div>
       <div style="font-size:9px;color:rgba(255,255,255,.18);margin-top:1px;">of total OI change</div>
     </div>
-
-    <!-- Net OI Change -->
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center;
       padding:16px 20px;border-right:1px solid rgba(255,255,255,.05);gap:5px;">
       <div style="font-size:8.5px;letter-spacing:1.8px;text-transform:uppercase;
@@ -759,8 +808,6 @@ def build_oi_html(oc):
       </div>
       <div style="font-size:9px;color:rgba(255,255,255,.18);margin-top:1px;">dominant force</div>
     </div>
-
-    <!-- Interpretation -->
     <div style="flex:1.1;display:flex;flex-direction:column;justify-content:center;
       padding:16px 20px;border-right:1px solid rgba(255,255,255,.05);gap:8px;">
       <div style="font-size:8.5px;letter-spacing:1.8px;text-transform:uppercase;
@@ -776,17 +823,13 @@ def build_oi_html(oc):
         <span style="color:rgba(255,255,255,.4);">{pe_interp_txt}</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;font-size:10.5px;margin-top:4px;">
-        <div style="width:7px;height:7px;border-radius:50%;flex-shrink:0;
-          background:{pcr_col};"></div>
+        <div style="width:7px;height:7px;border-radius:50%;flex-shrink:0;background:{pcr_col};"></div>
         <span style="color:rgba(255,255,255,.4);">
           PCR {pcr:.3f} &rarr; <b style="color:{pcr_interp_col};">{pcr_interp}</b>
         </span>
       </div>
     </div>
-
   </div>
-
-  <!-- RIGHT: Signal badge -->
   <div style="padding:18px 22px;display:flex;flex-direction:column;align-items:center;
     justify-content:center;gap:10px;min-width:140px;flex-shrink:0;
     border-left:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.015);">
@@ -799,15 +842,11 @@ def build_oi_html(oc):
     <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;
       color:#00c896;">{bull_pct}%</div>
   </div>
-
 </div>
 """
 
-    # ================================================================
-    #  OI SNAPSHOT TABLE  (unchanged — total OI, PCR, max strikes)
-    # ================================================================
-    ce_col2  = "#ff6b6b"   # total CE OI is always red (call side)
-    pe_col2  = "#00c896"   # total PE OI is always green (put side)
+    ce_col2 = "#ff6b6b"
+    pe_col2 = "#00c896"
 
     snapshot_table = (
         f"<div class=\"oi-ticker-table\">"
@@ -1668,8 +1707,8 @@ def generate_html(tech, oc, md, ts, vix_data=None):
   </main>
 </div>
 <footer>
-  <span>NiftyCraft &middot; NSE Options Dashboard</span>
-  <span>For Educational Purposes Only &middot; &copy; 2025</span>
+  <span>NiftyCraft &middot; NSE Options Dashboard &middot; v11</span>
+  <span>Hero: Raw OI Signal &middot; OI Dashboard: OI Change &middot; For Educational Purposes Only &middot; &copy; 2025</span>
 </footer>
 </div>
 
@@ -1718,8 +1757,10 @@ def main():
     ist_tz = pytz.timezone("Asia/Kolkata")
     ts     = datetime.now(ist_tz).strftime("%d-%b-%Y %H:%M IST")
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v10")
+    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v11")
     print(f"  {ts}")
+    print("  Hero widget: Raw OI (openInterest)")
+    print("  OI Dashboard: OI Change (changeinOpenInterest)")
     print("=" * 65)
 
     print("\n[1/4] Fetching NSE Option Chain...")
@@ -1728,13 +1769,15 @@ def main():
     oc_analysis = analyze_option_chain(oc_raw) if oc_raw else None
     if oc_analysis:
         print(f"  OK  Spot={oc_analysis['underlying']:.2f}  ATM={oc_analysis['atm_strike']}  PCR={oc_analysis['pcr_oi']:.3f}")
+        print(f"  Raw OI → Bull(PE):{oc_analysis['total_pe_oi']:,}  Bear(CE):{oc_analysis['total_ce_oi']:,}")
+        print(f"  Hero Signal: {oc_analysis['raw_oi_dir']}  ({oc_analysis['bull_pct']}% bull / {oc_analysis['bear_pct']}% bear)")
     else:
         print("  WARNING  Option chain unavailable — technical-only mode")
 
     print("\n[2/4] Fetching India VIX...")
     vix_data = fetch_india_vix(nse_session, nse_headers)
     if vix_data:
-        lbl,col,bg,bdr,sig = vix_label(vix_data['value'])
+        lbl, col, bg, bdr, sig = vix_label(vix_data['value'])
         print(f"  OK  India VIX={vix_data['value']}  Change={vix_data['change']:+.2f}  Status: {lbl}")
     else:
         print("  WARNING  India VIX unavailable")
@@ -1756,17 +1799,20 @@ def main():
     print(f"  Saved: {out}  ({len(html)/1024:.1f} KB)")
 
     meta = {
-        "timestamp":  ts,
-        "bias":       md["bias"],
-        "confidence": md["confidence"],
-        "bull":       md["bull"],
-        "bear":       md["bear"],
-        "diff":       md["diff"],
-        "price":      round(tech["price"], 2) if tech else None,
-        "expiry":     oc_analysis["expiry"]   if oc_analysis else None,
-        "pcr":        oc_analysis["pcr_oi"]   if oc_analysis else None,
-        "oi_dir":     oc_analysis["oi_dir"]   if oc_analysis else None,
-        "india_vix":  vix_data["value"]       if vix_data    else None,
+        "timestamp":       ts,
+        "bias":            md["bias"],
+        "confidence":      md["confidence"],
+        "bull":            md["bull"],
+        "bear":            md["bear"],
+        "diff":            md["diff"],
+        "price":           round(tech["price"], 2) if tech else None,
+        "expiry":          oc_analysis["expiry"]      if oc_analysis else None,
+        "pcr":             oc_analysis["pcr_oi"]      if oc_analysis else None,
+        "oi_dir":          oc_analysis["oi_dir"]      if oc_analysis else None,
+        "raw_oi_dir":      oc_analysis["raw_oi_dir"]  if oc_analysis else None,
+        "raw_bull_pct":    oc_analysis["bull_pct"]    if oc_analysis else None,
+        "raw_bear_pct":    oc_analysis["bear_pct"]    if oc_analysis else None,
+        "india_vix":       vix_data["value"]          if vix_data    else None,
     }
     with open(os.path.join("docs", "latest.json"), "w") as f:
         json.dump(meta, f, indent=2)
@@ -1774,6 +1820,7 @@ def main():
 
     print("\n" + "=" * 65)
     print(f"  DONE  |  Bias: {md['bias']}  |  Confidence: {md['confidence']}")
+    print(f"  Hero: {oc_analysis['raw_oi_dir'] if oc_analysis else 'N/A'}")
     print("  Push to GitHub to deploy to GitHub Pages")
     print("=" * 65 + "\n")
 
