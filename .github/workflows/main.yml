@@ -37,7 +37,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install curl_cffi pandas numpy yfinance pytz beautifulsoup4 requests scipy curl_requests
+          pip install curl_cffi pandas numpy yfinance pytz beautifulsoup4 requests scipy curl_cffi
 
       - name: Run dashboard generator
         run: python optionstrategy.py
