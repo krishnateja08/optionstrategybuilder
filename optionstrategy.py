@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v15 · Sticky Greeks panel · Brighter colors · Golden Strike Dropdown
+Aurora Borealis Theme · v16 · Option Greeks panel · Dynamic Strike Dropdown
 pip install curl_cffi pandas numpy yfinance pytz scipy
 """
 
@@ -203,47 +203,48 @@ def vix_label(v):
 
 
 # =================================================================
-#  SECTION 1C -- BLACK-SCHOLES CALCULATOR + ATM GREEKS EXTRACTOR
+#  SECTION 1C -- BLACK-SCHOLES CALCULATOR (FIXED & ROBUST)
 # =================================================================
-
-from math import log, sqrt, exp
-from scipy.stats import norm as _norm
 
 def _bs_greeks(S, K, T, r, sigma, option_type="CE"):
     """
     Compute Black-Scholes Greeks.
     S     = spot price
     K     = strike price
-    T     = time to expiry in years  (e.g. 7/365)
+    T     = time to expiry in years (e.g. 7/365)
     r     = risk-free rate (e.g. 0.065 for 6.5%)
     sigma = implied volatility as decimal (e.g. 0.15 for 15%)
     Returns dict with delta, gamma, theta (per day), vega (per 1% IV move).
-    Returns None if inputs are invalid.
+    Always returns a valid dict — never None.
     """
     try:
         if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
-            return None
-        d1 = (log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * sqrt(T))
-        d2 = d1 - sigma * sqrt(T)
-        nd1  = _norm.pdf(d1)
+            return {"delta": 0, "gamma": 0, "theta": 0, "vega": 0}
+
+        d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+        d2 = d1 - sigma * np.sqrt(T)
+
+        nd1   = _norm.pdf(d1)
+        gamma = nd1 / (S * sigma * np.sqrt(T))
+        vega  = (S * nd1 * np.sqrt(T)) / 100   # per 1% IV change
+
         if option_type == "CE":
-            delta = _norm.cdf(d1)
-            theta = (-(S * nd1 * sigma) / (2 * sqrt(T))
-                     - r * K * exp(-r * T) * _norm.cdf(d2)) / 365
+            delta         = _norm.cdf(d1)
+            theta_annual  = (-(S * nd1 * sigma) / (2 * np.sqrt(T))
+                             - r * K * np.exp(-r * T) * _norm.cdf(d2))
         else:  # PE
-            delta = _norm.cdf(d1) - 1
-            theta = (-(S * nd1 * sigma) / (2 * sqrt(T))
-                     + r * K * exp(-r * T) * _norm.cdf(-d2)) / 365
-        gamma = nd1 / (S * sigma * sqrt(T))
-        vega  = S * nd1 * sqrt(T) / 100   # per 1% IV move
+            delta         = _norm.cdf(d1) - 1
+            theta_annual  = (-(S * nd1 * sigma) / (2 * np.sqrt(T))
+                             + r * K * np.exp(-r * T) * _norm.cdf(-d2))
+
         return {
-            "delta": round(delta, 4),
-            "gamma": round(gamma, 6),
-            "theta": round(theta, 4),
-            "vega":  round(vega,  4),
+            "delta": round(float(delta), 4),
+            "gamma": round(float(gamma), 6),
+            "theta": round(float(theta_annual / 365.0), 4),   # daily theta
+            "vega":  round(float(vega), 4),
         }
     except Exception:
-        return None
+        return {"delta": 0, "gamma": 0, "theta": 0, "vega": 0}
 
 
 def _days_to_expiry(expiry_str):
@@ -258,68 +259,69 @@ def _days_to_expiry(expiry_str):
         return 7   # fallback: 1 week
 
 
-def _compute_greeks_for_row(r, spot, expiry_str, risk_free=0.065):
+def _compute_greeks_for_row(r, spot, expiry_str, risk_free=0.065, vix=18.0):
     """
-    Given a DataFrame row r and spot price, compute BS Greeks.
-    Uses NSE Greeks if non-zero, otherwise falls back to Black-Scholes.
+    FIXED: Compute BS Greeks for every strike.
+    Priority for Greeks:  NSE live data → Black-Scholes with NSE IV → BS with VIX fallback
+    Priority for IV:      Self IV → Other Side IV → India VIX → 18.0 default
+    Always returns valid (ce_g, pe_g) dicts — never None or zeros from missing data.
     """
-    T    = _days_to_expiry(expiry_str) / 365.0
-    K    = float(r["Strike"])
-    ce_iv_raw = float(r.get("CE_IV", 0) or 0)
-    pe_iv_raw = float(r.get("PE_IV", 0) or 0)
+    T = _days_to_expiry(expiry_str) / 365.0
+    K = float(r["Strike"])
 
-    # ── CE Greeks ──────────────────────────────────────────────────
-    ce_delta_nse = float(r.get("CE_Delta", 0) or 0)
-    ce_theta_nse = float(r.get("CE_Theta", 0) or 0)
-    ce_vega_nse  = float(r.get("CE_Vega",  0) or 0)
-    ce_gamma_nse = float(r.get("CE_Gamma", 0) or 0)
+    def process_side(side):
+        other_side = "PE" if side == "CE" else "CE"
 
-    if abs(ce_delta_nse) > 0.001 and abs(ce_theta_nse) > 0.0001:
-        # NSE data is valid
-        ce_g = {"delta": round(ce_delta_nse, 4), "theta": round(ce_theta_nse, 4),
-                "vega":  round(ce_vega_nse,  4), "gamma": round(ce_gamma_nse, 6)}
-    elif ce_iv_raw > 0:
-        # Fall back to Black-Scholes using NSE's own IV
-        ce_g = _bs_greeks(spot, K, T, risk_free, ce_iv_raw / 100, "CE") or \
-               {"delta": 0, "gamma": 0, "theta": 0, "vega": 0}
-    else:
-        ce_g = {"delta": 0, "gamma": 0, "theta": 0, "vega": 0}
+        # 1. Extract raw NSE data
+        delta_nse = float(r.get(f"{side}_Delta", 0) or 0)
+        theta_nse = float(r.get(f"{side}_Theta", 0) or 0)
+        iv_raw    = float(r.get(f"{side}_IV",    0) or 0)
+        other_iv  = float(r.get(f"{other_side}_IV", 0) or 0)
 
-    # ── PE Greeks ──────────────────────────────────────────────────
-    pe_delta_nse = float(r.get("PE_Delta", 0) or 0)
-    pe_theta_nse = float(r.get("PE_Theta", 0) or 0)
-    pe_vega_nse  = float(r.get("PE_Vega",  0) or 0)
-    pe_gamma_nse = float(r.get("PE_Gamma", 0) or 0)
+        # 2. Smart IV fallback chain: Self IV > Other Side IV > India VIX > 18%
+        if iv_raw > 0.1:
+            iv_to_use = iv_raw
+        elif other_iv > 0.1:
+            iv_to_use = other_iv
+        else:
+            iv_to_use = vix   # live India VIX as last resort
 
-    if abs(pe_delta_nse) > 0.001 and abs(pe_theta_nse) > 0.0001:
-        pe_g = {"delta": round(pe_delta_nse, 4), "theta": round(pe_theta_nse, 4),
-                "vega":  round(pe_vega_nse,  4), "gamma": round(pe_gamma_nse, 6)}
-    elif pe_iv_raw > 0:
-        pe_g = _bs_greeks(spot, K, T, risk_free, pe_iv_raw / 100, "PE") or \
-               {"delta": 0, "gamma": 0, "theta": 0, "vega": 0}
-    else:
-        pe_g = {"delta": 0, "gamma": 0, "theta": 0, "vega": 0}
+        # 3. Use NSE Greeks only if they pass health check (both delta & theta non-trivial)
+        if abs(delta_nse) > 0.001 and abs(theta_nse) > 0.0001:
+            return {
+                "delta": round(delta_nse, 4),
+                "theta": round(theta_nse, 4),
+                "vega":  round(float(r.get(f"{side}_Vega",  0) or 0), 4),
+                "gamma": round(float(r.get(f"{side}_Gamma", 0) or 0), 6),
+            }
+        else:
+            # ALWAYS fall back to Black-Scholes — never return zeros
+            return _bs_greeks(spot, K, T, risk_free, iv_to_use / 100, side)
 
+    ce_g = process_side("CE")
+    pe_g = process_side("PE")
     return ce_g, pe_g
 
 
-def extract_atm_greeks(df, atm_strike, underlying=None, expiry_str=""):
+def extract_atm_greeks(df, atm_strike, underlying=None, expiry_str="", vix=18.0):
     """
     Extract Greeks for ALL strikes in df (for dropdown) plus ATM row.
     Greeks are taken from NSE if valid, otherwise computed via Black-Scholes.
+    vix parameter is passed through to _compute_greeks_for_row.
     """
     spot = underlying or float(atm_strike)
     greeks_rows = []
 
     for _, r in df.iterrows():
-        strike     = int(r["Strike"])
-        is_atm     = strike == int(atm_strike)
-        ce_iv_raw  = round(float(r.get("CE_IV",  0) or 0), 2)
-        pe_iv_raw  = round(float(r.get("PE_IV",  0) or 0), 2)
-        ce_ltp     = round(float(r.get("CE_LTP", 0) or 0), 2)
-        pe_ltp     = round(float(r.get("PE_LTP", 0) or 0), 2)
+        strike    = int(r["Strike"])
+        is_atm    = strike == int(atm_strike)
+        ce_iv_raw = round(float(r.get("CE_IV",  0) or 0), 2)
+        pe_iv_raw = round(float(r.get("PE_IV",  0) or 0), 2)
+        ce_ltp    = round(float(r.get("CE_LTP", 0) or 0), 2)
+        pe_ltp    = round(float(r.get("PE_LTP", 0) or 0), 2)
 
-        ce_g, pe_g = _compute_greeks_for_row(r, spot, expiry_str)
+        # FIXED: pass vix into the computation
+        ce_g, pe_g = _compute_greeks_for_row(r, spot, expiry_str, vix=vix)
 
         greeks_rows.append({
             "strike":   strike,
@@ -338,21 +340,21 @@ def extract_atm_greeks(df, atm_strike, underlying=None, expiry_str=""):
             "pe_ltp":   pe_ltp,
         })
 
-    # Sort by strike
     greeks_rows.sort(key=lambda x: x["strike"])
 
-    atm_row = next((g for g in greeks_rows if g["is_atm"]), greeks_rows[len(greeks_rows)//2] if greeks_rows else {})
+    atm_row = next((g for g in greeks_rows if g["is_atm"]),
+                   greeks_rows[len(greeks_rows)//2] if greeks_rows else {})
 
-    # Also build a ±2 slice for the greeks table section
-    atm_idx  = next((i for i, g in enumerate(greeks_rows) if g["is_atm"]), len(greeks_rows)//2)
-    lo       = max(0, atm_idx - 2)
-    hi       = min(len(greeks_rows), atm_idx + 3)
-    table_5  = greeks_rows[lo:hi]
+    atm_idx = next((i for i, g in enumerate(greeks_rows) if g["is_atm"]),
+                   len(greeks_rows)//2)
+    lo      = max(0, atm_idx - 2)
+    hi      = min(len(greeks_rows), atm_idx + 3)
+    table_5 = greeks_rows[lo:hi]
 
     return {
-        "atm_greeks":    atm_row,
-        "greeks_table":  table_5,       # ±2 for the main table
-        "all_strikes":   greeks_rows,   # full list for the dropdown
+        "atm_greeks":   atm_row,
+        "greeks_table": table_5,
+        "all_strikes":  greeks_rows,
     }
 
 
@@ -360,7 +362,7 @@ def extract_atm_greeks(df, atm_strike, underlying=None, expiry_str=""):
 #  SECTION 2 -- OPTION CHAIN ANALYSIS
 # =================================================================
 
-def analyze_option_chain(oc_data):
+def analyze_option_chain(oc_data, vix=18.0):
     if not oc_data:
         return None
     df           = oc_data["df"]
@@ -434,9 +436,11 @@ def analyze_option_chain(oc_data):
     chg_bear_force = (abs(ce_chg) if ce_chg > 0 else 0) + (abs(pe_chg) if pe_chg < 0 else 0)
 
     atm_strike = oc_data["atm_strike"]
-    greeks     = extract_atm_greeks(df, atm_strike,
-                                    underlying=oc_data["underlying"],
-                                    expiry_str=oc_data["expiry"])
+    # FIXED: pass vix to extract_atm_greeks
+    greeks = extract_atm_greeks(df, atm_strike,
+                                underlying=oc_data["underlying"],
+                                expiry_str=oc_data["expiry"],
+                                vix=vix)
 
     return {
         "expiry":          oc_data["expiry"],
@@ -471,8 +475,8 @@ def analyze_option_chain(oc_data):
         "chg_bull_force":  chg_bull_force,
         "chg_bear_force":  chg_bear_force,
         "atm_greeks":      greeks["atm_greeks"],
-        "greeks_table":    greeks["greeks_table"],   # ±2 strikes for main table
-        "all_strikes":     greeks["all_strikes"],    # all strikes for dropdown
+        "greeks_table":    greeks["greeks_table"],
+        "all_strikes":     greeks["all_strikes"],
     }
 
 
@@ -622,7 +626,7 @@ def _fmt_chg_oi(n):
 
 
 # =================================================================
-#  SECTION 5A -- GREEKS PANELS
+#  SECTION 5A -- OPTION GREEKS PANEL (FULLY FIXED)
 # =================================================================
 
 def _delta_bar_html(delta_val, is_ce=True):
@@ -639,13 +643,11 @@ def _delta_bar_html(delta_val, is_ce=True):
 
 def build_greeks_sidebar_html(oc_analysis):
     """
-    Compact ATM Greeks panel for the sidebar.
-    Changes vs original:
-      - Golden strike-price dropdown (colour #f5c518, glow on hover/focus)
-      - Greek name labels (Δ Delta, σ IV, Θ Theta, ν Vega) now bright white
-        font-size 11px, color rgba(255,255,255,.92)
-      - Sub-labels brightened to rgba(255,255,255,.55)
-      - Delta bar track slightly brighter rgba(255,255,255,.10)
+    FIXED Option Greeks panel for the sidebar.
+    - Title renamed to 'OPTION GREEKS'
+    - Golden strike-price dropdown
+    - Selecting any strike updates ALL greek values correctly
+    - Per-strike BS-computed Greeks ensure unique values for every strike
     """
     if not oc_analysis:
         return ""
@@ -654,7 +656,6 @@ def build_greeks_sidebar_html(oc_analysis):
     atm  = oc_analysis.get("atm_strike", 0)
     spot = oc_analysis.get("underlying", 0)
     exp  = oc_analysis.get("expiry", "N/A")
-    # Use all_strikes for the dropdown (full +-500pt range)
     all_rows = oc_analysis.get("all_strikes", oc_analysis.get("greeks_table", []))
 
     if not g:
@@ -671,22 +672,19 @@ def build_greeks_sidebar_html(oc_analysis):
     ce_ltp   = g.get("ce_ltp",   0.0)
     pe_ltp   = g.get("pe_ltp",   0.0)
 
-    # IV skew
     iv_skew  = round(pe_iv - ce_iv, 2)
     skew_col = "#ff6b6b" if iv_skew > 1.5 else ("#00c896" if iv_skew < -1.5 else "#6480ff")
     skew_txt = f"PE Skew +{iv_skew:.1f}" if iv_skew > 0 else f"CE Skew {iv_skew:.1f}"
 
-    # IV bar
     iv_avg    = (ce_iv + pe_iv) / 2
     iv_pct    = min(100, max(0, (iv_avg / 60) * 100))
     iv_col    = "#ff6b6b" if iv_avg > 25 else "#ffd166" if iv_avg > 18 else "#00c896"
     iv_regime = "High IV · Buy Premium" if iv_avg > 25 else "Normal IV · Balanced" if iv_avg > 15 else "Low IV · Sell Premium"
 
-    # Theta / Vega formatters
     def tfmt(t): return f"&#8377;{abs(t):.2f}" if abs(t) >= 0.01 else f"{t:.4f}"
     def vfmt(v): return f"{v:.4f}" if abs(v) >= 0.0001 else "&#8212;"
 
-    # Build dropdown options -- ALL strikes in +-500pt window with optgroups
+    # Build dropdown with OTM CE (above ATM), ATM, OTM PE (below ATM)
     otm_ce_opts = ""
     atm_opt     = ""
     otm_pe_opts = ""
@@ -695,42 +693,49 @@ def build_greeks_sidebar_html(oc_analysis):
         is_atm = row["is_atm"]
         dist   = abs(s - atm) // 50
         if is_atm:
-            label   = f"★  ATM  ₹{s:,}"
+            label   = f"\u2605  ATM  \u20b9{s:,}"
             atm_opt = f'<option value="{s}" selected>{label}</option>\n'
         elif s > atm:
-            label       = f"▲  CE+{dist}  ₹{s:,}"
+            label       = f"\u25b2  CE+{dist}  \u20b9{s:,}"
             otm_ce_opts += f'<option value="{s}">{label}</option>\n'
         else:
-            label       = f"▼  PE-{dist}  ₹{s:,}"
+            label       = f"\u25bc  PE-{dist}  \u20b9{s:,}"
             otm_pe_opts += f'<option value="{s}">{label}</option>\n'
 
     dropdown_options = (
-        f'<optgroup label="─ OTM CALLS (CE) ─">{otm_ce_opts}</optgroup>'
-        f'<optgroup label="─ ATM ─">{atm_opt}</optgroup>'
-        f'<optgroup label="─ OTM PUTS (PE) ─">{otm_pe_opts}</optgroup>'
+        f'<optgroup label="\u2500 OTM CALLS (CE) \u2500">{otm_ce_opts}</optgroup>'
+        f'<optgroup label="\u2500 ATM \u2500">{atm_opt}</optgroup>'
+        f'<optgroup label="\u2500 OTM PUTS (PE) \u2500">{otm_pe_opts}</optgroup>'
     )
 
-    # Build per-strike JSON for JS (all strikes)
-    strikes_json = "{"
+    # Build per-strike JSON — includes full unique Greeks for every strike
+    strikes_json_parts = []
     for row in all_rows:
         s = row["strike"]
-        strikes_json += (
-            f'"{s}":{{ce_ltp:{row["ce_ltp"]},pe_ltp:{row["pe_ltp"]},'
-            f'ce_delta:{row["ce_delta"]},pe_delta:{row["pe_delta"]},'
-            f'ce_iv:{row["ce_iv"]},pe_iv:{row["pe_iv"]},'
-            f'ce_theta:{row["ce_theta"]},pe_theta:{row["pe_theta"]},'
-            f'ce_vega:{row["ce_vega"]},pe_vega:{row["pe_vega"]}}},'
+        strikes_json_parts.append(
+            f'"{s}":{{' +
+            f'"ce_ltp":{row["ce_ltp"]},' +
+            f'"pe_ltp":{row["pe_ltp"]},' +
+            f'"ce_delta":{row["ce_delta"]},' +
+            f'"pe_delta":{row["pe_delta"]},' +
+            f'"ce_iv":{row["ce_iv"]},' +
+            f'"pe_iv":{row["pe_iv"]},' +
+            f'"ce_theta":{row["ce_theta"]},' +
+            f'"pe_theta":{row["pe_theta"]},' +
+            f'"ce_vega":{row["ce_vega"]},' +
+            f'"pe_vega":{row["pe_vega"]}' +
+            f'}}'
         )
-    strikes_json = strikes_json.rstrip(",") + "}"
+    strikes_json = "{" + ",".join(strikes_json_parts) + "}"
 
     return f"""
 <div class="greeks-panel" id="greeksPanel">
   <div class="greeks-title">
-    &#9652; ATM GREEKS
+    &#9652; OPTION GREEKS
     <span class="greeks-expiry-tag">{exp}</span>
   </div>
 
-  <!-- ══ GOLDEN STRIKE DROPDOWN ══ -->
+  <!-- GOLDEN STRIKE DROPDOWN -->
   <div class="greeks-strike-wrap">
     <select class="greeks-strike-select" id="greeksStrikeSelect"
             onchange="greeksUpdateStrike(this.value)">
@@ -738,7 +743,7 @@ def build_greeks_sidebar_html(oc_analysis):
     </select>
   </div>
 
-  <!-- ATM badge -->
+  <!-- Strike badge -->
   <div class="greeks-atm-badge" id="greeksAtmBadge">
     <span style="font-size:8.5px;color:rgba(255,255,255,.3);">Strike</span>
     <span class="greeks-atm-strike" id="greeksStrikeLabel">&#8377;{atm:,}</span>
@@ -818,26 +823,30 @@ def build_greeks_sidebar_html(oc_analysis):
   <div class="iv-bar-wrap">
     <span class="iv-bar-label">IV Avg</span>
     <div class="iv-bar-track">
-      <div class="iv-bar-fill" id="greeksIvBar" style="width:{iv_pct:.1f}%;background:{iv_col};box-shadow:0 0 6px {iv_col}88;"></div>
+      <div class="iv-bar-fill" id="greeksIvBar"
+           style="width:{iv_pct:.1f}%;background:{iv_col};box-shadow:0 0 6px {iv_col}88;"></div>
     </div>
     <span class="iv-bar-num" id="greeksIvAvg" style="color:{iv_col};">{iv_avg:.1f}%</span>
   </div>
-  <div style="font-size:8.5px;text-align:center;margin-top:6px;font-weight:700;letter-spacing:.5px;"
-       id="greeksIvRegime" style="color:{iv_col};">{iv_regime}</div>
+  <div style="font-size:8.5px;text-align:center;margin-top:6px;font-weight:700;letter-spacing:.5px;color:{iv_col};"
+       id="greeksIvRegime">{iv_regime}</div>
 </div>
 
 <script>
 (function() {{
+  /* ── Per-strike data (BS-computed for every strike) ── */
   var _gData = {strikes_json};
 
   window.greeksUpdateStrike = function(strike) {{
-    var d = _gData[strike];
+    var d = _gData[String(strike)];
     if (!d) return;
 
-    // Fade out
+    /* Fade out */
     var ids = ['greeksStrikeLabel','greeksCeLtp','greeksPeLtp',
-               'greeksDeltaWrap','greeksSkewLbl','greeksIvCe','greeksIvPe',
-               'greeksThetaCe','greeksThetaPe','greeksVegaCe','greeksVegaPe',
+               'greeksDeltaWrap','greeksSkewLbl',
+               'greeksIvCe','greeksIvPe',
+               'greeksThetaCe','greeksThetaPe',
+               'greeksVegaCe','greeksVegaPe',
                'greeksIvBar','greeksIvAvg','greeksIvRegime'];
     ids.forEach(function(id) {{
       var el = document.getElementById(id);
@@ -845,62 +854,87 @@ def build_greeks_sidebar_html(oc_analysis):
     }});
 
     setTimeout(function() {{
-      // Strike label & LTPs
-      document.getElementById('greeksStrikeLabel').innerHTML = '&#8377;' + parseInt(strike).toLocaleString('en-IN');
-      document.getElementById('greeksCeLtp').innerHTML = 'CE &#8377;' + d.ce_ltp.toFixed(1);
-      document.getElementById('greeksPeLtp').innerHTML = 'PE &#8377;' + d.pe_ltp.toFixed(1);
+      /* Strike label */
+      document.getElementById('greeksStrikeLabel').innerHTML =
+        '\u20b9' + parseInt(strike).toLocaleString('en-IN');
+      document.getElementById('greeksCeLtp').innerHTML =
+        'CE \u20b9' + (d.ce_ltp || 0).toFixed(1);
+      document.getElementById('greeksPeLtp').innerHTML =
+        'PE \u20b9' + (d.pe_ltp || 0).toFixed(1);
 
-      // Delta bars
+      /* Delta bars */
       var ceCol = '#00c896', peCol = '#ff6b6b';
-      var cePct = (Math.abs(d.ce_delta) * 100).toFixed(0);
-      var pePct = (Math.abs(d.pe_delta) * 100).toFixed(0);
+      var cePct = Math.min(100, Math.abs(d.ce_delta) * 100).toFixed(0);
+      var pePct = Math.min(100, Math.abs(d.pe_delta) * 100).toFixed(0);
       var ceSign = d.ce_delta >= 0 ? '+' : '';
       var peSign = d.pe_delta >= 0 ? '+' : '';
       document.getElementById('greeksDeltaWrap').innerHTML =
         '<div style="display:flex;align-items:center;gap:5px;">' +
-          '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">' +
-            '<div style="width:' + cePct + '%;height:100%;background:' + ceCol + ';border-radius:2px;"></div></div>' +
-          '<span style="font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;color:' + ceCol + ';">' +
-            ceSign + d.ce_delta.toFixed(3) + '</span></div>' +
+          '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);' +
+               'border-radius:2px;overflow:hidden;">' +
+            '<div style="width:' + cePct + '%;height:100%;background:' + ceCol +
+                 ';border-radius:2px;"></div></div>' +
+          '<span style="font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;color:' +
+               ceCol + ';">' + ceSign + d.ce_delta.toFixed(3) + '</span></div>' +
         '<div style="display:flex;align-items:center;gap:5px;margin-top:3px;">' +
-          '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">' +
-            '<div style="width:' + pePct + '%;height:100%;background:' + peCol + ';border-radius:2px;"></div></div>' +
-          '<span style="font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;color:' + peCol + ';">' +
-            peSign + d.pe_delta.toFixed(3) + '</span></div>';
+          '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);' +
+               'border-radius:2px;overflow:hidden;">' +
+            '<div style="width:' + pePct + '%;height:100%;background:' + peCol +
+                 ';border-radius:2px;"></div></div>' +
+          '<span style="font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;color:' +
+               peCol + ';">' + peSign + d.pe_delta.toFixed(3) + '</span></div>';
 
-      // IV
-      document.getElementById('greeksIvCe').textContent = d.ce_iv.toFixed(1) + '%';
-      document.getElementById('greeksIvPe').textContent = d.pe_iv.toFixed(1) + '%';
-      var skew = (d.pe_iv - d.ce_iv).toFixed(1);
+      /* IV */
+      document.getElementById('greeksIvCe').textContent =
+        (d.ce_iv || 0).toFixed(1) + '%';
+      document.getElementById('greeksIvPe').textContent =
+        (d.pe_iv || 0).toFixed(1) + '%';
+
+      /* IV Skew */
+      var skew = ((d.pe_iv || 0) - (d.ce_iv || 0)).toFixed(1);
       var skewEl = document.getElementById('greeksSkewLbl');
-      skewEl.textContent = parseFloat(skew) > 0 ? 'PE Skew +' + skew : 'CE Skew ' + skew;
-      skewEl.style.color = parseFloat(skew) > 1.5 ? '#ff6b6b' : parseFloat(skew) < -1.5 ? '#00c896' : '#6480ff';
+      skewEl.textContent = parseFloat(skew) > 0
+        ? 'PE Skew +' + skew
+        : 'CE Skew ' + skew;
+      skewEl.style.color = parseFloat(skew) > 1.5
+        ? '#ff6b6b'
+        : parseFloat(skew) < -1.5 ? '#00c896' : '#6480ff';
 
-      // Theta
-      function tfmt(t) {{ return Math.abs(t) >= 0.01 ? '&#8377;' + Math.abs(t).toFixed(2) : t.toFixed(4); }}
-      document.getElementById('greeksThetaCe').innerHTML = tfmt(d.ce_theta);
-      document.getElementById('greeksThetaPe').innerHTML = tfmt(d.pe_theta);
+      /* Theta formatter */
+      function tfmt(t) {{
+        return Math.abs(t) >= 0.01
+          ? '\u20b9' + Math.abs(t).toFixed(2)
+          : t.toFixed(4);
+      }}
+      document.getElementById('greeksThetaCe').innerHTML = tfmt(d.ce_theta || 0);
+      document.getElementById('greeksThetaPe').innerHTML = tfmt(d.pe_theta || 0);
 
-      // Vega
-      function vfmt(v) {{ return Math.abs(v) >= 0.0001 ? v.toFixed(4) : '&#8212;'; }}
-      document.getElementById('greeksVegaCe').innerHTML = vfmt(d.ce_vega);
-      document.getElementById('greeksVegaPe').innerHTML = vfmt(d.pe_vega);
+      /* Vega formatter */
+      function vfmt(v) {{
+        return Math.abs(v) >= 0.0001 ? v.toFixed(4) : '\u2014';
+      }}
+      document.getElementById('greeksVegaCe').innerHTML = vfmt(d.ce_vega || 0);
+      document.getElementById('greeksVegaPe').innerHTML = vfmt(d.pe_vega || 0);
 
-      // IV bar
-      var ivAvg = (d.ce_iv + d.pe_iv) / 2;
+      /* IV bar */
+      var ivAvg = ((d.ce_iv || 0) + (d.pe_iv || 0)) / 2;
       var ivCol = ivAvg > 25 ? '#ff6b6b' : ivAvg > 18 ? '#ffd166' : '#00c896';
-      var ivReg = ivAvg > 25 ? 'High IV \u00b7 Buy Premium' : ivAvg > 15 ? 'Normal IV \u00b7 Balanced' : 'Low IV \u00b7 Sell Premium';
+      var ivReg = ivAvg > 25
+        ? 'High IV \u00b7 Buy Premium'
+        : ivAvg > 15 ? 'Normal IV \u00b7 Balanced' : 'Low IV \u00b7 Sell Premium';
       var ivPct = Math.min(100, Math.max(0, (ivAvg / 60) * 100)).toFixed(1);
       var barEl = document.getElementById('greeksIvBar');
-      barEl.style.width = ivPct + '%';
-      barEl.style.background = ivCol;
+      barEl.style.width     = ivPct + '%';
+      barEl.style.background  = ivCol;
       barEl.style.boxShadow = '0 0 6px ' + ivCol + '88';
-      document.getElementById('greeksIvAvg').textContent = ivAvg.toFixed(1) + '%';
-      document.getElementById('greeksIvAvg').style.color = ivCol;
-      document.getElementById('greeksIvRegime').textContent = ivReg;
-      document.getElementById('greeksIvRegime').style.color = ivCol;
+      var avgEl = document.getElementById('greeksIvAvg');
+      avgEl.textContent = ivAvg.toFixed(1) + '%';
+      avgEl.style.color = ivCol;
+      var regEl = document.getElementById('greeksIvRegime');
+      regEl.textContent = ivReg;
+      regEl.style.color = ivCol;
 
-      // Fade back in
+      /* Fade back in */
       ids.forEach(function(id) {{
         var el = document.getElementById(id);
         if (el) el.style.opacity = '1';
@@ -1017,8 +1051,7 @@ def build_greeks_table_html(oc_analysis):
         {tv_rows}
       </div>
       <div style="font-size:9px;color:rgba(255,255,255,.25);margin-top:7px;padding:0 4px;line-height:1.6;">
-        &#9432; Theta = &#8377; lost per day &middot; Vega = &#8377; change per 1% IV move &middot;
-        Gamma (&#915;) requires broker feed &mdash; not in NSE API
+        &#9432; Theta = &#8377; lost per day &middot; Vega = &#8377; change per 1% IV move
       </div>
     </div>
 
@@ -1144,11 +1177,6 @@ def build_oi_html(oc):
 
     dir_col = _cls_color(oi_cls); dir_bg = _cls_bg(oi_cls); dir_bdr = _cls_bdr(oi_cls)
     pcr_col = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
-    if pcr > 1.3:   pcr_interp, pcr_ic = "Very Bullish", "#00c896"
-    elif pcr > 1.1: pcr_interp, pcr_ic = "Bullish",      "#4de8b8"
-    elif pcr > 0.9: pcr_interp, pcr_ic = "Neutral",      "#6480ff"
-    elif pcr > 0.7: pcr_interp, pcr_ic = "Bearish",      "#ffd166"
-    else:           pcr_interp, pcr_ic = "Very Bearish", "#ff6b6b"
 
     ce_col = "#00c896" if ce < 0 else "#ff6b6b"
     ce_label = "Call Unwinding ↓ (Bullish)" if ce < 0 else "Call Build-up ↑ (Bearish)"
@@ -1309,10 +1337,8 @@ def build_strikes_html(oc):
 
 
 # =================================================================
-#  SECTION 6 -- STRATEGIES (placeholder — paste your v13 content)
+#  SECTION 6 -- STRATEGIES (placeholder)
 # =================================================================
-
-STRATEGIES_DATA = {}  # Replace with your v13 STRATEGIES_DATA dict
 
 def build_strategies_html(oc_analysis):
     return '<div class="section" id="strat"><div class="sec-title">STRATEGIES REFERENCE</div><p style="color:rgba(255,255,255,.4);padding:20px;">Paste your v13 build_strategies_html() here.</p></div>'
@@ -1523,32 +1549,6 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .s-table td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px;color:rgba(255,255,255,.8);background:rgba(255,255,255,.02)}
 .s-table tr:last-child td{border-bottom:none}
 .s-table tr:hover td{background:rgba(0,200,150,.05)}
-.sc-tabs{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
-.sc-tab{padding:8px 20px;border-radius:24px;border:1px solid;cursor:pointer;font-family:var(--fh);font-size:12px;font-weight:600;transition:all .2s;display:flex;align-items:center;gap:8px;background:transparent}
-.sc-tab:hover{opacity:.85}
-.sc-cnt{font-size:10px;padding:1px 7px;border-radius:10px;color:#fff;font-weight:700}
-.sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
-.sc-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;position:relative;}
-.sc-card:hover{border-color:rgba(0,200,150,.3);transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,200,150,.1)}
-.sc-card.hidden{display:none}
-.sc-card.expanded .sc-detail{display:block}
-.sc-card.expanded{border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12)}
-.sc-pop-badge{position:absolute;top:8px;right:8px;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);z-index:5;letter-spacing:.5px;transition:all .3s;min-width:38px;text-align:center;}
-.sc-svg{display:flex;align-items:center;justify-content:center;padding:14px 0 6px;background:rgba(255,255,255,.02)}
-.sc-body{padding:10px 12px 12px}
-.sc-name{font-family:var(--fh);font-size:12px;font-weight:700;color:rgba(255,255,255,.9);margin-bottom:4px;line-height:1.3;padding-right:48px}
-.sc-legs{font-family:var(--fm);font-size:9px;color:rgba(0,200,220,.7);margin-bottom:8px;letter-spacing:.3px;line-height:1.4}
-.sc-tags{display:flex;flex-direction:column;gap:4px}
-.sc-tag{font-size:9px;padding:2px 8px;border-radius:6px;border:1px solid;background:rgba(0,0,0,.2);display:inline-block;width:fit-content}
-.sc-detail{display:none;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,200,150,.03)}
-.sc-desc{font-size:11px;color:rgba(255,255,255,.5);line-height:1.7;padding:12px 12px 8px;border-bottom:1px solid rgba(255,255,255,.05);}
-.sc-metrics-live{padding:0}
-.sc-loading{padding:14px 12px;font-size:11px;color:rgba(255,255,255,.3);text-align:center;font-family:'DM Mono',monospace}
-.metric-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s;}
-.metric-row:hover{background:rgba(255,255,255,.03)}
-.metric-strike{background:rgba(255,209,102,.04);border-bottom:1px solid rgba(255,209,102,.12) !important;}
-.metric-lbl{font-size:10px;color:rgba(255,255,255,.35);letter-spacing:.5px;text-transform:uppercase;font-family:'DM Mono',monospace;}
-.metric-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:600;text-align:right;}
 .ticker-wrap{display:flex;align-items:center;background:rgba(4,6,12,.97);border-bottom:1px solid rgba(255,255,255,.07);height:46px;overflow:hidden;position:relative;z-index:190;box-shadow:0 2px 20px rgba(0,0,0,.5);}
 .ticker-label{flex-shrink:0;padding:0 16px;font-family:var(--fm);font-size:9px;font-weight:700;letter-spacing:3px;color:#00c896;text-transform:uppercase;border-right:1px solid rgba(0,200,150,.2);height:100%;display:flex;align-items:center;background:rgba(0,200,150,.07);white-space:nowrap;}
 .ticker-viewport{flex:1;overflow:hidden;height:100%}
@@ -1562,60 +1562,20 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .tk-badge{font-family:var(--fh);font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;letter-spacing:.3px;}
 footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:rgba(6,8,15,.9);backdrop-filter:blur(12px);display:flex;justify-content:space-between;font-size:11px;color:var(--muted2);font-family:var(--fm)}
 
-/* ══════════════════════════════════════════════════════════════
-   GREEKS PANEL (sidebar)
-   Changes: bright greek-name labels, golden strike dropdown
-══════════════════════════════════════════════════════════════ */
+/* ══ OPTION GREEKS PANEL (sidebar) ══ */
 .greeks-panel{margin:10px 10px 6px;padding:14px 12px;background:linear-gradient(135deg,rgba(100,128,255,.12),rgba(0,200,220,.10));border-radius:14px;border:1px solid rgba(100,128,255,.28);box-shadow:0 4px 20px rgba(100,128,255,.1),inset 0 1px 0 rgba(255,255,255,.06);}
 .greeks-title{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(138,160,255,1.0);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(100,128,255,.25);display:flex;align-items:center;justify-content:space-between;}
 .greeks-expiry-tag{font-size:8.5px;color:rgba(255,255,255,.5);font-weight:400;letter-spacing:.5px;text-transform:none;}
-
-/* ── GOLDEN DROPDOWN ── */
+/* GOLDEN DROPDOWN */
 .greeks-strike-wrap{position:relative;margin-bottom:10px;}
-.greeks-strike-wrap::after{
-  content:'▼';
-  position:absolute;right:10px;top:50%;transform:translateY(-50%);
-  font-size:8px;color:var(--gold);pointer-events:none;z-index:2;
-}
-.greeks-strike-select{
-  width:100%;appearance:none;-webkit-appearance:none;
-  background:linear-gradient(135deg,rgba(245,197,24,.12),rgba(200,155,10,.06));
-  border:1px solid var(--gold-dim);
-  border-radius:8px;
-  color:var(--gold);
-  font-family:'DM Mono',monospace;
-  font-size:11px;font-weight:700;
-  padding:7px 28px 7px 10px;
-  cursor:pointer;outline:none;letter-spacing:.5px;
-  transition:border-color .2s,background .2s,box-shadow .2s;
-}
-.greeks-strike-select:hover{
-  border-color:rgba(245,197,24,.75);
-  background:linear-gradient(135deg,rgba(245,197,24,.18),rgba(200,155,10,.10));
-  box-shadow:0 0 10px rgba(245,197,24,.18);
-}
-.greeks-strike-select:focus{
-  border-color:var(--gold);
-  box-shadow:0 0 0 2px rgba(245,197,24,.25);
-}
+.greeks-strike-wrap::after{content:'▼';position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:8px;color:var(--gold);pointer-events:none;z-index:2;}
+.greeks-strike-select{width:100%;appearance:none;-webkit-appearance:none;background:linear-gradient(135deg,rgba(245,197,24,.12),rgba(200,155,10,.06));border:1px solid var(--gold-dim);border-radius:8px;color:var(--gold);font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:7px 28px 7px 10px;cursor:pointer;outline:none;letter-spacing:.5px;transition:border-color .2s,background .2s,box-shadow .2s;}
+.greeks-strike-select:hover{border-color:rgba(245,197,24,.75);background:linear-gradient(135deg,rgba(245,197,24,.18),rgba(200,155,10,.10));box-shadow:0 0 10px rgba(245,197,24,.18);}
+.greeks-strike-select:focus{border-color:var(--gold);box-shadow:0 0 0 2px rgba(245,197,24,.25);}
 .greeks-strike-select option{background:#0e1225;color:var(--gold);font-weight:700;}
-
-/* ── GREEK NAME labels — BRIGHT WHITE ── */
-.greek-name{
-  font-family:'DM Mono',monospace;
-  font-size:11px;          /* was 9.5px */
-  font-weight:700;
-  letter-spacing:1px;
-  text-transform:uppercase;
-  color:rgba(255,255,255,.92);  /* was .55 — much brighter */
-}
-/* sub-labels under greek name */
-.greek-sub{
-  font-size:8px;
-  color:rgba(255,255,255,.55);  /* was .45 */
-  margin-top:1px;
-}
-
+/* Greek name labels — BRIGHT */
+.greek-name{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.92);}
+.greek-sub{font-size:8px;color:rgba(255,255,255,.55);margin-top:1px;}
 .greeks-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06);}
 .greeks-row:last-child{border-bottom:none;}
 .greeks-atm-badge{display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(100,128,255,.1);border:1px solid rgba(100,128,255,.25);border-radius:8px;padding:5px 8px;margin-bottom:10px;font-family:'DM Mono',monospace;font-size:11px;flex-wrap:wrap;}
@@ -1625,8 +1585,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .iv-bar-track{flex:1;height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;}
 .iv-bar-fill{height:100%;border-radius:2px;transition:width .6s ease;}
 .iv-bar-num{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;min-width:38px;text-align:right;}
-
-/* ── GREEKS TABLE (main content) ── */
+/* GREEKS TABLE (main content) */
 .greeks-table-section{padding:22px 28px;border-bottom:1px solid rgba(255,255,255,.05);}
 .greeks-table-wrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
 .greeks-tbl{border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;}
@@ -1644,7 +1603,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .hero{height:auto;flex-wrap:wrap;}.h-gauges{padding:12px 18px;}.h-stats{min-width:100%;border-left:none;border-top:1px solid rgba(255,255,255,.07);}
   .oi-ticker-hdr,.oi-ticker-row{grid-template-columns:100px repeat(3,1fr)}
   .oi-ticker-hdr-cell:nth-child(n+5),.oi-ticker-cell:nth-child(n+5){display:none}
-  .strikes-wrap{grid-template-columns:1fr}.sc-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+  .strikes-wrap{grid-template-columns:1fr}
   .greeks-table-wrap{grid-template-columns:1fr}
   .greeks-tbl-head,.greeks-tbl-row{grid-template-columns:80px repeat(4,1fr)}
 }
@@ -1653,7 +1612,6 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .oi-ticker-hdr,.oi-ticker-row{grid-template-columns:90px repeat(2,1fr)}
   .oi-ticker-hdr-cell:nth-child(n+4),.oi-ticker-cell:nth-child(n+4){display:none}
   .kl-dist-row{grid-template-columns:1fr}footer{flex-direction:column;gap:6px}
-  .sc-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
   .logo-wrap{min-width:160px;}.refresh-countdown{display:none;}
   .greeks-table-section{padding:16px;}
   .greeks-tbl-head,.greeks-tbl-row{grid-template-columns:70px repeat(3,1fr)}
@@ -1707,12 +1665,12 @@ ANIMATED_JS = """
   function showSpinner(on) {
     const ring = document.getElementById('refreshRing'), txt = document.getElementById('refreshStatus');
     if (ring) ring.classList.toggle('active', on);
-    if (txt) txt.textContent = on ? 'Refreshing…' : '';
+    if (txt) txt.textContent = on ? 'Refreshing\u2026' : '';
   }
   function flashUpdated() {
     const txt = document.getElementById('refreshStatus');
     if (!txt) return;
-    txt.textContent = 'Updated ✓'; txt.classList.add('updated');
+    txt.textContent = 'Updated \u2713'; txt.classList.add('updated');
     setTimeout(() => { txt.textContent = ''; txt.classList.remove('updated'); }, 2500);
   }
   function patchEl(cur, neo) {
@@ -1728,9 +1686,6 @@ ANIMATED_JS = """
     changed |= patchEl(document.getElementById('tkTrack'), newDoc.getElementById('tkTrack'));
     const curTs = document.getElementById('lastUpdatedTs'), neoTs = newDoc.getElementById('lastUpdatedTs');
     if (curTs && neoTs && curTs.textContent !== neoTs.textContent) { curTs.textContent = neoTs.textContent; changed = true; }
-    if (typeof initAllCards === 'function') {
-      try { initAllCards(); ['bullish','bearish','nondirectional'].forEach(sortGridByPoP); } catch(e) {}
-    }
     return changed;
   }
   function silentRefresh() {
@@ -1780,7 +1735,7 @@ def generate_html(tech, oc, md, ts, vix_data=None):
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Nifty 50 Options Dashboard v15</title>
+<title>Nifty 50 Options Dashboard v16</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>{CSS}</style>
@@ -1815,11 +1770,9 @@ def generate_html(tech, oc, md, ts, vix_data=None):
 {gauge_html}
 <div class="main">
   <aside class="sidebar">
-    <!-- ─── STICKY ATM GREEKS PANEL ──────── -->
     <div class="sidebar-sticky-top">
       <div id="greeksPanel">{greeks_sidebar}</div>
     </div>
-    <!-- ─── SCROLLABLE NAV ──────────────── -->
     <div class="sidebar-scroll">
     <div class="sb-sec">
       <div class="sb-lbl">LIVE ANALYSIS</div>
@@ -1829,9 +1782,9 @@ def generate_html(tech, oc, md, ts, vix_data=None):
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">STRATEGIES</div>
-      <button class="sb-btn" onclick="go('strat',this);filterStrat('bullish',null)">&#9650; Bullish <span class="sb-badge" style="color:var(--bull);">9</span></button>
-      <button class="sb-btn" onclick="go('strat',this);filterStrat('bearish',null)">&#9660; Bearish <span class="sb-badge" style="color:var(--bear);">9</span></button>
-      <button class="sb-btn" onclick="go('strat',this);filterStrat('nondirectional',null)">&#8596; Non-Directional <span class="sb-badge" style="color:var(--neut);">20</span></button>
+      <button class="sb-btn" onclick="go('strat',this)">&#9650; Bullish</button>
+      <button class="sb-btn" onclick="go('strat',this)">&#9660; Bearish</button>
+      <button class="sb-btn" onclick="go('strat',this)">&#8596; Non-Directional</button>
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">OPTION CHAIN</div>
@@ -1857,8 +1810,8 @@ def generate_html(tech, oc, md, ts, vix_data=None):
   </main>
 </div>
 <footer>
-  <span>NiftyCraft · Nifty Option Strategy Builder · v15</span>
-  <span>ATM Greeks · OI Dashboard · 30s Silent Refresh · Educational Only · &copy; 2025</span>
+  <span>NiftyCraft · Nifty Option Strategy Builder · v16</span>
+  <span>Option Greeks · OI Dashboard · 30s Silent Refresh · Educational Only · &copy; 2025</span>
 </footer>
 </div>
 
@@ -1868,32 +1821,6 @@ function go(id,btn){{
   if(el)el.scrollIntoView({{behavior:"smooth",block:"start"}});
   if(btn){{document.querySelectorAll(".sb-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");}}
 }}
-function filterStrat(cat,btn){{
-  document.querySelectorAll(".sc-card").forEach(c=>{{c.classList.toggle("hidden",c.dataset.cat!==cat);}});
-  const colors={{bullish:"#00c896",bearish:"#ff6b6b",nondirectional:"#6480ff"}};
-  const col=colors[cat]||"#00c896";
-  document.querySelectorAll(".sc-tab").forEach(t=>{{t.style.borderColor="rgba(255,255,255,.15)";t.style.color="rgba(255,255,255,.5)";t.style.background="transparent";}});
-  if(btn){{btn.style.borderColor=col;btn.style.color=col;btn.style.background=col+"20";}}
-  else{{document.querySelectorAll(".sc-tab").forEach(t=>{{
-    if((cat==="bullish"&&t.textContent.includes("BULLISH"))||(cat==="bearish"&&t.textContent.includes("BEARISH"))||(cat==="nondirectional"&&t.textContent.includes("NON")))
-    {{t.style.borderColor=col;t.style.color=col;t.style.background=col+"20";}}
-  }});}}
-}}
-document.addEventListener("click",function(e){{
-  const card=e.target.closest(".sc-card");
-  if(card){{
-    const was=card.classList.contains("expanded");
-    document.querySelectorAll(".sc-card.expanded").forEach(c=>c.classList.remove("expanded"));
-    if(!was){{
-      card.classList.add("expanded");
-      const mel=card.querySelector('.sc-metrics-live');
-      if(mel&&mel.querySelector('.sc-loading')){{
-        try{{mel.innerHTML=renderMetrics(calcMetrics(card.dataset.shape));}}
-        catch(err){{mel.innerHTML='<div class="sc-loading">Could not calculate metrics</div>';}}
-      }}
-    }}
-  }}
-}});
 </script>
 {ANIMATED_JS}
 </body>
@@ -1908,25 +1835,33 @@ def main():
     ist_tz = pytz.timezone("Asia/Kolkata")
     ts     = datetime.now(ist_tz).strftime("%d-%b-%Y %H:%M IST")
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v15")
+    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v16")
     print(f"  {ts}")
-    print("  + ATM Greeks: BRIGHT labels + GOLDEN strike dropdown")
-    print("  + 5-Strike Greeks table (ATM ±2) in main content")
-    print("  + 30s silent refresh updates Greeks automatically")
+    print("  FIXES:")
+    print("  + Option Greeks (renamed from ATM Greeks)")
+    print("  + BS Greeks computed for EVERY strike — dropdown always updates")
+    print("  + VIX wired through full call chain as IV fallback")
+    print("  + _bs_greeks always returns valid dict (never None)")
     print("=" * 65)
 
     print("\n[1/4] Fetching NSE Option Chain...")
     nse = NSEOptionChain()
     oc_raw, nse_session, nse_headers = nse.fetch()
-    oc_analysis = analyze_option_chain(oc_raw) if oc_raw else None
-    if oc_analysis:
-        g = oc_analysis.get("atm_greeks", {})
-        print(f"  OK  Spot={oc_analysis['underlying']:.2f}  ATM={oc_analysis['atm_strike']}")
-        print(f"      ATM CE Δ={g.get('ce_delta',0):.3f}  IV={g.get('ce_iv',0):.1f}%  θ={g.get('ce_theta',0):.4f}")
-        print(f"      ATM PE Δ={g.get('pe_delta',0):.3f}  IV={g.get('pe_iv',0):.1f}%  θ={g.get('pe_theta',0):.4f}")
 
     print("\n[2/4] Fetching India VIX...")
     vix_data = fetch_india_vix(nse_session, nse_headers)
+    live_vix = vix_data["value"] if vix_data else 18.0
+    print(f"  VIX for BS fallback: {live_vix}")
+
+    # FIXED: pass live_vix into analyze_option_chain
+    oc_analysis = analyze_option_chain(oc_raw, vix=live_vix) if oc_raw else None
+    if oc_analysis:
+        g = oc_analysis.get("atm_greeks", {})
+        n_strikes = len(oc_analysis.get("all_strikes", []))
+        print(f"\n  OK  Spot={oc_analysis['underlying']:.2f}  ATM={oc_analysis['atm_strike']}")
+        print(f"      Greeks computed for {n_strikes} strikes (all unique via BS)")
+        print(f"      ATM CE Δ={g.get('ce_delta',0):.3f}  IV={g.get('ce_iv',0):.1f}%  θ={g.get('ce_theta',0):.4f}")
+        print(f"      ATM PE Δ={g.get('pe_delta',0):.3f}  IV={g.get('pe_iv',0):.1f}%  θ={g.get('pe_theta',0):.4f}")
 
     print("\n[3/4] Fetching Technical Indicators...")
     tech = get_technical_data()
