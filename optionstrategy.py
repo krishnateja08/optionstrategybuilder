@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v9 · OI Bull + OI Bear gauges SIDE BY SIDE
+Aurora Borealis Theme · v10 · OI Direction card with Change in OI cells
 pip install curl_cffi pandas numpy yfinance pytz
 """
 
@@ -420,11 +420,15 @@ def _cls_bdr(cls):
     return ("rgba(0,200,150,.22)"   if cls == "bullish" else
             "rgba(255,107,107,.22)" if cls == "bearish" else "rgba(100,128,255,.22)")
 
+def _fmt_oi(n):
+    """Format OI number as K or M string with sign."""
+    if abs(n) >= 1_000_000: return f"{'+' if n > 0 else ''}{n / 1_000_000:.1f}M"
+    if abs(n) >= 1_000:     return f"{'+' if n > 0 else ''}{n / 1_000:.0f}K"
+    return f"{n:+,}"
+
 
 # =================================================================
-#  SECTION 5A -- HERO  (v9 KEY CHANGE)
-#  OI BULL and OI BEAR gauges now sit SIDE BY SIDE in .h-gauges
-#  The middle column .h-mid has ONLY signal text + pill bars.
+#  SECTION 5A -- HERO
 # =================================================================
 
 def build_dual_gauge_hero(oc, tech, md, ts):
@@ -442,12 +446,8 @@ def build_dual_gauge_hero(oc, tech, md, ts):
         underlying = oc["underlying"]
         atm        = oc["atm_strike"]
         max_pain   = oc["max_pain"]
-        def fmt_oi(n):
-            if abs(n) >= 1_000_000: return f"{'+' if n>0 else ''}{n/1_000_000:.1f}M"
-            if abs(n) >= 1_000:     return f"{'+' if n>0 else ''}{n/1_000:.0f}K"
-            return f"{n:+,}"
-        bull_label = fmt_oi(pe_chg) if pe_chg > 0 else fmt_oi(abs(ce_chg) if ce_chg < 0 else net_chg)
-        bear_label = fmt_oi(ce_chg) if ce_chg > 0 else fmt_oi(abs(pe_chg) if pe_chg < 0 else -net_chg)
+        bull_label = _fmt_oi(pe_chg) if pe_chg > 0 else _fmt_oi(abs(ce_chg) if ce_chg < 0 else net_chg)
+        bear_label = _fmt_oi(ce_chg) if ce_chg > 0 else _fmt_oi(abs(pe_chg) if pe_chg < 0 else -net_chg)
     else:
         ce_chg = pe_chg = net_chg = 0
         bull_pct = bear_pct = 50
@@ -592,75 +592,233 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 """
 
 
+# =================================================================
+#  SECTION 5B -- OI DASHBOARD  (v10: Change in OI card, no bull/bear bar)
+# =================================================================
+
 def build_oi_html(oc):
-    ce = oc["ce_chg"]; pe = oc["pe_chg"]; net = oc["net_chg"]
-    expiry = oc["expiry"]; oi_dir = oc["oi_dir"]; oi_sig = oc["oi_sig"]
-    oi_cls = oc["oi_cls"]; pcr = oc["pcr_oi"]
-    total_ce = oc["total_ce_oi"]; total_pe = oc["total_pe_oi"]
-    max_ce_s = oc["max_ce_strike"]; max_pe_s = oc["max_pe_strike"]
-    max_pain = oc["max_pain"]; underlying = oc["underlying"]
+    ce  = oc["ce_chg"]
+    pe  = oc["pe_chg"]
+    net = oc["net_chg"]
+    expiry     = oc["expiry"]
+    oi_dir     = oc["oi_dir"]
+    oi_sig     = oc["oi_sig"]
+    oi_cls     = oc["oi_cls"]
+    pcr        = oc["pcr_oi"]
+    total_ce   = oc["total_ce_oi"]
+    total_pe   = oc["total_pe_oi"]
+    max_ce_s   = oc["max_ce_strike"]
+    max_pe_s   = oc["max_pe_strike"]
+    max_pain   = oc["max_pain"]
+    underlying = oc["underlying"]
 
-    dir_col = _cls_color(oi_cls); dir_bg = _cls_bg(oi_cls); dir_bdr = _cls_bdr(oi_cls)
+    dir_col = _cls_color(oi_cls)
+    dir_bg  = _cls_bg(oi_cls)
+    dir_bdr = _cls_bdr(oi_cls)
+    pcr_col = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
 
+    # ---------- PCR interpretation text ----------
+    if pcr > 1.3:   pcr_interp, pcr_interp_col = "Very Bullish", "#00c896"
+    elif pcr > 1.1: pcr_interp, pcr_interp_col = "Bullish",      "#4de8b8"
+    elif pcr > 0.9: pcr_interp, pcr_interp_col = "Neutral",      "#6480ff"
+    elif pcr > 0.7: pcr_interp, pcr_interp_col = "Bearish",      "#ffd166"
+    else:           pcr_interp, pcr_interp_col = "Very Bearish", "#ff6b6b"
+
+    # ---------- CE Change colours & label ----------
+    ce_col   = "#00c896" if ce < 0 else "#ff6b6b"
+    ce_label = "Call Unwinding ↓ (Bullish)" if ce < 0 else "Call Build-up ↑ (Bearish)"
+    ce_fmt   = _fmt_oi(ce)
+
+    # ---------- PE Change colours & label ----------
+    pe_col   = "#00c896" if pe > 0 else "#ff6b6b"
+    pe_label = "Put Build-up ↑ (Bullish)" if pe > 0 else "Put Unwinding ↓ (Bearish)"
+    pe_fmt   = _fmt_oi(pe)
+
+    # ---------- Net Change colours & label ----------
+    net_col   = dir_col
+    net_label = "Net Bullish Flow" if net > 0 else ("Net Bearish Flow" if net < 0 else "Balanced Flow")
+    net_fmt   = _fmt_oi(net)
+
+    # ---------- Percentage bars ----------
+    total_abs = abs(ce) + abs(pe) or 1
+    ce_pct    = round(abs(ce)  / total_abs * 100)
+    pe_pct    = round(abs(pe)  / total_abs * 100)
+    # Net bar: how strong is the dominant side (0–100%)
     bull_force = (abs(pe) if pe > 0 else 0) + (abs(ce) if ce < 0 else 0)
     bear_force = (abs(ce) if ce > 0 else 0) + (abs(pe) if pe < 0 else 0)
     total_f    = bull_force + bear_force or 1
     bull_pct   = round(bull_force / total_f * 100)
     bear_pct   = 100 - bull_pct
+    net_pct    = bull_pct if bull_force >= bear_force else bear_pct
+    net_bar_col = ("#00c896" if bull_force >= bear_force else "#ff6b6b")
 
-    pcr_col = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
-    ce_col  = "#00c896" if ce  < 0 else "#ff6b6b"
-    pe_col  = "#00c896" if pe  > 0 else "#ff6b6b"
-    net_col = "#00c896" if net > 0 else "#ff6b6b"
+    # ---------- Interpretation dots ----------
+    ce_interp_col = "#00c896" if ce < 0 else "#ff6b6b"
+    ce_interp_txt = f'Call OI&minus; &rarr; <b style="color:#00c896;">Bullish</b>' if ce < 0 \
+                    else f'Call OI+ &rarr; <b style="color:#ff6b6b;">Bearish</b>'
+    pe_interp_col = "#00c896" if pe > 0 else "#ff6b6b"
+    pe_interp_txt = f'Put OI+ &nbsp;&rarr; <b style="color:#00c896;">Bullish</b>' if pe > 0 \
+                    else f'Put OI&minus; &rarr; <b style="color:#ff6b6b;">Bearish</b>'
 
-    sbar = (f"<div style=\"height:3px;background:rgba(255,255,255,.06);border-radius:2px;"
-            f"overflow:hidden;width:80px;display:inline-block;vertical-align:middle;margin:0 6px;\">"
-            f"<div style=\"width:{bull_pct}%;height:100%;background:linear-gradient(90deg,#00c896,#6480ff);"
-            f"border-radius:2px;box-shadow:0 0 6px rgba(0,200,150,.4);\"></div></div>")
+    # ================================================================
+    #  OI DIRECTION CARD  (replaces old bull/bear % bar row)
+    # ================================================================
+    dir_card = f"""
+<div style="display:flex;align-items:stretch;border:1px solid {dir_bdr};border-radius:14px;
+  background:{dir_bg};overflow:hidden;margin-bottom:16px;">
 
-    return (
-        f"<div class=\"section\"><div class=\"sec-title\">OPEN INTEREST DASHBOARD"
-        f"<span class=\"sec-sub\">Spot &#177;500 pts &middot; Expiry: {expiry} &middot; Spot: &#8377;{underlying:,.2f}</span></div>"
-        f"<div style=\"display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 18px;"
-        f"border-radius:12px;margin-bottom:14px;background:{dir_bg};border:1px solid {dir_bdr};\">"
-        f"<div><div style=\"font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.3);text-transform:uppercase;margin-bottom:4px;\">OI DIRECTION</div>"
-        f"<div style=\"font-size:22px;font-weight:700;color:{dir_col};line-height:1;\">{oi_dir}</div>"
-        f"<div style=\"font-size:11px;color:{dir_col};opacity:.7;margin-top:3px;\">{oi_sig}</div></div>"
-        f"<div style=\"margin-left:auto;text-align:right;\">"
-        f"<div style=\"font-size:10px;color:rgba(255,255,255,.3);margin-bottom:6px;\">"
-        f"<span style=\"color:#00c896;font-weight:700;\">{bull_pct}% Bull</span>{sbar}"
-        f"<span style=\"color:#ff6b6b;font-weight:700;\">{bear_pct}% Bear</span></div>"
-        f"<span style=\"display:inline-block;padding:4px 14px;border-radius:20px;font-size:10px;font-weight:700;"
-        f"color:{dir_col};background:{dir_bg};border:1px solid {dir_bdr};\">{oi_dir}</span></div></div>"
+  <!-- LEFT: Direction label -->
+  <div style="padding:18px 24px;min-width:200px;border-right:1px solid rgba(255,255,255,.07);
+    display:flex;flex-direction:column;justify-content:center;flex-shrink:0;">
+    <div style="font-size:8.5px;letter-spacing:2px;text-transform:uppercase;
+      color:rgba(255,255,255,.28);margin-bottom:7px;">OI DIRECTION</div>
+    <div style="font-size:21px;font-weight:700;color:{dir_col};line-height:1.1;margin-bottom:5px;">{oi_dir}</div>
+    <div style="font-size:10.5px;color:{dir_col};opacity:.7;">{oi_sig}</div>
+    <div style="margin-top:10px;font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,.3);">
+      PCR &nbsp;<span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span>
+    </div>
+  </div>
+
+  <!-- MIDDLE: CE / PE / Net / Interpretation cells -->
+  <div style="display:flex;flex:1;align-items:stretch;">
+
+    <!-- CE OI Change -->
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;
+      padding:16px 20px;border-right:1px solid rgba(255,255,255,.05);gap:5px;">
+      <div style="font-size:8.5px;letter-spacing:1.8px;text-transform:uppercase;
+        color:rgba(255,255,255,.28);white-space:nowrap;">CE OI Change</div>
+      <div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;
+        color:{ce_col};line-height:1;">{ce_fmt}</div>
+      <div style="font-size:10px;color:rgba(255,255,255,.3);white-space:nowrap;">{ce_label}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
+        <div style="flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;">
+          <div style="width:{ce_pct}%;height:100%;border-radius:3px;
+            background:linear-gradient(90deg,{ce_col},{ce_col}99);"></div>
+        </div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
+          color:{ce_col};min-width:34px;text-align:right;">{ce_pct}%</div>
+      </div>
+      <div style="font-size:9px;color:rgba(255,255,255,.18);margin-top:1px;">of total OI change</div>
+    </div>
+
+    <!-- PE OI Change -->
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;
+      padding:16px 20px;border-right:1px solid rgba(255,255,255,.05);gap:5px;">
+      <div style="font-size:8.5px;letter-spacing:1.8px;text-transform:uppercase;
+        color:rgba(255,255,255,.28);white-space:nowrap;">PE OI Change</div>
+      <div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;
+        color:{pe_col};line-height:1;">{pe_fmt}</div>
+      <div style="font-size:10px;color:rgba(255,255,255,.3);white-space:nowrap;">{pe_label}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
+        <div style="flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;">
+          <div style="width:{pe_pct}%;height:100%;border-radius:3px;
+            background:linear-gradient(90deg,{pe_col},{pe_col}99);"></div>
+        </div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
+          color:{pe_col};min-width:34px;text-align:right;">{pe_pct}%</div>
+      </div>
+      <div style="font-size:9px;color:rgba(255,255,255,.18);margin-top:1px;">of total OI change</div>
+    </div>
+
+    <!-- Net OI Change -->
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;
+      padding:16px 20px;border-right:1px solid rgba(255,255,255,.05);gap:5px;">
+      <div style="font-size:8.5px;letter-spacing:1.8px;text-transform:uppercase;
+        color:rgba(255,255,255,.28);white-space:nowrap;">Net OI Change</div>
+      <div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;
+        color:{net_col};line-height:1;">{net_fmt}</div>
+      <div style="font-size:10px;color:rgba(255,255,255,.3);white-space:nowrap;">{net_label}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
+        <div style="flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;">
+          <div style="width:{net_pct}%;height:100%;border-radius:3px;
+            background:linear-gradient(90deg,{net_bar_col},{net_bar_col}99);
+            box-shadow:0 0 8px {net_bar_col}66;"></div>
+        </div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
+          color:{net_col};min-width:34px;text-align:right;">{net_pct}%</div>
+      </div>
+      <div style="font-size:9px;color:rgba(255,255,255,.18);margin-top:1px;">dominant force</div>
+    </div>
+
+    <!-- Interpretation -->
+    <div style="flex:1.1;display:flex;flex-direction:column;justify-content:center;
+      padding:16px 20px;border-right:1px solid rgba(255,255,255,.05);gap:8px;">
+      <div style="font-size:8.5px;letter-spacing:1.8px;text-transform:uppercase;
+        color:rgba(255,255,255,.28);margin-bottom:2px;">Interpretation</div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:10.5px;">
+        <div style="width:7px;height:7px;border-radius:50%;flex-shrink:0;
+          background:{ce_interp_col};box-shadow:0 0 5px {ce_interp_col}88;"></div>
+        <span style="color:rgba(255,255,255,.4);">{ce_interp_txt}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:10.5px;">
+        <div style="width:7px;height:7px;border-radius:50%;flex-shrink:0;
+          background:{pe_interp_col};box-shadow:0 0 5px {pe_interp_col}88;"></div>
+        <span style="color:rgba(255,255,255,.4);">{pe_interp_txt}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:10.5px;margin-top:4px;">
+        <div style="width:7px;height:7px;border-radius:50%;flex-shrink:0;
+          background:{pcr_col};"></div>
+        <span style="color:rgba(255,255,255,.4);">
+          PCR {pcr:.3f} &rarr; <b style="color:{pcr_interp_col};">{pcr_interp}</b>
+        </span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: Signal badge -->
+  <div style="padding:18px 22px;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:10px;min-width:140px;flex-shrink:0;
+    border-left:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.015);">
+    <div style="font-size:9px;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:1.5px;">Signal</div>
+    <span style="font-size:11px;font-weight:700;padding:6px 16px;border-radius:20px;
+      color:{dir_col};border:1px solid {dir_bdr};background:{dir_bg};
+      white-space:nowrap;text-align:center;">{oi_dir}</span>
+    <div style="font-size:9px;color:rgba(255,255,255,.25);text-transform:uppercase;
+      letter-spacing:1.5px;margin-top:4px;">Bull Force</div>
+    <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;
+      color:#00c896;">{bull_pct}%</div>
+  </div>
+
+</div>
+"""
+
+    # ================================================================
+    #  OI SNAPSHOT TABLE  (unchanged — total OI, PCR, max strikes)
+    # ================================================================
+    ce_col2  = "#ff6b6b"   # total CE OI is always red (call side)
+    pe_col2  = "#00c896"   # total PE OI is always green (put side)
+
+    snapshot_table = (
         f"<div class=\"oi-ticker-table\">"
-        f"<div class=\"oi-ticker-hdr\" style=\"background:rgba(0,200,150,.05);border-bottom:1px solid rgba(0,200,150,.1);\">"
-        f"<div class=\"oi-ticker-hdr-label\" style=\"color:rgba(0,200,150,.8);\">&#9651; CHANGE IN OI</div>"
-        f"<div class=\"oi-ticker-hdr-cell\">Call OI Change</div><div class=\"oi-ticker-hdr-cell\">Put OI Change</div>"
-        f"<div class=\"oi-ticker-hdr-cell\">Net OI Change</div><div class=\"oi-ticker-hdr-cell\">Interpretation</div>"
-        f"<div class=\"oi-ticker-hdr-cell\">Signal</div></div>"
-        f"<div class=\"oi-ticker-row\"><div class=\"oi-ticker-metric\">OI Change</div>"
-        f"<div class=\"oi-ticker-cell\" style=\"color:{ce_col};font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">{ce:+,}</div>"
-        f"<div class=\"oi-ticker-cell\" style=\"color:{pe_col};font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">{pe:+,}</div>"
-        f"<div class=\"oi-ticker-cell\" style=\"color:{net_col};font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">{net:+,}</div>"
-        f"<div class=\"oi-ticker-cell\" style=\"font-size:11px;color:rgba(255,255,255,.5);\">{oi_sig}</div>"
-        f"<div class=\"oi-ticker-cell\"><span style=\"padding:4px 12px;border-radius:6px;font-size:11px;font-weight:700;"
-        f"color:{dir_col};background:{dir_bg};border:1px solid {dir_bdr};\">{oi_dir}</span></div></div>"
-        f"<div class=\"oi-ticker-hdr\" style=\"background:rgba(100,128,255,.05);border-top:1px solid rgba(255,255,255,.04);border-bottom:1px solid rgba(100,128,255,.1);\">"
-        f"<div class=\"oi-ticker-hdr-label\" style=\"color:rgba(100,128,255,.8);\">&#9632; OPEN INTEREST</div>"
-        f"<div class=\"oi-ticker-hdr-cell\">Total CE OI</div><div class=\"oi-ticker-hdr-cell\">Total PE OI</div>"
-        f"<div class=\"oi-ticker-hdr-cell\">PCR (OI)</div><div class=\"oi-ticker-hdr-cell\">Max CE Strike</div>"
+        f"<div class=\"oi-ticker-hdr\" style=\"background:rgba(100,128,255,.05);"
+        f"border-bottom:1px solid rgba(100,128,255,.1);\">"
+        f"<div class=\"oi-ticker-hdr-label\" style=\"color:rgba(100,128,255,.8);\">&#9632; OPEN INTEREST SNAPSHOT</div>"
+        f"<div class=\"oi-ticker-hdr-cell\">Total CE OI</div>"
+        f"<div class=\"oi-ticker-hdr-cell\">Total PE OI</div>"
+        f"<div class=\"oi-ticker-hdr-cell\">PCR (OI)</div>"
+        f"<div class=\"oi-ticker-hdr-cell\">Max CE Strike</div>"
         f"<div class=\"oi-ticker-hdr-cell\">Max PE Strike</div></div>"
-        f"<div class=\"oi-ticker-row\"><div class=\"oi-ticker-metric\">Snapshot</div>"
-        f"<div class=\"oi-ticker-cell\" style=\"color:#ff6b6b;font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">{total_ce:,}</div>"
-        f"<div class=\"oi-ticker-cell\" style=\"color:#00c896;font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">{total_pe:,}</div>"
-        f"<div class=\"oi-ticker-cell\" style=\"color:{pcr_col};font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">{pcr:.3f}</div>"
-        f"<div class=\"oi-ticker-cell\" style=\"color:#ff6b6b;font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">&#8377;{max_ce_s:,}</div>"
-        f"<div class=\"oi-ticker-cell\" style=\"color:#00c896;font-family:'DM Mono',monospace;font-weight:700;font-size:15px;\">&#8377;{max_pe_s:,}</div></div>"
+        f"<div class=\"oi-ticker-row\">"
+        f"<div class=\"oi-ticker-metric\">Snapshot</div>"
+        f"<div class=\"oi-ticker-cell\" style=\"color:{ce_col2};font-family:'DM Mono',monospace;"
+        f"font-weight:700;font-size:15px;\">{total_ce:,}</div>"
+        f"<div class=\"oi-ticker-cell\" style=\"color:{pe_col2};font-family:'DM Mono',monospace;"
+        f"font-weight:700;font-size:15px;\">{total_pe:,}</div>"
+        f"<div class=\"oi-ticker-cell\" style=\"color:{pcr_col};font-family:'DM Mono',monospace;"
+        f"font-weight:700;font-size:15px;\">{pcr:.3f}</div>"
+        f"<div class=\"oi-ticker-cell\" style=\"color:#ff6b6b;font-family:'DM Mono',monospace;"
+        f"font-weight:700;font-size:15px;\">&#8377;{max_ce_s:,}</div>"
+        f"<div class=\"oi-ticker-cell\" style=\"color:#00c896;font-family:'DM Mono',monospace;"
+        f"font-weight:700;font-size:15px;\">&#8377;{max_pe_s:,}</div></div>"
         f"<div style=\"display:flex;align-items:center;justify-content:space-between;"
-        f"padding:10px 18px;border-top:1px solid rgba(255,255,255,.04);background:rgba(100,128,255,.03);flex-wrap:wrap;gap:10px;\">"
+        f"padding:10px 18px;border-top:1px solid rgba(255,255,255,.04);"
+        f"background:rgba(100,128,255,.03);flex-wrap:wrap;gap:10px;\">"
         f"<div style=\"display:flex;align-items:center;gap:10px;\">"
-        f"<span style=\"font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);\">MAX PAIN</span>"
-        f"<span style=\"font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:#6480ff;\">&#8377;{max_pain:,}</span>"
+        f"<span style=\"font-size:9px;letter-spacing:1.5px;text-transform:uppercase;"
+        f"color:rgba(255,255,255,.3);\">MAX PAIN</span>"
+        f"<span style=\"font-family:'DM Mono',monospace;font-size:18px;font-weight:700;"
+        f"color:#6480ff;\">&#8377;{max_pain:,}</span>"
         f"<span style=\"font-size:10px;color:rgba(100,128,255,.6);\">Option writers&apos; target</span></div>"
         f"<div style=\"display:flex;gap:16px;flex-wrap:wrap;font-size:10px;color:rgba(255,255,255,.3);\">"
         f"<span>Call OI+ &rarr; <b style=\"color:#ff6b6b;\">Bearish</b></span>"
@@ -669,7 +827,16 @@ def build_oi_html(oc):
         f"<span>Put OI&minus; &rarr; <b style=\"color:#ff6b6b;\">Bearish</b></span>"
         f"<span>PCR&gt;1.2 &rarr; <b style=\"color:#00c896;\">Bullish</b></span>"
         f"<span>PCR&lt;0.7 &rarr; <b style=\"color:#ff6b6b;\">Bearish</b></span>"
-        f"</div></div></div></div>"
+        f"</div></div></div>"
+    )
+
+    return (
+        f"<div class=\"section\"><div class=\"sec-title\">OPEN INTEREST DASHBOARD"
+        f"<span class=\"sec-sub\">Spot &#177;500 pts &middot; Expiry: {expiry}"
+        f" &middot; Spot: &#8377;{underlying:,.2f}</span></div>"
+        + dir_card
+        + snapshot_table
+        + "</div>"
     )
 
 
@@ -986,7 +1153,7 @@ function calcMetrics(shape){{
     case 'put_ratio_back':{{const sp=pe_atm||150,bp=po1.ltp||80,nd=2*bp-sp;pop=Math.round((0.40-pcrAdj)*100);mp=999999;ml=nd>0?nd*lotSz:0;be=[po1.strike-bp];nc=-nd*lotSz;margin=po1.strike*lotSz*0.15;break;}}
     case 'long_synthetic':{{const cp2=ce_atm||150,pp=pe_atm||150,nd=cp2-pp;pop=Math.round((0.50+pcrAdj)*100);mp=999999;ml=999999;be=[atm+nd];nc=-Math.abs(nd)*lotSz;margin=atm*lotSz*0.30;pnl=(spot-atm-nd)*lotSz;break;}}
     case 'short_synthetic':{{const cp2=ce_atm||150,pp=pe_atm||150,nc2=cp2-pp;pop=Math.round((0.50-pcrAdj)*100);mp=999999;ml=999999;be=[atm+nc2];nc=Math.abs(nc2)*lotSz;margin=atm*lotSz*0.30;pnl=(atm-spot+nc2)*lotSz;break;}}
-    case 'call_butterfly': case 'bull_butterfly':{{const lp=ce_atm||150,mp2=co1.ltp||80,hp=co2.ltp||40,nd=lp-2*mp2+hp;pop=Math.round((0.55+pcrAdj)*100);mp=( 50-nd)*lotSz;ml=nd*lotSz;be=[atm+nd,co2.strike-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd)/nd).toFixed(2);break;}}
+    case 'call_butterfly': case 'bull_butterfly':{{const lp=ce_atm||150,mp2=co1.ltp||80,hp=co2.ltp||40,nd=lp-2*mp2+hp;pop=Math.round((0.55+pcrAdj)*100);mp=(50-nd)*lotSz;ml=nd*lotSz;be=[atm+nd,co2.strike-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd)/nd).toFixed(2);break;}}
     case 'put_butterfly': case 'bear_butterfly':{{const hp=pe_atm||150,mp2=po1.ltp||80,lp=po2.ltp||40,nd=hp-2*mp2+lp;pop=Math.round((0.55-pcrAdj)*100);mp=(50-nd)*lotSz;ml=nd*lotSz;be=[po2.strike+nd,atm-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd)/nd).toFixed(2);break;}}
     case 'jade_lizard':{{const pp=po1.ltp||100,cs=co1.ltp||80,cb=co2.ltp||40,nc2=pp+cs-cb;pop=Math.round((0.60+pcrAdj)*100);mp=nc2*lotSz;ml=(po1.strike-nc2)*lotSz;be=[po1.strike-nc2];nc=nc2*lotSz;margin=po1.strike*lotSz*0.15;break;}}
     case 'reverse_jade':{{const cp2=co1.ltp||100,ps=po1.ltp||80,pb=po2.ltp||40,nc2=cp2+ps-pb;pop=Math.round((0.60-pcrAdj)*100);mp=nc2*lotSz;ml=(co1.strike-nc2)*lotSz;be=[co1.strike+nc2];nc=nc2*lotSz;margin=co1.strike*lotSz*0.15;break;}}
@@ -1197,7 +1364,6 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .hero::after{content:'';position:absolute;bottom:-50px;right:350px;width:200px;height:200px;border-radius:50%;
   background:radial-gradient(circle,rgba(255,107,107,.07),transparent 70%);pointer-events:none;}
 
-/* Both gauges side by side */
 .h-gauges{flex-shrink:0;display:flex;align-items:center;gap:10px;padding:0 16px 0 18px;}
 .gauge-sep{width:1px;height:56px;background:rgba(255,255,255,.08);flex-shrink:0;}
 .gauge-wrap{position:relative;width:76px;height:76px;}
@@ -1206,7 +1372,6 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .g-val{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;line-height:1;}
 .g-lbl{font-size:7.5px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.28);margin-top:2px;}
 
-/* Middle: signal + bars */
 .h-mid{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;
   padding:0 15px 0 13px;border-left:1px solid rgba(255,255,255,.05);}
 .h-eyebrow{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
@@ -1223,7 +1388,6 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .pill-fill{height:100%;border-radius:3px;}
 .pill-num{font-family:'DM Mono',monospace;font-size:10px;font-weight:700;margin-left:8px;flex-shrink:0;}
 
-/* Right stats */
 .h-stats{flex-shrink:0;min-width:360px;display:flex;flex-direction:column;
   border-left:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.015);}
 .h-stat-row{display:flex;align-items:stretch;flex:1;border-bottom:1px solid rgba(255,255,255,.05);}
@@ -1534,7 +1698,7 @@ def main():
     ist_tz = pytz.timezone("Asia/Kolkata")
     ts     = datetime.now(ist_tz).strftime("%d-%b-%Y %H:%M IST")
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v9")
+    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v10")
     print(f"  {ts}")
     print("=" * 65)
 
