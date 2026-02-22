@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v11 · Hero widget now reads Raw OI (openInterest)
+Aurora Borealis Theme · v12 · Silent 30s background refresh (no blink)
 pip install curl_cffi pandas numpy yfinance pytz
 """
 
@@ -214,7 +214,6 @@ def analyze_option_chain(oc_data):
     pe_chg       = int(df["PE_OI_Change"].sum())
     net_chg      = pe_chg + ce_chg
 
-    # OI direction signal (based on OI Change — used only in OI Dashboard section)
     if   ce_chg > 0 and pe_chg < 0:
         oi_dir, oi_sig, oi_icon, oi_cls = "Strong Bearish", "Call Build-up + Put Unwinding", "RED",    "bearish"
     elif ce_chg < 0 and pe_chg > 0:
@@ -252,15 +251,11 @@ def analyze_option_chain(oc_data):
             "pe_oi":  int(row["PE_OI"]),
         })
 
-    # ── Raw OI hero signal (NEW) ──────────────────────────────────
-    # bull_force = total_pe_oi  (put writers = bulls defending support)
-    # bear_force = total_ce_oi  (call writers = bears capping upside)
     raw_total   = int(total_pe_oi) + int(total_ce_oi)
     raw_total   = raw_total if raw_total > 0 else 1
     bull_pct    = round(int(total_pe_oi) / raw_total * 100)
     bear_pct    = 100 - bull_pct
 
-    # PCR-based direction for the hero widget
     if   pcr_oi > 1.5:
         raw_oi_dir = "STRONG BULLISH"
         raw_oi_sig = "Heavy Put Writing — Strong Support Floor"
@@ -287,7 +282,6 @@ def analyze_option_chain(oc_data):
             raw_oi_sig = "Balanced OI — Slight Call Dominance"
             raw_oi_cls = "bearish"
 
-    # OI Change force (kept for the OI Dashboard section only)
     chg_bull_force = (abs(pe_chg) if pe_chg > 0 else 0) + (abs(ce_chg) if ce_chg < 0 else 0)
     chg_bear_force = (abs(ce_chg) if ce_chg > 0 else 0) + (abs(pe_chg) if pe_chg < 0 else 0)
 
@@ -314,15 +308,13 @@ def analyze_option_chain(oc_data):
         "top_ce":          top_ce,
         "top_pe":          top_pe,
         "strikes_data":    strikes_data,
-        # ── Raw OI hero fields ──
-        "bull_pct":        bull_pct,       # from raw OI
-        "bear_pct":        bear_pct,       # from raw OI
+        "bull_pct":        bull_pct,
+        "bear_pct":        bear_pct,
         "bull_force":      int(total_pe_oi),
         "bear_force":      int(total_ce_oi),
         "raw_oi_dir":      raw_oi_dir,
         "raw_oi_sig":      raw_oi_sig,
         "raw_oi_cls":      raw_oi_cls,
-        # ── OI Change forces (for OI Dashboard section only) ──
         "chg_bull_force":  chg_bull_force,
         "chg_bear_force":  chg_bear_force,
     }
@@ -461,7 +453,6 @@ def _cls_bdr(cls):
             "rgba(255,107,107,.22)" if cls == "bearish" else "rgba(100,128,255,.22)")
 
 def _fmt_oi(n):
-    """Format OI number: Lakhs (L) for Indian scale, K for thousands."""
     abs_n = abs(n)
     sign  = "+" if n > 0 else ("-" if n < 0 else "")
     if abs_n >= 1_00_00_000:  return f"{sign}{abs_n / 1_00_00_000:.1f}Cr"
@@ -470,52 +461,27 @@ def _fmt_oi(n):
     return f"{n:+,}"
 
 def _fmt_chg_oi(n):
-    """Format OI change number with sign."""
     if abs(n) >= 1_000_000: return f"{'+' if n > 0 else ''}{n / 1_000_000:.1f}M"
     if abs(n) >= 1_000:     return f"{'+' if n > 0 else ''}{n / 1_000:.0f}K"
     return f"{n:+,}"
 
 
 # =================================================================
-#  SECTION 5A -- HERO  (v11: reads Raw OI instead of OI Change)
+#  SECTION 5A -- HERO
 # =================================================================
 
 def build_dual_gauge_hero(oc, tech, md, ts):
-    """
-    Hero widget — dual circular gauges.
-
-    DATA SOURCE CHANGE (v11):
-      BEFORE: gauges read changeinOpenInterest (daily OI changes)
-              bull_label = pe_chg, bear_label = ce_chg
-              bull_pct / bear_pct from OI change forces
-
-      NOW:    gauges read openInterest (total accumulated positions)
-              OI BULL circle = total_pe_oi  (put writers = bulls defending support)
-              OI BEAR circle = total_ce_oi  (call writers = bears capping resistance)
-              bull_pct = total_pe_oi / (total_pe_oi + total_ce_oi) * 100
-              bear_pct = total_ce_oi / (total_pe_oi + total_ce_oi) * 100
-              Direction derived from PCR (total_pe_oi / total_ce_oi):
-                > 1.5  → STRONG BULLISH
-                > 1.2  → BULLISH
-                0.7–1.2 → CAUTIOUSLY BULLISH/BEARISH
-                < 0.7  → BEARISH
-                < 0.5  → STRONG BEARISH
-    """
     if oc:
-        # ── Raw OI values for gauges ──────────────────────────────
-        total_pe_oi = oc["total_pe_oi"]   # OI BULL source
-        total_ce_oi = oc["total_ce_oi"]   # OI BEAR source
-        bull_pct    = oc["bull_pct"]       # pe_oi / (pe_oi + ce_oi) * 100
-        bear_pct    = oc["bear_pct"]       # ce_oi / (pe_oi + ce_oi) * 100
-        pcr         = oc["pcr_oi"]         # total_pe_oi / total_ce_oi
-        oi_dir      = oc["raw_oi_dir"]     # PCR-based direction
-        oi_sig      = oc["raw_oi_sig"]     # signal description
-        oi_cls      = oc["raw_oi_cls"]     # bullish / bearish / neutral
-
-        # Formatted display values for circle centres
-        bull_label  = _fmt_oi(total_pe_oi)   # e.g. "341L"
-        bear_label  = _fmt_oi(total_ce_oi)   # e.g. "284L"
-
+        total_pe_oi = oc["total_pe_oi"]
+        total_ce_oi = oc["total_ce_oi"]
+        bull_pct    = oc["bull_pct"]
+        bear_pct    = oc["bear_pct"]
+        pcr         = oc["pcr_oi"]
+        oi_dir      = oc["raw_oi_dir"]
+        oi_sig      = oc["raw_oi_sig"]
+        oi_cls      = oc["raw_oi_cls"]
+        bull_label  = _fmt_oi(total_pe_oi)
+        bear_label  = _fmt_oi(total_ce_oi)
         expiry      = oc["expiry"]
         underlying  = oc["underlying"]
         atm         = oc["atm_strike"]
@@ -541,12 +507,9 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     b_bg    = _cls_bg(md.get("bias_cls", "neutral"))
     b_bdr   = _cls_bdr(md.get("bias_cls", "neutral"))
 
-    # SVG gauge: circumference C = 2 * pi * r = 2 * pi * 31 ≈ 194.8
     C = 194.8
     def clamp(v, lo=10, hi=97): return max(lo, min(hi, v))
 
-    # stroke-dashoffset: higher offset = smaller arc drawn
-    # offset = C * (1 - fill_pct/100)
     bull_offset = C * (1 - clamp(bull_pct) / 100)
     bear_offset = C * (1 - clamp(bear_pct) / 100)
     oi_bar_w    = clamp(bull_pct)
@@ -557,12 +520,9 @@ def build_dual_gauge_hero(oc, tech, md, ts):
                 "255,107,107" if dir_col == "#ff6b6b" else "100,128,255")
 
     return f"""
-<div class="hero">
+<div class="hero" id="heroWidget">
 
-  <!-- LEFT: OI BULL + OI BEAR gauges (now from Raw OI) -->
   <div class="h-gauges">
-
-    <!-- OI BULL = total_pe_oi (put writers defending support floor) -->
     <div class="gauge-wrap">
       <svg width="76" height="76" viewBox="0 0 76 76">
         <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="6"/>
@@ -583,7 +543,6 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 
     <div class="gauge-sep"></div>
 
-    <!-- OI BEAR = total_ce_oi (call writers capping resistance) -->
     <div class="gauge-wrap">
       <svg width="76" height="76" viewBox="0 0 76 76">
         <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="6"/>
@@ -601,10 +560,8 @@ def build_dual_gauge_hero(oc, tech, md, ts):
         <div class="g-lbl">OI BEAR</div>
       </div>
     </div>
-
   </div>
 
-  <!-- MIDDLE: direction + strength bars -->
   <div class="h-mid">
     <div class="h-eyebrow">OI NET SIGNAL &middot; {expiry} &middot; SPOT &#8377;{underlying:,.0f}</div>
     <div class="h-signal" style="color:{dir_col};
@@ -628,7 +585,6 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     </div>
   </div>
 
-  <!-- RIGHT: stat panel -->
   <div class="h-stats">
     <div class="h-stat-row">
       <div class="h-stat">
@@ -661,7 +617,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
           border:1px solid rgba(255,209,102,.3);">{conf}&nbsp;CONF</span>
         <span class="h-score">Bull&nbsp;{bull_sc} &middot; Bear&nbsp;{bear_sc} &middot; Diff&nbsp;{diff:+d}</span>
       </div>
-      <div class="h-ts">{ts}</div>
+      <div class="h-ts" id="lastUpdatedTs">{ts}</div>
     </div>
   </div>
 
@@ -670,7 +626,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 
 
 # =================================================================
-#  SECTION 5B -- OI DASHBOARD (OI Change data — unchanged)
+#  SECTION 5B -- OI DASHBOARD
 # =================================================================
 
 def build_oi_html(oc):
@@ -1414,6 +1370,19 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .live-dot{width:7px;height:7px;border-radius:50%;background:#00c896;box-shadow:0 0 10px #00c896;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
 
+/* refresh indicator */
+.refresh-ring {
+  width:14px;height:14px;border-radius:50%;
+  border:2px solid rgba(0,200,150,.2);
+  border-top-color:#00c896;
+  display:none;
+  animation:spin 0.8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.refresh-ring.active{display:inline-block;}
+#refreshStatus{font-size:10px;color:rgba(255,255,255,.25);transition:color .3s;}
+#refreshStatus.updated{color:#00c896;}
+
 /* ── HERO ── */
 .hero{display:flex;align-items:stretch;
   background:linear-gradient(135deg,rgba(0,200,150,.055) 0%,rgba(100,128,255,.055) 100%);
@@ -1620,9 +1589,154 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);
 }
 """
 
+# =================================================================
+#  SECTION 9 -- SILENT REFRESH JS
+# =================================================================
+
+SILENT_REFRESH_JS = """
+<script>
+// ── Silent Background Refresh v12 (30s, no blink) ───────────────
+(function() {
+  const INTERVAL_MS = 30000;
+  let _lastBias = null;
+  let _lastPCR  = null;
+  let _refreshTimer = null;
+
+  function showSpinner(on) {
+    const ring = document.getElementById('refreshRing');
+    const txt  = document.getElementById('refreshStatus');
+    if (ring) ring.classList.toggle('active', on);
+    if (txt)  txt.textContent = on ? 'Refreshing…' : 'Auto-refresh: 30s';
+  }
+
+  function flashUpdated() {
+    const txt = document.getElementById('refreshStatus');
+    if (!txt) return;
+    txt.textContent = 'Updated ✓';
+    txt.classList.add('updated');
+    setTimeout(() => {
+      txt.textContent = 'Auto-refresh: 30s';
+      txt.classList.remove('updated');
+    }, 2500);
+  }
+
+  // Patch a DOM element's innerHTML only if it changed
+  function patchEl(cur, neo) {
+    if (cur && neo && cur.innerHTML !== neo.innerHTML) {
+      cur.innerHTML = neo.innerHTML;
+      return true;
+    }
+    return false;
+  }
+
+  // Patch an element's outerHTML by replacing with the new node
+  function patchOuter(cur, neo) {
+    if (cur && neo && cur.outerHTML !== neo.outerHTML) {
+      cur.parentNode.replaceChild(neo.cloneNode(true), cur);
+      return true;
+    }
+    return false;
+  }
+
+  function applyNewDoc(html) {
+    const parser = new DOMParser();
+    const newDoc = parser.parseFromString(html, 'text/html');
+    let changed = false;
+
+    // 1. Hero widget (outerHTML swap to keep SVG gradients intact)
+    const curHero = document.getElementById('heroWidget');
+    const neoHero = newDoc.getElementById('heroWidget');
+    if (curHero && neoHero && curHero.outerHTML !== neoHero.outerHTML) {
+      curHero.outerHTML = neoHero.outerHTML;
+      changed = true;
+    }
+
+    // 2. OI Dashboard section
+    changed |= patchEl(document.getElementById('oi'), newDoc.getElementById('oi'));
+
+    // 3. Key Levels section
+    changed |= patchEl(document.getElementById('kl'), newDoc.getElementById('kl'));
+
+    // 4. Strikes section
+    changed |= patchEl(document.getElementById('strikes'), newDoc.getElementById('strikes'));
+
+    // 5. Ticker track
+    changed |= patchEl(document.getElementById('tkTrack'), newDoc.getElementById('tkTrack'));
+
+    // 6. Header timestamp
+    const curTs = document.getElementById('lastUpdatedTs');
+    const neoTs = newDoc.getElementById('lastUpdatedTs');
+    if (curTs && neoTs && curTs.textContent !== neoTs.textContent) {
+      curTs.textContent = neoTs.textContent;
+      changed = true;
+    }
+
+    // 7. Re-run strategy PoP badges if the grid is still there
+    if (typeof initAllCards === 'function') {
+      try {
+        initAllCards();
+        ['bullish','bearish','nondirectional'].forEach(sortGridByPoP);
+      } catch(e) {}
+    }
+
+    return changed;
+  }
+
+  function silentRefresh() {
+    // First, do a lightweight JSON probe to see if anything changed
+    fetch('latest.json?_=' + Date.now())
+      .then(r => { if (!r.ok) throw new Error('json fail'); return r.json(); })
+      .then(data => {
+        const biasChanged = data.bias !== _lastBias;
+        const pcrChanged  = String(data.pcr) !== String(_lastPCR);
+
+        if (_lastBias !== null && !biasChanged && !pcrChanged) {
+          // Nothing meaningful changed — skip full HTML fetch
+          schedule();
+          return;
+        }
+
+        _lastBias = data.bias;
+        _lastPCR  = String(data.pcr);
+
+        // Something changed — do a full silent HTML swap
+        showSpinner(true);
+        fetch('index.html?_=' + Date.now())
+          .then(r => { if (!r.ok) throw new Error('html fail'); return r.text(); })
+          .then(html => {
+            const changed = applyNewDoc(html);
+            showSpinner(false);
+            if (changed) flashUpdated();
+            schedule();
+          })
+          .catch(() => { showSpinner(false); schedule(); });
+      })
+      .catch(() => {
+        // JSON fetch failed (market closed / offline) — just reschedule quietly
+        schedule();
+      });
+  }
+
+  function schedule() {
+    clearTimeout(_refreshTimer);
+    _refreshTimer = setTimeout(silentRefresh, INTERVAL_MS);
+  }
+
+  // Kick off after first full load
+  window.addEventListener('load', function() {
+    // Prime with current values from the page's embedded data if available
+    try {
+      _lastBias = typeof OC !== 'undefined' ? (window.__initBias || null) : null;
+    } catch(e) {}
+    schedule();
+  });
+})();
+</script>
+"""
+
 
 # =================================================================
-#  SECTION 9 -- HTML ASSEMBLER
+#  SECTION 10 -- HTML ASSEMBLER
 # =================================================================
 
 def generate_html(tech, oc, md, ts, vix_data=None):
@@ -1667,6 +1781,9 @@ def generate_html(tech, oc, md, ts, vix_data=None):
     <span>NSE Options Dashboard</span>
     <span style="color:rgba(255,255,255,.15);">|</span>
     <span>{ts}</span>
+    <span style="color:rgba(255,255,255,.15);">|</span>
+    <div class="refresh-ring" id="refreshRing"></div>
+    <span id="refreshStatus">Auto-refresh: 30s</span>
   </div>
 </header>
 {ticker_html}
@@ -1707,8 +1824,8 @@ def generate_html(tech, oc, md, ts, vix_data=None):
   </main>
 </div>
 <footer>
-  <span>NiftyCraft &middot; NSE Options Dashboard &middot; v11</span>
-  <span>Hero: Raw OI Signal &middot; OI Dashboard: OI Change &middot; For Educational Purposes Only &middot; &copy; 2025</span>
+  <span>NiftyCraft &middot; NSE Options Dashboard &middot; v12</span>
+  <span>Hero: Raw OI Signal &middot; OI Dashboard: OI Change &middot; Silent 30s Refresh &middot; For Educational Purposes Only &middot; &copy; 2025</span>
 </footer>
 </div>
 
@@ -1745,22 +1862,24 @@ document.addEventListener("click",function(e){{
   }}
 }});
 </script>
+{SILENT_REFRESH_JS}
 </body>
 </html>"""
 
 
 # =================================================================
-#  SECTION 10 -- MAIN
+#  SECTION 11 -- MAIN
 # =================================================================
 
 def main():
     ist_tz = pytz.timezone("Asia/Kolkata")
     ts     = datetime.now(ist_tz).strftime("%d-%b-%Y %H:%M IST")
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v11")
+    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v12")
     print(f"  {ts}")
     print("  Hero widget: Raw OI (openInterest)")
     print("  OI Dashboard: OI Change (changeinOpenInterest)")
+    print("  Silent 30s background refresh — no blink")
     print("=" * 65)
 
     print("\n[1/4] Fetching NSE Option Chain...")
