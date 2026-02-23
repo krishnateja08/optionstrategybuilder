@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v17 · PUT OI / CALL OI gauge labels · PCR formula shown
+Aurora Borealis Theme · v16 · Option Greeks panel · Dynamic Strike Dropdown
 pip install curl_cffi pandas numpy yfinance pytz scipy
 """
 
@@ -402,20 +402,17 @@ def analyze_option_chain(oc_data, vix=18.0):
 
     raw_total = int(total_pe_oi) + int(total_ce_oi)
     raw_total = raw_total if raw_total > 0 else 1
-    # v17 FIX: pe_pct = PUT OI share, ce_pct = CALL OI share (clearer naming)
-    pe_pct    = round(int(total_pe_oi) / raw_total * 100)
-    ce_pct    = 100 - pe_pct
-    bull_pct  = pe_pct   # kept for backward compat
-    bear_pct  = ce_pct   # kept for backward compat
+    bull_pct  = round(int(total_pe_oi) / raw_total * 100)
+    bear_pct  = 100 - bull_pct
 
     if   pcr_oi > 1.5:
         raw_oi_dir = "STRONG BULLISH"; raw_oi_sig = "Heavy Put Writing — Strong Support Floor"; raw_oi_cls = "bullish"
     elif pcr_oi > 1.2:
-        raw_oi_dir = "BULLISH";        raw_oi_sig = "PUT OI > CALL OI — Bulls in Control";      raw_oi_cls = "bullish"
+        raw_oi_dir = "BULLISH";        raw_oi_sig = "Put OI > Call OI — Bulls in Control";      raw_oi_cls = "bullish"
     elif pcr_oi < 0.5:
         raw_oi_dir = "STRONG BEARISH"; raw_oi_sig = "Heavy Call Writing — Strong Resistance Cap"; raw_oi_cls = "bearish"
     elif pcr_oi < 0.7:
-        raw_oi_dir = "BEARISH";        raw_oi_sig = "CALL OI > PUT OI — Bears in Control";      raw_oi_cls = "bearish"
+        raw_oi_dir = "BEARISH";        raw_oi_sig = "Call OI > Put OI — Bears in Control";      raw_oi_cls = "bearish"
     else:
         if int(total_pe_oi) >= int(total_ce_oi):
             raw_oi_dir = "CAUTIOUSLY BULLISH"; raw_oi_sig = "Balanced OI — Slight Put Dominance"; raw_oi_cls = "bullish"
@@ -454,8 +451,6 @@ def analyze_option_chain(oc_data, vix=18.0):
         "top_ce":          top_ce,
         "top_pe":          top_pe,
         "strikes_data":    strikes_data,
-        "pe_pct":          pe_pct,
-        "ce_pct":          ce_pct,
         "bull_pct":        bull_pct,
         "bear_pct":        bear_pct,
         "bull_force":      int(total_pe_oi),
@@ -941,24 +936,21 @@ def build_greeks_table_html(oc_analysis):
 
 
 # =================================================================
-#  SECTION 5B -- HERO  *** v17 LABEL FIXES ***
+#  SECTION 5B -- HERO
 # =================================================================
 
 def build_dual_gauge_hero(oc, tech, md, ts):
     if oc:
         total_pe_oi = oc["total_pe_oi"]; total_ce_oi = oc["total_ce_oi"]
-        pe_pct = oc["pe_pct"]; ce_pct = oc["ce_pct"]
         bull_pct = oc["bull_pct"]; bear_pct = oc["bear_pct"]; pcr = oc["pcr_oi"]
         oi_dir = oc["raw_oi_dir"]; oi_sig = oc["raw_oi_sig"]; oi_cls = oc["raw_oi_cls"]
-        # v17: label gauges by what they ARE (option type), not what they signal
-        put_oi_label  = _fmt_oi(total_pe_oi)
-        call_oi_label = _fmt_oi(total_ce_oi)
+        bull_label = _fmt_oi(total_pe_oi); bear_label = _fmt_oi(total_ce_oi)
         expiry = oc["expiry"]; underlying = oc["underlying"]; atm = oc["atm_strike"]; max_pain = oc["max_pain"]
     else:
-        total_pe_oi = total_ce_oi = 0; pe_pct = ce_pct = 50; bull_pct = bear_pct = 50; pcr = 1.0
+        total_pe_oi = total_ce_oi = 0; bull_pct = bear_pct = 50; pcr = 1.0
         oi_sig = "No Data"; oi_dir = "UNKNOWN"; oi_cls = "neutral"
         expiry = "N/A"; underlying = 0; atm = 0; max_pain = 0
-        put_oi_label = "N/A"; call_oi_label = "N/A"
+        bull_label = "N/A"; bear_label = "N/A"
 
     cp = tech["price"] if tech else 0
     bias = md["bias"]; conf = md["confidence"]; bull_sc = md["bull"]; bear_sc = md["bear"]; diff = md["diff"]
@@ -968,72 +960,62 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     b_bg = _cls_bg(md.get("bias_cls", "neutral")); b_bdr = _cls_bdr(md.get("bias_cls", "neutral"))
     C = 194.8
     def clamp(v, lo=10, hi=97): return max(lo, min(hi, v))
-    # v17: gauge arc fill = PUT OI % and CALL OI % (not bull/bear labels)
-    put_offset  = C * (1 - clamp(pe_pct) / 100)
-    call_offset = C * (1 - clamp(ce_pct) / 100)
-    oi_bar_w   = clamp(pe_pct)
-    bear_bar_w = clamp(ce_pct)
+    bull_offset = C * (1 - clamp(bull_pct) / 100); bear_offset = C * (1 - clamp(bear_pct) / 100)
+    oi_bar_w = clamp(bull_pct); bear_bar_w = clamp(bear_pct)
     b_arrow = "▲" if bias == "BULLISH" else ("▼" if bias == "BEARISH" else "◆")
     glow_rgb = ("0,200,150" if dir_col == "#00c896" else "255,107,107" if dir_col == "#ff6b6b" else "100,128,255")
 
     return f"""
 <div class="hero" id="heroWidget">
   <div class="h-gauges">
-    <!-- PUT OI gauge: green ring = high put writing = bullish support -->
-    <div class="gauge-wrap" title="PUT OI: High put writing signals support below market (Bullish)">
+    <div class="gauge-wrap">
       <svg width="76" height="76" viewBox="0 0 76 76">
         <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="6"/>
-        <circle cx="38" cy="38" r="31" fill="none" stroke="url(#put-g)" stroke-width="6"
-          stroke-linecap="round" stroke-dasharray="{C}" stroke-dashoffset="{put_offset:.1f}"
+        <circle cx="38" cy="38" r="31" fill="none" stroke="url(#bull-g)" stroke-width="6"
+          stroke-linecap="round" stroke-dasharray="{C}" stroke-dashoffset="{bull_offset:.1f}"
           style="transform:rotate(-90deg);transform-origin:38px 38px;transition:stroke-dashoffset 1s ease;"/>
-        <defs><linearGradient id="put-g" x1="0%" y1="0%" x2="100%" y2="0%">
+        <defs><linearGradient id="bull-g" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stop-color="#00c896"/><stop offset="100%" stop-color="#4de8b8"/>
         </linearGradient></defs>
       </svg>
       <div class="gauge-inner">
-        <div class="g-val" style="color:#00c896;">{put_oi_label}</div>
-        <div class="g-lbl">PUT OI</div>
-        <div class="g-sub">{pe_pct}%</div>
+        <div class="g-val" style="color:#00c896;">{bull_label}</div>
+        <div class="g-lbl">OI BULL</div>
       </div>
     </div>
     <div class="gauge-sep"></div>
-    <!-- CALL OI gauge: red ring = high call writing = bearish resistance -->
-    <div class="gauge-wrap" title="CALL OI: High call writing signals resistance above market (Bearish)">
+    <div class="gauge-wrap">
       <svg width="76" height="76" viewBox="0 0 76 76">
         <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="6"/>
-        <circle cx="38" cy="38" r="31" fill="none" stroke="url(#call-g)" stroke-width="6"
-          stroke-linecap="round" stroke-dasharray="{C}" stroke-dashoffset="{call_offset:.1f}"
+        <circle cx="38" cy="38" r="31" fill="none" stroke="url(#bear-g)" stroke-width="6"
+          stroke-linecap="round" stroke-dasharray="{C}" stroke-dashoffset="{bear_offset:.1f}"
           style="transform:rotate(-90deg);transform-origin:38px 38px;transition:stroke-dashoffset 1s ease;"/>
-        <defs><linearGradient id="call-g" x1="0%" y1="0%" x2="100%" y2="0%">
+        <defs><linearGradient id="bear-g" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stop-color="#ff6b6b"/><stop offset="100%" stop-color="#ff9090"/>
         </linearGradient></defs>
       </svg>
       <div class="gauge-inner">
-        <div class="g-val" style="color:#ff6b6b;">{call_oi_label}</div>
-        <div class="g-lbl">CALL OI</div>
-        <div class="g-sub">{ce_pct}%</div>
+        <div class="g-val" style="color:#ff6b6b;">{bear_label}</div>
+        <div class="g-lbl">OI BEAR</div>
       </div>
     </div>
   </div>
   <div class="h-mid">
-    <div class="h-eyebrow">OI NET SIGNAL · {expiry} · SPOT &#8377;{underlying:,.0f}</div>
+    <div class="h-eyebrow">OI NET SIGNAL · {expiry} · SPOT ₹{underlying:,.0f}</div>
     <div class="h-signal" style="color:{dir_col};text-shadow:0 0 20px rgba({glow_rgb},.6),0 0 40px rgba({glow_rgb},.3);font-size:22px;font-weight:900;letter-spacing:1px;">{oi_dir}</div>
-    <div class="h-sub">{oi_sig} · PCR <span style="color:{pcr_col};font-weight:700;" title="PCR = PUT OI ÷ CALL OI  ·  &gt;1 = Bullish  ·  &lt;1 = Bearish">{pcr:.3f}</span></div>
+    <div class="h-sub">{oi_sig} · PCR <span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
     <div class="h-divider"></div>
     <div class="pill-row">
       <div class="pill-dot" style="background:#00c896;box-shadow:0 0 5px rgba(0,200,150,.5);"></div>
-      <div class="pill-lbl">PUT OI (BULL)</div>
+      <div class="pill-lbl">BULL STRENGTH</div>
       <div class="pill-track"><div class="pill-fill" style="width:{oi_bar_w}%;background:linear-gradient(90deg,#00c896,#4de8b8);"></div></div>
-      <div class="pill-num" style="color:#00c896;">{pe_pct}%</div>
+      <div class="pill-num" style="color:#00c896;">{bull_pct}%</div>
     </div>
     <div class="pill-row">
       <div class="pill-dot" style="background:#ff6b6b;box-shadow:0 0 5px rgba(255,107,107,.4);"></div>
-      <div class="pill-lbl">CALL OI (BEAR)</div>
+      <div class="pill-lbl">BEAR STRENGTH</div>
       <div class="pill-track"><div class="pill-fill" style="width:{bear_bar_w}%;background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div></div>
-      <div class="pill-num" style="color:#ff6b6b;">{ce_pct}%</div>
-    </div>
-    <div style="font-size:8px;color:rgba(255,255,255,.22);margin-top:3px;letter-spacing:.3px;">
-      PCR = PUT OI ÷ CALL OI &nbsp;·&nbsp; &gt;1 Bullish &nbsp;·&nbsp; &lt;1 Bearish
+      <div class="pill-num" style="color:#ff6b6b;">{bear_pct}%</div>
     </div>
   </div>
   <div class="h-stats">
@@ -1086,11 +1068,13 @@ def build_oi_html(oc):
     bear_force = (abs(ce) if ce > 0 else 0) + (abs(pe) if pe < 0 else 0)
 
     # ── NET OI CHANGE — FIX ────────────────────────────────────────
+    # Show the TRUE net difference, not the raw dominant-side value.
+    # net_diff > 0  → net bullish   net_diff < 0 → net bearish
     net_diff       = bull_force - bear_force
     net_is_bullish = net_diff >= 0
     net_col        = "#00c896" if net_is_bullish else "#ff6b6b"
     net_label      = "Net Bullish Flow" if net_is_bullish else "Net Bearish Flow"
-    net_fmt        = _fmt_chg_oi(net_diff)
+    net_fmt        = _fmt_chg_oi(net_diff)          # ← always the diff, never a raw side value
 
     # ── Bar widths ─────────────────────────────────────────────────
     total_abs  = abs(ce) + abs(pe) or 1
@@ -1107,8 +1091,9 @@ def build_oi_html(oc):
     total_f    = bull_force + bear_force or 1
     bull_pct   = round(bull_force / total_f * 100)
     bear_pct   = 100 - bull_pct
+    # Net bar: show how dominant the winning side is (0-100%)
     net_pct    = round(abs(net_diff) / total_f * 100) if total_f > 0 else 0
-    net_pct    = max(5, min(95, net_pct))
+    net_pct    = max(5, min(95, net_pct))             # keep bar visible but honest
     net_bar_col     = "#00c896" if net_is_bullish else "#ff6b6b"
     net_pct_display = f"+{net_pct}%" if net_is_bullish else f"−{net_pct}%"
 
@@ -1124,7 +1109,7 @@ def build_oi_html(oc):
   </div>
   <div style="display:flex;flex:1;align-items:stretch;">
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:16px 20px;border-right:1px solid rgba(255,255,255,.05);gap:5px;">
-      <div style="font-size:8.5px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.28);white-space:nowrap;">CALL OI Change</div>
+      <div style="font-size:8.5px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.28);white-space:nowrap;">CE OI Change</div>
       <div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:{ce_col};line-height:1;">{ce_fmt}</div>
       <div style="font-size:10px;color:rgba(255,255,255,.3);white-space:nowrap;">{ce_label}</div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
@@ -1133,7 +1118,7 @@ def build_oi_html(oc):
       </div>
     </div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:16px 20px;border-right:1px solid rgba(255,255,255,.05);gap:5px;">
-      <div style="font-size:8.5px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.28);white-space:nowrap;">PUT OI Change</div>
+      <div style="font-size:8.5px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.28);white-space:nowrap;">PE OI Change</div>
       <div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:{pe_col};line-height:1;">{pe_fmt}</div>
       <div style="font-size:10px;color:rgba(255,255,255,.3);white-space:nowrap;">{pe_label}</div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
@@ -1153,14 +1138,13 @@ def build_oi_html(oc):
   </div>
 </div>"""
 
-    # v17: snapshot table headers use CALL OI / PUT OI / PCR(PUT÷CALL)
     snapshot_table = (
         f'<div class="oi-ticker-table">'
         f'<div class="oi-ticker-hdr" style="background:rgba(100,128,255,.05);border-bottom:1px solid rgba(100,128,255,.1);">'
         f'<div class="oi-ticker-hdr-label" style="color:rgba(100,128,255,.8);">&#9632; OI SNAPSHOT</div>'
-        f'<div class="oi-ticker-hdr-cell">Total CALL OI</div><div class="oi-ticker-hdr-cell">Total PUT OI</div>'
-        f'<div class="oi-ticker-hdr-cell">PCR (PUT&#247;CALL)</div><div class="oi-ticker-hdr-cell">Max CALL Strike</div>'
-        f'<div class="oi-ticker-hdr-cell">Max PUT Strike</div></div>'
+        f'<div class="oi-ticker-hdr-cell">Total CE OI</div><div class="oi-ticker-hdr-cell">Total PE OI</div>'
+        f'<div class="oi-ticker-hdr-cell">PCR (OI)</div><div class="oi-ticker-hdr-cell">Max CE</div>'
+        f'<div class="oi-ticker-hdr-cell">Max PE</div></div>'
         f'<div class="oi-ticker-row">'
         f'<div class="oi-ticker-metric">Snapshot</div>'
         f'<div class="oi-ticker-cell" style="color:#ff6b6b;font-family:\'DM Mono\',monospace;font-weight:700;font-size:15px;">{total_ce:,}</div>'
@@ -1174,7 +1158,6 @@ def build_oi_html(oc):
         f'<span style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);">MAX PAIN</span>'
         f'<span style="font-family:\'DM Mono\',monospace;font-size:18px;font-weight:700;color:#6480ff;">&#8377;{max_pain:,}</span>'
         f'<span style="font-size:10px;color:rgba(100,128,255,.6);">Option writers\' target</span></div>'
-        f'<span style="font-size:9px;color:rgba(255,255,255,.2);">PCR = PUT OI ÷ CALL OI &nbsp;|&nbsp; &gt;1 Bullish &nbsp;|&nbsp; &lt;1 Bearish</span>'
         f'</div></div>'
     )
 
@@ -1237,10 +1220,10 @@ def build_strikes_html(oc):
         f'<div class="section"><div class="sec-title">TOP 5 STRIKES BY OPEN INTEREST'
         f'<span class="sec-sub">Spot ±500 pts · Top 5 CE + PE</span></div>'
         f'<div class="strikes-wrap">'
-        f'<div><div class="strikes-head" style="color:#00c8e0;">▲ CALL Options (CE) — Resistance levels</div>'
+        f'<div><div class="strikes-head" style="color:#00c8e0;">▲ CALL Options (CE)</div>'
         f'<table class="s-table"><thead><tr><th>#</th><th>Strike</th><th>OI</th><th>LTP</th></tr></thead>'
         f'<tbody>{ce_rows(oc["top_ce"])}</tbody></table></div>'
-        f'<div><div class="strikes-head" style="color:#ff6b6b;">▼ PUT Options (PE) — Support levels</div>'
+        f'<div><div class="strikes-head" style="color:#ff6b6b;">▼ PUT Options (PE)</div>'
         f'<table class="s-table"><thead><tr><th>#</th><th>Strike</th><th>OI</th><th>LTP</th></tr></thead>'
         f'<tbody>{pe_rows(oc["top_pe"])}</tbody></table></div>'
         f'</div></div>'
@@ -1321,7 +1304,7 @@ def build_ticker_bar(tech, oc, vix_data):
         rgb3="0,200,150" if cls=="bullish" else ("255,107,107" if cls=="bearish" else "100,128,255")
         items.append(
             f'<div class="tk-item">'
-            f'<span class="tk-name" style="background:rgba({rgb3},.18);color:{col};border:1px solid rgba({rgb3},.35);">&#9670;&nbsp;PCR (PUT&#247;CALL)</span>'
+            f'<span class="tk-name" style="background:rgba({rgb3},.18);color:{col};border:1px solid rgba({rgb3},.35);">&#9670;&nbsp;PCR (OI)</span>'
             f'<span class="tk-val" style="color:{col};">{pcr:.3f}</span>'
             f'<span class="tk-badge" style="background:rgba({rgb3},.1);color:{col};border:1px solid rgba({rgb3},.3);">{lbl}</span>'
             f'</div>'
@@ -1334,7 +1317,7 @@ def build_ticker_bar(tech, oc, vix_data):
 
 
 # =================================================================
-#  SECTION 8 -- CSS  (identical to v16 — no visual changes)
+#  SECTION 8 -- CSS
 # =================================================================
 
 CSS = """
@@ -1385,25 +1368,24 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 @keyframes spin{to{transform:rotate(360deg)}}
 #refreshStatus{font-size:10px;color:rgba(255,255,255,.35);transition:color .3s;letter-spacing:.3px;}
 #refreshStatus.updated{color:#00c896;font-weight:600;}
-.hero{display:flex;align-items:stretch;background:linear-gradient(135deg,rgba(0,200,150,.055) 0%,rgba(100,128,255,.055) 100%);border-bottom:1px solid rgba(255,255,255,.07);overflow:hidden;position:relative;height:105px;}
+.hero{display:flex;align-items:stretch;background:linear-gradient(135deg,rgba(0,200,150,.055) 0%,rgba(100,128,255,.055) 100%);border-bottom:1px solid rgba(255,255,255,.07);overflow:hidden;position:relative;height:97px;}
 .hero::before{content:'';position:absolute;top:-50px;left:-50px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(0,200,150,.10),transparent 70%);pointer-events:none;}
 .h-gauges{flex-shrink:0;display:flex;align-items:center;gap:10px;padding:0 16px 0 18px;}
 .gauge-sep{width:1px;height:56px;background:rgba(255,255,255,.08);flex-shrink:0;}
-.gauge-wrap{position:relative;width:76px;height:76px;cursor:help;}
+.gauge-wrap{position:relative;width:76px;height:76px;}
 .gauge-wrap svg{display:block;}
 .gauge-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
 .g-val{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;line-height:1;}
 .g-lbl{font-size:7.5px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.28);margin-top:2px;}
-.g-sub{font-size:8px;color:rgba(255,255,255,.20);margin-top:1px;font-family:'DM Mono',monospace;}
 .h-mid{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;padding:0 15px 0 13px;border-left:1px solid rgba(255,255,255,.05);}
 .h-eyebrow{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.22);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .h-signal{font-size:22px;font-weight:900;letter-spacing:1px;line-height:1.1;margin-bottom:2px;}
 .h-sub{font-size:9.5px;color:rgba(255,255,255,.32);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.h-divider{height:1px;background:rgba(255,255,255,.05);margin:4px 0;}
-.pill-row{display:flex;align-items:center;gap:8px;margin-bottom:3px;}
-.pill-row:last-of-type{margin-bottom:0;}
+.h-divider{height:1px;background:rgba(255,255,255,.05);margin:5px 0;}
+.pill-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.pill-row:last-child{margin-bottom:0;}
 .pill-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
-.pill-lbl{font-size:8px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.35);width:110px;flex-shrink:0;}
+.pill-lbl{font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.35);width:96px;flex-shrink:0;}
 .pill-track{width:120px;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;flex-shrink:0;}
 .pill-fill{height:100%;border-radius:3px;}
 .pill-num{font-family:'DM Mono',monospace;font-size:10px;font-weight:700;margin-left:8px;flex-shrink:0;}
@@ -1718,9 +1700,9 @@ def build_greeks_script_html(oc_analysis):
       var lbl  = sel === _atm ? 'ATM' : (sel > _atm ? 'CE+' + dist : 'PE-' + dist);
 
       document.getElementById('greeksStrikeTypeLabel').textContent = lbl;
-      document.getElementById('greeksStrikeLabel').innerHTML = '&#8377;' + sel.toLocaleString('en-IN');
-      document.getElementById('greeksCeLtp').innerHTML = 'CE &#8377;' + (d.ce_ltp||0).toFixed(1);
-      document.getElementById('greeksPeLtp').innerHTML = 'PE &#8377;' + (d.pe_ltp||0).toFixed(1);
+      document.getElementById('greeksStrikeLabel').innerHTML = '₹' + sel.toLocaleString('en-IN');
+      document.getElementById('greeksCeLtp').innerHTML = 'CE ₹' + (d.ce_ltp||0).toFixed(1);
+      document.getElementById('greeksPeLtp').innerHTML = 'PE ₹' + (d.pe_ltp||0).toFixed(1);
 
       /* Delta bars */
       var ceCol='#00c896', peCol='#ff6b6b';
@@ -1749,19 +1731,19 @@ def build_greeks_script_html(oc_analysis):
       skewEl.style.color = parseFloat(skew)>1.5?'#ff6b6b':(parseFloat(skew)<-1.5?'#00c896':'#6480ff');
 
       /* Theta */
-      function tfmt(t){{ return Math.abs(t)>=0.01?'&#8377;'+Math.abs(t).toFixed(2):t.toFixed(4); }}
+      function tfmt(t){{ return Math.abs(t)>=0.01?'₹'+Math.abs(t).toFixed(2):t.toFixed(4); }}
       document.getElementById('greeksThetaCe').innerHTML = tfmt(d.ce_theta||0);
       document.getElementById('greeksThetaPe').innerHTML = tfmt(d.pe_theta||0);
 
       /* Vega */
-      function vfmt(v){{ return Math.abs(v)>=0.0001?v.toFixed(4):'&#8212;'; }}
+      function vfmt(v){{ return Math.abs(v)>=0.0001?v.toFixed(4):'—'; }}
       document.getElementById('greeksVegaCe').innerHTML = vfmt(d.ce_vega||0);
       document.getElementById('greeksVegaPe').innerHTML = vfmt(d.pe_vega||0);
 
       /* IV bar */
       var ivAvg=((d.ce_iv||0)+(d.pe_iv||0))/2;
       var ivCol=ivAvg>25?'#ff6b6b':(ivAvg>18?'#ffd166':'#00c896');
-      var ivReg=ivAvg>25?'High IV \u00b7 Buy Premium':(ivAvg>15?'Normal IV \u00b7 Balanced':'Low IV \u00b7 Sell Premium');
+      var ivReg=ivAvg>25?'High IV · Buy Premium':(ivAvg>15?'Normal IV · Balanced':'Low IV · Sell Premium');
       var ivPct=Math.min(100,Math.max(0,(ivAvg/60)*100)).toFixed(1);
       var barEl=document.getElementById('greeksIvBar');
       barEl.style.width=ivPct+'%'; barEl.style.background=ivCol; barEl.style.boxShadow='0 0 6px '+ivCol+'88';
@@ -1810,7 +1792,7 @@ def generate_html(tech, oc, md, ts, vix_data=None):
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Nifty 50 Options Dashboard v17</title>
+<title>Nifty 50 Options Dashboard v16</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>{CSS}</style>
@@ -1885,8 +1867,8 @@ def generate_html(tech, oc, md, ts, vix_data=None):
   </main>
 </div>
 <footer>
-  <span>NiftyCraft · Nifty Option Strategy Builder · v17</span>
-  <span>PUT OI vs CALL OI · PCR = PUT&#247;CALL · 30s Silent Refresh · Educational Only · &copy; 2025</span>
+  <span>NiftyCraft · Nifty Option Strategy Builder · v16</span>
+  <span>Option Greeks · OI Dashboard · 30s Silent Refresh · Educational Only · &copy; 2025</span>
 </footer>
 </div>
 
@@ -1911,19 +1893,15 @@ def main():
     ist_tz = pytz.timezone("Asia/Kolkata")
     ts     = datetime.now(ist_tz).strftime("%d-%b-%Y %H:%M IST")
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v17")
+    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v16 (FIXED)")
     print(f"  {ts}")
-    print("  v17 LABEL FIXES (applied over v16 — no logic changed):")
-    print("  + Gauge labels: PUT OI (green) / CALL OI (red)")
-    print("  + Gauge sub-label shows % share of total OI")
-    print("  + Gauge tooltip explains bull/bear signal meaning")
-    print("  + Pill labels: PUT OI (BULL) / CALL OI (BEAR)")
-    print("  + PCR formula line: PCR = PUT OI ÷ CALL OI")
-    print("  + OI Change headers: CALL OI Change / PUT OI Change")
-    print("  + Snapshot headers: Total CALL OI / Total PUT OI / PCR(PUT÷CALL)")
-    print("  + PCR legend in snapshot footer")
-    print("  + Ticker: PCR(PUT÷CALL) label")
-    print("  + Strikes section: Resistance/Support subtitles added")
+    print("  FIXES:")
+    print("  + Net OI Change now shows PE_chg - CE_chg (true net diff)")
+    print("  + Net bar % reflects margin of dominance, not raw side value")
+    print("  + Option Greeks (renamed from ATM Greeks)")
+    print("  + BS Greeks computed for EVERY strike — dropdown always updates")
+    print("  + VIX wired through full call chain as IV fallback")
+    print("  + _bs_greeks always returns valid dict (never None)")
     print("=" * 65)
 
     print("\n[1/4] Fetching NSE Option Chain...")
@@ -1940,9 +1918,6 @@ def main():
         g = oc_analysis.get("atm_greeks", {})
         n_strikes = len(oc_analysis.get("all_strikes", []))
         print(f"\n  OK  Spot={oc_analysis['underlying']:.2f}  ATM={oc_analysis['atm_strike']}")
-        print(f"      PUT OI  = {oc_analysis['total_pe_oi']:,}  ({oc_analysis['pe_pct']}%)  ← bullish when higher")
-        print(f"      CALL OI = {oc_analysis['total_ce_oi']:,}  ({oc_analysis['ce_pct']}%)  ← bearish when higher")
-        print(f"      PCR     = {oc_analysis['pcr_oi']:.3f}  (PUT÷CALL → >1 bullish, <1 bearish)")
         print(f"      Greeks computed for {n_strikes} strikes (all unique via BS)")
         print(f"      ATM CE Δ={g.get('ce_delta',0):.3f}  IV={g.get('ce_iv',0):.1f}%  θ={g.get('ce_theta',0):.4f}")
         print(f"      ATM PE Δ={g.get('pe_delta',0):.3f}  IV={g.get('pe_iv',0):.1f}%  θ={g.get('pe_theta',0):.4f}")
