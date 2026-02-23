@@ -263,11 +263,6 @@ def _compute_greeks_for_row(r, spot, expiry_str, risk_free=0.065, vix=18.0):
     """
     DEFINITIVE FIX: Always compute Greeks via Black-Scholes for every strike.
     NSE data is ONLY used as the IV input — never for Delta/Theta/Vega/Gamma directly.
-    The old health-check approach was wrong: NSE returns non-zero delta/theta for ALL
-    strikes (not just ATM), causing every row to return the same NSE ATM Greeks.
-    BS with per-strike IV guarantees unique, mathematically correct values per strike.
-
-    IV priority per side: NSE own IV > NSE opposite side IV > India VIX > 18%
     """
     T = _days_to_expiry(expiry_str) / 365.0
     K = float(r["Strike"])
@@ -291,7 +286,6 @@ def _compute_greeks_for_row(r, spot, expiry_str, risk_free=0.065, vix=18.0):
     else:
         pe_iv = vix
 
-    # Black-Scholes gives unique Greeks for every strike based on K vs spot
     ce_g = _bs_greeks(spot, K, T, risk_free, ce_iv / 100.0, "CE")
     pe_g = _bs_greeks(spot, K, T, risk_free, pe_iv / 100.0, "PE")
 
@@ -301,8 +295,7 @@ def _compute_greeks_for_row(r, spot, expiry_str, risk_free=0.065, vix=18.0):
 def extract_atm_greeks(df, atm_strike, underlying=None, expiry_str="", vix=18.0):
     """
     Extract Greeks for ALL strikes in df (for dropdown) plus ATM row.
-    Greeks are taken from NSE if valid, otherwise computed via Black-Scholes.
-    vix parameter is passed through to _compute_greeks_for_row.
+    Greeks are computed via Black-Scholes for unique per-strike values.
     """
     spot = underlying or float(atm_strike)
     greeks_rows = []
@@ -315,7 +308,6 @@ def extract_atm_greeks(df, atm_strike, underlying=None, expiry_str="", vix=18.0)
         ce_ltp    = round(float(r.get("CE_LTP", 0) or 0), 2)
         pe_ltp    = round(float(r.get("PE_LTP", 0) or 0), 2)
 
-        # FIXED: pass vix into the computation
         ce_g, pe_g = _compute_greeks_for_row(r, spot, expiry_str, vix=vix)
 
         greeks_rows.append({
@@ -431,7 +423,6 @@ def analyze_option_chain(oc_data, vix=18.0):
     chg_bear_force = (abs(ce_chg) if ce_chg > 0 else 0) + (abs(pe_chg) if pe_chg < 0 else 0)
 
     atm_strike = oc_data["atm_strike"]
-    # FIXED: pass vix to extract_atm_greeks
     greeks = extract_atm_greeks(df, atm_strike,
                                 underlying=oc_data["underlying"],
                                 expiry_str=oc_data["expiry"],
@@ -706,7 +697,7 @@ def build_greeks_sidebar_html(oc_analysis):
     # Build per-strike JSON — keys are always clean integers, no floats
     strikes_json_parts = []
     for row in all_rows:
-        s = int(row["strike"])   # force int — prevents "25900.0" float keys
+        s = int(row["strike"])
         strikes_json_parts.append(
             f'"{s}":{{' +
             f'"ce_ltp":{round(float(row["ce_ltp"]),2)},' +
@@ -1049,11 +1040,11 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 
 
 # =================================================================
-#  SECTION 5C -- OI DASHBOARD
+#  SECTION 5C -- OI DASHBOARD  *** BUG FIXED HERE ***
 # =================================================================
 
 def build_oi_html(oc):
-    ce  = oc["ce_chg"]; pe = oc["pe_chg"]; net = oc["net_chg"]
+    ce  = oc["ce_chg"]; pe = oc["pe_chg"]
     expiry = oc["expiry"]; oi_dir = oc["oi_dir"]; oi_sig = oc["oi_sig"]; oi_cls = oc["oi_cls"]
     pcr = oc["pcr_oi"]; total_ce = oc["total_ce_oi"]; total_pe = oc["total_pe_oi"]
     max_ce_s = oc["max_ce_strike"]; max_pe_s = oc["max_pe_strike"]; max_pain = oc["max_pain"]
@@ -1062,29 +1053,48 @@ def build_oi_html(oc):
     dir_col = _cls_color(oi_cls); dir_bg = _cls_bg(oi_cls); dir_bdr = _cls_bdr(oi_cls)
     pcr_col = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
 
-    ce_col = "#00c896" if ce < 0 else "#ff6b6b"
+    # ── CE column ──────────────────────────────────────────────────
+    ce_col   = "#00c896" if ce < 0 else "#ff6b6b"
     ce_label = "Call Unwinding ↓ (Bullish)" if ce < 0 else "Call Build-up ↑ (Bearish)"
-    ce_fmt = _fmt_chg_oi(ce)
-    pe_col = "#00c896" if pe > 0 else "#ff6b6b"
+    ce_fmt   = _fmt_chg_oi(ce)
+
+    # ── PE column ──────────────────────────────────────────────────
+    pe_col   = "#00c896" if pe > 0 else "#ff6b6b"
     pe_label = "Put Build-up ↑ (Bullish)" if pe > 0 else "Put Unwinding ↓ (Bearish)"
-    pe_fmt = _fmt_chg_oi(pe)
-    bull_force_pre = (abs(pe) if pe > 0 else 0) + (abs(ce) if ce < 0 else 0)
-    bear_force_pre = (abs(ce) if ce > 0 else 0) + (abs(pe) if pe < 0 else 0)
-    net_is_bullish = bull_force_pre >= bear_force_pre
-    net_col = "#00c896" if net_is_bullish else "#ff6b6b"
-    net_label = "Net Bullish Flow" if net_is_bullish else "Net Bearish Flow"
-    net_fmt = _fmt_chg_oi(bull_force_pre) if net_is_bullish else _fmt_chg_oi(-bear_force_pre)
-    total_abs = abs(ce) + abs(pe) or 1
-    ce_pct = round(abs(ce) / total_abs * 100); ce_bullish = ce < 0
+    pe_fmt   = _fmt_chg_oi(pe)
+
+    # ── Bull / Bear forces (for bar widths) ────────────────────────
+    bull_force = (abs(pe) if pe > 0 else 0) + (abs(ce) if ce < 0 else 0)
+    bear_force = (abs(ce) if ce > 0 else 0) + (abs(pe) if pe < 0 else 0)
+
+    # ── NET OI CHANGE — FIX ────────────────────────────────────────
+    # Show the TRUE net difference, not the raw dominant-side value.
+    # net_diff > 0  → net bullish   net_diff < 0 → net bearish
+    net_diff       = bull_force - bear_force
+    net_is_bullish = net_diff >= 0
+    net_col        = "#00c896" if net_is_bullish else "#ff6b6b"
+    net_label      = "Net Bullish Flow" if net_is_bullish else "Net Bearish Flow"
+    net_fmt        = _fmt_chg_oi(net_diff)          # ← always the diff, never a raw side value
+
+    # ── Bar widths ─────────────────────────────────────────────────
+    total_abs  = abs(ce) + abs(pe) or 1
+    ce_pct     = round(abs(ce) / total_abs * 100)
+    ce_bullish = ce < 0
     ce_pct_display = f"+{ce_pct}%" if ce_bullish else f"−{ce_pct}%"
     ce_bar_col = "#00c896" if ce_bullish else "#ff6b6b"
-    pe_pct = round(abs(pe) / total_abs * 100); pe_bullish = pe > 0
+
+    pe_pct     = round(abs(pe) / total_abs * 100)
+    pe_bullish = pe > 0
     pe_pct_display = f"+{pe_pct}%" if pe_bullish else f"−{pe_pct}%"
     pe_bar_col = "#00c896" if pe_bullish else "#ff6b6b"
-    total_f = bull_force_pre + bear_force_pre or 1
-    bull_pct = round(bull_force_pre / total_f * 100); bear_pct = 100 - bull_pct
-    net_pct = bull_pct if net_is_bullish else bear_pct
-    net_bar_col = "#00c896" if net_is_bullish else "#ff6b6b"
+
+    total_f    = bull_force + bear_force or 1
+    bull_pct   = round(bull_force / total_f * 100)
+    bear_pct   = 100 - bull_pct
+    # Net bar: show how dominant the winning side is (0-100%)
+    net_pct    = round(abs(net_diff) / total_f * 100) if total_f > 0 else 0
+    net_pct    = max(5, min(95, net_pct))             # keep bar visible but honest
+    net_bar_col     = "#00c896" if net_is_bullish else "#ff6b6b"
     net_pct_display = f"+{net_pct}%" if net_is_bullish else f"−{net_pct}%"
 
     dir_card = f"""
@@ -1581,13 +1591,11 @@ ANIMATED_JS = """
     setTimeout(function() {
       var selAfter = document.getElementById('greeksStrikeSelect');
       if (selAfter && _savedStrike) {
-        /* Check if saved strike still exists in the new dropdown */
         var exists = Array.from(selAfter.options).some(function(o) { return o.value === _savedStrike; });
         if (exists) {
           selAfter.value = _savedStrike;
           if (window.greeksUpdateStrike) window.greeksUpdateStrike(_savedStrike);
         } else {
-          /* Saved strike no longer in chain (rare) — fall back to ATM */
           if (window.greeksUpdateStrike) window.greeksUpdateStrike(selAfter.value);
         }
       }
@@ -1885,9 +1893,11 @@ def main():
     ist_tz = pytz.timezone("Asia/Kolkata")
     ts     = datetime.now(ist_tz).strftime("%d-%b-%Y %H:%M IST")
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v16")
+    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v16 (FIXED)")
     print(f"  {ts}")
     print("  FIXES:")
+    print("  + Net OI Change now shows PE_chg - CE_chg (true net diff)")
+    print("  + Net bar % reflects margin of dominance, not raw side value")
     print("  + Option Greeks (renamed from ATM Greeks)")
     print("  + BS Greeks computed for EVERY strike — dropdown always updates")
     print("  + VIX wired through full call chain as IV fallback")
@@ -1903,7 +1913,6 @@ def main():
     live_vix = vix_data["value"] if vix_data else 18.0
     print(f"  VIX for BS fallback: {live_vix}")
 
-    # FIXED: pass live_vix into analyze_option_chain
     oc_analysis = analyze_option_chain(oc_raw, vix=live_vix) if oc_raw else None
     if oc_analysis:
         g = oc_analysis.get("atm_greeks", {})
