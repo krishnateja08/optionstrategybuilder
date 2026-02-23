@@ -203,44 +203,30 @@ def vix_label(v):
 
 
 # =================================================================
-#  SECTION 1C -- BLACK-SCHOLES CALCULATOR (FIXED & ROBUST)
+#  SECTION 1C -- BLACK-SCHOLES CALCULATOR
 # =================================================================
 
 def _bs_greeks(S, K, T, r, sigma, option_type="CE"):
-    """
-    Compute Black-Scholes Greeks.
-    S     = spot price
-    K     = strike price
-    T     = time to expiry in years (e.g. 7/365)
-    r     = risk-free rate (e.g. 0.065 for 6.5%)
-    sigma = implied volatility as decimal (e.g. 0.15 for 15%)
-    Returns dict with delta, gamma, theta (per day), vega (per 1% IV move).
-    Always returns a valid dict — never None.
-    """
     try:
         if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
             return {"delta": 0, "gamma": 0, "theta": 0, "vega": 0}
-
         d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
         d2 = d1 - sigma * np.sqrt(T)
-
         nd1   = _norm.pdf(d1)
         gamma = nd1 / (S * sigma * np.sqrt(T))
-        vega  = (S * nd1 * np.sqrt(T)) / 100   # per 1% IV change
-
+        vega  = (S * nd1 * np.sqrt(T)) / 100
         if option_type == "CE":
             delta         = _norm.cdf(d1)
             theta_annual  = (-(S * nd1 * sigma) / (2 * np.sqrt(T))
                              - r * K * np.exp(-r * T) * _norm.cdf(d2))
-        else:  # PE
+        else:
             delta         = _norm.cdf(d1) - 1
             theta_annual  = (-(S * nd1 * sigma) / (2 * np.sqrt(T))
                              + r * K * np.exp(-r * T) * _norm.cdf(-d2))
-
         return {
             "delta": round(float(delta), 4),
             "gamma": round(float(gamma), 6),
-            "theta": round(float(theta_annual / 365.0), 4),   # daily theta
+            "theta": round(float(theta_annual / 365.0), 4),
             "vega":  round(float(vega), 4),
         }
     except Exception:
@@ -248,7 +234,6 @@ def _bs_greeks(S, K, T, r, sigma, option_type="CE"):
 
 
 def _days_to_expiry(expiry_str):
-    """Parse NSE expiry string like '27-Feb-2026' → days remaining (min 1)."""
     try:
         ist_tz  = pytz.timezone("Asia/Kolkata")
         today   = datetime.now(ist_tz).date()
@@ -256,50 +241,24 @@ def _days_to_expiry(expiry_str):
         days    = (exp_dt - today).days
         return max(days, 1)
     except Exception:
-        return 7   # fallback: 1 week
+        return 7
 
 
 def _compute_greeks_for_row(r, spot, expiry_str, risk_free=0.065, vix=18.0):
-    """
-    DEFINITIVE FIX: Always compute Greeks via Black-Scholes for every strike.
-    NSE data is ONLY used as the IV input — never for Delta/Theta/Vega/Gamma directly.
-    """
     T = _days_to_expiry(expiry_str) / 365.0
     K = float(r["Strike"])
-
     ce_iv_nse = float(r.get("CE_IV", 0) or 0)
     pe_iv_nse = float(r.get("PE_IV", 0) or 0)
-
-    # CE IV to use for BS
-    if ce_iv_nse > 0.5:
-        ce_iv = ce_iv_nse
-    elif pe_iv_nse > 0.5:
-        ce_iv = pe_iv_nse
-    else:
-        ce_iv = vix
-
-    # PE IV to use for BS
-    if pe_iv_nse > 0.5:
-        pe_iv = pe_iv_nse
-    elif ce_iv_nse > 0.5:
-        pe_iv = ce_iv_nse
-    else:
-        pe_iv = vix
-
+    ce_iv = ce_iv_nse if ce_iv_nse > 0.5 else (pe_iv_nse if pe_iv_nse > 0.5 else vix)
+    pe_iv = pe_iv_nse if pe_iv_nse > 0.5 else (ce_iv_nse if ce_iv_nse > 0.5 else vix)
     ce_g = _bs_greeks(spot, K, T, risk_free, ce_iv / 100.0, "CE")
     pe_g = _bs_greeks(spot, K, T, risk_free, pe_iv / 100.0, "PE")
-
     return ce_g, pe_g
 
 
 def extract_atm_greeks(df, atm_strike, underlying=None, expiry_str="", vix=18.0):
-    """
-    Extract Greeks for ALL strikes in df (for dropdown) plus ATM row.
-    Greeks are computed via Black-Scholes for unique per-strike values.
-    """
     spot = underlying or float(atm_strike)
     greeks_rows = []
-
     for _, r in df.iterrows():
         strike    = int(r["Strike"])
         is_atm    = strike == int(atm_strike)
@@ -307,9 +266,7 @@ def extract_atm_greeks(df, atm_strike, underlying=None, expiry_str="", vix=18.0)
         pe_iv_raw = round(float(r.get("PE_IV",  0) or 0), 2)
         ce_ltp    = round(float(r.get("CE_LTP", 0) or 0), 2)
         pe_ltp    = round(float(r.get("PE_LTP", 0) or 0), 2)
-
         ce_g, pe_g = _compute_greeks_for_row(r, spot, expiry_str, vix=vix)
-
         greeks_rows.append({
             "strike":   strike,
             "is_atm":   is_atm,
@@ -326,18 +283,14 @@ def extract_atm_greeks(df, atm_strike, underlying=None, expiry_str="", vix=18.0)
             "ce_ltp":   ce_ltp,
             "pe_ltp":   pe_ltp,
         })
-
     greeks_rows.sort(key=lambda x: x["strike"])
-
     atm_row = next((g for g in greeks_rows if g["is_atm"]),
                    greeks_rows[len(greeks_rows)//2] if greeks_rows else {})
-
     atm_idx = next((i for i, g in enumerate(greeks_rows) if g["is_atm"]),
                    len(greeks_rows)//2)
     lo      = max(0, atm_idx - 2)
     hi      = min(len(greeks_rows), atm_idx + 3)
     table_5 = greeks_rows[lo:hi]
-
     return {
         "atm_greeks":   atm_row,
         "greeks_table": table_5,
@@ -612,7 +565,7 @@ def _fmt_chg_oi(n):
 
 
 # =================================================================
-#  SECTION 5A -- OPTION GREEKS PANEL (FULLY FIXED)
+#  SECTION 5A -- OPTION GREEKS PANEL
 # =================================================================
 
 def _delta_bar_html(delta_val, is_ce=True):
@@ -628,13 +581,6 @@ def _delta_bar_html(delta_val, is_ce=True):
 
 
 def build_greeks_sidebar_html(oc_analysis):
-    """
-    FIXED Option Greeks panel for the sidebar.
-    - Title renamed to 'OPTION GREEKS'
-    - Golden strike-price dropdown
-    - Selecting any strike updates ALL greek values correctly
-    - Per-strike BS-computed Greeks ensure unique values for every strike
-    """
     if not oc_analysis:
         return ""
 
@@ -670,12 +616,11 @@ def build_greeks_sidebar_html(oc_analysis):
     def tfmt(t): return f"&#8377;{abs(t):.2f}" if abs(t) >= 0.01 else f"{t:.4f}"
     def vfmt(v): return f"{v:.4f}" if abs(v) >= 0.0001 else "&#8212;"
 
-    # Build dropdown — option values are always clean integers
     otm_ce_opts = ""
     atm_opt     = ""
     otm_pe_opts = ""
     for row in all_rows:
-        s      = int(row["strike"])   # force int
+        s      = int(row["strike"])
         is_atm = row["is_atm"]
         dist   = abs(s - atm) // 50
         if is_atm:
@@ -694,42 +639,18 @@ def build_greeks_sidebar_html(oc_analysis):
         f'<optgroup label="\u2500 OTM PUTS (PE) \u2500">{otm_pe_opts}</optgroup>'
     )
 
-    # Build per-strike JSON — keys are always clean integers, no floats
-    strikes_json_parts = []
-    for row in all_rows:
-        s = int(row["strike"])
-        strikes_json_parts.append(
-            f'"{s}":{{' +
-            f'"ce_ltp":{round(float(row["ce_ltp"]),2)},' +
-            f'"pe_ltp":{round(float(row["pe_ltp"]),2)},' +
-            f'"ce_delta":{round(float(row["ce_delta"]),4)},' +
-            f'"pe_delta":{round(float(row["pe_delta"]),4)},' +
-            f'"ce_iv":{round(float(row["ce_iv"]),2)},' +
-            f'"pe_iv":{round(float(row["pe_iv"]),2)},' +
-            f'"ce_theta":{round(float(row["ce_theta"]),4)},' +
-            f'"pe_theta":{round(float(row["pe_theta"]),4)},' +
-            f'"ce_vega":{round(float(row["ce_vega"]),4)},' +
-            f'"pe_vega":{round(float(row["pe_vega"]),4)}' +
-            f'}}'
-        )
-    strikes_json = "{" + ",".join(strikes_json_parts) + "}"
-
     return f"""
 <div class="greeks-panel" id="greeksPanel">
   <div class="greeks-title">
     &#9652; OPTION GREEKS
     <span class="greeks-expiry-tag">{exp}</span>
   </div>
-
-  <!-- GOLDEN STRIKE DROPDOWN -->
   <div class="greeks-strike-wrap">
     <select class="greeks-strike-select" id="greeksStrikeSelect"
             onchange="greeksUpdateStrike(this.value)">
       {dropdown_options}
     </select>
   </div>
-
-  <!-- Strike badge — type label (ATM / CE+N / PE-N) + selected strike + LTPs -->
   <div class="greeks-atm-badge" id="greeksAtmBadge">
     <span style="font-size:8.5px;font-weight:700;color:rgba(138,160,255,.9);" id="greeksStrikeTypeLabel">ATM</span>
     <span class="greeks-atm-strike" id="greeksStrikeLabel">&#8377;{atm:,}</span>
@@ -738,8 +659,6 @@ def build_greeks_sidebar_html(oc_analysis):
     <span style="font-size:8px;color:rgba(255,255,255,.25);">/</span>
     <span style="font-size:8.5px;color:rgba(255,107,107,.8);" id="greeksPeLtp">PE &#8377;{pe_ltp:.1f}</span>
   </div>
-
-  <!-- Δ Delta -->
   <div class="greeks-row">
     <div style="display:flex;flex-direction:column;">
       <span class="greek-name">&#916; Delta</span>
@@ -750,8 +669,6 @@ def build_greeks_sidebar_html(oc_analysis):
       {_delta_bar_html(pe_delta, False)}
     </div>
   </div>
-
-  <!-- σ IV -->
   <div class="greeks-row">
     <div style="display:flex;flex-direction:column;">
       <span class="greek-name">&#963; IV</span>
@@ -768,8 +685,6 @@ def build_greeks_sidebar_html(oc_analysis):
       </div>
     </div>
   </div>
-
-  <!-- Θ Theta -->
   <div class="greeks-row">
     <div style="display:flex;flex-direction:column;">
       <span class="greek-name">&#920; Theta</span>
@@ -786,8 +701,6 @@ def build_greeks_sidebar_html(oc_analysis):
       </div>
     </div>
   </div>
-
-  <!-- ν Vega -->
   <div class="greeks-row">
     <div style="display:flex;flex-direction:column;">
       <span class="greek-name">&#957; Vega</span>
@@ -804,8 +717,6 @@ def build_greeks_sidebar_html(oc_analysis):
       </div>
     </div>
   </div>
-
-  <!-- IV regime bar -->
   <div class="iv-bar-wrap">
     <span class="iv-bar-label">IV Avg</span>
     <div class="iv-bar-track">
@@ -817,12 +728,10 @@ def build_greeks_sidebar_html(oc_analysis):
   <div style="font-size:8.5px;text-align:center;margin-top:6px;font-weight:700;letter-spacing:.5px;color:{iv_col};"
        id="greeksIvRegime">{iv_regime}</div>
 </div>
-
 """
 
 
 def build_greeks_table_html(oc_analysis):
-    """Full 5-strike CE/PE Greeks table (ATM ±2) shown below OI section."""
     if not oc_analysis:
         return ""
 
@@ -881,10 +790,7 @@ def build_greeks_table_html(oc_analysis):
     OPTION GREEKS &nbsp;&middot;&nbsp; ATM &#177;2 STRIKES
     <span class="sec-sub">Live from NSE &middot; {exp} &middot; Spot &#8377;{spot:,.0f}</span>
   </div>
-
   <div class="greeks-table-wrap">
-
-    <!-- Δ Delta + σ IV -->
     <div>
       <div style="font-size:9.5px;font-weight:700;color:rgba(100,128,255,.75);
         margin-bottom:10px;letter-spacing:1.5px;text-transform:uppercase;
@@ -906,8 +812,6 @@ def build_greeks_table_html(oc_analysis):
         &#9432; CE &#916;&ge;0.5 = deep ITM &middot; CE &#916;&asymp;0.5 = ATM &middot; CE &#916;&le;0.3 = OTM
       </div>
     </div>
-
-    <!-- Θ Theta + ν Vega -->
     <div>
       <div style="font-size:9.5px;font-weight:700;color:rgba(255,107,107,.75);
         margin-bottom:10px;letter-spacing:1.5px;text-transform:uppercase;
@@ -929,7 +833,6 @@ def build_greeks_table_html(oc_analysis):
         &#9432; Theta = &#8377; lost per day &middot; Vega = &#8377; change per 1% IV move
       </div>
     </div>
-
   </div>
 </div>
 """
@@ -1040,7 +943,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 
 
 # =================================================================
-#  SECTION 5C -- OI DASHBOARD  *** BUG FIXED HERE ***
+#  SECTION 5C -- OI DASHBOARD
 # =================================================================
 
 def build_oi_html(oc):
@@ -1053,30 +956,23 @@ def build_oi_html(oc):
     dir_col = _cls_color(oi_cls); dir_bg = _cls_bg(oi_cls); dir_bdr = _cls_bdr(oi_cls)
     pcr_col = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
 
-    # ── CE column ──────────────────────────────────────────────────
     ce_col   = "#00c896" if ce < 0 else "#ff6b6b"
     ce_label = "Call Unwinding ↓ (Bullish)" if ce < 0 else "Call Build-up ↑ (Bearish)"
     ce_fmt   = _fmt_chg_oi(ce)
 
-    # ── PE column ──────────────────────────────────────────────────
     pe_col   = "#00c896" if pe > 0 else "#ff6b6b"
     pe_label = "Put Build-up ↑ (Bullish)" if pe > 0 else "Put Unwinding ↓ (Bearish)"
     pe_fmt   = _fmt_chg_oi(pe)
 
-    # ── Bull / Bear forces (for bar widths) ────────────────────────
     bull_force = (abs(pe) if pe > 0 else 0) + (abs(ce) if ce < 0 else 0)
     bear_force = (abs(ce) if ce > 0 else 0) + (abs(pe) if pe < 0 else 0)
 
-    # ── NET OI CHANGE — FIX ────────────────────────────────────────
-    # Show the TRUE net difference, not the raw dominant-side value.
-    # net_diff > 0  → net bullish   net_diff < 0 → net bearish
     net_diff       = bull_force - bear_force
     net_is_bullish = net_diff >= 0
     net_col        = "#00c896" if net_is_bullish else "#ff6b6b"
     net_label      = "Net Bullish Flow" if net_is_bullish else "Net Bearish Flow"
-    net_fmt        = _fmt_chg_oi(net_diff)          # ← always the diff, never a raw side value
+    net_fmt        = _fmt_chg_oi(net_diff)
 
-    # ── Bar widths ─────────────────────────────────────────────────
     total_abs  = abs(ce) + abs(pe) or 1
     ce_pct     = round(abs(ce) / total_abs * 100)
     ce_bullish = ce < 0
@@ -1091,9 +987,8 @@ def build_oi_html(oc):
     total_f    = bull_force + bear_force or 1
     bull_pct   = round(bull_force / total_f * 100)
     bear_pct   = 100 - bull_pct
-    # Net bar: show how dominant the winning side is (0-100%)
     net_pct    = round(abs(net_diff) / total_f * 100) if total_f > 0 else 0
-    net_pct    = max(5, min(95, net_pct))             # keep bar visible but honest
+    net_pct    = max(5, min(95, net_pct))
     net_bar_col     = "#00c896" if net_is_bullish else "#ff6b6b"
     net_pct_display = f"+{net_pct}%" if net_is_bullish else f"−{net_pct}%"
 
@@ -1231,11 +1126,314 @@ def build_strikes_html(oc):
 
 
 # =================================================================
-#  SECTION 6 -- STRATEGIES (placeholder)
+#  SECTION 6 -- STRATEGIES  (restored from v12)
 # =================================================================
 
+def make_payoff_svg(shape, bull_color="#00c896", bear_color="#ff6b6b"):
+    w, h = 80, 50; mid = h // 2; pad = 8
+    def pts(*coords): return " ".join(f"{x},{y}" for x, y in coords)
+    shapes = {
+        "long_call":         {"profit": [(pad,mid),(40,mid),(72,h-pad)],           "loss": [(pad,mid),(40,mid)]},
+        "short_put":         {"profit": [(pad,h-pad),(40,mid),(72,mid)],           "loss": [(pad,mid),(40,mid)]},
+        "bull_call_spread":  {"profit": [(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],"loss": [(pad,mid),(30,mid)]},
+        "bull_put_spread":   {"profit": [(pad,h-pad),(30,h-pad),(55,mid),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "call_ratio_back":   {"profit": [(pad,h-pad),(25,mid),(50,mid),(72,h-pad)],"loss": [(pad,mid),(25,mid),(50,mid)]},
+        "long_synthetic":    {"profit": [(pad,mid),(72,h-pad)],                    "loss": [(pad,pad),(40,mid)]},
+        "range_forward":     {"profit": [(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],"loss": [(pad,pad),(30,pad),(55,mid)]},
+        "bull_butterfly":    {"profit": [(pad,mid),(36,h-pad),(54,mid)],           "loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "bull_condor":       {"profit": [(pad,mid),(28,mid),(36,h-pad),(50,h-pad),(58,mid),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "short_call":        {"profit": [(pad,mid),(40,mid),(72,pad)],             "loss": [(pad,mid),(40,mid)]},
+        "long_put":          {"profit": [(pad,h-pad),(40,mid),(72,mid)],           "loss": [(pad,mid),(40,mid)]},
+        "bear_call_spread":  {"profit": [(pad,h-pad),(30,h-pad),(55,mid),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "bear_put_spread":   {"profit": [(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],"loss": [(pad,mid),(30,mid)]},
+        "put_ratio_back":    {"profit": [(pad,h-pad),(25,mid),(50,mid),(72,pad)],  "loss": [(pad,mid),(25,mid),(50,mid)]},
+        "short_synthetic":   {"profit": [(pad,mid),(72,pad)],                     "loss": [(pad,h-pad),(40,mid)]},
+        "risk_reversal":     {"profit": [(pad,h-pad),(36,mid),(72,pad)],           "loss": [(pad,mid),(36,mid)]},
+        "bear_butterfly":    {"profit": [(pad,mid),(36,pad),(54,mid)],             "loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "bear_condor":       {"profit": [(pad,mid),(28,mid),(36,pad),(50,pad),(58,mid),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "long_straddle":     {"profit": [(pad,h-pad),(36,mid),(54,mid),(72,h-pad)],"loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "short_straddle":    {"profit": [(pad,mid),(36,mid),(54,mid),(72,mid)],    "loss": [(pad,h-pad),(36,mid),(54,mid),(72,h-pad)]},
+        "long_strangle":     {"profit": [(pad,h-pad),(30,mid),(50,mid),(72,h-pad)],"loss": [(pad,mid),(30,mid),(50,mid),(72,mid)]},
+        "short_strangle":    {"profit": [(pad,mid),(30,mid),(50,mid),(72,mid)],    "loss": [(pad,h-pad),(30,mid),(50,mid),(72,h-pad)]},
+        "jade_lizard":       {"profit": [(pad,pad),(30,mid),(55,mid),(72,mid)],    "loss": [(pad,mid),(30,mid)]},
+        "reverse_jade":      {"profit": [(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],"loss": [(pad,pad),(30,mid)]},
+        "call_ratio_spread": {"profit": [(pad,mid),(36,h-pad),(72,mid)],           "loss": [(pad,mid),(36,mid),(72,pad)]},
+        "put_ratio_spread":  {"profit": [(pad,mid),(36,h-pad),(72,mid)],           "loss": [(pad,pad),(36,mid),(72,mid)]},
+        "batman":            {"profit": [(pad,mid),(20,h-pad),(36,mid),(54,mid),(68,h-pad),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "long_iron_fly":     {"profit": [(pad,pad),(36,mid),(54,mid),(72,pad)],    "loss": [(pad,mid),(36,h-pad),(54,h-pad),(72,mid)]},
+        "short_iron_fly":    {"profit": [(pad,mid),(36,h-pad),(54,h-pad),(72,mid)],"loss": [(pad,pad),(36,mid),(54,mid),(72,pad)]},
+        "double_fly":        {"profit": [(pad,mid),(20,h-pad),(36,mid),(54,mid),(68,h-pad),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "long_iron_condor":  {"profit": [(pad,pad),(24,mid),(36,mid),(54,mid),(66,pad),(72,pad)],   "loss": [(pad,mid),(24,mid),(66,mid),(72,mid)]},
+        "short_iron_condor": {"profit": [(pad,mid),(24,h-pad),(36,h-pad),(54,h-pad),(66,mid),(72,mid)],"loss": [(pad,pad),(72,pad)]},
+        "double_condor":     {"profit": [(pad,mid),(20,h-pad),(36,mid),(54,mid),(68,h-pad),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "call_calendar":     {"profit": [(pad,mid),(36,h-pad),(54,mid),(72,mid)],  "loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "put_calendar":      {"profit": [(pad,mid),(36,h-pad),(54,mid),(72,mid)],  "loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "diagonal_calendar": {"profit": [(pad,mid),(30,h-pad),(55,mid),(72,mid)],  "loss": [(pad,mid),(30,mid),(55,mid),(72,mid)]},
+        "call_butterfly":    {"profit": [(pad,mid),(36,h-pad),(54,mid),(72,mid)],  "loss": [(pad,mid),(72,mid)]},
+        "put_butterfly":     {"profit": [(pad,mid),(36,h-pad),(54,mid),(72,mid)],  "loss": [(pad,mid),(72,mid)]},
+    }
+    s = shapes.get(shape, {"profit": [(pad,mid),(72,mid)], "loss": []})
+    profit_pts = pts(*s["profit"]); loss_pts = pts(*s["loss"]) if s["loss"] else ""
+    def area(coords, is_p):
+        if not coords: return ""
+        col = bull_color if is_p else bear_color
+        d = f"M {coords[0][0]},{mid} " + " ".join(f"L {x},{y}" for x, y in coords) + f" L {coords[-1][0]},{mid} Z"
+        return f'<path d="{d}" fill="{col}" fill-opacity="0.18"/>'
+    svg = (f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" xmlns="http://www.w3.org/2000/svg">'
+           f'<line x1="{pad}" y1="{pad}" x2="{pad}" y2="{h-pad}" stroke="rgba(255,255,255,.15)" stroke-width="1"/>'
+           f'<line x1="{pad}" y1="{mid}" x2="{w-pad}" y2="{mid}" stroke="rgba(255,255,255,.15)" stroke-width="1"/>'
+           f'{area(s["profit"],True)}{area(s["loss"],False)}'
+           f'<polyline points="{profit_pts}" fill="none" stroke="{bull_color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>')
+    if loss_pts:
+        svg += f'<polyline points="{loss_pts}" fill="none" stroke="{bear_color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="3,2"/>'
+    return svg + '</svg>'
+
+
+STRATEGIES_DATA = {
+    "bullish": [
+        {"name":"Long Call","shape":"long_call","risk":"Limited","reward":"Unlimited","legs":"BUY CALL (ATM)","desc":"Buy a call option. Profits as market rises above strike. Risk is limited to premium paid.","lot_size":75,"margin_mult":1.0},
+        {"name":"Short Put","shape":"short_put","risk":"Moderate","reward":"Limited","legs":"SELL PUT (OTM)","desc":"Sell a put option below market. Collect premium. Profit if market stays above strike.","lot_size":75,"margin_mult":5.0},
+        {"name":"Bull Call Spread","shape":"bull_call_spread","risk":"Limited","reward":"Limited","legs":"BUY CALL (Low) · SELL CALL (High)","desc":"Buy lower call, sell higher call. Reduces cost; caps profit at upper strike.","lot_size":75,"margin_mult":1.5},
+        {"name":"Bull Put Spread","shape":"bull_put_spread","risk":"Limited","reward":"Limited","legs":"SELL PUT (High) · BUY PUT (Low)","desc":"Sell higher put, buy lower put. Credit received upfront. Profit if market stays above higher strike.","lot_size":75,"margin_mult":2.0},
+        {"name":"Call Ratio Back Spread","shape":"call_ratio_back","risk":"Limited","reward":"Unlimited","legs":"SELL 1 CALL (Low) · BUY 2 CALLS (High)","desc":"Sell fewer calls, buy more higher calls. Benefits from a big upside move.","lot_size":75,"margin_mult":2.5},
+        {"name":"Long Synthetic","shape":"long_synthetic","risk":"High","reward":"Unlimited","legs":"BUY CALL (ATM) · SELL PUT (ATM)","desc":"Replicates owning the underlying. Unlimited profit potential with high risk.","lot_size":75,"margin_mult":6.0},
+        {"name":"Range Forward","shape":"range_forward","risk":"Limited","reward":"Limited","legs":"BUY CALL (High) · SELL PUT (Low)","desc":"Collar-like structure. Profit in a range. Used to hedge existing positions.","lot_size":75,"margin_mult":2.0},
+        {"name":"Bull Butterfly","shape":"bull_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low CALL · SELL 2 Mid CALL · BUY High CALL","desc":"Max profit at middle strike. Low cost strategy for moderate bullish view.","lot_size":75,"margin_mult":1.2},
+        {"name":"Bull Condor","shape":"bull_condor","risk":"Limited","reward":"Limited","legs":"BUY Low · SELL Mid-Low · SELL Mid-High · BUY High","desc":"Four-leg bullish strategy. Profit in a range above current price.","lot_size":75,"margin_mult":1.8},
+    ],
+    "bearish": [
+        {"name":"Short Call","shape":"short_call","risk":"Unlimited","reward":"Limited","legs":"SELL CALL (ATM/OTM)","desc":"Sell a call option above market. Collect premium. Profit if market falls or stays below strike.","lot_size":75,"margin_mult":5.0},
+        {"name":"Long Put","shape":"long_put","risk":"Limited","reward":"High","legs":"BUY PUT (ATM)","desc":"Buy a put option. Profits as market falls below strike. Risk is limited to premium paid.","lot_size":75,"margin_mult":1.0},
+        {"name":"Bear Call Spread","shape":"bear_call_spread","risk":"Limited","reward":"Limited","legs":"SELL CALL (Low) · BUY CALL (High)","desc":"Sell lower call, buy higher call. Credit received. Profit if market stays below lower strike.","lot_size":75,"margin_mult":2.0},
+        {"name":"Bear Put Spread","shape":"bear_put_spread","risk":"Limited","reward":"Limited","legs":"BUY PUT (High) · SELL PUT (Low)","desc":"Buy higher put, sell lower put. Cheaper bearish bet with capped profit.","lot_size":75,"margin_mult":1.5},
+        {"name":"Put Ratio Back Spread","shape":"put_ratio_back","risk":"Limited","reward":"High","legs":"SELL 1 PUT (High) · BUY 2 PUTS (Low)","desc":"Sell fewer puts, buy more lower puts. Benefits from a big downside move.","lot_size":75,"margin_mult":2.5},
+        {"name":"Short Synthetic","shape":"short_synthetic","risk":"High","reward":"High","legs":"SELL CALL (ATM) · BUY PUT (ATM)","desc":"Replicates shorting the underlying. Profit as market falls. High risk.","lot_size":75,"margin_mult":6.0},
+        {"name":"Risk Reversal","shape":"risk_reversal","risk":"High","reward":"High","legs":"BUY PUT (Low) · SELL CALL (High)","desc":"Protect downside while giving up upside. Common hedging structure.","lot_size":75,"margin_mult":3.0},
+        {"name":"Bear Butterfly","shape":"bear_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low PUT · SELL 2 Mid PUT · BUY High PUT","desc":"Max profit at middle strike. Low cost strategy for moderate bearish view.","lot_size":75,"margin_mult":1.2},
+        {"name":"Bear Condor","shape":"bear_condor","risk":"Limited","reward":"Limited","legs":"BUY High · SELL Mid-High · SELL Mid-Low · BUY Low","desc":"Four-leg bearish strategy. Profit in a range below current price.","lot_size":75,"margin_mult":1.8},
+    ],
+    "nondirectional": [
+        {"name":"Long Straddle","shape":"long_straddle","risk":"Limited","reward":"Unlimited","legs":"BUY CALL (ATM) + BUY PUT (ATM)","desc":"Buy both ATM call and put. Profit from big move in either direction. Best before events.","lot_size":75,"margin_mult":1.0},
+        {"name":"Short Straddle","shape":"short_straddle","risk":"Unlimited","reward":"Limited","legs":"SELL CALL (ATM) + SELL PUT (ATM)","desc":"Sell both ATM call and put. Profit from low volatility. High risk unlimited loss.","lot_size":75,"margin_mult":8.0},
+        {"name":"Long Strangle","shape":"long_strangle","risk":"Limited","reward":"Unlimited","legs":"BUY OTM CALL + BUY OTM PUT","desc":"Buy OTM call and put. Cheaper than straddle. Needs bigger move to profit.","lot_size":75,"margin_mult":1.0},
+        {"name":"Short Strangle","shape":"short_strangle","risk":"Unlimited","reward":"Limited","legs":"SELL OTM CALL + SELL OTM PUT","desc":"Sell OTM call and put. Wider profit range than short straddle. Still high risk.","lot_size":75,"margin_mult":7.0},
+        {"name":"Jade Lizard","shape":"jade_lizard","risk":"Limited","reward":"Limited","legs":"SELL OTM PUT + SELL CALL SPREAD","desc":"No upside risk. Collect premium. Bearish but risk-defined.","lot_size":75,"margin_mult":3.0},
+        {"name":"Reverse Jade Lizard","shape":"reverse_jade","risk":"Limited","reward":"Limited","legs":"SELL OTM CALL + SELL PUT SPREAD","desc":"No downside risk. Collect premium. Bullish but risk-defined.","lot_size":75,"margin_mult":3.0},
+        {"name":"Call Ratio Spread","shape":"call_ratio_spread","risk":"Unlimited","reward":"Limited","legs":"BUY 1 CALL (Low) · SELL 2 CALLS (High)","desc":"Sell more calls than bought. Credit or debit. Risk if big upside move occurs.","lot_size":75,"margin_mult":4.0},
+        {"name":"Put Ratio Spread","shape":"put_ratio_spread","risk":"Unlimited","reward":"Limited","legs":"BUY 1 PUT (High) · SELL 2 PUTS (Low)","desc":"Sell more puts than bought. Risk if big downside move occurs.","lot_size":75,"margin_mult":4.0},
+        {"name":"Batman Strategy","shape":"batman","risk":"Limited","reward":"Limited","legs":"BUY 2 CALLS + SELL 4 CALLS + BUY 2 CALLS","desc":"Double butterfly. Two profit peaks. Complex strategy for range-bound markets.","lot_size":75,"margin_mult":2.0},
+        {"name":"Long Iron Fly","shape":"long_iron_fly","risk":"Limited","reward":"Limited","legs":"BUY CALL · BUY PUT · SELL ATM CALL · SELL ATM PUT","desc":"Debit iron fly. Profit from a big move. Max loss if price stays at ATM.","lot_size":75,"margin_mult":1.5},
+        {"name":"Short Iron Fly","shape":"short_iron_fly","risk":"Limited","reward":"Limited","legs":"SELL CALL · SELL PUT · BUY OTM CALL · BUY OTM PUT","desc":"Credit iron fly. Max profit at ATM. Common non-directional strategy.","lot_size":75,"margin_mult":3.0},
+        {"name":"Double Fly","shape":"double_fly","risk":"Limited","reward":"Limited","legs":"TWO BUTTERFLY SPREADS","desc":"Two butterfly spreads at different strikes. Two profit peaks.","lot_size":75,"margin_mult":2.0},
+        {"name":"Long Iron Condor","shape":"long_iron_condor","risk":"Limited","reward":"Limited","legs":"BUY CALL SPREAD + BUY PUT SPREAD","desc":"Debit condor. Profit from a big move. Opposite of short iron condor.","lot_size":75,"margin_mult":1.5},
+        {"name":"Short Iron Condor","shape":"short_iron_condor","risk":"Limited","reward":"Limited","legs":"SELL CALL SPREAD + SELL PUT SPREAD","desc":"Collect premium from both sides. Profit if price stays in a range.","lot_size":75,"margin_mult":3.5},
+        {"name":"Double Condor","shape":"double_condor","risk":"Limited","reward":"Limited","legs":"TWO CONDOR SPREADS","desc":"Two condor spreads. Wider profit range. Complex multi-leg strategy.","lot_size":75,"margin_mult":2.5},
+        {"name":"Call Calendar","shape":"call_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR-TERM CALL · BUY FAR-TERM CALL","desc":"Profit from time decay difference. Best when price stays near strike.","lot_size":75,"margin_mult":2.0},
+        {"name":"Put Calendar","shape":"put_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR-TERM PUT · BUY FAR-TERM PUT","desc":"Profit from time decay. Best when price stays near strike on expiry.","lot_size":75,"margin_mult":2.0},
+        {"name":"Diagonal Calendar","shape":"diagonal_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR CALL/PUT · BUY FAR DIFF STRIKE","desc":"Calendar spread with different strikes. Combines time and price movement.","lot_size":75,"margin_mult":2.0},
+        {"name":"Call Butterfly","shape":"call_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low CALL · SELL 2 Mid CALL · BUY High CALL","desc":"Max profit at middle strike using calls only. Low net debit strategy.","lot_size":75,"margin_mult":1.2},
+        {"name":"Put Butterfly","shape":"put_butterfly","risk":"Limited","reward":"Limited","legs":"BUY High PUT · SELL 2 Mid PUT · BUY Low PUT","desc":"Max profit at middle strike using puts only. Low net debit strategy.","lot_size":75,"margin_mult":1.2},
+    ],
+}
+
+
 def build_strategies_html(oc_analysis):
-    return '<div class="section" id="strat"><div class="sec-title">STRATEGIES REFERENCE</div><p style="color:rgba(255,255,255,.4);padding:20px;">Paste your v13 build_strategies_html() here.</p></div>'
+    spot = oc_analysis["underlying"] if oc_analysis else 23000
+    atm  = oc_analysis["atm_strike"] if oc_analysis else 23000
+    pcr  = oc_analysis["pcr_oi"]     if oc_analysis else 1.0
+    mp   = oc_analysis["max_pain"]   if oc_analysis else 23000
+    strikes_json = json.dumps(oc_analysis.get("strikes_data", [])) if oc_analysis else "[]"
+
+    def render_cards(strats, cat):
+        cards = ""
+        for idx, s in enumerate(strats):
+            svg  = make_payoff_svg(s["shape"])
+            rc   = "#00c896" if s["risk"]   in ("Limited","Low") else ("#ff6b6b" if s["risk"] in ("Unlimited","High") else "#6480ff")
+            rwc  = "#00c896" if s["reward"] == "Unlimited" else "#6480ff"
+            cid  = f"sc_{cat}_{idx}"
+            cards += (
+                f'<div class="sc-card" data-cat="{cat}" data-shape="{s["shape"]}" '
+                f'data-name="{s["name"]}" data-legs="{s["legs"]}" '
+                f'data-risk="{s["risk"]}" data-reward="{s["reward"]}" '
+                f'data-margin-mult="{s.get("margin_mult",1.0)}" data-lot-size="{s.get("lot_size",75)}" id="{cid}">'
+                f'<div class="sc-pop-badge" id="pop_{cid}">—%</div>'
+                f'<div class="sc-svg">{svg}</div>'
+                f'<div class="sc-body">'
+                f'<div class="sc-name">{s["name"]}</div>'
+                f'<div class="sc-legs">{s["legs"]}</div>'
+                f'<div class="sc-tags">'
+                f'<span class="sc-tag" style="color:{rc};border-color:{rc}40;">Risk: {s["risk"]}</span>'
+                f'<span class="sc-tag" style="color:{rwc};border-color:{rwc}40;">Reward: {s["reward"]}</span>'
+                f'</div></div>'
+                f'<div class="sc-detail" id="detail_{cid}">'
+                f'<div class="sc-desc">{s["desc"]}</div>'
+                f'<div class="sc-metrics-live" id="metrics_{cid}">'
+                f'<div class="sc-loading">&#9685; Calculating metrics...</div>'
+                f'</div></div></div>'
+            )
+        return cards
+
+    bull_cards = render_cards(STRATEGIES_DATA["bullish"],       "bullish")
+    bear_cards = render_cards(STRATEGIES_DATA["bearish"],       "bearish")
+    nd_cards   = render_cards(STRATEGIES_DATA["nondirectional"],"nondirectional")
+
+    return f"""
+<div class="section" id="strat">
+  <div class="sec-title">STRATEGIES REFERENCE
+    <span class="sec-sub">Live metrics from option chain &middot; Click to expand &middot; PoP = Probability of Profit</span>
+  </div>
+  <div class="sc-tabs">
+    <button class="sc-tab active" onclick="filterStrat('bullish',this)"
+      style="border-color:#00c896;color:#00c896;background:rgba(0,200,150,.12);">
+      &#9650; BULLISH <span class="sc-cnt" style="background:#00c896;">9</span>
+    </button>
+    <button class="sc-tab" onclick="filterStrat('bearish',this)"
+      style="border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.5);">
+      &#9660; BEARISH <span class="sc-cnt" style="background:#ff6b6b;">9</span>
+    </button>
+    <button class="sc-tab" onclick="filterStrat('nondirectional',this)"
+      style="border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.5);">
+      &#8596; NON-DIRECTIONAL <span class="sc-cnt" style="background:#6480ff;">20</span>
+    </button>
+  </div>
+  <div class="sc-grid" id="sc-grid">
+    {bull_cards}{bear_cards}{nd_cards}
+  </div>
+</div>
+
+<script>
+const OC={{spot:{spot:.2f},atm:{atm},pcr:{pcr:.3f},maxPain:{mp},strikes:{strikes_json},lotSize:75}};
+const STRIKE_MAP={{}};
+OC.strikes.forEach(s=>{{STRIKE_MAP[s.strike]=s;}});
+
+function normCDF(x){{
+  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  const sign=x<0?-1:1; x=Math.abs(x);
+  const t=1/(1+p*x);
+  const y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+  return 0.5*(1+sign*y);
+}}
+function bsDelta(spot,strike,iv,T,isCall){{
+  if(iv<=0||T<=0) return isCall?0.5:-0.5;
+  const r=0.065,d1=(Math.log(spot/strike)+(r+0.5*iv*iv)*T)/(iv*Math.sqrt(T));
+  return isCall?normCDF(d1):normCDF(d1)-1;
+}}
+function getATMLTP(type){{
+  const row=STRIKE_MAP[OC.atm]||OC.strikes.reduce((b,s)=>Math.abs(s.strike-OC.atm)<Math.abs(b.strike-OC.atm)?s:b,OC.strikes[0]||{{strike:OC.atm,ce_ltp:0,pe_ltp:0,ce_iv:15,pe_iv:15}});
+  return type==='ce'?row.ce_ltp:row.pe_ltp;
+}}
+function getOTM(type,offset){{
+  const t=type==='ce'?OC.atm+offset*50:OC.atm-offset*50;
+  const row=STRIKE_MAP[t]||OC.strikes.reduce((b,s)=>Math.abs(s.strike-t)<Math.abs(b.strike-t)?s:b,OC.strikes[0]||{{strike:OC.atm,ce_ltp:0,pe_ltp:0,ce_iv:15,pe_iv:15}});
+  return {{strike:row.strike||t,ltp:type==='ce'?row.ce_ltp:row.pe_ltp,iv:type==='ce'?row.ce_iv:row.pe_iv}};
+}}
+function getPCRAdjust(){{
+  if(OC.pcr>1.3)return 0.05; if(OC.pcr>1.1)return 0.02;
+  if(OC.pcr<0.7)return -0.05; if(OC.pcr<0.9)return -0.02; return 0;
+}}
+function calcMetrics(shape){{
+  const spot=OC.spot,atm=OC.atm,T=5/365,pcrAdj=getPCRAdjust(),lotSz=OC.lotSize;
+  const ce_atm=getATMLTP('ce'),pe_atm=getATMLTP('pe');
+  const co1=getOTM('ce',1),co2=getOTM('ce',2),po1=getOTM('pe',1),po2=getOTM('pe',2);
+  const atmIV=(STRIKE_MAP[atm]?(STRIKE_MAP[atm].ce_iv||15)/100:0.15);
+  let pop=50,mp=0,ml=0,be=[],nc=0,margin=0,pnl=0,rrRatio=0;
+  switch(shape){{
+    case 'long_call':{{const p=ce_atm||150,d=bsDelta(spot,atm,atmIV,T,true);pop=Math.round((1-d+pcrAdj)*100);mp=999999;ml=p*lotSz;be=[atm+p];nc=-p*lotSz;margin=p*lotSz;pnl=Math.max(spot-atm-p,-p)*lotSz;break;}}
+    case 'long_put':{{const p=pe_atm||150,d=bsDelta(spot,atm,atmIV,T,false);pop=Math.round((Math.abs(d)+pcrAdj)*100);mp=999999;ml=p*lotSz;be=[atm-p];nc=-p*lotSz;margin=p*lotSz;pnl=Math.max(atm-spot-p,-p)*lotSz;break;}}
+    case 'short_put':{{const p=pe_atm||150,d=bsDelta(spot,atm,atmIV,T,false);pop=Math.round((1-Math.abs(d)+pcrAdj)*100);mp=p*lotSz;ml=(atm-p)*lotSz;be=[atm-p];nc=p*lotSz;margin=atm*lotSz*0.15;rrRatio=((atm-p)/p).toFixed(2);break;}}
+    case 'short_call':{{const p=ce_atm||150,d=bsDelta(spot,atm,atmIV,T,true);pop=Math.round((1-d-pcrAdj)*100);mp=p*lotSz;ml=999999;be=[atm+p];nc=p*lotSz;margin=atm*lotSz*0.15;break;}}
+    case 'bull_call_spread':{{const bp=ce_atm||150,sp=co1.ltp||80,nd=bp-sp,sw=co1.strike-atm;pop=Math.round((0.45+pcrAdj)*100);mp=(sw-nd)*lotSz;ml=nd*lotSz;be=[atm+nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((sw-nd)/nd).toFixed(2);break;}}
+    case 'bull_put_spread':{{const sp=pe_atm||150,bp=po1.ltp||80,nc2=sp-bp,sw=atm-po1.strike;pop=Math.round((0.55+pcrAdj)*100);mp=nc2*lotSz;ml=(sw-nc2)*lotSz;be=[atm-nc2];nc=nc2*lotSz;margin=sw*lotSz;rrRatio=(nc2/(sw-nc2)).toFixed(2);break;}}
+    case 'bear_call_spread':{{const sp=ce_atm||150,bp=co1.ltp||80,nc2=sp-bp,sw=co1.strike-atm;pop=Math.round((0.55-pcrAdj)*100);mp=nc2*lotSz;ml=(sw-nc2)*lotSz;be=[atm+nc2];nc=nc2*lotSz;margin=sw*lotSz;rrRatio=(nc2/(sw-nc2)).toFixed(2);break;}}
+    case 'bear_put_spread':{{const bp=pe_atm||150,sp=po1.ltp||80,nd=bp-sp,sw=atm-po1.strike;pop=Math.round((0.45-pcrAdj)*100);mp=(sw-nd)*lotSz;ml=nd*lotSz;be=[atm-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((sw-nd)/nd).toFixed(2);break;}}
+    case 'long_straddle':{{const cp2=ce_atm||150,pp=pe_atm||150,tp=cp2+pp;pop=Math.round((0.35+Math.abs(pcrAdj))*100);mp=999999;ml=tp*lotSz;be=[atm-tp,atm+tp];nc=-tp*lotSz;margin=tp*lotSz;pnl=(Math.abs(spot-atm)-tp)*lotSz;break;}}
+    case 'short_straddle':{{const cp2=ce_atm||150,pp=pe_atm||150,tp=cp2+pp;pop=Math.round((0.65-Math.abs(pcrAdj))*100);mp=tp*lotSz;ml=999999;be=[atm-tp,atm+tp];nc=tp*lotSz;margin=atm*lotSz*0.25;pnl=(tp-Math.abs(spot-atm))*lotSz;break;}}
+    case 'long_strangle':{{const cp2=co1.ltp||100,pp=po1.ltp||100,tp=cp2+pp;pop=Math.round((0.30+Math.abs(pcrAdj))*100);mp=999999;ml=tp*lotSz;be=[po1.strike-tp,co1.strike+tp];nc=-tp*lotSz;margin=tp*lotSz;break;}}
+    case 'short_strangle':{{const cp2=co1.ltp||100,pp=po1.ltp||100,tp=cp2+pp;pop=Math.round((0.68-Math.abs(pcrAdj))*100);mp=tp*lotSz;ml=999999;be=[po1.strike-tp,co1.strike+tp];nc=tp*lotSz;margin=atm*lotSz*0.20;pnl=(tp-Math.max(0,spot-co1.strike)-Math.max(0,po1.strike-spot))*lotSz;break;}}
+    case 'short_iron_condor':{{const sc=co1.ltp||100,bc=co2.ltp||50,sp=po1.ltp||100,bp=po2.ltp||50,nc2=sc-bc+sp-bp;pop=Math.round((0.65+pcrAdj)*100);mp=nc2*lotSz;ml=(50-nc2)*lotSz;be=[po1.strike-nc2,co1.strike+nc2];nc=nc2*lotSz;margin=50*lotSz*2;rrRatio=(nc2/(50-nc2)).toFixed(2);break;}}
+    case 'long_iron_condor':{{const sc=co1.ltp||100,bc=co2.ltp||50,sp=po1.ltp||100,bp=po2.ltp||50,nd=bc-sc+bp-sp;pop=Math.round((0.33-pcrAdj)*100);mp=(50-Math.abs(nd))*lotSz;ml=Math.abs(nd)*lotSz;be=[po1.strike-Math.abs(nd),co1.strike+Math.abs(nd)];nc=nd*lotSz;margin=Math.abs(nd)*lotSz;rrRatio=((50-Math.abs(nd))/Math.abs(nd)).toFixed(2);break;}}
+    case 'short_iron_fly':{{const cp2=ce_atm||150,pp=pe_atm||150,wc=co1.ltp||80,wp=po1.ltp||80,nc2=cp2+pp-wc-wp;pop=Math.round((0.60+pcrAdj)*100);mp=nc2*lotSz;ml=(50-nc2)*lotSz;be=[atm-nc2,atm+nc2];nc=nc2*lotSz;margin=50*lotSz*2;rrRatio=(nc2/(50-nc2)).toFixed(2);break;}}
+    case 'long_iron_fly':{{const cp2=ce_atm||150,pp=pe_atm||150,wc=co1.ltp||80,wp=po1.ltp||80,nd=wc+wp-cp2-pp;pop=Math.round((0.38-pcrAdj)*100);mp=(50-Math.abs(nd))*lotSz;ml=Math.abs(nd)*lotSz;be=[atm-Math.abs(nd),atm+Math.abs(nd)];nc=-Math.abs(nd)*lotSz;margin=Math.abs(nd)*lotSz;rrRatio=((50-Math.abs(nd))/Math.abs(nd)).toFixed(2);break;}}
+    case 'call_ratio_back':{{const sp=ce_atm||150,bp=co1.ltp||80,nd=2*bp-sp;pop=Math.round((0.40+pcrAdj)*100);mp=999999;ml=nd>0?nd*lotSz:0;be=[co1.strike+bp];nc=-nd*lotSz;margin=co1.strike*lotSz*0.15;break;}}
+    case 'put_ratio_back':{{const sp=pe_atm||150,bp=po1.ltp||80,nd=2*bp-sp;pop=Math.round((0.40-pcrAdj)*100);mp=999999;ml=nd>0?nd*lotSz:0;be=[po1.strike-bp];nc=-nd*lotSz;margin=po1.strike*lotSz*0.15;break;}}
+    case 'long_synthetic':{{const cp2=ce_atm||150,pp=pe_atm||150,nd=cp2-pp;pop=Math.round((0.50+pcrAdj)*100);mp=999999;ml=999999;be=[atm+nd];nc=-Math.abs(nd)*lotSz;margin=atm*lotSz*0.30;pnl=(spot-atm-nd)*lotSz;break;}}
+    case 'short_synthetic':{{const cp2=ce_atm||150,pp=pe_atm||150,nc2=cp2-pp;pop=Math.round((0.50-pcrAdj)*100);mp=999999;ml=999999;be=[atm+nc2];nc=Math.abs(nc2)*lotSz;margin=atm*lotSz*0.30;pnl=(atm-spot+nc2)*lotSz;break;}}
+    case 'call_butterfly': case 'bull_butterfly':{{const lp=ce_atm||150,mp2=co1.ltp||80,hp=co2.ltp||40,nd=lp-2*mp2+hp;pop=Math.round((0.55+pcrAdj)*100);mp=(50-nd)*lotSz;ml=nd*lotSz;be=[atm+nd,co2.strike-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd)/nd).toFixed(2);break;}}
+    case 'put_butterfly': case 'bear_butterfly':{{const hp=pe_atm||150,mp2=po1.ltp||80,lp=po2.ltp||40,nd=hp-2*mp2+lp;pop=Math.round((0.55-pcrAdj)*100);mp=(50-nd)*lotSz;ml=nd*lotSz;be=[po2.strike+nd,atm-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd)/nd).toFixed(2);break;}}
+    case 'jade_lizard':{{const pp=po1.ltp||100,cs=co1.ltp||80,cb=co2.ltp||40,nc2=pp+cs-cb;pop=Math.round((0.60+pcrAdj)*100);mp=nc2*lotSz;ml=(po1.strike-nc2)*lotSz;be=[po1.strike-nc2];nc=nc2*lotSz;margin=po1.strike*lotSz*0.15;break;}}
+    case 'reverse_jade':{{const cp2=co1.ltp||100,ps=po1.ltp||80,pb=po2.ltp||40,nc2=cp2+ps-pb;pop=Math.round((0.60-pcrAdj)*100);mp=nc2*lotSz;ml=(co1.strike-nc2)*lotSz;be=[co1.strike+nc2];nc=nc2*lotSz;margin=co1.strike*lotSz*0.15;break;}}
+    case 'bull_condor': case 'bear_condor':{{const s1=shape==='bull_condor'?ce_atm:pe_atm,s2=shape==='bull_condor'?co1.ltp:po1.ltp,s3=(shape==='bull_condor'?co2.ltp:po2.ltp)*0.7,s4=(shape==='bull_condor'?co2.ltp:po2.ltp)*0.4,nc2=(s1-s2)-(s3-s4),adj=shape==='bull_condor'?pcrAdj:-pcrAdj;pop=Math.round((0.55+adj)*100);mp=nc2*lotSz;ml=(50-nc2)*lotSz;be=[atm+nc2];nc=nc2*lotSz;margin=100*lotSz;rrRatio=(nc2/(50-nc2)).toFixed(2);break;}}
+    default:{{const p=ce_atm||150;pop=Math.round((0.50+pcrAdj)*100);mp=p*lotSz*0.5;ml=p*lotSz*0.3;be=[atm];nc=-p*0.3*lotSz;margin=p*lotSz;rrRatio=1.5;}}
+  }}
+  pop=Math.min(95,Math.max(5,pop));
+  let strikeStr='ATM \u20b9'+atm.toLocaleString('en-IN');
+  const beStr=be.map(v=>'\u20b9'+Math.round(v).toLocaleString('en-IN')).join(' / ');
+  const mpStr=mp===999999?'Unlimited':'\u20b9'+Math.round(mp).toLocaleString('en-IN');
+  const mlStr=ml===999999?'Unlimited':'\u20b9'+Math.round(ml).toLocaleString('en-IN');
+  const ncStr=(nc>=0?'+ ':'- ')+'\u20b9'+Math.abs(Math.round(nc)).toLocaleString('en-IN');
+  const marginStr='\u20b9'+Math.round(margin).toLocaleString('en-IN');
+  const pnlStr=pnl===0?'\u20b90':(pnl>=0?'+ ':'- ')+'\u20b9'+Math.abs(Math.round(pnl)).toLocaleString('en-IN');
+  const rrStr=rrRatio===0?'\u221e':('1:'+Math.abs(rrRatio));
+  const mpPct=mp===999999?'\u221e':(ml>0?(mp/ml*100).toFixed(0)+'%':'—');
+  return {{pop,mpStr,mlStr,rrStr,beStr,ncStr,marginStr,pnlStr,mpPct,strikeStr,
+           mpRaw:mp,mlRaw:ml,ncRaw:Math.round(nc),pnlPositive:pnl>=0,ncPositive:nc>=0}};
+}}
+
+function renderMetrics(m){{
+  const pc=m.pop>=60?'#00c896':(m.pop>=45?'#6480ff':'#ff6b6b');
+  const nc=m.ncPositive?'#00c896':'#ff6b6b';
+  const pc2=m.pnlPositive?'#00c896':'#ff6b6b';
+  return `<div class="metric-row metric-strike"><span class="metric-lbl">Strike Price</span>
+    <span class="metric-val" style="color:#ffd166;font-size:11px;text-align:right;max-width:160px;line-height:1.4;">${{m.strikeStr}}</span></div>
+    <div class="metric-row"><span class="metric-lbl">Prob. of Profit</span>
+    <span class="metric-val" style="color:${{pc}};font-weight:800;font-size:15px;">${{m.pop}}%</span></div>
+    <div class="metric-row"><span class="metric-lbl">Max. Profit</span>
+    <span class="metric-val" style="color:#00c896;">${{m.mpStr}} <small style="opacity:.5;">${{m.mpPct}}</small></span></div>
+    <div class="metric-row"><span class="metric-lbl">Max. Loss</span>
+    <span class="metric-val" style="color:#ff6b6b;">${{m.mlStr}}</span></div>
+    <div class="metric-row"><span class="metric-lbl">Max RR Ratio</span>
+    <span class="metric-val" style="color:#6480ff;">${{m.rrStr}}</span></div>
+    <div class="metric-row"><span class="metric-lbl">Breakevens</span>
+    <span class="metric-val" style="color:#00c8e0;font-size:11px;">${{m.beStr}}</span></div>
+    <div class="metric-row"><span class="metric-lbl">Total PNL (est.)</span>
+    <span class="metric-val" style="color:${{pc2}};">${{m.pnlStr}}</span></div>
+    <div class="metric-row"><span class="metric-lbl">Net Credit / Debit</span>
+    <span class="metric-val" style="color:${{nc}};">${{m.ncStr}}</span></div>
+    <div class="metric-row" style="border-bottom:none;"><span class="metric-lbl">Est. Margin/Premium</span>
+    <span class="metric-val" style="color:#8aa0ff;">${{m.marginStr}}</span></div>`;
+}}
+
+function popBadgeStyle(pop){{
+  if(pop>=65)return 'background:rgba(0,200,150,.2);color:#00c896;border-color:rgba(0,200,150,.4);';
+  if(pop>=50)return 'background:rgba(100,128,255,.2);color:#8aa0ff;border-color:rgba(100,128,255,.4);';
+  return 'background:rgba(255,107,107,.2);color:#ff6b6b;border-color:rgba(255,107,107,.4);';
+}}
+
+function initAllCards(){{
+  document.querySelectorAll('.sc-card').forEach(card=>{{
+    const badge=document.getElementById('pop_'+card.id);
+    try{{
+      const m=calcMetrics(card.dataset.shape);
+      card.dataset.pop=m.pop;
+      if(badge){{badge.textContent=m.pop+'%';badge.setAttribute('style',badge.getAttribute('style')+';'+popBadgeStyle(m.pop));}}
+    }}catch(e){{card.dataset.pop=0;if(badge)badge.textContent='—%';}}
+  }});
+}}
+
+function sortGridByPoP(cat){{
+  const grid=document.getElementById('sc-grid'); if(!grid)return;
+  const cards=Array.from(grid.querySelectorAll(`.sc-card[data-cat="${{cat}}"]`));
+  cards.sort((a,b)=>parseInt(b.dataset.pop||0)-parseInt(a.dataset.pop||0));
+  cards.forEach(c=>grid.appendChild(c));
+}}
+
+window.addEventListener('load',function(){{
+  initAllCards();
+  ['bullish','bearish','nondirectional'].forEach(sortGridByPoP);
+  filterStrat('bullish',document.querySelector('.sc-tab'));
+}});
+</script>
+"""
 
 
 # =================================================================
@@ -1456,18 +1654,53 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .tk-badge{font-family:var(--fh);font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;letter-spacing:.3px;}
 footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:rgba(6,8,15,.9);backdrop-filter:blur(12px);display:flex;justify-content:space-between;font-size:11px;color:var(--muted2);font-family:var(--fm)}
 
-/* ══ OPTION GREEKS PANEL (sidebar) ══ */
+/* Strategy cards */
+.sc-tabs{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.sc-tab{padding:8px 20px;border-radius:24px;border:1px solid;cursor:pointer;
+  font-family:var(--fh);font-size:12px;font-weight:600;transition:all .2s;
+  display:flex;align-items:center;gap:8px;background:transparent}
+.sc-tab:hover{opacity:.85}
+.sc-cnt{font-size:10px;padding:1px 7px;border-radius:10px;color:#fff;font-weight:700}
+.sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.sc-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);
+  border-radius:14px;overflow:hidden;cursor:pointer;
+  transition:all .2s;display:flex;flex-direction:column;position:relative;}
+.sc-card:hover{border-color:rgba(0,200,150,.3);transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,200,150,.1)}
+.sc-card.hidden{display:none}
+.sc-card.expanded .sc-detail{display:block}
+.sc-card.expanded{border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12)}
+.sc-pop-badge{position:absolute;top:8px;right:8px;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
+  padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.15);
+  background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);z-index:5;letter-spacing:.5px;
+  transition:all .3s;min-width:38px;text-align:center;}
+.sc-svg{display:flex;align-items:center;justify-content:center;padding:14px 0 6px;background:rgba(255,255,255,.02)}
+.sc-body{padding:10px 12px 12px}
+.sc-name{font-family:var(--fh);font-size:12px;font-weight:700;color:rgba(255,255,255,.9);
+  margin-bottom:4px;line-height:1.3;padding-right:48px}
+.sc-legs{font-family:var(--fm);font-size:9px;color:rgba(0,200,220,.7);margin-bottom:8px;letter-spacing:.3px;line-height:1.4}
+.sc-tags{display:flex;flex-direction:column;gap:4px}
+.sc-tag{font-size:9px;padding:2px 8px;border-radius:6px;border:1px solid;background:rgba(0,0,0,.2);display:inline-block;width:fit-content}
+.sc-detail{display:none;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,200,150,.03)}
+.sc-desc{font-size:11px;color:rgba(255,255,255,.5);line-height:1.7;padding:12px 12px 8px;border-bottom:1px solid rgba(255,255,255,.05);}
+.sc-metrics-live{padding:0}
+.sc-loading{padding:14px 12px;font-size:11px;color:rgba(255,255,255,.3);text-align:center;font-family:'DM Mono',monospace}
+.metric-row{display:flex;justify-content:space-between;align-items:center;
+  padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s;}
+.metric-row:hover{background:rgba(255,255,255,.03)}
+.metric-strike{background:rgba(255,209,102,.04);border-bottom:1px solid rgba(255,209,102,.12) !important;}
+.metric-lbl{font-size:10px;color:rgba(255,255,255,.35);letter-spacing:.5px;text-transform:uppercase;font-family:'DM Mono',monospace;}
+.metric-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:600;text-align:right;}
+
+/* Option Greeks panel */
 .greeks-panel{margin:10px 10px 6px;padding:14px 12px;background:linear-gradient(135deg,rgba(100,128,255,.12),rgba(0,200,220,.10));border-radius:14px;border:1px solid rgba(100,128,255,.28);box-shadow:0 4px 20px rgba(100,128,255,.1),inset 0 1px 0 rgba(255,255,255,.06);}
 .greeks-title{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(138,160,255,1.0);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(100,128,255,.25);display:flex;align-items:center;justify-content:space-between;}
 .greeks-expiry-tag{font-size:8.5px;color:rgba(255,255,255,.5);font-weight:400;letter-spacing:.5px;text-transform:none;}
-/* GOLDEN DROPDOWN */
 .greeks-strike-wrap{position:relative;margin-bottom:10px;}
 .greeks-strike-wrap::after{content:'▼';position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:8px;color:var(--gold);pointer-events:none;z-index:2;}
 .greeks-strike-select{width:100%;appearance:none;-webkit-appearance:none;background:linear-gradient(135deg,rgba(245,197,24,.12),rgba(200,155,10,.06));border:1px solid var(--gold-dim);border-radius:8px;color:var(--gold);font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:7px 28px 7px 10px;cursor:pointer;outline:none;letter-spacing:.5px;transition:border-color .2s,background .2s,box-shadow .2s;}
 .greeks-strike-select:hover{border-color:rgba(245,197,24,.75);background:linear-gradient(135deg,rgba(245,197,24,.18),rgba(200,155,10,.10));box-shadow:0 0 10px rgba(245,197,24,.18);}
 .greeks-strike-select:focus{border-color:var(--gold);box-shadow:0 0 0 2px rgba(245,197,24,.25);}
 .greeks-strike-select option{background:#0e1225;color:var(--gold);font-weight:700;}
-/* Greek name labels — BRIGHT */
 .greek-name{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.92);}
 .greek-sub{font-size:8px;color:rgba(255,255,255,.55);margin-top:1px;}
 .greeks-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06);}
@@ -1479,7 +1712,6 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .iv-bar-track{flex:1;height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;}
 .iv-bar-fill{height:100%;border-radius:2px;transition:width .6s ease;}
 .iv-bar-num{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;min-width:38px;text-align:right;}
-/* GREEKS TABLE (main content) */
 .greeks-table-section{padding:22px 28px;border-bottom:1px solid rgba(255,255,255,.05);}
 .greeks-table-wrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
 .greeks-tbl{border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;}
@@ -1500,6 +1732,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .strikes-wrap{grid-template-columns:1fr}
   .greeks-table-wrap{grid-template-columns:1fr}
   .greeks-tbl-head,.greeks-tbl-row{grid-template-columns:80px repeat(4,1fr)}
+  .sc-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
 }
 @media(max-width:640px){
   header{padding:12px 16px}.section{padding:18px 16px}
@@ -1510,6 +1743,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .greeks-table-section{padding:16px;}
   .greeks-tbl-head,.greeks-tbl-row{grid-template-columns:70px repeat(3,1fr)}
   .greeks-tbl-head-label:nth-child(5),.greeks-tbl-cell:nth-child(5){display:none}
+  .sc-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
 }
 """
 
@@ -1577,7 +1811,6 @@ ANIMATED_JS = """
     const curHero = document.getElementById('heroWidget'), neoHero = newDoc.getElementById('heroWidget');
     if (curHero && neoHero && curHero.outerHTML !== neoHero.outerHTML) { curHero.outerHTML = neoHero.outerHTML; changed = true; }
 
-    /* Save user's selected strike BEFORE patching greeksPanel */
     var _savedStrike = null;
     var _selEl = document.getElementById('greeksStrikeSelect');
     if (_selEl) _savedStrike = _selEl.value;
@@ -1587,7 +1820,6 @@ ANIMATED_JS = """
     const curTs = document.getElementById('lastUpdatedTs'), neoTs = newDoc.getElementById('lastUpdatedTs');
     if (curTs && neoTs && curTs.textContent !== neoTs.textContent) { curTs.textContent = neoTs.textContent; changed = true; }
 
-    /* Restore user's strike after patch — keep their view, don't reset to ATM */
     setTimeout(function() {
       var selAfter = document.getElementById('greeksStrikeSelect');
       if (selAfter && _savedStrike) {
@@ -1598,6 +1830,9 @@ ANIMATED_JS = """
         } else {
           if (window.greeksUpdateStrike) window.greeksUpdateStrike(selAfter.value);
         }
+      }
+      if (typeof initAllCards === 'function') {
+        try { initAllCards(); ['bullish','bearish','nondirectional'].forEach(sortGridByPoP); } catch(e) {}
       }
     }, 50);
 
@@ -1625,13 +1860,7 @@ ANIMATED_JS = """
 """
 
 
-
 def build_greeks_script_html(oc_analysis):
-    """
-    Returns the <script> block for the Option Greeks panel.
-    Kept OUTSIDE greeksPanel div so innerHTML-patching during auto-refresh
-    does NOT kill the greeksUpdateStrike function.
-    """
     if not oc_analysis:
         return ""
 
@@ -1660,8 +1889,6 @@ def build_greeks_script_html(oc_analysis):
     strikes_json = "{" + ",".join(strikes_json_parts) + "}"
 
     return f"""<script>
-/* Greeks script lives OUTSIDE #greeksPanel so auto-refresh innerHTML patch
-   cannot destroy greeksUpdateStrike. Re-initialises on every full page load. */
 (function() {{
   var _gData = {strikes_json};
   var _atm   = {atm};
@@ -1677,12 +1904,8 @@ def build_greeks_script_html(oc_analysis):
   window.greeksUpdateStrike = function(strike) {{
     var key = String(parseInt(strike, 10));
     var d   = _gData[key] || _gData[String(parseFloat(strike))] || _gData[String(strike)];
-    if (!d) {{
-      console.warn('greeksUpdateStrike: key miss for', strike, 'keys:', Object.keys(_gData).slice(0,5));
-      return;
-    }}
+    if (!d) {{ console.warn('greeksUpdateStrike: key miss for', strike); return; }}
 
-    /* Fade */
     var ids = ['greeksStrikeTypeLabel','greeksStrikeLabel','greeksCeLtp','greeksPeLtp',
                'greeksDeltaWrap','greeksSkewLbl',
                'greeksIvCe','greeksIvPe',
@@ -1704,7 +1927,6 @@ def build_greeks_script_html(oc_analysis):
       document.getElementById('greeksCeLtp').innerHTML = 'CE ₹' + (d.ce_ltp||0).toFixed(1);
       document.getElementById('greeksPeLtp').innerHTML = 'PE ₹' + (d.pe_ltp||0).toFixed(1);
 
-      /* Delta bars */
       var ceCol='#00c896', peCol='#ff6b6b';
       var cePct=Math.min(100,Math.abs(d.ce_delta)*100).toFixed(0);
       var pePct=Math.min(100,Math.abs(d.pe_delta)*100).toFixed(0);
@@ -1720,27 +1942,22 @@ def build_greeks_script_html(oc_analysis):
           '<span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:'+peCol+';">' +
                (d.pe_delta>=0?'+':'')+d.pe_delta.toFixed(3)+'</span></div>';
 
-      /* IV */
       document.getElementById('greeksIvCe').textContent = (d.ce_iv||0).toFixed(1)+'%';
       document.getElementById('greeksIvPe').textContent = (d.pe_iv||0).toFixed(1)+'%';
 
-      /* IV Skew */
       var skew=((d.pe_iv||0)-(d.ce_iv||0)).toFixed(1);
       var skewEl=document.getElementById('greeksSkewLbl');
       skewEl.textContent = parseFloat(skew)>0?'PE Skew +'+skew:'CE Skew '+skew;
       skewEl.style.color = parseFloat(skew)>1.5?'#ff6b6b':(parseFloat(skew)<-1.5?'#00c896':'#6480ff');
 
-      /* Theta */
       function tfmt(t){{ return Math.abs(t)>=0.01?'₹'+Math.abs(t).toFixed(2):t.toFixed(4); }}
       document.getElementById('greeksThetaCe').innerHTML = tfmt(d.ce_theta||0);
       document.getElementById('greeksThetaPe').innerHTML = tfmt(d.pe_theta||0);
 
-      /* Vega */
       function vfmt(v){{ return Math.abs(v)>=0.0001?v.toFixed(4):'—'; }}
       document.getElementById('greeksVegaCe').innerHTML = vfmt(d.ce_vega||0);
       document.getElementById('greeksVegaPe').innerHTML = vfmt(d.pe_vega||0);
 
-      /* IV bar */
       var ivAvg=((d.ce_iv||0)+(d.pe_iv||0))/2;
       var ivCol=ivAvg>25?'#ff6b6b':(ivAvg>18?'#ffd166':'#00c896');
       var ivReg=ivAvg>25?'High IV · Buy Premium':(ivAvg>15?'Normal IV · Balanced':'Low IV · Sell Premium');
@@ -1752,7 +1969,6 @@ def build_greeks_script_html(oc_analysis):
       var regEl=document.getElementById('greeksIvRegime');
       regEl.textContent=ivReg; regEl.style.color=ivCol;
 
-      /* Fade in */
       ids.forEach(function(id){{ var el=document.getElementById(id); if(el) el.style.opacity='1'; }});
     }}, 180);
   }};
@@ -1839,9 +2055,9 @@ def generate_html(tech, oc, md, ts, vix_data=None):
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">STRATEGIES</div>
-      <button class="sb-btn" onclick="go('strat',this)">&#9650; Bullish</button>
-      <button class="sb-btn" onclick="go('strat',this)">&#9660; Bearish</button>
-      <button class="sb-btn" onclick="go('strat',this)">&#8596; Non-Directional</button>
+      <button class="sb-btn" onclick="go('strat',this);filterStrat('bullish',null)">&#9650; Bullish <span class="sb-badge" style="color:var(--bull);">9</span></button>
+      <button class="sb-btn" onclick="go('strat',this);filterStrat('bearish',null)">&#9660; Bearish <span class="sb-badge" style="color:var(--bear);">9</span></button>
+      <button class="sb-btn" onclick="go('strat',this);filterStrat('nondirectional',null)">&#8596; Non-Directional <span class="sb-badge" style="color:var(--neut);">20</span></button>
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">OPTION CHAIN</div>
@@ -1878,6 +2094,32 @@ function go(id,btn){{
   if(el)el.scrollIntoView({{behavior:"smooth",block:"start"}});
   if(btn){{document.querySelectorAll(".sb-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");}}
 }}
+function filterStrat(cat,btn){{
+  document.querySelectorAll(".sc-card").forEach(c=>{{c.classList.toggle("hidden",c.dataset.cat!==cat);}});
+  const colors={{bullish:"#00c896",bearish:"#ff6b6b",nondirectional:"#6480ff"}};
+  const col=colors[cat]||"#00c896";
+  document.querySelectorAll(".sc-tab").forEach(t=>{{t.style.borderColor="rgba(255,255,255,.15)";t.style.color="rgba(255,255,255,.5)";t.style.background="transparent";}});
+  if(btn){{btn.style.borderColor=col;btn.style.color=col;btn.style.background=col+"20";}}
+  else{{document.querySelectorAll(".sc-tab").forEach(t=>{{
+    if((cat==="bullish"&&t.textContent.includes("BULLISH"))||(cat==="bearish"&&t.textContent.includes("BEARISH"))||(cat==="nondirectional"&&t.textContent.includes("NON")))
+    {{t.style.borderColor=col;t.style.color=col;t.style.background=col+"20";}}
+  }});}}
+}}
+document.addEventListener("click",function(e){{
+  const card=e.target.closest(".sc-card");
+  if(card){{
+    const was=card.classList.contains("expanded");
+    document.querySelectorAll(".sc-card.expanded").forEach(c=>c.classList.remove("expanded"));
+    if(!was){{
+      card.classList.add("expanded");
+      const mel=card.querySelector('.sc-metrics-live');
+      if(mel&&mel.querySelector('.sc-loading')){{
+        try{{mel.innerHTML=renderMetrics(calcMetrics(card.dataset.shape));}}
+        catch(err){{mel.innerHTML='<div class="sc-loading">Could not calculate metrics</div>';}}
+      }}
+    }}
+  }}
+}});
 </script>
 {greeks_script}
 {ANIMATED_JS}
@@ -1893,15 +2135,12 @@ def main():
     ist_tz = pytz.timezone("Asia/Kolkata")
     ts     = datetime.now(ist_tz).strftime("%d-%b-%Y %H:%M IST")
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v16 (FIXED)")
+    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v16 (COMPLETE)")
     print(f"  {ts}")
-    print("  FIXES:")
-    print("  + Net OI Change now shows PE_chg - CE_chg (true net diff)")
-    print("  + Net bar % reflects margin of dominance, not raw side value")
-    print("  + Option Greeks (renamed from ATM Greeks)")
-    print("  + BS Greeks computed for EVERY strike — dropdown always updates")
-    print("  + VIX wired through full call chain as IV fallback")
-    print("  + _bs_greeks always returns valid dict (never None)")
+    print("  + Strategies section fully restored from v12")
+    print("  + Option Greeks panel with dynamic strike dropdown")
+    print("  + BS Greeks computed for every strike")
+    print("  + Net OI Change shows true net diff")
     print("=" * 65)
 
     print("\n[1/4] Fetching NSE Option Chain...")
@@ -1911,16 +2150,13 @@ def main():
     print("\n[2/4] Fetching India VIX...")
     vix_data = fetch_india_vix(nse_session, nse_headers)
     live_vix = vix_data["value"] if vix_data else 18.0
-    print(f"  VIX for BS fallback: {live_vix}")
 
     oc_analysis = analyze_option_chain(oc_raw, vix=live_vix) if oc_raw else None
     if oc_analysis:
         g = oc_analysis.get("atm_greeks", {})
         n_strikes = len(oc_analysis.get("all_strikes", []))
         print(f"\n  OK  Spot={oc_analysis['underlying']:.2f}  ATM={oc_analysis['atm_strike']}")
-        print(f"      Greeks computed for {n_strikes} strikes (all unique via BS)")
-        print(f"      ATM CE Δ={g.get('ce_delta',0):.3f}  IV={g.get('ce_iv',0):.1f}%  θ={g.get('ce_theta',0):.4f}")
-        print(f"      ATM PE Δ={g.get('pe_delta',0):.3f}  IV={g.get('pe_iv',0):.1f}%  θ={g.get('pe_theta',0):.4f}")
+        print(f"      Greeks computed for {n_strikes} strikes")
 
     print("\n[3/4] Fetching Technical Indicators...")
     tech = get_technical_data()
@@ -1951,7 +2187,6 @@ def main():
         "oi_dir":     oc_analysis["oi_dir"]    if oc_analysis else None,
         "raw_oi_dir": oc_analysis["raw_oi_dir"] if oc_analysis else None,
         "india_vix":  vix_data["value"]         if vix_data   else None,
-        "atm_greeks": oc_analysis.get("atm_greeks") if oc_analysis else None,
     }
     with open(os.path.join("docs", "latest.json"), "w") as f:
         json.dump(meta, f, indent=2)
