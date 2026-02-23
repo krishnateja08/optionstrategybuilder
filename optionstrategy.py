@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v16 · Option Greeks panel · Dynamic Strike Dropdown
+Aurora Borealis Theme · v17 · IST Timezone Fixed · Option Greeks panel · Dynamic Strike Dropdown
+
+TIMEZONE POLICY: ALL datetime operations use IST (Asia/Kolkata, UTC+5:30).
+The server may run in any timezone (UTC, CST, etc.) — we always convert to IST.
+
 pip install curl_cffi pandas numpy yfinance pytz scipy
 """
 
-import os, json, time, warnings, pytz
+import os, json, time, warnings
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -13,8 +17,32 @@ from curl_cffi import requests as curl_requests
 import yfinance as yf
 from math import log, sqrt, exp
 from scipy.stats import norm as _norm
+import pytz
 
 warnings.filterwarnings("ignore")
+
+# =================================================================
+#  IST TIMEZONE HELPER — USE THIS EVERYWHERE
+# =================================================================
+
+IST = pytz.timezone("Asia/Kolkata")
+
+def now_ist():
+    """Always returns current datetime in IST, regardless of server timezone."""
+    return datetime.now(IST)
+
+def today_ist():
+    """Returns today's date in IST (not server local date!)."""
+    return now_ist().date()
+
+def ist_weekday():
+    """Returns IST weekday: 0=Monday, 1=Tuesday, ..., 6=Sunday."""
+    return today_ist().weekday()
+
+def ist_timestamp_str():
+    """Returns formatted timestamp string in IST."""
+    return now_ist().strftime("%d-%b-%Y %H:%M IST")
+
 
 # =================================================================
 #  SECTION 1 -- NSE OPTION CHAIN FETCHER
@@ -42,22 +70,60 @@ class NSEOptionChain:
             print(f"  WARNING  Session warm-up: {e}")
         return session, headers
 
-    def _upcoming_tuesday(self):
-        ist_tz    = pytz.timezone("Asia/Kolkata")
-        today_ist = datetime.now(ist_tz).date()
-        weekday   = today_ist.weekday()
-        days_ahead = 7 if weekday == 1 else (1 - weekday) % 7 or 7
-        return (today_ist + timedelta(days=days_ahead)).strftime("%d-%b-%Y")
+    def _current_or_next_tuesday_ist(self):
+        """
+        Returns expiry date string in dd-Mon-YYYY format.
+        Logic (all in IST):
+          - If today IST is Tuesday → use today (weekly expiry day)
+          - If today IST is before Tuesday (Mon) → use this coming Tuesday
+          - If today IST is after Tuesday (Wed-Sun) → use next Tuesday
+        """
+        today = today_ist()          # <-- IST date, not server local!
+        wd = today.weekday()         # 0=Mon, 1=Tue, ..., 6=Sun
+
+        if wd == 1:
+            # Today IS Tuesday in IST
+            target = today
+            print(f"  IST Today IS Tuesday: {today}")
+        elif wd < 1:
+            # Monday → Tuesday is tomorrow
+            days_ahead = 1 - wd
+            target = today + timedelta(days=days_ahead)
+            print(f"  IST Today is Monday, Tuesday in {days_ahead} day(s): {target}")
+        else:
+            # Wed(2) through Sun(6) → next Tuesday
+            days_ahead = (7 - wd) + 1  # days to next Monday + 1 = next Tuesday
+            # Simpler: (1 - wd) % 7 → but if wd>1 this gives a positive offset
+            days_ahead = (1 - wd) % 7
+            if days_ahead == 0:
+                days_ahead = 7
+            target = today + timedelta(days=days_ahead)
+            print(f"  IST Today is weekday {wd} (Wed-Sun), next Tuesday in {days_ahead} day(s): {target}")
+
+        result = target.strftime("%d-%b-%Y")
+        print(f"  Computed expiry (IST): {result}")
+        return result
 
     def _fetch_available_expiries(self, session, headers):
+        """Fetch all available expiry dates from NSE and return the nearest one."""
         try:
-            url  = f"https://www.nseindia.com/api/option-chain-v3?type=Indices&symbol={self.symbol}"
+            url = f"https://www.nseindia.com/api/option-chain-v3?type=Indices&symbol={self.symbol}"
             resp = session.get(url, headers=headers, impersonate="chrome", timeout=20)
             if resp.status_code == 200:
                 expiries = resp.json().get("records", {}).get("expiryDates", [])
                 if expiries:
-                    print(f"  Available expiries: {expiries[:5]}")
-                    return expiries[0]
+                    print(f"  NSE available expiries: {expiries[:6]}")
+                    # Return the nearest upcoming expiry
+                    today = today_ist()
+                    for exp_str in expiries:
+                        try:
+                            exp_dt = datetime.strptime(exp_str, "%d-%b-%Y").date()
+                            if exp_dt >= today:
+                                print(f"  Nearest upcoming NSE expiry: {exp_str}")
+                                return exp_str
+                        except Exception:
+                            continue
+                    return expiries[0]  # fallback
         except Exception as e:
             print(f"  WARNING  Expiry fetch: {e}")
         return None
@@ -75,12 +141,12 @@ class NSEOptionChain:
                 if resp.status_code != 200:
                     time.sleep(2)
                     continue
-                json_data   = resp.json()
-                data        = json_data.get("records", {}).get("data", [])
+                json_data  = resp.json()
+                data       = json_data.get("records", {}).get("data", [])
                 if not data:
                     return None
-                underlying  = json_data.get("records", {}).get("underlyingValue", 0)
-                atm_strike  = round(underlying / 50) * 50
+                underlying = json_data.get("records", {}).get("underlyingValue", 0)
+                atm_strike = round(underlying / 50) * 50
                 lower_bound = underlying - 500
                 upper_bound = underlying + 500
                 rows = []
@@ -121,16 +187,23 @@ class NSEOptionChain:
 
     def fetch(self):
         session, headers = self._make_session()
-        expiry = self._upcoming_tuesday()
-        print(f"  Fetching option chain for: {expiry}")
+        # Step 1: compute expiry from IST date
+        expiry = self._current_or_next_tuesday_ist()
+        print(f"  Primary expiry to try: {expiry}")
         result = self._fetch_for_expiry(session, headers, expiry)
+
+        # Step 2: if that fails, get real expiry list from NSE
         if result is None:
+            print(f"  Primary expiry {expiry} failed — fetching from NSE...")
             real_expiry = self._fetch_available_expiries(session, headers)
             if real_expiry and real_expiry != expiry:
-                print(f"  Retrying with NSE expiry: {real_expiry}")
+                print(f"  Retrying with NSE nearest expiry: {real_expiry}")
                 result = self._fetch_for_expiry(session, headers, real_expiry)
+            elif real_expiry:
+                print(f"  NSE expiry matches computed, no more retries.")
+
         if result is None:
-            print("  ERROR Option chain fetch failed.")
+            print("  ERROR: Option chain fetch failed for all expiries.")
         return result, session, headers
 
 
@@ -216,13 +289,13 @@ def _bs_greeks(S, K, T, r, sigma, option_type="CE"):
         gamma = nd1 / (S * sigma * np.sqrt(T))
         vega  = (S * nd1 * np.sqrt(T)) / 100
         if option_type == "CE":
-            delta         = _norm.cdf(d1)
-            theta_annual  = (-(S * nd1 * sigma) / (2 * np.sqrt(T))
-                             - r * K * np.exp(-r * T) * _norm.cdf(d2))
+            delta        = _norm.cdf(d1)
+            theta_annual = (-(S * nd1 * sigma) / (2 * np.sqrt(T))
+                            - r * K * np.exp(-r * T) * _norm.cdf(d2))
         else:
-            delta         = _norm.cdf(d1) - 1
-            theta_annual  = (-(S * nd1 * sigma) / (2 * np.sqrt(T))
-                             + r * K * np.exp(-r * T) * _norm.cdf(-d2))
+            delta        = _norm.cdf(d1) - 1
+            theta_annual = (-(S * nd1 * sigma) / (2 * np.sqrt(T))
+                            + r * K * np.exp(-r * T) * _norm.cdf(-d2))
         return {
             "delta": round(float(delta), 4),
             "gamma": round(float(gamma), 6),
@@ -233,19 +306,23 @@ def _bs_greeks(S, K, T, r, sigma, option_type="CE"):
         return {"delta": 0, "gamma": 0, "theta": 0, "vega": 0}
 
 
-def _days_to_expiry(expiry_str):
+def _days_to_expiry_ist(expiry_str):
+    """
+    Compute days to expiry using IST date (not server local date!).
+    """
     try:
-        ist_tz  = pytz.timezone("Asia/Kolkata")
-        today   = datetime.now(ist_tz).date()
+        today   = today_ist()   # <-- IST date
         exp_dt  = datetime.strptime(expiry_str, "%d-%b-%Y").date()
         days    = (exp_dt - today).days
+        print(f"  Days to expiry ({expiry_str}): {days} days from IST today {today}")
         return max(days, 1)
-    except Exception:
+    except Exception as e:
+        print(f"  WARNING _days_to_expiry_ist: {e}")
         return 7
 
 
 def _compute_greeks_for_row(r, spot, expiry_str, risk_free=0.065, vix=18.0):
-    T = _days_to_expiry(expiry_str) / 365.0
+    T = _days_to_expiry_ist(expiry_str) / 365.0
     K = float(r["Strike"])
     ce_iv_nse = float(r.get("CE_IV", 0) or 0)
     pe_iv_nse = float(r.get("PE_IV", 0) or 0)
@@ -288,8 +365,8 @@ def extract_atm_greeks(df, atm_strike, underlying=None, expiry_str="", vix=18.0)
                    greeks_rows[len(greeks_rows)//2] if greeks_rows else {})
     atm_idx = next((i for i, g in enumerate(greeks_rows) if g["is_atm"]),
                    len(greeks_rows)//2)
-    lo      = max(0, atm_idx - 2)
-    hi      = min(len(greeks_rows), atm_idx + 3)
+    lo = max(0, atm_idx - 2)
+    hi = min(len(greeks_rows), atm_idx + 3)
     table_5 = greeks_rows[lo:hi]
     return {
         "atm_greeks":   atm_row,
@@ -501,7 +578,7 @@ def get_technical_data():
 
 def compute_market_direction(tech, oc_analysis):
     if not tech:
-        return {"bias": "UNKNOWN", "confidence": "LOW", "bull": 0, "bear": 0, "diff": 0}
+        return {"bias": "UNKNOWN", "confidence": "LOW", "bull": 0, "bear": 0, "diff": 0, "bias_cls": "neutral"}
 
     cp   = tech["price"]
     bull = bear = 0
@@ -582,7 +659,7 @@ def _delta_bar_html(delta_val, is_ce=True):
 
 def build_greeks_sidebar_html(oc_analysis):
     if not oc_analysis:
-        return ""
+        return '<div style="padding:14px 12px;font-size:11px;color:rgba(255,255,255,.3);text-align:center;">Greeks unavailable — option chain data missing.</div>'
 
     g    = oc_analysis.get("atm_greeks", {})
     atm  = oc_analysis.get("atm_strike", 0)
@@ -591,7 +668,7 @@ def build_greeks_sidebar_html(oc_analysis):
     all_rows = oc_analysis.get("all_strikes", oc_analysis.get("greeks_table", []))
 
     if not g:
-        return ""
+        return '<div style="padding:14px 12px;font-size:11px;color:rgba(255,255,255,.3);text-align:center;">Greeks not computed yet.</div>'
 
     ce_iv    = g.get("ce_iv",    15.0)
     pe_iv    = g.get("pe_iv",    15.0)
@@ -616,10 +693,11 @@ def build_greeks_sidebar_html(oc_analysis):
     def tfmt(t): return f"&#8377;{abs(t):.2f}" if abs(t) >= 0.01 else f"{t:.4f}"
     def vfmt(v): return f"{v:.4f}" if abs(v) >= 0.0001 else "&#8212;"
 
+    # Build dropdown options sorted: OTM CE (above ATM) → ATM → OTM PE (below ATM)
     otm_ce_opts = ""
     atm_opt     = ""
     otm_pe_opts = ""
-    for row in all_rows:
+    for row in sorted(all_rows, key=lambda x: x["strike"], reverse=True):
         s      = int(row["strike"])
         is_atm = row["is_atm"]
         dist   = abs(s - atm) // 50
@@ -640,7 +718,7 @@ def build_greeks_sidebar_html(oc_analysis):
     )
 
     return f"""
-<div class="greeks-panel" id="greeksPanel">
+<div class="greeks-panel" id="greeksPanelInner">
   <div class="greeks-title">
     &#9652; OPTION GREEKS
     <span class="greeks-expiry-tag">{exp}</span>
@@ -851,7 +929,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
         expiry = oc["expiry"]; underlying = oc["underlying"]; atm = oc["atm_strike"]; max_pain = oc["max_pain"]
     else:
         total_pe_oi = total_ce_oi = 0; bull_pct = bear_pct = 50; pcr = 1.0
-        oi_sig = "No Data"; oi_dir = "UNKNOWN"; oi_cls = "neutral"
+        oi_sig = "NSE data unavailable"; oi_dir = "UNKNOWN"; oi_cls = "neutral"
         expiry = "N/A"; underlying = 0; atm = 0; max_pain = 0
         bull_label = "N/A"; bear_label = "N/A"
 
@@ -1126,7 +1204,7 @@ def build_strikes_html(oc):
 
 
 # =================================================================
-#  SECTION 6 -- STRATEGIES  (restored from v12)
+#  SECTION 6 -- STRATEGIES
 # =================================================================
 
 def make_payoff_svg(shape, bull_color="#00c896", bear_color="#ff6b6b"):
@@ -1191,48 +1269,48 @@ def make_payoff_svg(shape, bull_color="#00c896", bear_color="#ff6b6b"):
 
 STRATEGIES_DATA = {
     "bullish": [
-        {"name":"Long Call","shape":"long_call","risk":"Limited","reward":"Unlimited","legs":"BUY CALL (ATM)","desc":"Buy a call option. Profits as market rises above strike. Risk is limited to premium paid.","lot_size":65,"margin_mult":1.0},
-        {"name":"Short Put","shape":"short_put","risk":"Moderate","reward":"Limited","legs":"SELL PUT (OTM)","desc":"Sell a put option below market. Collect premium. Profit if market stays above strike.","lot_size":65,"margin_mult":5.0},
-        {"name":"Bull Call Spread","shape":"bull_call_spread","risk":"Limited","reward":"Limited","legs":"BUY CALL (Low) · SELL CALL (High)","desc":"Buy lower call, sell higher call. Reduces cost; caps profit at upper strike.","lot_size":65,"margin_mult":1.5},
-        {"name":"Bull Put Spread","shape":"bull_put_spread","risk":"Limited","reward":"Limited","legs":"SELL PUT (High) · BUY PUT (Low)","desc":"Sell higher put, buy lower put. Credit received upfront. Profit if market stays above higher strike.","lot_size":65,"margin_mult":2.0},
-        {"name":"Call Ratio Back Spread","shape":"call_ratio_back","risk":"Limited","reward":"Unlimited","legs":"SELL 1 CALL (Low) · BUY 2 CALLS (High)","desc":"Sell fewer calls, buy more higher calls. Benefits from a big upside move.","lot_size":65,"margin_mult":2.5},
-        {"name":"Long Synthetic","shape":"long_synthetic","risk":"High","reward":"Unlimited","legs":"BUY CALL (ATM) · SELL PUT (ATM)","desc":"Replicates owning the underlying. Unlimited profit potential with high risk.","lot_size":65,"margin_mult":6.0},
-        {"name":"Range Forward","shape":"range_forward","risk":"Limited","reward":"Limited","legs":"BUY CALL (High) · SELL PUT (Low)","desc":"Collar-like structure. Profit in a range. Used to hedge existing positions.","lot_size":65,"margin_mult":2.0},
-        {"name":"Bull Butterfly","shape":"bull_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low CALL · SELL 2 Mid CALL · BUY High CALL","desc":"Max profit at middle strike. Low cost strategy for moderate bullish view.","lot_size":65,"margin_mult":1.2},
-        {"name":"Bull Condor","shape":"bull_condor","risk":"Limited","reward":"Limited","legs":"BUY Low · SELL Mid-Low · SELL Mid-High · BUY High","desc":"Four-leg bullish strategy. Profit in a range above current price.","lot_size":65,"margin_mult":1.8},
+        {"name":"Long Call","shape":"long_call","risk":"Limited","reward":"Unlimited","legs":"BUY CALL (ATM)","desc":"Buy a call option. Profits as market rises above strike. Risk is limited to premium paid.","lot_size":75,"margin_mult":1.0},
+        {"name":"Short Put","shape":"short_put","risk":"Moderate","reward":"Limited","legs":"SELL PUT (OTM)","desc":"Sell a put option below market. Collect premium. Profit if market stays above strike.","lot_size":75,"margin_mult":5.0},
+        {"name":"Bull Call Spread","shape":"bull_call_spread","risk":"Limited","reward":"Limited","legs":"BUY CALL (Low) · SELL CALL (High)","desc":"Buy lower call, sell higher call. Reduces cost; caps profit at upper strike.","lot_size":75,"margin_mult":1.5},
+        {"name":"Bull Put Spread","shape":"bull_put_spread","risk":"Limited","reward":"Limited","legs":"SELL PUT (High) · BUY PUT (Low)","desc":"Sell higher put, buy lower put. Credit received upfront. Profit if market stays above higher strike.","lot_size":75,"margin_mult":2.0},
+        {"name":"Call Ratio Back Spread","shape":"call_ratio_back","risk":"Limited","reward":"Unlimited","legs":"SELL 1 CALL (Low) · BUY 2 CALLS (High)","desc":"Sell fewer calls, buy more higher calls. Benefits from a big upside move.","lot_size":75,"margin_mult":2.5},
+        {"name":"Long Synthetic","shape":"long_synthetic","risk":"High","reward":"Unlimited","legs":"BUY CALL (ATM) · SELL PUT (ATM)","desc":"Replicates owning the underlying. Unlimited profit potential with high risk.","lot_size":75,"margin_mult":6.0},
+        {"name":"Range Forward","shape":"range_forward","risk":"Limited","reward":"Limited","legs":"BUY CALL (High) · SELL PUT (Low)","desc":"Collar-like structure. Profit in a range. Used to hedge existing positions.","lot_size":75,"margin_mult":2.0},
+        {"name":"Bull Butterfly","shape":"bull_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low CALL · SELL 2 Mid CALL · BUY High CALL","desc":"Max profit at middle strike. Low cost strategy for moderate bullish view.","lot_size":75,"margin_mult":1.2},
+        {"name":"Bull Condor","shape":"bull_condor","risk":"Limited","reward":"Limited","legs":"BUY Low · SELL Mid-Low · SELL Mid-High · BUY High","desc":"Four-leg bullish strategy. Profit in a range above current price.","lot_size":75,"margin_mult":1.8},
     ],
     "bearish": [
-        {"name":"Short Call","shape":"short_call","risk":"Unlimited","reward":"Limited","legs":"SELL CALL (ATM/OTM)","desc":"Sell a call option above market. Collect premium. Profit if market falls or stays below strike.","lot_size":65,"margin_mult":5.0},
-        {"name":"Long Put","shape":"long_put","risk":"Limited","reward":"High","legs":"BUY PUT (ATM)","desc":"Buy a put option. Profits as market falls below strike. Risk is limited to premium paid.","lot_size":65,"margin_mult":1.0},
-        {"name":"Bear Call Spread","shape":"bear_call_spread","risk":"Limited","reward":"Limited","legs":"SELL CALL (Low) · BUY CALL (High)","desc":"Sell lower call, buy higher call. Credit received. Profit if market stays below lower strike.","lot_size":65,"margin_mult":2.0},
-        {"name":"Bear Put Spread","shape":"bear_put_spread","risk":"Limited","reward":"Limited","legs":"BUY PUT (High) · SELL PUT (Low)","desc":"Buy higher put, sell lower put. Cheaper bearish bet with capped profit.","lot_size":65,"margin_mult":1.5},
-        {"name":"Put Ratio Back Spread","shape":"put_ratio_back","risk":"Limited","reward":"High","legs":"SELL 1 PUT (High) · BUY 2 PUTS (Low)","desc":"Sell fewer puts, buy more lower puts. Benefits from a big downside move.","lot_size":65,"margin_mult":2.5},
-        {"name":"Short Synthetic","shape":"short_synthetic","risk":"High","reward":"High","legs":"SELL CALL (ATM) · BUY PUT (ATM)","desc":"Replicates shorting the underlying. Profit as market falls. High risk.","lot_size":65,"margin_mult":6.0},
-        {"name":"Risk Reversal","shape":"risk_reversal","risk":"High","reward":"High","legs":"BUY PUT (Low) · SELL CALL (High)","desc":"Protect downside while giving up upside. Common hedging structure.","lot_size":65,"margin_mult":3.0},
-        {"name":"Bear Butterfly","shape":"bear_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low PUT · SELL 2 Mid PUT · BUY High PUT","desc":"Max profit at middle strike. Low cost strategy for moderate bearish view.","lot_size":65,"margin_mult":1.2},
-        {"name":"Bear Condor","shape":"bear_condor","risk":"Limited","reward":"Limited","legs":"BUY High · SELL Mid-High · SELL Mid-Low · BUY Low","desc":"Four-leg bearish strategy. Profit in a range below current price.","lot_size":65,"margin_mult":1.8},
+        {"name":"Short Call","shape":"short_call","risk":"Unlimited","reward":"Limited","legs":"SELL CALL (ATM/OTM)","desc":"Sell a call option above market. Collect premium. Profit if market falls or stays below strike.","lot_size":75,"margin_mult":5.0},
+        {"name":"Long Put","shape":"long_put","risk":"Limited","reward":"High","legs":"BUY PUT (ATM)","desc":"Buy a put option. Profits as market falls below strike. Risk is limited to premium paid.","lot_size":75,"margin_mult":1.0},
+        {"name":"Bear Call Spread","shape":"bear_call_spread","risk":"Limited","reward":"Limited","legs":"SELL CALL (Low) · BUY CALL (High)","desc":"Sell lower call, buy higher call. Credit received. Profit if market stays below lower strike.","lot_size":75,"margin_mult":2.0},
+        {"name":"Bear Put Spread","shape":"bear_put_spread","risk":"Limited","reward":"Limited","legs":"BUY PUT (High) · SELL PUT (Low)","desc":"Buy higher put, sell lower put. Cheaper bearish bet with capped profit.","lot_size":75,"margin_mult":1.5},
+        {"name":"Put Ratio Back Spread","shape":"put_ratio_back","risk":"Limited","reward":"High","legs":"SELL 1 PUT (High) · BUY 2 PUTS (Low)","desc":"Sell fewer puts, buy more lower puts. Benefits from a big downside move.","lot_size":75,"margin_mult":2.5},
+        {"name":"Short Synthetic","shape":"short_synthetic","risk":"High","reward":"High","legs":"SELL CALL (ATM) · BUY PUT (ATM)","desc":"Replicates shorting the underlying. Profit as market falls. High risk.","lot_size":75,"margin_mult":6.0},
+        {"name":"Risk Reversal","shape":"risk_reversal","risk":"High","reward":"High","legs":"BUY PUT (Low) · SELL CALL (High)","desc":"Protect downside while giving up upside. Common hedging structure.","lot_size":75,"margin_mult":3.0},
+        {"name":"Bear Butterfly","shape":"bear_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low PUT · SELL 2 Mid PUT · BUY High PUT","desc":"Max profit at middle strike. Low cost strategy for moderate bearish view.","lot_size":75,"margin_mult":1.2},
+        {"name":"Bear Condor","shape":"bear_condor","risk":"Limited","reward":"Limited","legs":"BUY High · SELL Mid-High · SELL Mid-Low · BUY Low","desc":"Four-leg bearish strategy. Profit in a range below current price.","lot_size":75,"margin_mult":1.8},
     ],
     "nondirectional": [
-        {"name":"Long Straddle","shape":"long_straddle","risk":"Limited","reward":"Unlimited","legs":"BUY CALL (ATM) + BUY PUT (ATM)","desc":"Buy both ATM call and put. Profit from big move in either direction. Best before events.","lot_size":65,"margin_mult":1.0},
-        {"name":"Short Straddle","shape":"short_straddle","risk":"Unlimited","reward":"Limited","legs":"SELL CALL (ATM) + SELL PUT (ATM)","desc":"Sell both ATM call and put. Profit from low volatility. High risk unlimited loss.","lot_size":65,"margin_mult":8.0},
-        {"name":"Long Strangle","shape":"long_strangle","risk":"Limited","reward":"Unlimited","legs":"BUY OTM CALL + BUY OTM PUT","desc":"Buy OTM call and put. Cheaper than straddle. Needs bigger move to profit.","lot_size":65,"margin_mult":1.0},
-        {"name":"Short Strangle","shape":"short_strangle","risk":"Unlimited","reward":"Limited","legs":"SELL OTM CALL + SELL OTM PUT","desc":"Sell OTM call and put. Wider profit range than short straddle. Still high risk.","lot_size":65,"margin_mult":7.0},
-        {"name":"Jade Lizard","shape":"jade_lizard","risk":"Limited","reward":"Limited","legs":"SELL OTM PUT + SELL CALL SPREAD","desc":"No upside risk. Collect premium. Bearish but risk-defined.","lot_size":65,"margin_mult":3.0},
-        {"name":"Reverse Jade Lizard","shape":"reverse_jade","risk":"Limited","reward":"Limited","legs":"SELL OTM CALL + SELL PUT SPREAD","desc":"No downside risk. Collect premium. Bullish but risk-defined.","lot_size":65,"margin_mult":3.0},
-        {"name":"Call Ratio Spread","shape":"call_ratio_spread","risk":"Unlimited","reward":"Limited","legs":"BUY 1 CALL (Low) · SELL 2 CALLS (High)","desc":"Sell more calls than bought. Credit or debit. Risk if big upside move occurs.","lot_size":65,"margin_mult":4.0},
-        {"name":"Put Ratio Spread","shape":"put_ratio_spread","risk":"Unlimited","reward":"Limited","legs":"BUY 1 PUT (High) · SELL 2 PUTS (Low)","desc":"Sell more puts than bought. Risk if big downside move occurs.","lot_size":65,"margin_mult":4.0},
-        {"name":"Batman Strategy","shape":"batman","risk":"Limited","reward":"Limited","legs":"BUY 2 CALLS + SELL 4 CALLS + BUY 2 CALLS","desc":"Double butterfly. Two profit peaks. Complex strategy for range-bound markets.","lot_size":65,"margin_mult":2.0},
-        {"name":"Long Iron Fly","shape":"long_iron_fly","risk":"Limited","reward":"Limited","legs":"BUY CALL · BUY PUT · SELL ATM CALL · SELL ATM PUT","desc":"Debit iron fly. Profit from a big move. Max loss if price stays at ATM.","lot_size":65,"margin_mult":1.5},
-        {"name":"Short Iron Fly","shape":"short_iron_fly","risk":"Limited","reward":"Limited","legs":"SELL CALL · SELL PUT · BUY OTM CALL · BUY OTM PUT","desc":"Credit iron fly. Max profit at ATM. Common non-directional strategy.","lot_size":65,"margin_mult":3.0},
-        {"name":"Double Fly","shape":"double_fly","risk":"Limited","reward":"Limited","legs":"TWO BUTTERFLY SPREADS","desc":"Two butterfly spreads at different strikes. Two profit peaks.","lot_size":65,"margin_mult":2.0},
-        {"name":"Long Iron Condor","shape":"long_iron_condor","risk":"Limited","reward":"Limited","legs":"BUY CALL SPREAD + BUY PUT SPREAD","desc":"Debit condor. Profit from a big move. Opposite of short iron condor.","lot_size":65,"margin_mult":1.5},
-        {"name":"Short Iron Condor","shape":"short_iron_condor","risk":"Limited","reward":"Limited","legs":"SELL CALL SPREAD + SELL PUT SPREAD","desc":"Collect premium from both sides. Profit if price stays in a range.","lot_size":65,"margin_mult":3.5},
-        {"name":"Double Condor","shape":"double_condor","risk":"Limited","reward":"Limited","legs":"TWO CONDOR SPREADS","desc":"Two condor spreads. Wider profit range. Complex multi-leg strategy.","lot_size":65,"margin_mult":2.5},
-        {"name":"Call Calendar","shape":"call_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR-TERM CALL · BUY FAR-TERM CALL","desc":"Profit from time decay difference. Best when price stays near strike.","lot_size":65,"margin_mult":2.0},
-        {"name":"Put Calendar","shape":"put_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR-TERM PUT · BUY FAR-TERM PUT","desc":"Profit from time decay. Best when price stays near strike on expiry.","lot_size":65,"margin_mult":2.0},
-        {"name":"Diagonal Calendar","shape":"diagonal_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR CALL/PUT · BUY FAR DIFF STRIKE","desc":"Calendar spread with different strikes. Combines time and price movement.","lot_size":65,"margin_mult":2.0},
-        {"name":"Call Butterfly","shape":"call_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low CALL · SELL 2 Mid CALL · BUY High CALL","desc":"Max profit at middle strike using calls only. Low net debit strategy.","lot_size":65,"margin_mult":1.2},
-        {"name":"Put Butterfly","shape":"put_butterfly","risk":"Limited","reward":"Limited","legs":"BUY High PUT · SELL 2 Mid PUT · BUY Low PUT","desc":"Max profit at middle strike using puts only. Low net debit strategy.","lot_size":65,"margin_mult":1.2},
+        {"name":"Long Straddle","shape":"long_straddle","risk":"Limited","reward":"Unlimited","legs":"BUY CALL (ATM) + BUY PUT (ATM)","desc":"Buy both ATM call and put. Profit from big move in either direction. Best before events.","lot_size":75,"margin_mult":1.0},
+        {"name":"Short Straddle","shape":"short_straddle","risk":"Unlimited","reward":"Limited","legs":"SELL CALL (ATM) + SELL PUT (ATM)","desc":"Sell both ATM call and put. Profit from low volatility. High risk unlimited loss.","lot_size":75,"margin_mult":8.0},
+        {"name":"Long Strangle","shape":"long_strangle","risk":"Limited","reward":"Unlimited","legs":"BUY OTM CALL + BUY OTM PUT","desc":"Buy OTM call and put. Cheaper than straddle. Needs bigger move to profit.","lot_size":75,"margin_mult":1.0},
+        {"name":"Short Strangle","shape":"short_strangle","risk":"Unlimited","reward":"Limited","legs":"SELL OTM CALL + SELL OTM PUT","desc":"Sell OTM call and put. Wider profit range than short straddle. Still high risk.","lot_size":75,"margin_mult":7.0},
+        {"name":"Jade Lizard","shape":"jade_lizard","risk":"Limited","reward":"Limited","legs":"SELL OTM PUT + SELL CALL SPREAD","desc":"No upside risk. Collect premium. Bearish but risk-defined.","lot_size":75,"margin_mult":3.0},
+        {"name":"Reverse Jade Lizard","shape":"reverse_jade","risk":"Limited","reward":"Limited","legs":"SELL OTM CALL + SELL PUT SPREAD","desc":"No downside risk. Collect premium. Bullish but risk-defined.","lot_size":75,"margin_mult":3.0},
+        {"name":"Call Ratio Spread","shape":"call_ratio_spread","risk":"Unlimited","reward":"Limited","legs":"BUY 1 CALL (Low) · SELL 2 CALLS (High)","desc":"Sell more calls than bought. Credit or debit. Risk if big upside move occurs.","lot_size":75,"margin_mult":4.0},
+        {"name":"Put Ratio Spread","shape":"put_ratio_spread","risk":"Unlimited","reward":"Limited","legs":"BUY 1 PUT (High) · SELL 2 PUTS (Low)","desc":"Sell more puts than bought. Risk if big downside move occurs.","lot_size":75,"margin_mult":4.0},
+        {"name":"Batman Strategy","shape":"batman","risk":"Limited","reward":"Limited","legs":"BUY 2 CALLS + SELL 4 CALLS + BUY 2 CALLS","desc":"Double butterfly. Two profit peaks. Complex strategy for range-bound markets.","lot_size":75,"margin_mult":2.0},
+        {"name":"Long Iron Fly","shape":"long_iron_fly","risk":"Limited","reward":"Limited","legs":"BUY CALL · BUY PUT · SELL ATM CALL · SELL ATM PUT","desc":"Debit iron fly. Profit from a big move. Max loss if price stays at ATM.","lot_size":75,"margin_mult":1.5},
+        {"name":"Short Iron Fly","shape":"short_iron_fly","risk":"Limited","reward":"Limited","legs":"SELL CALL · SELL PUT · BUY OTM CALL · BUY OTM PUT","desc":"Credit iron fly. Max profit at ATM. Common non-directional strategy.","lot_size":75,"margin_mult":3.0},
+        {"name":"Double Fly","shape":"double_fly","risk":"Limited","reward":"Limited","legs":"TWO BUTTERFLY SPREADS","desc":"Two butterfly spreads at different strikes. Two profit peaks.","lot_size":75,"margin_mult":2.0},
+        {"name":"Long Iron Condor","shape":"long_iron_condor","risk":"Limited","reward":"Limited","legs":"BUY CALL SPREAD + BUY PUT SPREAD","desc":"Debit condor. Profit from a big move. Opposite of short iron condor.","lot_size":75,"margin_mult":1.5},
+        {"name":"Short Iron Condor","shape":"short_iron_condor","risk":"Limited","reward":"Limited","legs":"SELL CALL SPREAD + SELL PUT SPREAD","desc":"Collect premium from both sides. Profit if price stays in a range.","lot_size":75,"margin_mult":3.5},
+        {"name":"Double Condor","shape":"double_condor","risk":"Limited","reward":"Limited","legs":"TWO CONDOR SPREADS","desc":"Two condor spreads. Wider profit range. Complex multi-leg strategy.","lot_size":75,"margin_mult":2.5},
+        {"name":"Call Calendar","shape":"call_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR-TERM CALL · BUY FAR-TERM CALL","desc":"Profit from time decay difference. Best when price stays near strike.","lot_size":75,"margin_mult":2.0},
+        {"name":"Put Calendar","shape":"put_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR-TERM PUT · BUY FAR-TERM PUT","desc":"Profit from time decay. Best when price stays near strike on expiry.","lot_size":75,"margin_mult":2.0},
+        {"name":"Diagonal Calendar","shape":"diagonal_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR CALL/PUT · BUY FAR DIFF STRIKE","desc":"Calendar spread with different strikes. Combines time and price movement.","lot_size":75,"margin_mult":2.0},
+        {"name":"Call Butterfly","shape":"call_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low CALL · SELL 2 Mid CALL · BUY High CALL","desc":"Max profit at middle strike using calls only. Low net debit strategy.","lot_size":75,"margin_mult":1.2},
+        {"name":"Put Butterfly","shape":"put_butterfly","risk":"Limited","reward":"Limited","legs":"BUY High PUT · SELL 2 Mid PUT · BUY Low PUT","desc":"Max profit at middle strike using puts only. Low net debit strategy.","lot_size":75,"margin_mult":1.2},
     ],
 }
 
@@ -1255,7 +1333,7 @@ def build_strategies_html(oc_analysis):
                 f'<div class="sc-card" data-cat="{cat}" data-shape="{s["shape"]}" '
                 f'data-name="{s["name"]}" data-legs="{s["legs"]}" '
                 f'data-risk="{s["risk"]}" data-reward="{s["reward"]}" '
-                f'data-margin-mult="{s.get("margin_mult",1.0)}" data-lot-size="{s.get("lot_size",65)}" id="{cid}">'
+                f'data-margin-mult="{s.get("margin_mult",1.0)}" data-lot-size="{s.get("lot_size",75)}" id="{cid}">'
                 f'<div class="sc-pop-badge" id="pop_{cid}">—%</div>'
                 f'<div class="sc-svg">{svg}</div>'
                 f'<div class="sc-body">'
@@ -1338,7 +1416,6 @@ function calcMetrics(shape){{
   const co1=getOTM('ce',1),co2=getOTM('ce',2),po1=getOTM('pe',1),po2=getOTM('pe',2);
   const atmIV=(STRIKE_MAP[atm]?(STRIKE_MAP[atm].ce_iv||15)/100:0.15);
   let pop=50,mp=0,ml=0,be=[],nc=0,margin=0,pnl=0,rrRatio=0;
-  // ltpParts = array of {{label, value, color}} — one per leg
   let ltpParts=[];
   switch(shape){{
     case 'long_call':{{const p=ce_atm||150,d=bsDelta(spot,atm,atmIV,T,true);pop=Math.round((1-d+pcrAdj)*100);mp=999999;ml=p*lotSz;be=[atm+p];nc=-p*lotSz;margin=p*lotSz;pnl=Math.max(spot-atm-p,-p)*lotSz;
@@ -1404,7 +1481,6 @@ function calcMetrics(shape){{
   const pnlStr=pnl===0?'\u20b90':(pnl>=0?'+ ':'- ')+'\u20b9'+Math.abs(Math.round(pnl)).toLocaleString('en-IN');
   const rrStr=rrRatio===0?'\u221e':('1:'+Math.abs(rrRatio));
   const mpPct=mp===999999?'\u221e':(ml>0?(mp/ml*100).toFixed(0)+'%':'—');
-  // Build ltpStr: each leg on its own mini-chip line
   const ltpStr=ltpParts.map(x=>`<span style="display:inline-flex;align-items:center;gap:4px;margin-bottom:2px;">
     <span style="font-size:8.5px;color:rgba(255,255,255,.35);">${{x.l}}</span>
     <span style="font-family:'DM Mono',monospace;font-weight:700;color:${{x.c}};">\u20b9${{x.v.toFixed(2)}}</span>
@@ -1691,8 +1767,6 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .tk-sub{font-family:var(--fm);font-size:10px;color:rgba(255,255,255,.35);white-space:nowrap;}
 .tk-badge{font-family:var(--fh);font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;letter-spacing:.3px;}
 footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:rgba(6,8,15,.9);backdrop-filter:blur(12px);display:flex;justify-content:space-between;font-size:11px;color:var(--muted2);font-family:var(--fm)}
-
-/* Strategy cards */
 .sc-tabs{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
 .sc-tab{padding:8px 20px;border-radius:24px;border:1px solid;cursor:pointer;
   font-family:var(--fh);font-size:12px;font-weight:600;transition:all .2s;
@@ -1728,8 +1802,6 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .metric-strike{background:rgba(255,209,102,.04);border-bottom:1px solid rgba(255,209,102,.12) !important;}
 .metric-lbl{font-size:10px;color:rgba(255,255,255,.35);letter-spacing:.5px;text-transform:uppercase;font-family:'DM Mono',monospace;}
 .metric-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:600;text-align:right;}
-
-/* Option Greeks panel */
 .greeks-panel{margin:10px 10px 6px;padding:14px 12px;background:linear-gradient(135deg,rgba(100,128,255,.12),rgba(0,200,220,.10));border-radius:14px;border:1px solid rgba(100,128,255,.28);box-shadow:0 4px 20px rgba(100,128,255,.1),inset 0 1px 0 rgba(255,255,255,.06);}
 .greeks-title{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(138,160,255,1.0);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(100,128,255,.25);display:flex;align-items:center;justify-content:space-between;}
 .greeks-expiry-tag{font-size:8.5px;color:rgba(255,255,255,.5);font-weight:400;letter-spacing:.5px;text-transform:none;}
@@ -1760,7 +1832,6 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .greeks-tbl-row:hover{background:rgba(255,255,255,.03);}
 .greeks-tbl-strike{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:rgba(255,255,255,.8);}
 .greeks-tbl-cell{font-family:'DM Mono',monospace;font-size:11px;font-weight:600;text-align:center;color:rgba(255,255,255,.65);}
-
 @media(max-width:1200px){.h-stats{min-width:280px;}.logo-wrap{min-width:220px;}}
 @media(max-width:1024px){
   .main{grid-template-columns:1fr}.sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid rgba(255,255,255,.06)}
@@ -1934,15 +2005,24 @@ def build_greeks_script_html(oc_analysis):
   function _initGreeks() {{
     var sel = document.getElementById('greeksStrikeSelect');
     if (sel) {{
-      sel.addEventListener('change', function() {{ greeksUpdateStrike(this.value); }});
+      // Initial render on load
       greeksUpdateStrike(sel.value);
     }}
   }}
 
   window.greeksUpdateStrike = function(strike) {{
     var key = String(parseInt(strike, 10));
-    var d   = _gData[key] || _gData[String(parseFloat(strike))] || _gData[String(strike)];
-    if (!d) {{ console.warn('greeksUpdateStrike: key miss for', strike); return; }}
+    var d   = _gData[key];
+    // Fallback: try float parse
+    if (!d) d = _gData[String(parseFloat(strike))];
+    // Fallback: nearest key
+    if (!d) {{
+      var keys = Object.keys(_gData).map(Number);
+      var nearest = keys.reduce((a,b) => Math.abs(b-parseInt(strike))<Math.abs(a-parseInt(strike))?b:a, keys[0]);
+      d = _gData[String(nearest)];
+      console.warn('greeksUpdateStrike: using nearest strike', nearest, 'for', strike);
+    }}
+    if (!d) {{ console.error('greeksUpdateStrike: no data for', strike); return; }}
 
     var ids = ['greeksStrikeTypeLabel','greeksStrikeLabel','greeksCeLtp','greeksPeLtp',
                'greeksDeltaWrap','greeksSkewLbl',
@@ -1960,15 +2040,16 @@ def build_greeks_script_html(oc_analysis):
       var dist = Math.round(Math.abs(sel - _atm) / 50);
       var lbl  = sel === _atm ? 'ATM' : (sel > _atm ? 'CE+' + dist : 'PE-' + dist);
 
-      document.getElementById('greeksStrikeTypeLabel').textContent = lbl;
-      document.getElementById('greeksStrikeLabel').innerHTML = '₹' + sel.toLocaleString('en-IN');
-      document.getElementById('greeksCeLtp').innerHTML = 'CE ₹' + (d.ce_ltp||0).toFixed(1);
-      document.getElementById('greeksPeLtp').innerHTML = 'PE ₹' + (d.pe_ltp||0).toFixed(1);
+      var e1 = document.getElementById('greeksStrikeTypeLabel'); if(e1) e1.textContent = lbl;
+      var e2 = document.getElementById('greeksStrikeLabel'); if(e2) e2.innerHTML = '₹' + sel.toLocaleString('en-IN');
+      var e3 = document.getElementById('greeksCeLtp'); if(e3) e3.innerHTML = 'CE ₹' + (d.ce_ltp||0).toFixed(1);
+      var e4 = document.getElementById('greeksPeLtp'); if(e4) e4.innerHTML = 'PE ₹' + (d.pe_ltp||0).toFixed(1);
 
       var ceCol='#00c896', peCol='#ff6b6b';
       var cePct=Math.min(100,Math.abs(d.ce_delta)*100).toFixed(0);
       var pePct=Math.min(100,Math.abs(d.pe_delta)*100).toFixed(0);
-      document.getElementById('greeksDeltaWrap').innerHTML =
+      var dw = document.getElementById('greeksDeltaWrap');
+      if(dw) dw.innerHTML =
         '<div style="display:flex;align-items:center;gap:5px;">' +
           '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">' +
             '<div style="width:'+cePct+'%;height:100%;background:'+ceCol+';border-radius:2px;"></div></div>' +
@@ -1980,32 +2061,34 @@ def build_greeks_script_html(oc_analysis):
           '<span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:'+peCol+';">' +
                (d.pe_delta>=0?'+':'')+d.pe_delta.toFixed(3)+'</span></div>';
 
-      document.getElementById('greeksIvCe').textContent = (d.ce_iv||0).toFixed(1)+'%';
-      document.getElementById('greeksIvPe').textContent = (d.pe_iv||0).toFixed(1)+'%';
+      var ice = document.getElementById('greeksIvCe'); if(ice) ice.textContent = (d.ce_iv||0).toFixed(1)+'%';
+      var ipe = document.getElementById('greeksIvPe'); if(ipe) ipe.textContent = (d.pe_iv||0).toFixed(1)+'%';
 
       var skew=((d.pe_iv||0)-(d.ce_iv||0)).toFixed(1);
       var skewEl=document.getElementById('greeksSkewLbl');
-      skewEl.textContent = parseFloat(skew)>0?'PE Skew +'+skew:'CE Skew '+skew;
-      skewEl.style.color = parseFloat(skew)>1.5?'#ff6b6b':(parseFloat(skew)<-1.5?'#00c896':'#6480ff');
+      if(skewEl) {{
+        skewEl.textContent = parseFloat(skew)>0?'PE Skew +'+skew:'CE Skew '+skew;
+        skewEl.style.color = parseFloat(skew)>1.5?'#ff6b6b':(parseFloat(skew)<-1.5?'#00c896':'#6480ff');
+      }}
 
       function tfmt(t){{ return Math.abs(t)>=0.01?'₹'+Math.abs(t).toFixed(2):t.toFixed(4); }}
-      document.getElementById('greeksThetaCe').innerHTML = tfmt(d.ce_theta||0);
-      document.getElementById('greeksThetaPe').innerHTML = tfmt(d.pe_theta||0);
+      var tc = document.getElementById('greeksThetaCe'); if(tc) tc.innerHTML = tfmt(d.ce_theta||0);
+      var tp = document.getElementById('greeksThetaPe'); if(tp) tp.innerHTML = tfmt(d.pe_theta||0);
 
       function vfmt(v){{ return Math.abs(v)>=0.0001?v.toFixed(4):'—'; }}
-      document.getElementById('greeksVegaCe').innerHTML = vfmt(d.ce_vega||0);
-      document.getElementById('greeksVegaPe').innerHTML = vfmt(d.pe_vega||0);
+      var vc = document.getElementById('greeksVegaCe'); if(vc) vc.innerHTML = vfmt(d.ce_vega||0);
+      var vp = document.getElementById('greeksVegaPe'); if(vp) vp.innerHTML = vfmt(d.pe_vega||0);
 
       var ivAvg=((d.ce_iv||0)+(d.pe_iv||0))/2;
       var ivCol=ivAvg>25?'#ff6b6b':(ivAvg>18?'#ffd166':'#00c896');
       var ivReg=ivAvg>25?'High IV · Buy Premium':(ivAvg>15?'Normal IV · Balanced':'Low IV · Sell Premium');
       var ivPct=Math.min(100,Math.max(0,(ivAvg/60)*100)).toFixed(1);
       var barEl=document.getElementById('greeksIvBar');
-      barEl.style.width=ivPct+'%'; barEl.style.background=ivCol; barEl.style.boxShadow='0 0 6px '+ivCol+'88';
+      if(barEl) {{barEl.style.width=ivPct+'%'; barEl.style.background=ivCol; barEl.style.boxShadow='0 0 6px '+ivCol+'88';}}
       var avgEl=document.getElementById('greeksIvAvg');
-      avgEl.textContent=ivAvg.toFixed(1)+'%'; avgEl.style.color=ivCol;
+      if(avgEl) {{avgEl.textContent=ivAvg.toFixed(1)+'%'; avgEl.style.color=ivCol;}}
       var regEl=document.getElementById('greeksIvRegime');
-      regEl.textContent=ivReg; regEl.style.color=ivCol;
+      if(regEl) {{regEl.textContent=ivReg; regEl.style.color=ivCol;}}
 
       ids.forEach(function(id){{ var el=document.getElementById(id); if(el) el.style.opacity='1'; }});
     }}, 180);
@@ -2014,7 +2097,7 @@ def build_greeks_script_html(oc_analysis):
   if (document.readyState === 'loading') {{
     document.addEventListener('DOMContentLoaded', _initGreeks);
   }} else {{
-    setTimeout(_initGreeks, 50);
+    setTimeout(_initGreeks, 80);
   }}
 }})();
 </script>"""
@@ -2025,28 +2108,27 @@ def build_greeks_script_html(oc_analysis):
 # =================================================================
 
 def generate_html(tech, oc, md, ts, vix_data=None):
-    cp   = tech["price"]    if tech else 0
-    bias = md["bias"]; conf = md["confidence"]
-    bull = md["bull"]; bear = md["bear"]; diff = md["diff"]
-
-    oi_html          = build_oi_html(oc)               if oc   else ""
-    kl_html          = build_key_levels_html(tech, oc) if tech else ""
-    strat_html       = build_strategies_html(oc)
-    strikes_html     = build_strikes_html(oc)
-    ticker_html      = build_ticker_bar(tech, oc, vix_data)
-    gauge_html       = build_dual_gauge_hero(oc, tech, md, ts)
-    greeks_sidebar   = build_greeks_sidebar_html(oc)
-    greeks_script    = build_greeks_script_html(oc)
-    greeks_table     = build_greeks_table_html(oc)
+    oi_html        = build_oi_html(oc)               if oc   else ""
+    kl_html        = build_key_levels_html(tech, oc) if tech else ""
+    strat_html     = build_strategies_html(oc)
+    strikes_html   = build_strikes_html(oc)
+    ticker_html    = build_ticker_bar(tech, oc, vix_data)
+    gauge_html     = build_dual_gauge_hero(oc, tech, md, ts)
+    greeks_sidebar = build_greeks_sidebar_html(oc)
+    greeks_script  = build_greeks_script_html(oc)
+    greeks_table   = build_greeks_table_html(oc)
 
     C = 2 * 3.14159 * 7
+    cp    = tech["price"] if tech else 0
+    bias  = md["bias"]; conf = md["confidence"]
+    bull  = md["bull"]; bear  = md["bear"]; diff = md["diff"]
 
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Nifty 50 Options Dashboard v16</title>
+<title>Nifty 50 Options Dashboard v17</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>{CSS}</style>
@@ -2115,13 +2197,14 @@ def generate_html(tech, oc, md, ts, vix_data=None):
                   font-size:13px;color:rgba(255,255,255,.5);line-height:1.8;">
         <strong style="color:rgba(255,255,255,.7);">DISCLAIMER</strong><br>
         This dashboard is for EDUCATIONAL purposes only &mdash; NOT financial advice.<br>
+        All timestamps and expiry calculations use IST (India Standard Time, UTC+5:30).<br>
         Always use stop losses. Consult a SEBI-registered investment advisor before trading.
       </div>
     </div>
   </main>
 </div>
 <footer>
-  <span>NiftyCraft · Nifty Option Strategy Builder · v16</span>
+  <span>NiftyCraft · Nifty Option Strategy Builder · v17 · IST-Corrected</span>
   <span>Option Greeks · OI Dashboard · 30s Silent Refresh · Educational Only · &copy; 2025</span>
 </footer>
 </div>
@@ -2170,15 +2253,14 @@ document.addEventListener("click",function(e){{
 # =================================================================
 
 def main():
-    ist_tz = pytz.timezone("Asia/Kolkata")
-    ts     = datetime.now(ist_tz).strftime("%d-%b-%Y %H:%M IST")
+    # ALL timestamps use IST — no server local time
+    ts = ist_timestamp_str()
+
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v16 (COMPLETE)")
-    print(f"  {ts}")
-    print("  + Strategies section fully restored from v12")
-    print("  + Option Greeks panel with dynamic strike dropdown")
-    print("  + BS Greeks computed for every strike")
-    print("  + Net OI Change shows true net diff")
+    print("  NIFTY 50 OPTIONS DASHBOARD — Aurora Theme v17")
+    print(f"  {ts}  (IST — UTC+5:30)")
+    print(f"  IST Date: {today_ist()}  IST Weekday: {ist_weekday()} (0=Mon,1=Tue)")
+    print("  KEY FIX: All timezone ops now use Asia/Kolkata (IST)")
     print("=" * 65)
 
     print("\n[1/4] Fetching NSE Option Chain...")
@@ -2191,10 +2273,14 @@ def main():
 
     oc_analysis = analyze_option_chain(oc_raw, vix=live_vix) if oc_raw else None
     if oc_analysis:
-        g = oc_analysis.get("atm_greeks", {})
+        g         = oc_analysis.get("atm_greeks", {})
         n_strikes = len(oc_analysis.get("all_strikes", []))
         print(f"\n  OK  Spot={oc_analysis['underlying']:.2f}  ATM={oc_analysis['atm_strike']}")
-        print(f"      Greeks computed for {n_strikes} strikes")
+        print(f"      Expiry={oc_analysis['expiry']}  Greeks computed for {n_strikes} strikes")
+        if g:
+            print(f"      ATM Greeks: CE_delta={g.get('ce_delta',0):.3f}  CE_IV={g.get('ce_iv',0):.1f}%  CE_theta={g.get('ce_theta',0):.4f}")
+    else:
+        print("  WARNING: No option chain data — dashboard will show limited info")
 
     print("\n[3/4] Fetching Technical Indicators...")
     tech = get_technical_data()
@@ -2213,24 +2299,28 @@ def main():
     print(f"  Saved: {out}  ({len(html)/1024:.1f} KB)")
 
     meta = {
-        "timestamp":  ts,
-        "bias":       md["bias"],
-        "confidence": md["confidence"],
-        "bull":       md["bull"],
-        "bear":       md["bear"],
-        "diff":       md["diff"],
-        "price":      round(tech["price"], 2) if tech else None,
-        "expiry":     oc_analysis["expiry"]    if oc_analysis else None,
-        "pcr":        oc_analysis["pcr_oi"]    if oc_analysis else None,
-        "oi_dir":     oc_analysis["oi_dir"]    if oc_analysis else None,
-        "raw_oi_dir": oc_analysis["raw_oi_dir"] if oc_analysis else None,
-        "india_vix":  vix_data["value"]         if vix_data   else None,
+        "timestamp":    ts,
+        "ist_date":     str(today_ist()),
+        "ist_weekday":  ist_weekday(),
+        "bias":         md["bias"],
+        "confidence":   md["confidence"],
+        "bull":         md["bull"],
+        "bear":         md["bear"],
+        "diff":         md["diff"],
+        "price":        round(tech["price"], 2)    if tech        else None,
+        "expiry":       oc_analysis["expiry"]       if oc_analysis else None,
+        "pcr":          oc_analysis["pcr_oi"]       if oc_analysis else None,
+        "oi_dir":       oc_analysis["oi_dir"]       if oc_analysis else None,
+        "raw_oi_dir":   oc_analysis["raw_oi_dir"]   if oc_analysis else None,
+        "india_vix":    vix_data["value"]            if vix_data    else None,
+        "atm_strike":   oc_analysis["atm_strike"]   if oc_analysis else None,
     }
     with open(os.path.join("docs", "latest.json"), "w") as f:
         json.dump(meta, f, indent=2)
     print("  Saved: docs/latest.json")
     print("\n" + "=" * 65)
-    print(f"  DONE  |  Bias: {md['bias']}  |  Confidence: {md['confidence']}")
+    print(f"  DONE  |  IST: {ts}")
+    print(f"  Bias: {md['bias']}  |  Confidence: {md['confidence']}")
     print("  Push to GitHub to deploy to GitHub Pages")
     print("=" * 65 + "\n")
 
