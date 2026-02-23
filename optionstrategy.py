@@ -1380,7 +1380,7 @@ def build_strategies_html(oc_analysis):
 </div>
 
 <script>
-const OC={{spot:{spot:.2f},atm:{atm},pcr:{pcr:.3f},maxPain:{mp},strikes:{strikes_json},lotSize:75}};
+const OC={{spot:{spot:.2f},atm:{atm},pcr:{pcr:.3f},maxPain:{mp},strikes:{strikes_json},lotSize:65}};
 const STRIKE_MAP={{}};
 OC.strikes.forEach(s=>{{STRIKE_MAP[s.strike]=s;}});
 
