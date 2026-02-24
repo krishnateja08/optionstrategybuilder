@@ -5,7 +5,7 @@ Aurora Borealis Theme · v18 · Smart Dynamic PoP Engine
 - PoP now reflects: Market Bias + Support/Resistance + Max CE/PE OI walls + PCR
 - lotSize fixed to 65
 - Strategies ranked by smart PoP — highest PoP = best trade right now
-- Hero widget now shows CHG in OI (not total OI) for Bull/Bear gauges
+- FIXED v18.1: All strategy legs now show actual strike prices (3-4 leg strategies)
 
 pip install curl_cffi pandas numpy yfinance pytz scipy
 """
@@ -389,12 +389,6 @@ def analyze_option_chain(oc_data, vix=18.0):
     chg_bull_force = (abs(pe_chg) if pe_chg > 0 else 0) + (abs(ce_chg) if ce_chg < 0 else 0)
     chg_bear_force = (abs(ce_chg) if ce_chg > 0 else 0) + (abs(pe_chg) if pe_chg < 0 else 0)
 
-    # CHG OI based bull/bear percentages for hero widget
-    chg_total = chg_bull_force + chg_bear_force
-    chg_total = chg_total if chg_total > 0 else 1
-    chg_bull_pct = round(chg_bull_force / chg_total * 100)
-    chg_bear_pct = 100 - chg_bull_pct
-
     atm_strike = oc_data["atm_strike"]
     greeks = extract_atm_greeks(df, atm_strike,
                                 underlying=oc_data["underlying"],
@@ -426,15 +420,13 @@ def analyze_option_chain(oc_data, vix=18.0):
         "strikes_data":    strikes_data,
         "bull_pct":        bull_pct,
         "bear_pct":        bear_pct,
-        "chg_bull_pct":    chg_bull_pct,
-        "chg_bear_pct":    chg_bear_pct,
         "bull_force":      int(total_pe_oi),
         "bear_force":      int(total_ce_oi),
-        "chg_bull_force":  chg_bull_force,
-        "chg_bear_force":  chg_bear_force,
         "raw_oi_dir":      raw_oi_dir,
         "raw_oi_sig":      raw_oi_sig,
         "raw_oi_cls":      raw_oi_cls,
+        "chg_bull_force":  chg_bull_force,
+        "chg_bear_force":  chg_bear_force,
         "atm_greeks":      greeks["atm_greeks"],
         "greeks_table":    greeks["greeks_table"],
         "all_strikes":     greeks["all_strikes"],
@@ -845,56 +837,33 @@ def build_greeks_table_html(oc_analysis):
 
 
 # =================================================================
-#  SECTION 5B -- HERO  (CHANGED: gauges now show CHG in OI)
+#  SECTION 5B -- HERO
 # =================================================================
 
 def build_dual_gauge_hero(oc, tech, md, ts):
     if oc:
-        # --- CHANGED: use CHG in OI values instead of total OI ---
-        ce_chg         = oc["ce_chg"]           # total CE OI change (bearish force when positive)
-        pe_chg         = oc["pe_chg"]           # total PE OI change (bullish force when positive)
-        chg_bull_force = oc["chg_bull_force"]   # bull CHG force = abs(pe_chg if positive) + abs(ce_chg if negative)
-        chg_bear_force = oc["chg_bear_force"]   # bear CHG force = abs(ce_chg if positive) + abs(pe_chg if negative)
-        chg_bull_pct   = oc["chg_bull_pct"]
-        chg_bear_pct   = oc["chg_bear_pct"]
-        bull_label     = _fmt_oi(pe_chg)        # PE CHG shown on bull gauge
-        bear_label     = _fmt_oi(ce_chg)        # CE CHG shown on bear gauge
-        pcr            = oc["pcr_oi"]
-        oi_dir         = oc["oi_dir"]           # signal driven by OI change direction
-        oi_sig         = oc["oi_sig"]
-        oi_cls         = oc["oi_cls"]
-        expiry         = oc["expiry"]
-        underlying     = oc["underlying"]
-        atm            = oc["atm_strike"]
-        max_pain       = oc["max_pain"]
+        total_pe_oi = oc["total_pe_oi"]; total_ce_oi = oc["total_ce_oi"]
+        bull_pct = oc["bull_pct"]; bear_pct = oc["bear_pct"]; pcr = oc["pcr_oi"]
+        oi_dir = oc["raw_oi_dir"]; oi_sig = oc["raw_oi_sig"]; oi_cls = oc["raw_oi_cls"]
+        bull_label = _fmt_oi(total_pe_oi); bear_label = _fmt_oi(total_ce_oi)
+        expiry = oc["expiry"]; underlying = oc["underlying"]; atm = oc["atm_strike"]; max_pain = oc["max_pain"]
     else:
-        ce_chg = pe_chg = chg_bull_force = chg_bear_force = 0
-        chg_bull_pct = chg_bear_pct = 50
-        pcr = 1.0
+        total_pe_oi = total_ce_oi = 0; bull_pct = bear_pct = 50; pcr = 1.0
         oi_sig = "NSE data unavailable"; oi_dir = "UNKNOWN"; oi_cls = "neutral"
         expiry = "N/A"; underlying = 0; atm = 0; max_pain = 0
         bull_label = "N/A"; bear_label = "N/A"
 
-    cp    = tech["price"] if tech else 0
-    bias  = md["bias"]; conf = md["confidence"]
-    bull_sc = md["bull"]; bear_sc = md["bear"]; diff = md["diff"]
-
-    dir_col  = _cls_color(oi_cls)
-    pcr_col  = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
-    b_col    = _cls_color(md.get("bias_cls", "neutral"))
-    b_bg     = _cls_bg(md.get("bias_cls", "neutral"))
-    b_bdr    = _cls_bdr(md.get("bias_cls", "neutral"))
-
+    cp = tech["price"] if tech else 0
+    bias = md["bias"]; conf = md["confidence"]; bull_sc = md["bull"]; bear_sc = md["bear"]; diff = md["diff"]
+    dir_col = _cls_color(oi_cls)
+    pcr_col = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
+    b_col = _cls_color(md.get("bias_cls", "neutral"))
+    b_bg = _cls_bg(md.get("bias_cls", "neutral")); b_bdr = _cls_bdr(md.get("bias_cls", "neutral"))
     C = 194.8
     def clamp(v, lo=10, hi=97): return max(lo, min(hi, v))
-
-    # Use CHG-based percentages for gauge fill
-    bull_offset = C * (1 - clamp(chg_bull_pct) / 100)
-    bear_offset = C * (1 - clamp(chg_bear_pct) / 100)
-    oi_bar_w    = clamp(chg_bull_pct)
-    bear_bar_w  = clamp(chg_bear_pct)
-
-    b_arrow  = "▲" if bias == "BULLISH" else ("▼" if bias == "BEARISH" else "◆")
+    bull_offset = C * (1 - clamp(bull_pct) / 100); bear_offset = C * (1 - clamp(bear_pct) / 100)
+    oi_bar_w = clamp(bull_pct); bear_bar_w = clamp(bear_pct)
+    b_arrow = "▲" if bias == "BULLISH" else ("▼" if bias == "BEARISH" else "◆")
     glow_rgb = ("0,200,150" if dir_col == "#00c896" else "255,107,107" if dir_col == "#ff6b6b" else "100,128,255")
 
     return f"""
@@ -912,7 +881,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
       </svg>
       <div class="gauge-inner">
         <div class="g-val" style="color:#00c896;">{bull_label}</div>
-        <div class="g-lbl">CHG BULL</div>
+        <div class="g-lbl">OI BULL</div>
       </div>
     </div>
     <div class="gauge-sep"></div>
@@ -928,26 +897,26 @@ def build_dual_gauge_hero(oc, tech, md, ts):
       </svg>
       <div class="gauge-inner">
         <div class="g-val" style="color:#ff6b6b;">{bear_label}</div>
-        <div class="g-lbl">CHG BEAR</div>
+        <div class="g-lbl">OI BEAR</div>
       </div>
     </div>
   </div>
   <div class="h-mid">
-    <div class="h-eyebrow">OI CHG SIGNAL · {expiry} · SPOT ₹{underlying:,.0f}</div>
+    <div class="h-eyebrow">OI NET SIGNAL · {expiry} · SPOT ₹{underlying:,.0f}</div>
     <div class="h-signal" style="color:{dir_col};text-shadow:0 0 20px rgba({glow_rgb},.6),0 0 40px rgba({glow_rgb},.3);font-size:22px;font-weight:900;letter-spacing:1px;">{oi_dir}</div>
     <div class="h-sub">{oi_sig} · PCR <span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
     <div class="h-divider"></div>
     <div class="pill-row">
       <div class="pill-dot" style="background:#00c896;box-shadow:0 0 5px rgba(0,200,150,.5);"></div>
-      <div class="pill-lbl">BULL CHG</div>
+      <div class="pill-lbl">BULL STRENGTH</div>
       <div class="pill-track"><div class="pill-fill" style="width:{oi_bar_w}%;background:linear-gradient(90deg,#00c896,#4de8b8);"></div></div>
-      <div class="pill-num" style="color:#00c896;">{chg_bull_pct}%</div>
+      <div class="pill-num" style="color:#00c896;">{bull_pct}%</div>
     </div>
     <div class="pill-row">
       <div class="pill-dot" style="background:#ff6b6b;box-shadow:0 0 5px rgba(255,107,107,.4);"></div>
-      <div class="pill-lbl">BEAR CHG</div>
+      <div class="pill-lbl">BEAR STRENGTH</div>
       <div class="pill-track"><div class="pill-fill" style="width:{bear_bar_w}%;background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div></div>
-      <div class="pill-num" style="color:#ff6b6b;">{chg_bear_pct}%</div>
+      <div class="pill-num" style="color:#ff6b6b;">{bear_pct}%</div>
     </div>
   </div>
   <div class="h-stats">
@@ -1404,153 +1373,61 @@ function smartPoP(shape, cat) {{
   const maxCE=OC.maxCeStrike, maxPE=OC.maxPeStrike;
   const bias=OC.bias, conf=OC.biasConf;
   const rangeSize = res - sup || 200;
-
   const confMult = conf==="HIGH" ? 1.25 : conf==="LOW" ? 0.6 : 1.0;
-
   let biasAdj = 0;
-  if (cat === "bullish") {{
-    biasAdj = bias==="BULLISH" ? 15 : bias==="BEARISH" ? -15 : 0;
-  }} else if (cat === "bearish") {{
-    biasAdj = bias==="BEARISH" ? 15 : bias==="BULLISH" ? -15 : 0;
-  }} else {{
-    biasAdj = bias==="SIDEWAYS" ? 8 : (OC.bullScore===OC.bearScore ? 5 : -5);
-  }}
+  if (cat === "bullish") {{ biasAdj = bias==="BULLISH" ? 15 : bias==="BEARISH" ? -15 : 0; }}
+  else if (cat === "bearish") {{ biasAdj = bias==="BEARISH" ? 15 : bias==="BULLISH" ? -15 : 0; }}
+  else {{ biasAdj = bias==="SIDEWAYS" ? 8 : (OC.bullScore===OC.bearScore ? 5 : -5); }}
   biasAdj = biasAdj * confMult;
-
   let srAdj = 0;
-  const distToSup = spot - sup;
-  const distToRes = res - spot;
-  const distToSSup = spot - ssup;
-  const distToSRes = sres - spot;
-
+  const distToSup = spot - sup; const distToRes = res - spot;
   if (cat === "bullish") {{
-    if (distToSup >= 0 && distToSup <= rangeSize * 0.25) {{
-      srAdj = 10;
-    }} else if (distToSup >= 0 && distToSup <= rangeSize * 0.5) {{
-      srAdj = 5;
-    }} else if (distToRes >= 0 && distToRes <= rangeSize * 0.2) {{
-      srAdj = -10;
-    }} else if (spot > res) {{
-      srAdj = -8;
-    }} else {{
-      srAdj = 2;
-    }}
+    if (distToSup >= 0 && distToSup <= rangeSize * 0.25) {{ srAdj = 10; }}
+    else if (distToSup >= 0 && distToSup <= rangeSize * 0.5) {{ srAdj = 5; }}
+    else if (distToRes >= 0 && distToRes <= rangeSize * 0.2) {{ srAdj = -10; }}
+    else if (spot > res) {{ srAdj = -8; }} else {{ srAdj = 2; }}
   }} else if (cat === "bearish") {{
-    if (distToRes >= 0 && distToRes <= rangeSize * 0.25) {{
-      srAdj = 10;
-    }} else if (distToRes >= 0 && distToRes <= rangeSize * 0.5) {{
-      srAdj = 5;
-    }} else if (distToSup >= 0 && distToSup <= rangeSize * 0.2) {{
-      srAdj = -10;
-    }} else if (spot < sup) {{
-      srAdj = -8;
-    }} else {{
-      srAdj = 2;
-    }}
+    if (distToRes >= 0 && distToRes <= rangeSize * 0.25) {{ srAdj = 10; }}
+    else if (distToRes >= 0 && distToRes <= rangeSize * 0.5) {{ srAdj = 5; }}
+    else if (distToSup >= 0 && distToSup <= rangeSize * 0.2) {{ srAdj = -10; }}
+    else if (spot < sup) {{ srAdj = -8; }} else {{ srAdj = 2; }}
   }} else {{
-    const midRange = (sup + res) / 2;
-    const distFromMid = Math.abs(spot - midRange);
-    const halfRange = rangeSize / 2;
-    if (distFromMid <= halfRange * 0.3) {{
-      srAdj = 10;
-    }} else if (distFromMid <= halfRange * 0.6) {{
-      srAdj = 5;
-    }} else {{
-      srAdj = -5;
-    }}
+    const midRange = (sup + res) / 2; const distFromMid = Math.abs(spot - midRange); const halfRange = rangeSize / 2;
+    if (distFromMid <= halfRange * 0.3) {{ srAdj = 10; }} else if (distFromMid <= halfRange * 0.6) {{ srAdj = 5; }} else {{ srAdj = -5; }}
   }}
   srAdj = srAdj * confMult;
-
   let oiAdj = 0;
-  const distAboveMaxPE = spot - maxPE;
-  const distBelowMaxCE = maxCE - spot;
-
+  const distAboveMaxPE = spot - maxPE; const distBelowMaxCE = maxCE - spot;
   if (cat === "bullish") {{
-    if (distAboveMaxPE > 0 && distAboveMaxPE < 150) {{
-      oiAdj += 8;
-    }} else if (distAboveMaxPE > 150) {{
-      oiAdj += 4;
-    }} else {{
-      oiAdj -= 8;
-    }}
-    if (distBelowMaxCE > 200) {{
-      oiAdj += 5;
-    }} else if (distBelowMaxCE < 100) {{
-      oiAdj -= 7;
-    }}
+    if (distAboveMaxPE > 0 && distAboveMaxPE < 150) {{ oiAdj += 8; }} else if (distAboveMaxPE > 150) {{ oiAdj += 4; }} else {{ oiAdj -= 8; }}
+    if (distBelowMaxCE > 200) {{ oiAdj += 5; }} else if (distBelowMaxCE < 100) {{ oiAdj -= 7; }}
   }} else if (cat === "bearish") {{
-    if (distBelowMaxCE > 0 && distBelowMaxCE < 150) {{
-      oiAdj += 8;
-    }} else if (distBelowMaxCE > 150) {{
-      oiAdj += 4;
-    }} else {{
-      oiAdj -= 8;
-    }}
-    if (distAboveMaxPE > 200) {{
-      oiAdj += 5;
-    }} else if (distAboveMaxPE < 100) {{
-      oiAdj -= 7;
-    }}
+    if (distBelowMaxCE > 0 && distBelowMaxCE < 150) {{ oiAdj += 8; }} else if (distBelowMaxCE > 150) {{ oiAdj += 4; }} else {{ oiAdj -= 8; }}
+    if (distAboveMaxPE > 200) {{ oiAdj += 5; }} else if (distAboveMaxPE < 100) {{ oiAdj -= 7; }}
   }} else {{
     if (distAboveMaxPE > 0 && distBelowMaxCE > 0) {{
-      const oiRange = maxCE - maxPE || 200;
-      const midOI = (maxPE + maxCE) / 2;
-      const distFromOIMid = Math.abs(spot - midOI);
-      if (distFromOIMid < oiRange * 0.3) {{
-        oiAdj = 10;
-      }} else {{
-        oiAdj = 4;
-      }}
-    }} else {{
-      oiAdj = -5;
-    }}
+      const oiRange = maxCE - maxPE || 200; const midOI = (maxPE + maxCE) / 2; const distFromOIMid = Math.abs(spot - midOI);
+      if (distFromOIMid < oiRange * 0.3) {{ oiAdj = 10; }} else {{ oiAdj = 4; }}
+    }} else {{ oiAdj = -5; }}
   }}
-
   let pcrAdj = 0;
-  if (cat === "bullish") {{
-    pcrAdj = pcr > 1.5 ? 8 : pcr > 1.2 ? 6 : pcr > 1.0 ? 3 : pcr < 0.7 ? -8 : pcr < 0.9 ? -4 : 0;
-  }} else if (cat === "bearish") {{
-    pcrAdj = pcr < 0.5 ? 8 : pcr < 0.7 ? 6 : pcr < 0.9 ? 3 : pcr > 1.3 ? -8 : pcr > 1.1 ? -4 : 0;
-  }} else {{
-    pcrAdj = (pcr >= 0.85 && pcr <= 1.15) ? 6 : (pcr >= 0.7 && pcr <= 1.3) ? 3 : -4;
-  }}
-
+  if (cat === "bullish") {{ pcrAdj = pcr > 1.5 ? 8 : pcr > 1.2 ? 6 : pcr > 1.0 ? 3 : pcr < 0.7 ? -8 : pcr < 0.9 ? -4 : 0; }}
+  else if (cat === "bearish") {{ pcrAdj = pcr < 0.5 ? 8 : pcr < 0.7 ? 6 : pcr < 0.9 ? 3 : pcr > 1.3 ? -8 : pcr > 1.1 ? -4 : 0; }}
+  else {{ pcrAdj = (pcr >= 0.85 && pcr <= 1.15) ? 6 : (pcr >= 0.7 && pcr <= 1.3) ? 3 : -4; }}
   let stratAdj = 0;
-  if (shape.includes('spread') || shape.includes('condor') || shape.includes('butterfly')) {{
-    stratAdj = 2;
-  }}
-  if (shape === 'short_straddle' || shape === 'short_strangle') {{
-    stratAdj = bias === 'SIDEWAYS' ? 8 : -10;
-  }}
-  if (shape === 'long_straddle' || shape === 'long_strangle') {{
-    stratAdj = bias === 'SIDEWAYS' ? -8 : 8;
-  }}
-  if ((shape === 'short_iron_condor' || shape === 'short_iron_fly') && bias === 'SIDEWAYS') {{
-    stratAdj = 10;
-  }}
-
+  if (shape.includes('spread') || shape.includes('condor') || shape.includes('butterfly')) {{ stratAdj = 2; }}
+  if (shape === 'short_straddle' || shape === 'short_strangle') {{ stratAdj = bias === 'SIDEWAYS' ? 8 : -10; }}
+  if (shape === 'long_straddle' || shape === 'long_strangle') {{ stratAdj = bias === 'SIDEWAYS' ? -8 : 8; }}
+  if ((shape === 'short_iron_condor' || shape === 'short_iron_fly') && bias === 'SIDEWAYS') {{ stratAdj = 10; }}
   const rawPoP = 50 + biasAdj + srAdj + oiAdj + pcrAdj + stratAdj;
-  return {{
-    pop: Math.min(95, Math.max(5, Math.round(rawPoP))),
-    biasAdj: Math.round(biasAdj),
-    srAdj: Math.round(srAdj),
-    oiAdj: Math.round(oiAdj),
-    pcrAdj: Math.round(pcrAdj),
-    stratAdj: Math.round(stratAdj)
-  }};
+  return {{ pop: Math.min(95, Math.max(5, Math.round(rawPoP))), biasAdj: Math.round(biasAdj), srAdj: Math.round(srAdj), oiAdj: Math.round(oiAdj), pcrAdj: Math.round(pcrAdj), stratAdj: Math.round(stratAdj) }};
 }}
 
 function normCDF(x) {{
   const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
   const sign=x<0?-1:1; x=Math.abs(x);
-  const t=1/(1+p*x);
-  const y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+  const t=1/(1+p*x); const y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
   return 0.5*(1+sign*y);
-}}
-function bsDelta(spot,strike,iv,T,isCall) {{
-  if(iv<=0||T<=0) return isCall?0.5:-0.5;
-  const r=0.065,d1=(Math.log(spot/strike)+(r+0.5*iv*iv)*T)/(iv*Math.sqrt(T));
-  return isCall?normCDF(d1):normCDF(d1)-1;
 }}
 function getATMLTP(type) {{
   const row=STRIKE_MAP[OC.atm]||OC.strikes.reduce((b,s)=>Math.abs(s.strike-OC.atm)<Math.abs(b.strike-OC.atm)?s:b,OC.strikes[0]||{{strike:OC.atm,ce_ltp:0,pe_ltp:0,ce_iv:15,pe_iv:15}});
@@ -1561,24 +1438,25 @@ function getOTM(type,offset) {{
   const row=STRIKE_MAP[t]||OC.strikes.reduce((b,s)=>Math.abs(s.strike-t)<Math.abs(b.strike-t)?s:b,OC.strikes[0]||{{strike:OC.atm,ce_ltp:0,pe_ltp:0,ce_iv:15,pe_iv:15}});
   return {{strike:row.strike||t,ltp:type==='ce'?row.ce_ltp:row.pe_ltp,iv:type==='ce'?row.ce_iv:row.pe_iv}};
 }}
-function fmtLTP(v) {{ return '\u20b9'+(v||0).toFixed(2); }}
 
+// ============================================================
+//  calcMetrics — FIXED v18.1: ALL LEGS SHOW STRIKE PRICES
+// ============================================================
 function calcMetrics(shape, smartPop) {{
   const spot=OC.spot,atm=OC.atm,T=5/365,lotSz=OC.lotSize;
   const ce_atm=getATMLTP('ce'),pe_atm=getATMLTP('pe');
   const co1=getOTM('ce',1),co2=getOTM('ce',2),po1=getOTM('pe',1),po2=getOTM('pe',2);
-  const atmIV=(STRIKE_MAP[atm]?(STRIKE_MAP[atm].ce_iv||15)/100:0.15);
-  let pop=smartPop||50, mp=0,ml=0,be=[],nc=0,margin=0,pnl=0,rrRatio=0;
+  let pop=smartPop||50, mp=0,ml=0,be=[],nc=0,margin=0,rrRatio=0;
   let ltpParts=[];
   switch(shape) {{
     case 'long_call':{{const p=ce_atm||150;mp=999999;ml=p*lotSz;be=[atm+p];nc=-p*lotSz;margin=p*lotSz;
-      ltpParts=[{{l:'CE (ATM \u20b9'+atm.toLocaleString('en-IN')+')',v:p,c:'#00c8e0'}}];break;}}
+      ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#00c8e0'}}];break;}}
     case 'long_put':{{const p=pe_atm||150;mp=999999;ml=p*lotSz;be=[atm-p];nc=-p*lotSz;margin=p*lotSz;
-      ltpParts=[{{l:'PE (ATM \u20b9'+atm.toLocaleString('en-IN')+')',v:p,c:'#ff9090'}}];break;}}
+      ltpParts=[{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#ff9090'}}];break;}}
     case 'short_put':{{const p=pe_atm||150;mp=p*lotSz;ml=(atm-p)*lotSz;be=[atm-p];nc=p*lotSz;margin=atm*lotSz*0.15;rrRatio=((atm-p)/p).toFixed(2);
-      ltpParts=[{{l:'PE (ATM \u20b9'+atm.toLocaleString('en-IN')+')',v:p,c:'#ff9090'}}];break;}}
+      ltpParts=[{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#ff9090'}}];break;}}
     case 'short_call':{{const p=ce_atm||150;mp=p*lotSz;ml=999999;be=[atm+p];nc=p*lotSz;margin=atm*lotSz*0.15;
-      ltpParts=[{{l:'CE (ATM \u20b9'+atm.toLocaleString('en-IN')+')',v:p,c:'#00c8e0'}}];break;}}
+      ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#00c8e0'}}];break;}}
     case 'bull_call_spread':{{const bp=ce_atm||150,sp=co1.ltp||80,nd=bp-sp,sw=co1.strike-atm;mp=(sw-nd)*lotSz;ml=nd*lotSz;be=[atm+nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((sw-nd)/nd).toFixed(2);
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:bp,c:'#00c8e0'}},{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sp,c:'#ff9090'}}];break;}}
     case 'bull_put_spread':{{const sp=pe_atm||150,bp=po1.ltp||80,nc2=sp-bp,sw=atm-po1.strike;mp=nc2*lotSz;ml=(sw-nc2)*lotSz;be=[atm-nc2];nc=nc2*lotSz;margin=sw*lotSz;rrRatio=(nc2/(sw-nc2)).toFixed(2);
@@ -1588,48 +1466,47 @@ function calcMetrics(shape, smartPop) {{
     case 'bear_put_spread':{{const bp=pe_atm||150,sp=po1.ltp||80,nd=bp-sp,sw=atm-po1.strike;mp=(sw-nd)*lotSz;ml=nd*lotSz;be=[atm-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((sw-nd)/nd).toFixed(2);
       ltpParts=[{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:bp,c:'#ff9090'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#00c896'}}];break;}}
     case 'long_straddle':{{const cp2=ce_atm||150,pp=pe_atm||150,tp=cp2+pp;mp=999999;ml=tp*lotSz;be=[atm-tp,atm+tp];nc=-tp*lotSz;margin=tp*lotSz;
-      ltpParts=[{{l:'CE ATM',v:cp2,c:'#00c8e0'}},{{l:'PE ATM',v:pp,c:'#ff9090'}}];break;}}
+      ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
     case 'short_straddle':{{const cp2=ce_atm||150,pp=pe_atm||150,tp=cp2+pp;mp=tp*lotSz;ml=999999;be=[atm-tp,atm+tp];nc=tp*lotSz;margin=atm*lotSz*0.25;
-      ltpParts=[{{l:'CE ATM',v:cp2,c:'#00c8e0'}},{{l:'PE ATM',v:pp,c:'#ff9090'}}];break;}}
+      ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
     case 'long_strangle':{{const cp2=co1.ltp||100,pp=po1.ltp||100,tp=cp2+pp;mp=999999;ml=tp*lotSz;be=[po1.strike-tp,co1.strike+tp];nc=-tp*lotSz;margin=tp*lotSz;
-      ltpParts=[{{l:'CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
+      ltpParts=[{{l:'BUY CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
     case 'short_strangle':{{const cp2=co1.ltp||100,pp=po1.ltp||100,tp=cp2+pp;mp=tp*lotSz;ml=999999;be=[po1.strike-tp,co1.strike+tp];nc=tp*lotSz;margin=atm*lotSz*0.20;
-      ltpParts=[{{l:'CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
+      ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
     case 'short_iron_condor':{{const sc=co1.ltp||100,bc=co2.ltp||50,sp=po1.ltp||100,bp=po2.ltp||50,nc2=sc-bc+sp-bp;mp=nc2*lotSz;ml=(50-nc2)*lotSz;be=[po1.strike-nc2,co1.strike+nc2];nc=nc2*lotSz;margin=50*lotSz*2;rrRatio=(nc2/(50-nc2)).toFixed(2);
-      ltpParts=[{{l:'SC',v:sc,c:'#00c8e0'}},{{l:'BC',v:bc,c:'#00c8e0'}},{{l:'SP',v:sp,c:'#ff9090'}},{{l:'BP',v:bp,c:'#ff9090'}}];break;}}
+      ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sc,c:'#00c8e0'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:bc,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#ff9090'}},{{l:'BUY PE \u20b9'+po2.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}}];break;}}
     case 'long_iron_condor':{{const sc=co1.ltp||100,bc=co2.ltp||50,sp=po1.ltp||100,bp=po2.ltp||50,nd=bc-sc+bp-sp;mp=(50-Math.abs(nd))*lotSz;ml=Math.abs(nd)*lotSz;be=[po1.strike-Math.abs(nd),co1.strike+Math.abs(nd)];nc=nd*lotSz;margin=Math.abs(nd)*lotSz;rrRatio=((50-Math.abs(nd))/Math.abs(nd)).toFixed(2);
-      ltpParts=[{{l:'BC',v:bc,c:'#00c8e0'}},{{l:'BP',v:bp,c:'#ff9090'}}];break;}}
+      ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sc,c:'#00c8e0'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:bc,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#ff9090'}},{{l:'BUY PE \u20b9'+po2.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}}];break;}}
     case 'short_iron_fly':{{const cp2=ce_atm||150,pp=pe_atm||150,wc=co1.ltp||80,wp=po1.ltp||80,nc2=cp2+pp-wc-wp;mp=nc2*lotSz;ml=(50-nc2)*lotSz;be=[atm-nc2,atm+nc2];nc=nc2*lotSz;margin=50*lotSz*2;rrRatio=(nc2/(50-nc2)).toFixed(2);
-      ltpParts=[{{l:'CE ATM',v:cp2,c:'#00c8e0'}},{{l:'PE ATM',v:pp,c:'#ff9090'}},{{l:'WC',v:wc,c:'#00c8e0'}},{{l:'WP',v:wp,c:'#ff9090'}}];break;}}
+      ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}},{{l:'BUY CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:wc,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:wp,c:'#ff9090'}}];break;}}
     case 'long_iron_fly':{{const cp2=ce_atm||150,pp=pe_atm||150,wc=co1.ltp||80,wp=po1.ltp||80,nd=wc+wp-cp2-pp;mp=(50-Math.abs(nd))*lotSz;ml=Math.abs(nd)*lotSz;be=[atm-Math.abs(nd),atm+Math.abs(nd)];nc=-Math.abs(nd)*lotSz;margin=Math.abs(nd)*lotSz;rrRatio=((50-Math.abs(nd))/Math.abs(nd)).toFixed(2);
-      ltpParts=[{{l:'CE ATM',v:cp2,c:'#00c8e0'}},{{l:'PE ATM',v:pp,c:'#ff9090'}}];break;}}
+      ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}},{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:wc,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:wp,c:'#ff9090'}}];break;}}
     case 'call_ratio_back':{{const sp=ce_atm||150,bp=co1.ltp||80,nd=2*bp-sp;mp=999999;ml=nd>0?nd*lotSz:0;be=[co1.strike+bp];nc=-nd*lotSz;margin=co1.strike*lotSz*0.15;
-      ltpParts=[{{l:'SELL CE ATM',v:sp,c:'#00c896'}},{{l:'BUY 2x CE',v:bp,c:'#00c8e0'}}];break;}}
+      ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:sp,c:'#00c896'}},{{l:'BUY 2x CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:bp,c:'#00c8e0'}}];break;}}
     case 'put_ratio_back':{{const sp=pe_atm||150,bp=po1.ltp||80,nd=2*bp-sp;mp=999999;ml=nd>0?nd*lotSz:0;be=[po1.strike-bp];nc=-nd*lotSz;margin=po1.strike*lotSz*0.15;
-      ltpParts=[{{l:'SELL PE ATM',v:sp,c:'#00c896'}},{{l:'BUY 2x PE',v:bp,c:'#ff9090'}}];break;}}
+      ltpParts=[{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:sp,c:'#00c896'}},{{l:'BUY 2x PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}}];break;}}
     case 'long_synthetic':{{const cp2=ce_atm||150,pp=pe_atm||150,nd=cp2-pp;mp=999999;ml=999999;be=[atm+nd];nc=-Math.abs(nd)*lotSz;margin=atm*lotSz*0.30;
-      ltpParts=[{{l:'BUY CE ATM',v:cp2,c:'#00c8e0'}},{{l:'SELL PE ATM',v:pp,c:'#ff9090'}}];break;}}
+      ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
     case 'short_synthetic':{{const cp2=ce_atm||150,pp=pe_atm||150,nc2=cp2-pp;mp=999999;ml=999999;be=[atm+nc2];nc=Math.abs(nc2)*lotSz;margin=atm*lotSz*0.30;
-      ltpParts=[{{l:'SELL CE ATM',v:cp2,c:'#00c8e0'}},{{l:'BUY PE ATM',v:pp,c:'#ff9090'}}];break;}}
+      ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
     case 'call_butterfly': case 'bull_butterfly':{{const lp=ce_atm||150,mp2=co1.ltp||80,hp=co2.ltp||40,nd=lp-2*mp2+hp;mp=(50-nd)*lotSz;ml=nd*lotSz;be=[atm+nd,co2.strike-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd)/nd).toFixed(2);
-      ltpParts=[{{l:'BUY CE ATM',v:lp,c:'#00c8e0'}},{{l:'SELL 2x',v:mp2,c:'#00c896'}},{{l:'BUY CE',v:hp,c:'#00c8e0'}}];break;}}
+      ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:lp,c:'#00c8e0'}},{{l:'SELL 2x CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:mp2,c:'#00c896'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:hp,c:'#00c8e0'}}];break;}}
     case 'put_butterfly': case 'bear_butterfly':{{const hp=pe_atm||150,mp2=po1.ltp||80,lp=po2.ltp||40,nd=hp-2*mp2+lp;mp=(50-nd)*lotSz;ml=nd*lotSz;be=[po2.strike+nd,atm-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd)/nd).toFixed(2);
-      ltpParts=[{{l:'BUY PE ATM',v:hp,c:'#ff9090'}},{{l:'SELL 2x',v:mp2,c:'#00c896'}},{{l:'BUY PE',v:lp,c:'#ff9090'}}];break;}}
+      ltpParts=[{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:hp,c:'#ff9090'}},{{l:'SELL 2x PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:mp2,c:'#00c896'}},{{l:'BUY PE \u20b9'+po2.strike.toLocaleString('en-IN'),v:lp,c:'#ff9090'}}];break;}}
     case 'jade_lizard':{{const pp=po1.ltp||100,cs=co1.ltp||80,cb=co2.ltp||40,nc2=pp+cs-cb;mp=nc2*lotSz;ml=(po1.strike-nc2)*lotSz;be=[po1.strike-nc2];nc=nc2*lotSz;margin=po1.strike*lotSz*0.15;
-      ltpParts=[{{l:'SP',v:pp,c:'#ff9090'}},{{l:'SC',v:cs,c:'#00c8e0'}},{{l:'BC',v:cb,c:'#00c8e0'}}];break;}}
+      ltpParts=[{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:pp,c:'#ff9090'}},{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cs,c:'#00c8e0'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:cb,c:'#00c8e0'}}];break;}}
     case 'reverse_jade':{{const cp2=co1.ltp||100,ps=po1.ltp||80,pb=po2.ltp||40,nc2=cp2+ps-pb;mp=nc2*lotSz;ml=(co1.strike-nc2)*lotSz;be=[co1.strike+nc2];nc=nc2*lotSz;margin=co1.strike*lotSz*0.15;
-      ltpParts=[{{l:'SC',v:cp2,c:'#00c8e0'}},{{l:'SP',v:ps,c:'#ff9090'}},{{l:'BP',v:pb,c:'#ff9090'}}];break;}}
+      ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:ps,c:'#ff9090'}},{{l:'BUY PE \u20b9'+po2.strike.toLocaleString('en-IN'),v:pb,c:'#ff9090'}}];break;}}
     case 'bull_condor': case 'bear_condor':{{const s1=shape==='bull_condor'?ce_atm:pe_atm,s2=shape==='bull_condor'?co1.ltp:po1.ltp,s3=s2*0.7,s4=s2*0.4,nc2=(s1-s2)-(s3-s4);mp=nc2*lotSz;ml=(50-nc2)*lotSz;be=[atm+nc2];nc=nc2*lotSz;margin=100*lotSz;rrRatio=(nc2/(50-nc2)).toFixed(2);
-      ltpParts=[{{l:'L1',v:s1,c:'#00c8e0'}},{{l:'L2',v:s2,c:'#00c8e0'}},{{l:'L3',v:s3,c:'#ff9090'}},{{l:'L4',v:s4,c:'#ff9090'}}];break;}}
+      ltpParts=[{{l:(shape==='bull_condor'?'BUY CE ':'BUY PE ')+'\u20b9'+atm.toLocaleString('en-IN'),v:s1,c:'#00c8e0'}},{{l:(shape==='bull_condor'?'SELL CE ':'SELL PE ')+'\u20b9'+(shape==='bull_condor'?co1:po1).strike.toLocaleString('en-IN'),v:s2,c:'#00c8e0'}},{{l:(shape==='bull_condor'?'SELL CE ':'SELL PE ')+'\u20b9'+(shape==='bull_condor'?co2:po2).strike.toLocaleString('en-IN'),v:s3,c:'#ff9090'}},{{l:(shape==='bull_condor'?'BUY CE ':'BUY PE ')+'\u20b9'+((shape==='bull_condor'?co2.strike:po2.strike)+50).toLocaleString('en-IN'),v:s4,c:'#ff9090'}}];break;}}
     default:{{const p=ce_atm||150;mp=p*lotSz*0.5;ml=p*lotSz*0.3;be=[atm];nc=-p*0.3*lotSz;margin=p*lotSz;rrRatio=1.5;
-      ltpParts=[{{l:'ATM',v:p,c:'#00c8e0'}}];}}
+      ltpParts=[{{l:'ATM \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#00c8e0'}}];}}
   }}
   const beStr=be.map(v=>'\u20b9'+Math.round(v).toLocaleString('en-IN')).join(' / ');
   const mpStr=mp===999999?'Unlimited':'\u20b9'+Math.round(mp).toLocaleString('en-IN');
   const mlStr=ml===999999?'Unlimited':'\u20b9'+Math.round(ml).toLocaleString('en-IN');
   const ncStr=(nc>=0?'+ ':'- ')+'\u20b9'+Math.abs(Math.round(nc)).toLocaleString('en-IN');
   const marginStr='\u20b9'+Math.round(margin).toLocaleString('en-IN');
-  const pnlStr='\u20b90';
   const rrStr=rrRatio===0?'\u221e':('1:'+Math.abs(rrRatio));
   const mpPct=mp===999999?'\u221e':(ml>0?(mp/ml*100).toFixed(0)+'%':'—');
   const ltpStr=ltpParts.map(x=>`<span style="display:inline-flex;align-items:center;gap:4px;margin-bottom:2px;">
@@ -1637,7 +1514,7 @@ function calcMetrics(shape, smartPop) {{
     <span style="font-family:'DM Mono',monospace;font-weight:700;color:${{x.c}};">\u20b9${{x.v.toFixed(2)}}</span>
   </span>`).join('<br>');
   const strikeStr='ATM \u20b9'+atm.toLocaleString('en-IN');
-  return {{pop,mpStr,mlStr,rrStr,beStr,ncStr,marginStr,pnlStr,mpPct,strikeStr,ltpStr,
+  return {{pop,mpStr,mlStr,rrStr,beStr,ncStr,marginStr,mpPct,strikeStr,ltpStr,
            mpRaw:mp,mlRaw:ml,ncRaw:Math.round(nc),ncPositive:nc>=0}};
 }}
 
@@ -1689,36 +1566,16 @@ function popBadgeStyle(pop) {{
 function initAllCards() {{
   let topPop=0, topName='', topCat='';
   const bullEx = smartPoP('bull_put_spread','bullish');
-  const bearEx = smartPoP('bear_call_spread','bearish');
-  const ndEx   = smartPoP('short_iron_condor','nondirectional');
-
-  const biasCol = OC.bias==='BULLISH'?'#00c896':OC.bias==='BEARISH'?'#ff6b6b':'#6480ff';
   const el_b = document.getElementById('legendBiasVal');
-  if(el_b) {{ el_b.textContent=OC.bias+' ('+OC.biasConf+')'; el_b.style.color=biasCol; }}
-
+  if(el_b) {{ el_b.textContent=OC.bias+' ('+OC.biasConf+')'; el_b.style.color=OC.bias==='BULLISH'?'#00c896':OC.bias==='BEARISH'?'#ff6b6b':'#6480ff'; }}
   const srPts = bullEx.srAdj;
   const el_sr = document.getElementById('legendSRVal');
-  if(el_sr) {{
-    const srLabel = srPts>5?'Near Support ✓':srPts<-5?'Near Resistance ✗':'Mid Range';
-    el_sr.textContent=srLabel+' ('+( srPts>=0?'+':'')+srPts+')';
-    el_sr.style.color=srPts>=0?'#00c896':'#ff6b6b';
-  }}
-
+  if(el_sr) {{ const srLabel = srPts>5?'Near Support ✓':srPts<-5?'Near Resistance ✗':'Mid Range'; el_sr.textContent=srLabel+' ('+(srPts>=0?'+':'')+srPts+')'; el_sr.style.color=srPts>=0?'#00c896':'#ff6b6b'; }}
   const oiPts = bullEx.oiAdj;
   const el_oi = document.getElementById('legendOIVal');
-  if(el_oi) {{
-    const oiLabel = OC.spot>OC.maxPeStrike?'Above PE Wall ✓':'Below PE Wall ✗';
-    el_oi.textContent=oiLabel+' ('+( oiPts>=0?'+':'')+oiPts+')';
-    el_oi.style.color=oiPts>=0?'#00c896':'#ff6b6b';
-  }}
-
+  if(el_oi) {{ const oiLabel = OC.spot>OC.maxPeStrike?'Above PE Wall ✓':'Below PE Wall ✗'; el_oi.textContent=oiLabel+' ('+(oiPts>=0?'+':'')+oiPts+')'; el_oi.style.color=oiPts>=0?'#00c896':'#ff6b6b'; }}
   const el_pcr = document.getElementById('legendPCRVal');
-  if(el_pcr) {{
-    const pcrLabel = OC.pcr>1.2?'Bullish PCR ':OC.pcr<0.8?'Bearish PCR ':'Neutral PCR ';
-    el_pcr.textContent=pcrLabel+OC.pcr.toFixed(3);
-    el_pcr.style.color=OC.pcr>1.2?'#00c896':OC.pcr<0.8?'#ff6b6b':'#6480ff';
-  }}
-
+  if(el_pcr) {{ const pcrLabel = OC.pcr>1.2?'Bullish PCR ':OC.pcr<0.8?'Bearish PCR ':'Neutral PCR '; el_pcr.textContent=pcrLabel+OC.pcr.toFixed(3); el_pcr.style.color=OC.pcr>1.2?'#00c896':OC.pcr<0.8?'#ff6b6b':'#6480ff'; }}
   document.querySelectorAll('.sc-card').forEach(card=>{{
     const shape=card.dataset.shape, cat=card.dataset.cat;
     const badge=document.getElementById('pop_'+card.id);
@@ -1727,14 +1584,10 @@ function initAllCards() {{
       const m=calcMetrics(shape, result.pop);
       card.dataset.pop=result.pop;
       card.dataset.scoreBreakdown=JSON.stringify(result);
-      if(badge) {{
-        badge.textContent=result.pop+'%';
-        badge.setAttribute('style', badge.getAttribute('style')+';'+popBadgeStyle(result.pop));
-      }}
+      if(badge) {{ badge.textContent=result.pop+'%'; badge.setAttribute('style', badge.getAttribute('style')+';'+popBadgeStyle(result.pop)); }}
       if(result.pop>topPop) {{ topPop=result.pop; topName=card.dataset.name; topCat=cat; }}
     }}catch(e){{card.dataset.pop=0;if(badge)badge.textContent='—%';}}
   }});
-
   const el_rec = document.getElementById('legendRecVal');
   if(el_rec && topName) {{
     const recCol = topCat==='bullish'?'#00c896':topCat==='bearish'?'#ff6b6b':'#6480ff';
@@ -1832,9 +1685,8 @@ def build_ticker_bar(tech, oc, vix_data):
     track = "".join(items) * 3
     return f'''<div class="ticker-wrap">
   <div class="ticker-label">LIVE&nbsp;&#9654;</div>
-  <div class="ticker-viewport"><div class="ticker-track" id="tkTrack">{track}</div></div>
+  <div class="ticker-viewport"><div class="ticker-track" id="tkTrack">''' + track + '''</div></div>
 </div>'''
-
 
 # =================================================================
 #  SECTION 8 -- CSS
@@ -2088,7 +1940,7 @@ ANIMATED_JS = """
 
 (function() {
   const INTERVAL_MS = 30000;
-  let _lastBias = null, _lastPCR = null, _lastCeChg = null, _lastPeChg = null, _lastTs = null, _refreshTimer = null;
+  let _lastBias = null, _lastPCR = null, _refreshTimer = null;
   function showSpinner(on) {
     const ring = document.getElementById('refreshRing'), txt = document.getElementById('refreshStatus');
     if (ring) ring.classList.toggle('active', on);
@@ -2120,33 +1972,13 @@ ANIMATED_JS = """
     }, 50);
     return changed;
   }
-  function _dataChanged(data) {
-    // Always refresh on first load
-    if (_lastTs === null) return true;
-    // Refresh if timestamp changed (new data was generated)
-    if (data.timestamp && data.timestamp !== _lastTs) return true;
-    // Refresh if bias or PCR changed
-    if (data.bias !== _lastBias) return true;
-    if (String(data.pcr) !== String(_lastPCR)) return true;
-    // Refresh if CHG OI values changed (key for hero widget)
-    if (data.ce_chg !== undefined && String(data.ce_chg) !== String(_lastCeChg)) return true;
-    if (data.pe_chg !== undefined && String(data.pe_chg) !== String(_lastPeChg)) return true;
-    return false;
-  }
-  function _saveState(data) {
-    _lastBias  = data.bias;
-    _lastPCR   = String(data.pcr);
-    _lastCeChg = data.ce_chg !== undefined ? String(data.ce_chg) : _lastCeChg;
-    _lastPeChg = data.pe_chg !== undefined ? String(data.pe_chg) : _lastPeChg;
-    _lastTs    = data.timestamp || _lastTs;
-  }
   function silentRefresh() {
     fetch('latest.json?_=' + Date.now())
       .then(r => { if (!r.ok) throw new Error('json'); return r.json(); })
       .then(data => {
         if (window.__resetCountdown) window.__resetCountdown();
-        if (!_dataChanged(data)) { schedule(); return; }
-        _saveState(data);
+        if (_lastBias !== null && data.bias === _lastBias && String(data.pcr) === String(_lastPCR)) { schedule(); return; }
+        _lastBias = data.bias; _lastPCR = String(data.pcr);
         showSpinner(true);
         fetch('index.html?_=' + Date.now())
           .then(r => { if (!r.ok) throw new Error('html'); return r.text(); })
@@ -2160,7 +1992,6 @@ ANIMATED_JS = """
 })();
 </script>
 """
-
 
 def build_greeks_script_html(oc_analysis):
     if not oc_analysis:
