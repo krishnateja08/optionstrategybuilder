@@ -389,6 +389,11 @@ def analyze_option_chain(oc_data, vix=18.0):
     chg_bull_force = (abs(pe_chg) if pe_chg > 0 else 0) + (abs(ce_chg) if ce_chg < 0 else 0)
     chg_bear_force = (abs(ce_chg) if ce_chg > 0 else 0) + (abs(pe_chg) if pe_chg < 0 else 0)
 
+    chg_total = chg_bull_force + chg_bear_force
+    chg_total = chg_total if chg_total > 0 else 1
+    chg_bull_pct = round(chg_bull_force / chg_total * 100)
+    chg_bear_pct = 100 - chg_bull_pct
+
     atm_strike = oc_data["atm_strike"]
     greeks = extract_atm_greeks(df, atm_strike,
                                 underlying=oc_data["underlying"],
@@ -427,6 +432,8 @@ def analyze_option_chain(oc_data, vix=18.0):
         "raw_oi_cls":      raw_oi_cls,
         "chg_bull_force":  chg_bull_force,
         "chg_bear_force":  chg_bear_force,
+        "chg_bull_pct":    chg_bull_pct,
+        "chg_bear_pct":    chg_bear_pct,
         "atm_greeks":      greeks["atm_greeks"],
         "greeks_table":    greeks["greeks_table"],
         "all_strikes":     greeks["all_strikes"],
