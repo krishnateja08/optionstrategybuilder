@@ -5,6 +5,7 @@ Aurora Borealis Theme · v18 · Smart Dynamic PoP Engine
 - PoP now reflects: Market Bias + Support/Resistance + Max CE/PE OI walls + PCR
 - lotSize fixed to 65
 - Strategies ranked by smart PoP — highest PoP = best trade right now
+- Hero widget now shows CHG in OI (not total OI) for Bull/Bear gauges
 
 pip install curl_cffi pandas numpy yfinance pytz scipy
 """
@@ -388,6 +389,12 @@ def analyze_option_chain(oc_data, vix=18.0):
     chg_bull_force = (abs(pe_chg) if pe_chg > 0 else 0) + (abs(ce_chg) if ce_chg < 0 else 0)
     chg_bear_force = (abs(ce_chg) if ce_chg > 0 else 0) + (abs(pe_chg) if pe_chg < 0 else 0)
 
+    # CHG OI based bull/bear percentages for hero widget
+    chg_total = chg_bull_force + chg_bear_force
+    chg_total = chg_total if chg_total > 0 else 1
+    chg_bull_pct = round(chg_bull_force / chg_total * 100)
+    chg_bear_pct = 100 - chg_bull_pct
+
     atm_strike = oc_data["atm_strike"]
     greeks = extract_atm_greeks(df, atm_strike,
                                 underlying=oc_data["underlying"],
@@ -419,13 +426,15 @@ def analyze_option_chain(oc_data, vix=18.0):
         "strikes_data":    strikes_data,
         "bull_pct":        bull_pct,
         "bear_pct":        bear_pct,
+        "chg_bull_pct":    chg_bull_pct,
+        "chg_bear_pct":    chg_bear_pct,
         "bull_force":      int(total_pe_oi),
         "bear_force":      int(total_ce_oi),
+        "chg_bull_force":  chg_bull_force,
+        "chg_bear_force":  chg_bear_force,
         "raw_oi_dir":      raw_oi_dir,
         "raw_oi_sig":      raw_oi_sig,
         "raw_oi_cls":      raw_oi_cls,
-        "chg_bull_force":  chg_bull_force,
-        "chg_bear_force":  chg_bear_force,
         "atm_greeks":      greeks["atm_greeks"],
         "greeks_table":    greeks["greeks_table"],
         "all_strikes":     greeks["all_strikes"],
@@ -836,33 +845,56 @@ def build_greeks_table_html(oc_analysis):
 
 
 # =================================================================
-#  SECTION 5B -- HERO
+#  SECTION 5B -- HERO  (CHANGED: gauges now show CHG in OI)
 # =================================================================
 
 def build_dual_gauge_hero(oc, tech, md, ts):
     if oc:
-        total_pe_oi = oc["total_pe_oi"]; total_ce_oi = oc["total_ce_oi"]
-        bull_pct = oc["bull_pct"]; bear_pct = oc["bear_pct"]; pcr = oc["pcr_oi"]
-        oi_dir = oc["raw_oi_dir"]; oi_sig = oc["raw_oi_sig"]; oi_cls = oc["raw_oi_cls"]
-        bull_label = _fmt_oi(total_pe_oi); bear_label = _fmt_oi(total_ce_oi)
-        expiry = oc["expiry"]; underlying = oc["underlying"]; atm = oc["atm_strike"]; max_pain = oc["max_pain"]
+        # --- CHANGED: use CHG in OI values instead of total OI ---
+        ce_chg         = oc["ce_chg"]           # total CE OI change (bearish force when positive)
+        pe_chg         = oc["pe_chg"]           # total PE OI change (bullish force when positive)
+        chg_bull_force = oc["chg_bull_force"]   # bull CHG force = abs(pe_chg if positive) + abs(ce_chg if negative)
+        chg_bear_force = oc["chg_bear_force"]   # bear CHG force = abs(ce_chg if positive) + abs(pe_chg if negative)
+        chg_bull_pct   = oc["chg_bull_pct"]
+        chg_bear_pct   = oc["chg_bear_pct"]
+        bull_label     = _fmt_oi(pe_chg)        # PE CHG shown on bull gauge
+        bear_label     = _fmt_oi(ce_chg)        # CE CHG shown on bear gauge
+        pcr            = oc["pcr_oi"]
+        oi_dir         = oc["oi_dir"]           # signal driven by OI change direction
+        oi_sig         = oc["oi_sig"]
+        oi_cls         = oc["oi_cls"]
+        expiry         = oc["expiry"]
+        underlying     = oc["underlying"]
+        atm            = oc["atm_strike"]
+        max_pain       = oc["max_pain"]
     else:
-        total_pe_oi = total_ce_oi = 0; bull_pct = bear_pct = 50; pcr = 1.0
+        ce_chg = pe_chg = chg_bull_force = chg_bear_force = 0
+        chg_bull_pct = chg_bear_pct = 50
+        pcr = 1.0
         oi_sig = "NSE data unavailable"; oi_dir = "UNKNOWN"; oi_cls = "neutral"
         expiry = "N/A"; underlying = 0; atm = 0; max_pain = 0
         bull_label = "N/A"; bear_label = "N/A"
 
-    cp = tech["price"] if tech else 0
-    bias = md["bias"]; conf = md["confidence"]; bull_sc = md["bull"]; bear_sc = md["bear"]; diff = md["diff"]
-    dir_col = _cls_color(oi_cls)
-    pcr_col = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
-    b_col = _cls_color(md.get("bias_cls", "neutral"))
-    b_bg = _cls_bg(md.get("bias_cls", "neutral")); b_bdr = _cls_bdr(md.get("bias_cls", "neutral"))
+    cp    = tech["price"] if tech else 0
+    bias  = md["bias"]; conf = md["confidence"]
+    bull_sc = md["bull"]; bear_sc = md["bear"]; diff = md["diff"]
+
+    dir_col  = _cls_color(oi_cls)
+    pcr_col  = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
+    b_col    = _cls_color(md.get("bias_cls", "neutral"))
+    b_bg     = _cls_bg(md.get("bias_cls", "neutral"))
+    b_bdr    = _cls_bdr(md.get("bias_cls", "neutral"))
+
     C = 194.8
     def clamp(v, lo=10, hi=97): return max(lo, min(hi, v))
-    bull_offset = C * (1 - clamp(bull_pct) / 100); bear_offset = C * (1 - clamp(bear_pct) / 100)
-    oi_bar_w = clamp(bull_pct); bear_bar_w = clamp(bear_pct)
-    b_arrow = "▲" if bias == "BULLISH" else ("▼" if bias == "BEARISH" else "◆")
+
+    # Use CHG-based percentages for gauge fill
+    bull_offset = C * (1 - clamp(chg_bull_pct) / 100)
+    bear_offset = C * (1 - clamp(chg_bear_pct) / 100)
+    oi_bar_w    = clamp(chg_bull_pct)
+    bear_bar_w  = clamp(chg_bear_pct)
+
+    b_arrow  = "▲" if bias == "BULLISH" else ("▼" if bias == "BEARISH" else "◆")
     glow_rgb = ("0,200,150" if dir_col == "#00c896" else "255,107,107" if dir_col == "#ff6b6b" else "100,128,255")
 
     return f"""
@@ -880,7 +912,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
       </svg>
       <div class="gauge-inner">
         <div class="g-val" style="color:#00c896;">{bull_label}</div>
-        <div class="g-lbl">OI BULL</div>
+        <div class="g-lbl">CHG BULL</div>
       </div>
     </div>
     <div class="gauge-sep"></div>
@@ -896,26 +928,26 @@ def build_dual_gauge_hero(oc, tech, md, ts):
       </svg>
       <div class="gauge-inner">
         <div class="g-val" style="color:#ff6b6b;">{bear_label}</div>
-        <div class="g-lbl">OI BEAR</div>
+        <div class="g-lbl">CHG BEAR</div>
       </div>
     </div>
   </div>
   <div class="h-mid">
-    <div class="h-eyebrow">OI NET SIGNAL · {expiry} · SPOT ₹{underlying:,.0f}</div>
+    <div class="h-eyebrow">OI CHG SIGNAL · {expiry} · SPOT ₹{underlying:,.0f}</div>
     <div class="h-signal" style="color:{dir_col};text-shadow:0 0 20px rgba({glow_rgb},.6),0 0 40px rgba({glow_rgb},.3);font-size:22px;font-weight:900;letter-spacing:1px;">{oi_dir}</div>
     <div class="h-sub">{oi_sig} · PCR <span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
     <div class="h-divider"></div>
     <div class="pill-row">
       <div class="pill-dot" style="background:#00c896;box-shadow:0 0 5px rgba(0,200,150,.5);"></div>
-      <div class="pill-lbl">BULL STRENGTH</div>
+      <div class="pill-lbl">BULL CHG</div>
       <div class="pill-track"><div class="pill-fill" style="width:{oi_bar_w}%;background:linear-gradient(90deg,#00c896,#4de8b8);"></div></div>
-      <div class="pill-num" style="color:#00c896;">{bull_pct}%</div>
+      <div class="pill-num" style="color:#00c896;">{chg_bull_pct}%</div>
     </div>
     <div class="pill-row">
       <div class="pill-dot" style="background:#ff6b6b;box-shadow:0 0 5px rgba(255,107,107,.4);"></div>
-      <div class="pill-lbl">BEAR STRENGTH</div>
+      <div class="pill-lbl">BEAR CHG</div>
       <div class="pill-track"><div class="pill-fill" style="width:{bear_bar_w}%;background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div></div>
-      <div class="pill-num" style="color:#ff6b6b;">{bear_pct}%</div>
+      <div class="pill-num" style="color:#ff6b6b;">{chg_bear_pct}%</div>
     </div>
   </div>
   <div class="h-stats">
@@ -1240,13 +1272,11 @@ def build_strategies_html(oc_analysis, tech=None, md=None):
     max_pe_s   = oc_analysis["max_pe_strike"] if oc_analysis else atm - 200
     strikes_json = json.dumps(oc_analysis.get("strikes_data", [])) if oc_analysis else "[]"
 
-    # Tech levels for smart PoP
     support     = tech["support"]    if tech else spot - 150
     resistance  = tech["resistance"] if tech else spot + 150
     strong_sup  = tech["strong_sup"] if tech else spot - 300
     strong_res  = tech["strong_res"] if tech else spot + 300
 
-    # Market direction for smart PoP
     bias        = md["bias"]       if md else "SIDEWAYS"
     conf        = md["confidence"] if md else "MEDIUM"
     bull_sc     = md["bull"]       if md else 4
@@ -1285,50 +1315,12 @@ def build_strategies_html(oc_analysis, tech=None, md=None):
     bear_cards = render_cards(STRATEGIES_DATA["bearish"],       "bearish")
     nd_cards   = render_cards(STRATEGIES_DATA["nondirectional"],"nondirectional")
 
-    # =====================================================================
-    #  SMART POP ENGINE — injected as JS
-    #  Inputs fed from Python live data:
-    #    OC.spot, OC.atm, OC.pcr, OC.maxPeStrike, OC.maxCeStrike,
-    #    OC.support, OC.resistance, OC.strongSup, OC.strongRes,
-    #    OC.bias ("BULLISH"/"BEARISH"/"SIDEWAYS"), OC.bullScore, OC.bearScore
-    #
-    #  SCORING SYSTEM (each factor adds/subtracts from base 50%):
-    #
-    #  [A] BIAS ALIGNMENT (+15 aligned / -15 opposite / 0 neutral)
-    #      Strategy type vs market bias — if BULLISH market → bullish strats get +15
-    #
-    #  [B] SPOT vs S/R ZONE (+10 to -10)
-    #      Bull strats: near support = +10 (good entry), near resistance = -10
-    #      Bear strats: near resistance = +10, near support = -10
-    #      ND strats: middle of range = +8 (ideal for range-bound)
-    #
-    #  [C] OI WALLS — Max CE (resistance wall) / Max PE (support floor) (+10 to -10)
-    #      Bull strats: spot above Max PE = +10 (support holding)
-    #                   spot below Max CE with headroom = +5
-    #                   spot above Max CE = -10 (hitting resistance ceiling)
-    #      Bear strats: spot below Max CE = +10 (resistance holding)
-    #                   spot near Max PE = -8 (hitting support)
-    #      ND strats: spot between Max PE and Max CE = +8 (trapped in range)
-    #
-    #  [D] PCR WEIGHT (+8 to -8)
-    #      Bull strats: PCR > 1.2 = +8, PCR > 1.0 = +4, PCR < 0.8 = -6
-    #      Bear strats: PCR < 0.8 = +8, PCR < 1.0 = +4, PCR > 1.2 = -6
-    #      ND strats: PCR 0.9-1.1 = +6 (balanced = good for ND)
-    #
-    #  [E] CONFIDENCE MULTIPLIER
-    #      HIGH confidence: factors A,B,C multiplied by 1.2
-    #      LOW confidence: factors A,B,C multiplied by 0.6
-    #
-    #  Final PoP = clamp(50 + A + B + C + D, 5, 95)
-    # =====================================================================
-
     return f"""
 <div class="section" id="strat">
   <div class="sec-title">STRATEGIES REFERENCE
     <span class="sec-sub">Smart PoP · Live S/R + OI Walls + Market Bias · Click to expand</span>
   </div>
 
-  <!-- SMART POP LEGEND -->
   <div id="smartPopLegend" style="
     background:linear-gradient(135deg,rgba(100,128,255,.08),rgba(0,200,150,.06));
     border:1px solid rgba(100,128,255,.2);border-radius:14px;padding:14px 18px;
@@ -1383,9 +1375,6 @@ def build_strategies_html(oc_analysis, tech=None, md=None):
 </div>
 
 <script>
-// ============================================================
-//  LIVE MARKET DATA — injected from Python NSE fetch
-// ============================================================
 const OC={{
   spot:        {spot:.2f},
   atm:         {atm},
@@ -1408,9 +1397,6 @@ const OC={{
 const STRIKE_MAP={{}};
 OC.strikes.forEach(s=>{{ STRIKE_MAP[s.strike]=s; }});
 
-// ============================================================
-//  SMART POP ENGINE
-// ============================================================
 function smartPoP(shape, cat) {{
   const spot=OC.spot, pcr=OC.pcr;
   const sup=OC.support, res=OC.resistance;
@@ -1419,143 +1405,128 @@ function smartPoP(shape, cat) {{
   const bias=OC.bias, conf=OC.biasConf;
   const rangeSize = res - sup || 200;
 
-  // Confidence multiplier
   const confMult = conf==="HIGH" ? 1.25 : conf==="LOW" ? 0.6 : 1.0;
 
-  // ---- [A] BIAS ALIGNMENT ----
   let biasAdj = 0;
   if (cat === "bullish") {{
     biasAdj = bias==="BULLISH" ? 15 : bias==="BEARISH" ? -15 : 0;
   }} else if (cat === "bearish") {{
     biasAdj = bias==="BEARISH" ? 15 : bias==="BULLISH" ? -15 : 0;
   }} else {{
-    // Non-directional: benefits from sideways, hurt by strong trending
     biasAdj = bias==="SIDEWAYS" ? 8 : (OC.bullScore===OC.bearScore ? 5 : -5);
   }}
   biasAdj = biasAdj * confMult;
 
-  // ---- [B] SPOT vs S/R ZONE ----
   let srAdj = 0;
-  const distToSup = spot - sup;        // positive = above support
-  const distToRes = res - spot;        // positive = below resistance
+  const distToSup = spot - sup;
+  const distToRes = res - spot;
   const distToSSup = spot - ssup;
   const distToSRes = sres - spot;
 
   if (cat === "bullish") {{
-    // Best when spot is near support (good entry) with room to run up
     if (distToSup >= 0 && distToSup <= rangeSize * 0.25) {{
-      srAdj = 10;  // Right at support — ideal bull entry
+      srAdj = 10;
     }} else if (distToSup >= 0 && distToSup <= rangeSize * 0.5) {{
-      srAdj = 5;   // Lower half of range — decent
+      srAdj = 5;
     }} else if (distToRes >= 0 && distToRes <= rangeSize * 0.2) {{
-      srAdj = -10; // Near resistance — limited upside, bad for bull
+      srAdj = -10;
     }} else if (spot > res) {{
-      srAdj = -8;  // Above resistance — breakout possible but risky
+      srAdj = -8;
     }} else {{
-      srAdj = 2;   // Middle of range — neutral
+      srAdj = 2;
     }}
   }} else if (cat === "bearish") {{
-    // Best when spot is near resistance (good entry) with room to fall
     if (distToRes >= 0 && distToRes <= rangeSize * 0.25) {{
-      srAdj = 10;  // Right at resistance — ideal bear entry
+      srAdj = 10;
     }} else if (distToRes >= 0 && distToRes <= rangeSize * 0.5) {{
-      srAdj = 5;   // Upper half of range — decent
+      srAdj = 5;
     }} else if (distToSup >= 0 && distToSup <= rangeSize * 0.2) {{
-      srAdj = -10; // Near support — limited downside, bad for bear
+      srAdj = -10;
     }} else if (spot < sup) {{
-      srAdj = -8;  // Below support — breakdown but risky
+      srAdj = -8;
     }} else {{
       srAdj = 2;
     }}
   }} else {{
-    // Non-directional: best in middle of range (theta decay, range-bound)
     const midRange = (sup + res) / 2;
     const distFromMid = Math.abs(spot - midRange);
     const halfRange = rangeSize / 2;
     if (distFromMid <= halfRange * 0.3) {{
-      srAdj = 10;  // Right in the middle — ideal for ND
+      srAdj = 10;
     }} else if (distFromMid <= halfRange * 0.6) {{
       srAdj = 5;
     }} else {{
-      srAdj = -5;  // Too close to boundary — directional move likely
+      srAdj = -5;
     }}
   }}
   srAdj = srAdj * confMult;
 
-  // ---- [C] OI WALLS (Max CE = Resistance Wall, Max PE = Support Floor) ----
   let oiAdj = 0;
-  const distAboveMaxPE = spot - maxPE;   // positive = spot above PE wall (bullish)
-  const distBelowMaxCE = maxCE - spot;   // positive = spot below CE wall (room to run)
+  const distAboveMaxPE = spot - maxPE;
+  const distBelowMaxCE = maxCE - spot;
 
   if (cat === "bullish") {{
     if (distAboveMaxPE > 0 && distAboveMaxPE < 150) {{
-      oiAdj += 8;   // Spot just above Max PE floor — strong support holding
+      oiAdj += 8;
     }} else if (distAboveMaxPE > 150) {{
-      oiAdj += 4;   // Well above PE floor — still bullish but less fresh
+      oiAdj += 4;
     }} else {{
-      oiAdj -= 8;   // Spot below Max PE floor — support broken, bad for bulls
+      oiAdj -= 8;
     }}
     if (distBelowMaxCE > 200) {{
-      oiAdj += 5;   // Lots of room before hitting CE wall — bulls can run
+      oiAdj += 5;
     }} else if (distBelowMaxCE < 100) {{
-      oiAdj -= 7;   // Very close to CE resistance wall — upside blocked
+      oiAdj -= 7;
     }}
   }} else if (cat === "bearish") {{
     if (distBelowMaxCE > 0 && distBelowMaxCE < 150) {{
-      oiAdj += 8;   // Spot just below Max CE wall — resistance holding
+      oiAdj += 8;
     }} else if (distBelowMaxCE > 150) {{
-      oiAdj += 4;   // Well below CE wall — bearish but less fresh
+      oiAdj += 4;
     }} else {{
-      oiAdj -= 8;   // Spot above Max CE — resistance broken, bad for bears
+      oiAdj -= 8;
     }}
     if (distAboveMaxPE > 200) {{
-      oiAdj += 5;   // Lots of room before hitting PE floor — bears can fall
+      oiAdj += 5;
     }} else if (distAboveMaxPE < 100) {{
-      oiAdj -= 7;   // Near PE floor — downside limited
+      oiAdj -= 7;
     }}
   }} else {{
-    // Non-directional: best when trapped between walls
     if (distAboveMaxPE > 0 && distBelowMaxCE > 0) {{
       const oiRange = maxCE - maxPE || 200;
       const midOI = (maxPE + maxCE) / 2;
       const distFromOIMid = Math.abs(spot - midOI);
       if (distFromOIMid < oiRange * 0.3) {{
-        oiAdj = 10;  // Spot in middle of OI walls — perfect for ND
+        oiAdj = 10;
       }} else {{
         oiAdj = 4;
       }}
     }} else {{
-      oiAdj = -5;   // Outside OI walls — directional move underway
+      oiAdj = -5;
     }}
   }}
 
-  // ---- [D] PCR WEIGHT ----
   let pcrAdj = 0;
   if (cat === "bullish") {{
     pcrAdj = pcr > 1.5 ? 8 : pcr > 1.2 ? 6 : pcr > 1.0 ? 3 : pcr < 0.7 ? -8 : pcr < 0.9 ? -4 : 0;
   }} else if (cat === "bearish") {{
     pcrAdj = pcr < 0.5 ? 8 : pcr < 0.7 ? 6 : pcr < 0.9 ? 3 : pcr > 1.3 ? -8 : pcr > 1.1 ? -4 : 0;
   }} else {{
-    // ND: balanced PCR is best
     pcrAdj = (pcr >= 0.85 && pcr <= 1.15) ? 6 : (pcr >= 0.7 && pcr <= 1.3) ? 3 : -4;
   }}
 
-  // ---- STRATEGY-SPECIFIC FINE TUNING ----
   let stratAdj = 0;
-  // Spreads work better in mid-range; naked options need clear direction
   if (shape.includes('spread') || shape.includes('condor') || shape.includes('butterfly')) {{
-    stratAdj = 2; // Defined risk = slightly higher PoP comfort
+    stratAdj = 2;
   }}
   if (shape === 'short_straddle' || shape === 'short_strangle') {{
-    // Need low volatility + range-bound — penalize trending markets
     stratAdj = bias === 'SIDEWAYS' ? 8 : -10;
   }}
   if (shape === 'long_straddle' || shape === 'long_strangle') {{
-    // Need big move — reward trending markets
     stratAdj = bias === 'SIDEWAYS' ? -8 : 8;
   }}
   if ((shape === 'short_iron_condor' || shape === 'short_iron_fly') && bias === 'SIDEWAYS') {{
-    stratAdj = 10; // Perfect for sideways
+    stratAdj = 10;
   }}
 
   const rawPoP = 50 + biasAdj + srAdj + oiAdj + pcrAdj + stratAdj;
@@ -1569,9 +1540,6 @@ function smartPoP(shape, cat) {{
   }};
 }}
 
-// ============================================================
-//  STANDARD METRICS CALCULATOR (unchanged logic, lot size 65)
-// ============================================================
 function normCDF(x) {{
   const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
   const sign=x<0?-1:1; x=Math.abs(x);
@@ -1720,12 +1688,10 @@ function popBadgeStyle(pop) {{
 
 function initAllCards() {{
   let topPop=0, topName='', topCat='';
-  // Collect all factor values once for the legend
   const bullEx = smartPoP('bull_put_spread','bullish');
   const bearEx = smartPoP('bear_call_spread','bearish');
   const ndEx   = smartPoP('short_iron_condor','nondirectional');
 
-  // Update legend
   const biasCol = OC.bias==='BULLISH'?'#00c896':OC.bias==='BEARISH'?'#ff6b6b':'#6480ff';
   const el_b = document.getElementById('legendBiasVal');
   if(el_b) {{ el_b.textContent=OC.bias+' ('+OC.biasConf+')'; el_b.style.color=biasCol; }}
@@ -1769,7 +1735,6 @@ function initAllCards() {{
     }}catch(e){{card.dataset.pop=0;if(badge)badge.textContent='—%';}}
   }});
 
-  // Show top recommendation
   const el_rec = document.getElementById('legendRecVal');
   if(el_rec && topName) {{
     const recCol = topCat==='bullish'?'#00c896':topCat==='bearish'?'#ff6b6b':'#6480ff';
@@ -1872,7 +1837,7 @@ def build_ticker_bar(tech, oc, vix_data):
 
 
 # =================================================================
-#  SECTION 8 -- CSS (same as v17)
+#  SECTION 8 -- CSS
 # =================================================================
 
 CSS = """
@@ -2278,7 +2243,7 @@ def build_greeks_script_html(oc_analysis):
 def generate_html(tech, oc, md, ts, vix_data=None):
     oi_html        = build_oi_html(oc)               if oc   else ""
     kl_html        = build_key_levels_html(tech, oc) if tech else ""
-    strat_html     = build_strategies_html(oc, tech, md)   # <-- now passes tech + md
+    strat_html     = build_strategies_html(oc, tech, md)
     strikes_html   = build_strikes_html(oc)
     ticker_html    = build_ticker_bar(tech, oc, vix_data)
     gauge_html     = build_dual_gauge_hero(oc, tech, md, ts)
@@ -2445,6 +2410,8 @@ def main():
         print(f"\n  OK  Spot={oc_analysis['underlying']:.2f}  ATM={oc_analysis['atm_strike']}")
         print(f"      MaxCE={oc_analysis['max_ce_strike']}  MaxPE={oc_analysis['max_pe_strike']}")
         print(f"      Expiry={oc_analysis['expiry']}  PCR={oc_analysis['pcr_oi']:.3f}")
+        print(f"      CE CHG={oc_analysis['ce_chg']:+,}  PE CHG={oc_analysis['pe_chg']:+,}")
+        print(f"      CHG Bull%={oc_analysis['chg_bull_pct']}%  CHG Bear%={oc_analysis['chg_bear_pct']}%")
 
     print("\n[3/4] Fetching Technical Indicators (S/R levels)...")
     tech = get_technical_data()
@@ -2485,14 +2452,18 @@ def main():
         "max_pe":       oc_analysis["max_pe_strike"] if oc_analysis else None,
         "support":      round(tech["support"], 0)   if tech        else None,
         "resistance":   round(tech["resistance"], 0) if tech       else None,
+        "ce_chg":       oc_analysis["ce_chg"]        if oc_analysis else None,
+        "pe_chg":       oc_analysis["pe_chg"]        if oc_analysis else None,
+        "chg_bull_pct": oc_analysis["chg_bull_pct"]  if oc_analysis else None,
+        "chg_bear_pct": oc_analysis["chg_bear_pct"]  if oc_analysis else None,
     }
     with open(os.path.join("docs", "latest.json"), "w") as f:
         json.dump(meta, f, indent=2)
     print("  Saved: docs/latest.json")
     print("\n" + "=" * 65)
-    print(f"  DONE  |  v18 Smart PoP Engine Active")
+    print(f"  DONE  |  v18 CHG OI Hero Widget Active")
     print(f"  Bias: {md['bias']}  |  Confidence: {md['confidence']}")
-    print("  PoP = Base 50% + Bias + S/R Zone + OI Walls + PCR")
+    print("  Hero: CHG BULL = PE OI Change | CHG BEAR = CE OI Change")
     print("=" * 65 + "\n")
 
 
