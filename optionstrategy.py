@@ -6,6 +6,7 @@ Aurora Borealis Theme · v18 · Smart Dynamic PoP Engine
 - lotSize fixed to 65
 - Strategies ranked by smart PoP — highest PoP = best trade right now
 - FIXED v18.1: All strategy legs now show actual strike prices (3-4 leg strategies)
+- FIXED v18.2: Gauges now show OI CHANGE data (chg_bull_force / chg_bear_force)
 
 pip install curl_cffi pandas numpy yfinance pytz scipy
 """
@@ -845,17 +846,23 @@ def build_greeks_table_html(oc_analysis):
 
 # =================================================================
 #  SECTION 5B -- HERO
+# ---------------------------------------------------------------
+#  v18.2 FIX: Gauges now show OI CHANGE data
+#    CHG BULL gauge = chg_bull_force  (PE OI Change bullish force)
+#    CHG BEAR gauge = chg_bear_force  (CE OI Change bearish force)
+#  Bull/Bear % bars also now use chg_bull_pct / chg_bear_pct
 # =================================================================
 
 def build_dual_gauge_hero(oc, tech, md, ts):
     if oc:
-        total_pe_oi = oc["total_pe_oi"]; total_ce_oi = oc["total_ce_oi"]
-        bull_pct = oc["bull_pct"]; bear_pct = oc["bear_pct"]; pcr = oc["pcr_oi"]
+        # ── v18.2: use OI CHANGE forces for the gauges ──────────────
+        chg_bull = oc["chg_bull_force"]; chg_bear = oc["chg_bear_force"]
+        bull_pct = oc["chg_bull_pct"]; bear_pct = oc["chg_bear_pct"]; pcr = oc["pcr_oi"]
         oi_dir = oc["raw_oi_dir"]; oi_sig = oc["raw_oi_sig"]; oi_cls = oc["raw_oi_cls"]
-        bull_label = _fmt_oi(total_pe_oi); bear_label = _fmt_oi(total_ce_oi)
+        bull_label = _fmt_chg_oi(chg_bull); bear_label = _fmt_chg_oi(chg_bear)
         expiry = oc["expiry"]; underlying = oc["underlying"]; atm = oc["atm_strike"]; max_pain = oc["max_pain"]
     else:
-        total_pe_oi = total_ce_oi = 0; bull_pct = bear_pct = 50; pcr = 1.0
+        chg_bull = chg_bear = 0; bull_pct = bear_pct = 50; pcr = 1.0
         oi_sig = "NSE data unavailable"; oi_dir = "UNKNOWN"; oi_cls = "neutral"
         expiry = "N/A"; underlying = 0; atm = 0; max_pain = 0
         bull_label = "N/A"; bear_label = "N/A"
@@ -888,7 +895,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
       </svg>
       <div class="gauge-inner">
         <div class="g-val" style="color:#00c896;">{bull_label}</div>
-        <div class="g-lbl">OI BULL</div>
+        <div class="g-lbl">CHG BULL</div>
       </div>
     </div>
     <div class="gauge-sep"></div>
@@ -904,7 +911,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
       </svg>
       <div class="gauge-inner">
         <div class="g-val" style="color:#ff6b6b;">{bear_label}</div>
-        <div class="g-lbl">OI BEAR</div>
+        <div class="g-lbl">CHG BEAR</div>
       </div>
     </div>
   </div>
@@ -2195,7 +2202,7 @@ def generate_html(tech, oc, md, ts, vix_data=None):
   </main>
 </div>
 <footer>
-  <span>NiftyCraft · v18 · Smart PoP Engine · IST-Corrected</span>
+  <span>NiftyCraft · v18.2 · OI Change Gauges · Smart PoP Engine · IST-Corrected</span>
   <span>S/R + OI Walls + Bias + PCR · Educational Only · &copy; 2025</span>
 </footer>
 </div>
@@ -2250,7 +2257,7 @@ document.addEventListener("click",function(e){{
 def main():
     ts = ist_timestamp_str()
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — v18 · Smart PoP Engine")
+    print("  NIFTY 50 OPTIONS DASHBOARD — v18.2 · OI Change Gauges")
     print(f"  {ts}")
     print(f"  IST Date: {today_ist()}  IST Weekday: {ist_weekday()}")
     print("=" * 65)
@@ -2269,6 +2276,7 @@ def main():
         print(f"      MaxCE={oc_analysis['max_ce_strike']}  MaxPE={oc_analysis['max_pe_strike']}")
         print(f"      Expiry={oc_analysis['expiry']}  PCR={oc_analysis['pcr_oi']:.3f}")
         print(f"      CE CHG={oc_analysis['ce_chg']:+,}  PE CHG={oc_analysis['pe_chg']:+,}")
+        print(f"      CHG Bull Force={oc_analysis['chg_bull_force']:,}  CHG Bear Force={oc_analysis['chg_bear_force']:,}")
         print(f"      CHG Bull%={oc_analysis['chg_bull_pct']}%  CHG Bear%={oc_analysis['chg_bear_pct']}%")
 
     print("\n[3/4] Fetching Technical Indicators (S/R levels)...")
@@ -2281,7 +2289,7 @@ def main():
     md = compute_market_direction(tech, oc_analysis)
     print(f"  Bias={md['bias']}  Conf={md['confidence']}  Bull={md['bull']}  Bear={md['bear']}")
 
-    print("\nGenerating Smart PoP Dashboard...")
+    print("\nGenerating OI Change Gauge Dashboard...")
     html = generate_html(tech, oc_analysis, md, ts, vix_data=vix_data)
 
     os.makedirs("docs", exist_ok=True)
@@ -2291,37 +2299,40 @@ def main():
     print(f"  Saved: {out}  ({len(html)/1024:.1f} KB)")
 
     meta = {
-        "timestamp":    ts,
-        "ist_date":     str(today_ist()),
-        "ist_weekday":  ist_weekday(),
-        "bias":         md["bias"],
-        "confidence":   md["confidence"],
-        "bull":         md["bull"],
-        "bear":         md["bear"],
-        "diff":         md["diff"],
-        "price":        round(tech["price"], 2)    if tech        else None,
-        "expiry":       oc_analysis["expiry"]       if oc_analysis else None,
-        "pcr":          oc_analysis["pcr_oi"]       if oc_analysis else None,
-        "oi_dir":       oc_analysis["oi_dir"]       if oc_analysis else None,
-        "raw_oi_dir":   oc_analysis["raw_oi_dir"]   if oc_analysis else None,
-        "india_vix":    vix_data["value"]            if vix_data    else None,
-        "atm_strike":   oc_analysis["atm_strike"]   if oc_analysis else None,
-        "max_ce":       oc_analysis["max_ce_strike"] if oc_analysis else None,
-        "max_pe":       oc_analysis["max_pe_strike"] if oc_analysis else None,
-        "support":      round(tech["support"], 0)   if tech        else None,
-        "resistance":   round(tech["resistance"], 0) if tech       else None,
-        "ce_chg":       oc_analysis["ce_chg"]        if oc_analysis else None,
-        "pe_chg":       oc_analysis["pe_chg"]        if oc_analysis else None,
-        "chg_bull_pct": oc_analysis["chg_bull_pct"]  if oc_analysis else None,
-        "chg_bear_pct": oc_analysis["chg_bear_pct"]  if oc_analysis else None,
+        "timestamp":       ts,
+        "ist_date":        str(today_ist()),
+        "ist_weekday":     ist_weekday(),
+        "bias":            md["bias"],
+        "confidence":      md["confidence"],
+        "bull":            md["bull"],
+        "bear":            md["bear"],
+        "diff":            md["diff"],
+        "price":           round(tech["price"], 2)         if tech        else None,
+        "expiry":          oc_analysis["expiry"]           if oc_analysis else None,
+        "pcr":             oc_analysis["pcr_oi"]           if oc_analysis else None,
+        "oi_dir":          oc_analysis["oi_dir"]           if oc_analysis else None,
+        "raw_oi_dir":      oc_analysis["raw_oi_dir"]       if oc_analysis else None,
+        "india_vix":       vix_data["value"]               if vix_data    else None,
+        "atm_strike":      oc_analysis["atm_strike"]       if oc_analysis else None,
+        "max_ce":          oc_analysis["max_ce_strike"]    if oc_analysis else None,
+        "max_pe":          oc_analysis["max_pe_strike"]    if oc_analysis else None,
+        "support":         round(tech["support"], 0)       if tech        else None,
+        "resistance":      round(tech["resistance"], 0)    if tech        else None,
+        "ce_chg":          oc_analysis["ce_chg"]           if oc_analysis else None,
+        "pe_chg":          oc_analysis["pe_chg"]           if oc_analysis else None,
+        "chg_bull_force":  oc_analysis["chg_bull_force"]   if oc_analysis else None,
+        "chg_bear_force":  oc_analysis["chg_bear_force"]   if oc_analysis else None,
+        "chg_bull_pct":    oc_analysis["chg_bull_pct"]     if oc_analysis else None,
+        "chg_bear_pct":    oc_analysis["chg_bear_pct"]     if oc_analysis else None,
     }
     with open(os.path.join("docs", "latest.json"), "w") as f:
         json.dump(meta, f, indent=2)
     print("  Saved: docs/latest.json")
     print("\n" + "=" * 65)
-    print(f"  DONE  |  v18 CHG OI Hero Widget Active")
+    print(f"  DONE  |  v18.2 · OI Change Gauges Active")
     print(f"  Bias: {md['bias']}  |  Confidence: {md['confidence']}")
-    print("  Hero: CHG BULL = PE OI Change | CHG BEAR = CE OI Change")
+    print("  CHG BULL gauge = PE OI Change bullish force")
+    print("  CHG BEAR gauge = CE OI Change bearish force")
     print("=" * 65 + "\n")
 
 
