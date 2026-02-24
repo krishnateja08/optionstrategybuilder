@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v18 · Smart Dynamic PoP Engine
+Aurora Borealis Theme · v18.4 · Smart Dynamic PoP Engine + Holiday-Aware Expiry
 - PoP now reflects: Market Bias + Support/Resistance + Max CE/PE OI walls + PCR
 - lotSize fixed to 65
 - Strategies ranked by smart PoP — highest PoP = best trade right now
@@ -9,6 +9,8 @@ Aurora Borealis Theme · v18 · Smart Dynamic PoP Engine
 - FIXED v18.2: Gauges now show OI CHANGE data (chg_bull_force / chg_bear_force)
 - FIXED v18.3: Silent background auto-refresh — no flicker, no layout shift
                Works on both file:// and http:// protocols using hidden iframe trick
+- FIXED v18.4: Holiday-aware expiry — if Tuesday is NSE holiday, expiry moves to
+               previous trading day (Monday, then Friday if Monday also holiday)
 
 pip install curl_cffi pandas numpy yfinance pytz scipy
 """
@@ -41,6 +43,59 @@ def ist_timestamp_str():
 
 
 # =================================================================
+#  NSE MARKET HOLIDAYS 2026
+#  Source: NSE India official holiday list
+#  If Tuesday expiry falls on a holiday → move to Monday
+#  If Monday also holiday → move to Friday
+# =================================================================
+
+NSE_HOLIDAYS_2026 = {
+    # date-string: description
+    "15-Jan-2026": "Municipal Corporation Election - Maharashtra",
+    "26-Jan-2026": "Republic Day",
+    "03-Mar-2026": "Holi",
+    "26-Mar-2026": "Shri Ram Navami",
+    "31-Mar-2026": "Shri Mahavir Jayanti",
+    "03-Apr-2026": "Good Friday",
+    "14-Apr-2026": "Dr. Baba Saheb Ambedkar Jayanti",
+    "01-May-2026": "Maharashtra Day",
+    "28-May-2026": "Bakri Id",
+    "26-Jun-2026": "Muharram",
+    "14-Sep-2026": "Ganesh Chaturthi",
+    "02-Oct-2026": "Mahatma Gandhi Jayanti",
+    "20-Oct-2026": "Dussehra",
+    "10-Nov-2026": "Diwali-Balipratipada",
+    "24-Nov-2026": "Prakash Gurpurb Sri Guru Nanak Dev",
+    "25-Dec-2026": "Christmas",
+}
+
+# Convert to a set of date objects for fast lookup
+_HOLIDAY_DATES_2026 = set()
+for _ds in NSE_HOLIDAYS_2026:
+    try:
+        _HOLIDAY_DATES_2026.add(datetime.strptime(_ds, "%d-%b-%Y").date())
+    except Exception:
+        pass
+
+
+def is_nse_holiday(dt):
+    """Return True if the given date is an NSE trading holiday or weekend."""
+    if dt.weekday() >= 5:   # Saturday=5, Sunday=6
+        return True
+    return dt in _HOLIDAY_DATES_2026
+
+
+def get_prev_trading_day(dt):
+    """Return the nearest previous trading day (not holiday, not weekend)."""
+    candidate = dt - timedelta(days=1)
+    for _ in range(10):           # safety: max 10 look-back days
+        if not is_nse_holiday(candidate):
+            return candidate
+        candidate -= timedelta(days=1)
+    return candidate              # fallback (should never reach here)
+
+
+# =================================================================
 #  SECTION 1 -- NSE OPTION CHAIN FETCHER
 # =================================================================
 
@@ -67,23 +122,44 @@ class NSEOptionChain:
         return session, headers
 
     def _current_or_next_tuesday_ist(self):
-        today = today_ist()
-        wd = today.weekday()
-        if wd == 1:
-            target = today
-        elif wd < 1:
+        """
+        Find the current/next Tuesday and apply holiday adjustment:
+        - If Tuesday is an NSE holiday  → move to previous trading day
+        - Prints a clear log of the adjustment made
+        """
+        today  = today_ist()
+        wd     = today.weekday()        # Mon=0 … Sun=6
+
+        # ── Find the target Tuesday ──────────────────────────────
+        if wd == 1:                     # today IS Tuesday
+            target_tuesday = today
+        elif wd < 1:                    # Sunday/Monday — next day is Tuesday
             days_ahead = 1 - wd
-            target = today + timedelta(days=days_ahead)
+            target_tuesday = today + timedelta(days=days_ahead)
+        else:                           # Wed–Sat — skip to next week's Tuesday
+            days_ahead = (8 - wd)       # e.g. Wed(2): 8-2=6 days → next Tue
+            target_tuesday = today + timedelta(days=days_ahead)
+
+        # ── Holiday adjustment ────────────────────────────────────
+        if is_nse_holiday(target_tuesday):
+            reason = NSE_HOLIDAYS_2026.get(
+                target_tuesday.strftime("%d-%b-%Y"), "Holiday/Weekend"
+            )
+            adjusted = get_prev_trading_day(target_tuesday)
+            print(
+                f"  [Holiday] {target_tuesday.strftime('%d-%b-%Y')} is '{reason}'. "
+                f"Expiry moved to {adjusted.strftime('%d-%b-%Y')} ({adjusted.strftime('%A')})"
+            )
+            expiry_date = adjusted
         else:
-            days_ahead = (1 - wd) % 7
-            if days_ahead == 0:
-                days_ahead = 7
-            target = today + timedelta(days=days_ahead)
-        result = target.strftime("%d-%b-%Y")
-        print(f"  Computed expiry (IST): {result}")
+            expiry_date = target_tuesday
+
+        result = expiry_date.strftime("%d-%b-%Y")
+        print(f"  Computed expiry (IST, holiday-adjusted): {result}")
         return result
 
     def _fetch_available_expiries(self, session, headers):
+        """Fallback: fetch actual expiry list from NSE and pick nearest upcoming."""
         try:
             url = f"https://www.nseindia.com/api/option-chain-v3?type=Indices&symbol={self.symbol}"
             resp = session.get(url, headers=headers, impersonate="chrome", timeout=20)
@@ -95,6 +171,7 @@ class NSEOptionChain:
                         try:
                             exp_dt = datetime.strptime(exp_str, "%d-%b-%Y").date()
                             if exp_dt >= today:
+                                print(f"  Fallback expiry from NSE API: {exp_str}")
                                 return exp_str
                         except Exception:
                             continue
@@ -160,12 +237,20 @@ class NSEOptionChain:
 
     def fetch(self):
         session, headers = self._make_session()
+
+        # ── Step 1: compute holiday-adjusted expiry ───────────────
         expiry = self._current_or_next_tuesday_ist()
+
+        # ── Step 2: try to fetch with computed expiry ─────────────
         result = self._fetch_for_expiry(session, headers, expiry)
+
+        # ── Step 3: fallback — ask NSE for actual expiry list ─────
         if result is None:
+            print(f"  Computed expiry {expiry} not found on NSE. Trying API fallback...")
             real_expiry = self._fetch_available_expiries(session, headers)
             if real_expiry and real_expiry != expiry:
                 result = self._fetch_for_expiry(session, headers, real_expiry)
+
         if result is None:
             print("  ERROR: Option chain fetch failed for all expiries.")
         return result, session, headers
@@ -1909,17 +1994,6 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 
 # =================================================================
 #  SECTION 9 -- ANIMATED JS  (v18.3 — SILENT BACKGROUND REFRESH)
-#
-#  HOW IT WORKS (zero flicker, zero layout shift):
-#  ─────────────────────────────────────────────────────────────
-#  1. A hidden <iframe id="silentRefreshFrame"> is kept in the DOM.
-#  2. Every 30 s the iframe's src is pointed at index.html?_=<ts>
-#  3. When the iframe finishes loading we read its contentDocument,
-#     parse the key data elements and surgically update ONLY the
-#     changed text/attribute nodes via a micro-diff.
-#  4. The main page never navigates, never reloads, no white flash.
-#  5. Works on BOTH file:// and http:// — no fetch() needed.
-#  ─────────────────────────────────────────────────────────────
 # =================================================================
 
 ANIMATED_JS = """
@@ -1951,7 +2025,6 @@ ANIMATED_JS = """
   const TOTAL_SECS = 30;
   const R = 7, C = 2 * Math.PI * R;
 
-  // ── Countdown UI ──────────────────────────────────────────────
   function setCountdownUI(secs) {
     const numEl = document.getElementById('cdNum');
     const arcEl = document.getElementById('cdArc');
@@ -1979,17 +2052,8 @@ ANIMATED_JS = """
     setTimeout(() => { txt.textContent = ''; txt.classList.remove('updated'); }, 2500);
   }
 
-  // ── Micro-diff: patch only changed text/innerHTML ──────────────
-  // IDs to patch from the new document into the current document
   const PATCH_IDS = [
-    'heroWidget',
-    'oi',
-    'kl',
-    'strikes',
-    'greeksTable',
-    'greeksPanel',
-    'tkTrack',
-    'lastUpdatedTs'
+    'heroWidget','oi','kl','strikes','greeksTable','greeksPanel','tkTrack','lastUpdatedTs'
   ];
 
   function microDiff(newDoc) {
@@ -1998,9 +2062,7 @@ ANIMATED_JS = """
       const curEl = document.getElementById(id);
       const newEl = newDoc.getElementById(id);
       if (!curEl || !newEl) return;
-      // Compare outer HTML to detect any change
       if (curEl.innerHTML !== newEl.innerHTML) {
-        // Preserve scroll position of content area during patch
         const content = document.querySelector('.content');
         const scrollTop = content ? content.scrollTop : 0;
         curEl.innerHTML = newEl.innerHTML;
@@ -2011,12 +2073,10 @@ ANIMATED_JS = """
     return changed;
   }
 
-  // ── Hidden iframe — the silent loader ─────────────────────────
   let iframe = document.getElementById('silentRefreshFrame');
   if (!iframe) {
     iframe = document.createElement('iframe');
     iframe.id = 'silentRefreshFrame';
-    // Fully invisible, takes zero space, no interaction
     iframe.style.cssText = 'position:fixed;width:0;height:0;border:none;' +
                             'visibility:hidden;pointer-events:none;opacity:0;' +
                             'top:-9999px;left:-9999px;';
@@ -2025,49 +2085,29 @@ ANIMATED_JS = """
 
   let _lastTimestamp  = null;
   let _refreshing     = false;
-  let _iframeReady    = false;   // debounce: true once iframe has a doc to read
 
   function doSilentRefresh() {
     if (_refreshing) return;
-    _refreshing  = true;
-    _iframeReady = false;
+    _refreshing = true;
     showSpinner(true);
-
-    // Point the iframe at a cache-busted version of this page
-    // The browser loads it completely in the background — no flash
     iframe.src = 'index.html?_=' + Date.now();
   }
 
   iframe.addEventListener('load', function() {
-    // Guard: skip the very first blank load
     if (!iframe.src || iframe.src === 'about:blank') {
-      _refreshing = false;
-      showSpinner(false);
-      return;
+      _refreshing = false; showSpinner(false); return;
     }
     try {
       const newDoc = iframe.contentDocument || iframe.contentWindow.document;
       if (!newDoc || !newDoc.body) throw new Error('empty doc');
-
-      // Detect new data via the timestamp element
       const newTsEl = newDoc.getElementById('lastUpdatedTs');
       const newTs   = newTsEl ? newTsEl.textContent.trim() : '';
-
       if (_lastTimestamp !== null && newTs === _lastTimestamp) {
-        // No new data — skip patching
-        showSpinner(false);
-        _refreshing = false;
-        return;
+        showSpinner(false); _refreshing = false; return;
       }
       _lastTimestamp = newTs;
-
-      // Surgically update only changed sections
       const changed = microDiff(newDoc);
-
-      showSpinner(false);
-      _refreshing = false;
-
-      // Re-initialise strategy cards with fresh OC data
+      showSpinner(false); _refreshing = false;
       if (changed) {
         flashUpdated();
         setTimeout(function() {
@@ -2082,22 +2122,15 @@ ANIMATED_JS = """
               var sel = document.getElementById('greeksStrikeSelect');
               if (sel) greeksUpdateStrike(sel.value);
             }
-          } catch(e) { /* silent */ }
+          } catch(e) {}
         }, 60);
       }
     } catch(e) {
-      // file:// cross-origin restriction or other error — silent fail
-      showSpinner(false);
-      _refreshing = false;
+      showSpinner(false); _refreshing = false;
     }
-
-    // Reset iframe src to blank to free memory
-    setTimeout(function() {
-      try { iframe.src = 'about:blank'; } catch(e) {}
-    }, 500);
+    setTimeout(function() { try { iframe.src = 'about:blank'; } catch(e) {} }, 500);
   });
 
-  // ── Countdown ticker — triggers refresh at 0 ──────────────────
   let remaining = TOTAL_SECS;
   setCountdownUI(remaining);
 
@@ -2112,11 +2145,9 @@ ANIMATED_JS = """
     }
   }, 1000);
 
-  // Initial refresh ~2s after page load to get freshest data
   window.addEventListener('load', function() {
     setTimeout(doSilentRefresh, 2000);
   });
-
 })();
 </script>
 """
@@ -2241,7 +2272,7 @@ def generate_html(tech, oc, md, ts, vix_data=None):
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Nifty 50 Options Dashboard v18</title>
+<title>Nifty 50 Options Dashboard v18.4</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>{CSS}</style>
@@ -2317,12 +2348,11 @@ def generate_html(tech, oc, md, ts, vix_data=None):
   </main>
 </div>
 <footer>
-  <span>NiftyCraft &middot; v18.3 &middot; Silent Background Refresh &middot; IST-Corrected</span>
+  <span>NiftyCraft &middot; v18.4 &middot; Holiday-Aware Expiry + Silent Background Refresh</span>
   <span>S/R + OI Walls + Bias + PCR &middot; Educational Only &middot; &copy; 2025</span>
 </footer>
 </div>
 
-<!-- Silent refresh iframe — hidden, zero layout impact -->
 <iframe id="silentRefreshFrame" src="about:blank"
   style="position:fixed;width:0;height:0;border:none;visibility:hidden;
          pointer-events:none;opacity:0;top:-9999px;left:-9999px;"></iframe>
@@ -2377,10 +2407,28 @@ document.addEventListener("click",function(e){{
 def main():
     ts = ist_timestamp_str()
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — v18.3 · Silent Background Refresh")
+    print("  NIFTY 50 OPTIONS DASHBOARD — v18.4 · Holiday-Aware Expiry")
     print(f"  {ts}")
     print(f"  IST Date: {today_ist()}  IST Weekday: {ist_weekday()}")
     print("=" * 65)
+
+    # ── Print holiday check for current week ──────────────────────
+    print("\n[0/4] Holiday Awareness Check...")
+    from datetime import date as _date
+    today = today_ist()
+    wd    = today.weekday()
+    if wd <= 1:
+        days = 1 - wd
+    else:
+        days = (8 - wd)
+    this_tue = today + timedelta(days=days) if wd != 1 else today
+    if is_nse_holiday(this_tue):
+        reason = NSE_HOLIDAYS_2026.get(this_tue.strftime("%d-%b-%Y"), "Holiday")
+        prev_td = get_prev_trading_day(this_tue)
+        print(f"  ⚠ {this_tue.strftime('%d-%b-%Y')} (Tue) = {reason}")
+        print(f"  ✓ Expiry shifted to {prev_td.strftime('%d-%b-%Y')} ({prev_td.strftime('%A')})")
+    else:
+        print(f"  ✓ {this_tue.strftime('%d-%b-%Y')} (Tue) is a normal trading day. No holiday adjustment needed.")
 
     print("\n[1/4] Fetching NSE Option Chain...")
     nse = NSEOptionChain()
@@ -2409,7 +2457,7 @@ def main():
     md = compute_market_direction(tech, oc_analysis)
     print(f"  Bias={md['bias']}  Conf={md['confidence']}  Bull={md['bull']}  Bear={md['bear']}")
 
-    print("\nGenerating Silent-Refresh Dashboard...")
+    print("\nGenerating Holiday-Aware Dashboard...")
     html = generate_html(tech, oc_analysis, md, ts, vix_data=vix_data)
 
     os.makedirs("docs", exist_ok=True)
@@ -2450,10 +2498,10 @@ def main():
         json.dump(meta, f, indent=2)
     print("  Saved: docs/latest.json")
     print("\n" + "=" * 65)
-    print(f"  DONE  |  v18.3 · Silent Background Refresh Active")
+    print(f"  DONE  |  v18.4 · Holiday-Aware Expiry Active")
     print(f"  Bias: {md['bias']}  |  Confidence: {md['confidence']}")
-    print("  Refresh: Hidden iframe micro-diff — zero flicker, zero layout shift")
-    print("  Works on: file:// AND http:// — no fetch() dependency")
+    print("  Holiday list: 2026 NSE official holidays pre-loaded")
+    print("  Logic: Tuesday holiday → Monday → Friday (fallback)")
     print("=" * 65 + "\n")
 
 
