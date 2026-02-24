@@ -2088,7 +2088,7 @@ ANIMATED_JS = """
 
 (function() {
   const INTERVAL_MS = 30000;
-  let _lastBias = null, _lastPCR = null, _refreshTimer = null;
+  let _lastBias = null, _lastPCR = null, _lastCeChg = null, _lastPeChg = null, _lastTs = null, _refreshTimer = null;
   function showSpinner(on) {
     const ring = document.getElementById('refreshRing'), txt = document.getElementById('refreshStatus');
     if (ring) ring.classList.toggle('active', on);
@@ -2120,13 +2120,33 @@ ANIMATED_JS = """
     }, 50);
     return changed;
   }
+  function _dataChanged(data) {
+    // Always refresh on first load
+    if (_lastTs === null) return true;
+    // Refresh if timestamp changed (new data was generated)
+    if (data.timestamp && data.timestamp !== _lastTs) return true;
+    // Refresh if bias or PCR changed
+    if (data.bias !== _lastBias) return true;
+    if (String(data.pcr) !== String(_lastPCR)) return true;
+    // Refresh if CHG OI values changed (key for hero widget)
+    if (data.ce_chg !== undefined && String(data.ce_chg) !== String(_lastCeChg)) return true;
+    if (data.pe_chg !== undefined && String(data.pe_chg) !== String(_lastPeChg)) return true;
+    return false;
+  }
+  function _saveState(data) {
+    _lastBias  = data.bias;
+    _lastPCR   = String(data.pcr);
+    _lastCeChg = data.ce_chg !== undefined ? String(data.ce_chg) : _lastCeChg;
+    _lastPeChg = data.pe_chg !== undefined ? String(data.pe_chg) : _lastPeChg;
+    _lastTs    = data.timestamp || _lastTs;
+  }
   function silentRefresh() {
     fetch('latest.json?_=' + Date.now())
       .then(r => { if (!r.ok) throw new Error('json'); return r.json(); })
       .then(data => {
         if (window.__resetCountdown) window.__resetCountdown();
-        if (_lastBias !== null && data.bias === _lastBias && String(data.pcr) === String(_lastPCR)) { schedule(); return; }
-        _lastBias = data.bias; _lastPCR = String(data.pcr);
+        if (!_dataChanged(data)) { schedule(); return; }
+        _saveState(data);
         showSpinner(true);
         fetch('index.html?_=' + Date.now())
           .then(r => { if (!r.ok) throw new Error('html'); return r.text(); })
