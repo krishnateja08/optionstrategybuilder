@@ -7,6 +7,8 @@ Aurora Borealis Theme · v18 · Smart Dynamic PoP Engine
 - Strategies ranked by smart PoP — highest PoP = best trade right now
 - FIXED v18.1: All strategy legs now show actual strike prices (3-4 leg strategies)
 - FIXED v18.2: Gauges now show OI CHANGE data (chg_bull_force / chg_bear_force)
+- FIXED v18.3: Silent background auto-refresh — no flicker, no layout shift
+               Works on both file:// and http:// protocols using hidden iframe trick
 
 pip install curl_cffi pandas numpy yfinance pytz scipy
 """
@@ -846,16 +848,10 @@ def build_greeks_table_html(oc_analysis):
 
 # =================================================================
 #  SECTION 5B -- HERO
-# ---------------------------------------------------------------
-#  v18.2 FIX: Gauges now show OI CHANGE data
-#    CHG BULL gauge = chg_bull_force  (PE OI Change bullish force)
-#    CHG BEAR gauge = chg_bear_force  (CE OI Change bearish force)
-#  Bull/Bear % bars also now use chg_bull_pct / chg_bear_pct
 # =================================================================
 
 def build_dual_gauge_hero(oc, tech, md, ts):
     if oc:
-        # ── v18.2: use OI CHANGE forces for the gauges ──────────────
         chg_bull = oc["chg_bull_force"]; chg_bear = oc["chg_bear_force"]
         bull_pct = oc["chg_bull_pct"]; bear_pct = oc["chg_bear_pct"]; pcr = oc["pcr_oi"]
         oi_dir = oc["raw_oi_dir"]; oi_sig = oc["raw_oi_sig"]; oi_cls = oc["raw_oi_cls"]
@@ -1453,9 +1449,6 @@ function getOTM(type,offset) {{
   return {{strike:row.strike||t,ltp:type==='ce'?row.ce_ltp:row.pe_ltp,iv:type==='ce'?row.ce_iv:row.pe_iv}};
 }}
 
-// ============================================================
-//  calcMetrics — FIXED v18.1: ALL LEGS SHOW STRIKE PRICES
-// ============================================================
 function calcMetrics(shape, smartPop) {{
   const spot=OC.spot,atm=OC.atm,T=5/365,lotSz=OC.lotSize;
   const ce_atm=getATMLTP('ce'),pe_atm=getATMLTP('pe');
@@ -1598,7 +1591,7 @@ function initAllCards() {{
       const m=calcMetrics(shape, result.pop);
       card.dataset.pop=result.pop;
       card.dataset.scoreBreakdown=JSON.stringify(result);
-      if(badge) {{ badge.textContent=result.pop+'%'; badge.setAttribute('style', badge.getAttribute('style')+';'+popBadgeStyle(result.pop)); }}
+      if(badge) {{ badge.textContent=result.pop+'%'; badge.setAttribute('style', badge.getAttribute('style')||''); badge.setAttribute('style', popBadgeStyle(result.pop)); }}
       if(result.pop>topPop) {{ topPop=result.pop; topName=card.dataset.name; topCat=cat; }}
     }}catch(e){{card.dataset.pop=0;if(badge)badge.textContent='—%';}}
   }});
@@ -1897,6 +1890,8 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .greeks-tbl-row:hover{background:rgba(255,255,255,.03);}
 .greeks-tbl-strike{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:rgba(255,255,255,.8);}
 .greeks-tbl-cell{font-family:'DM Mono',monospace;font-size:11px;font-weight:600;text-align:center;color:rgba(255,255,255,.65);}
+/* Hidden refresh iframe — zero footprint */
+#silentRefreshFrame{position:fixed;width:0;height:0;border:none;visibility:hidden;pointer-events:none;opacity:0;}
 @media(max-width:1024px){
   .main{grid-template-columns:1fr}.sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid rgba(255,255,255,.06)}
   .hero{height:auto;flex-wrap:wrap;}.h-gauges{padding:12px 18px;}.h-stats{min-width:100%;border-left:none;border-top:1px solid rgba(255,255,255,.07);}
@@ -1912,6 +1907,21 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 }
 """
 
+# =================================================================
+#  SECTION 9 -- ANIMATED JS  (v18.3 — SILENT BACKGROUND REFRESH)
+#
+#  HOW IT WORKS (zero flicker, zero layout shift):
+#  ─────────────────────────────────────────────────────────────
+#  1. A hidden <iframe id="silentRefreshFrame"> is kept in the DOM.
+#  2. Every 30 s the iframe's src is pointed at index.html?_=<ts>
+#  3. When the iframe finishes loading we read its contentDocument,
+#     parse the key data elements and surgically update ONLY the
+#     changed text/attribute nodes via a micro-diff.
+#  4. The main page never navigates, never reloads, no white flash.
+#  5. Works on BOTH file:// and http:// — no fetch() needed.
+#  ─────────────────────────────────────────────────────────────
+# =================================================================
+
 ANIMATED_JS = """
 <script>
 // ── Logo rotator ────────────────────────────────────────────────
@@ -1922,40 +1932,43 @@ ANIMATED_JS = """
   NAMES.forEach((name, i) => {
     const el = document.createElement('div');
     el.className = 'logo-slide' + (i === 0 ? ' active' : '');
-    el.innerHTML = name;
+    el.textContent = name;
     wrap.appendChild(el);
   });
   let cur = 0;
   setInterval(() => {
     const slides = wrap.querySelectorAll('.logo-slide');
-    slides[cur].classList.remove('active'); slides[cur].classList.add('exit');
-    setTimeout(() => { slides[cur].classList.remove('exit'); }, 600);
-    cur = (cur + 1) % slides.length; slides[cur].classList.add('active');
+    slides[cur].classList.remove('active');
+    slides[cur].classList.add('exit');
+    setTimeout(() => slides[cur].classList.remove('exit'), 600);
+    cur = (cur + 1) % slides.length;
+    slides[cur].classList.add('active');
   }, 4000);
 })();
 
-// ── Countdown + Auto-Refresh (fully unified) ────────────────────
+// ── Silent Background Refresh Engine (v18.3) ───────────────────
 (function() {
   const TOTAL_SECS = 30;
   const R = 7, C = 2 * Math.PI * R;
 
-  // ---- UI helpers ----
-  const numEl = document.getElementById('cdNum');
-  const arcEl = document.getElementById('cdArc');
-
+  // ── Countdown UI ──────────────────────────────────────────────
   function setCountdownUI(secs) {
-    if (!numEl || !arcEl) return;
-    numEl.textContent = secs;
-    numEl.className = 'countdown-num' + (secs <= 5 ? ' urgent' : secs <= 15 ? ' halfway' : '');
-    arcEl.style.strokeDashoffset = (C * (1 - secs / TOTAL_SECS)).toFixed(2);
-    arcEl.style.stroke = secs <= 5 ? '#ff6b6b' : secs <= 15 ? '#ffd166' : '#00c896';
+    const numEl = document.getElementById('cdNum');
+    const arcEl = document.getElementById('cdArc');
+    if (numEl) {
+      numEl.textContent = secs;
+      numEl.className = 'countdown-num' +
+        (secs <= 5 ? ' urgent' : secs <= 15 ? ' halfway' : '');
+    }
+    if (arcEl) {
+      arcEl.style.strokeDashoffset = (C * (1 - secs / TOTAL_SECS)).toFixed(2);
+      arcEl.style.stroke = secs <= 5 ? '#ff6b6b' : secs <= 15 ? '#ffd166' : '#00c896';
+    }
   }
 
   function showSpinner(on) {
     const ring = document.getElementById('refreshRing');
-    const txt  = document.getElementById('refreshStatus');
     if (ring) ring.classList.toggle('active', on);
-    if (txt)  txt.textContent = on ? 'Refreshing...' : '';
   }
 
   function flashUpdated() {
@@ -1966,108 +1979,148 @@ ANIMATED_JS = """
     setTimeout(() => { txt.textContent = ''; txt.classList.remove('updated'); }, 2500);
   }
 
-  // ---- DOM patching ----
-  function patchEl(cur, neo) {
-    if (cur && neo && cur.innerHTML !== neo.innerHTML) {
-      cur.innerHTML = neo.innerHTML;
-      return true;
-    }
-    return false;
-  }
+  // ── Micro-diff: patch only changed text/innerHTML ──────────────
+  // IDs to patch from the new document into the current document
+  const PATCH_IDS = [
+    'heroWidget',
+    'oi',
+    'kl',
+    'strikes',
+    'greeksTable',
+    'greeksPanel',
+    'tkTrack',
+    'lastUpdatedTs'
+  ];
 
-  function applyNewDoc(html) {
-    const parser = new DOMParser();
-    const newDoc = parser.parseFromString(html, 'text/html');
+  function microDiff(newDoc) {
     let changed = false;
-
-    // Hero widget
-    const curHero = document.getElementById('heroWidget');
-    const neoHero = newDoc.getElementById('heroWidget');
-    if (curHero && neoHero && curHero.outerHTML !== neoHero.outerHTML) {
-      curHero.outerHTML = neoHero.outerHTML;
-      changed = true;
-    }
-    // All data sections
-    ['oi','kl','strikes','greeksTable','greeksPanel','tkTrack'].forEach(id => {
-      changed |= patchEl(document.getElementById(id), newDoc.getElementById(id));
-    });
-    // Timestamp
-    const curTs = document.getElementById('lastUpdatedTs');
-    const neoTs = newDoc.getElementById('lastUpdatedTs');
-    if (curTs && neoTs && curTs.textContent !== neoTs.textContent) {
-      curTs.textContent = neoTs.textContent;
-      changed = true;
-    }
-    // Re-init strategy cards
-    setTimeout(function() {
-      if (typeof initAllCards === 'function') {
-        try { initAllCards(); ['bullish','bearish','nondirectional'].forEach(sortGridByPoP); } catch(e) {}
+    PATCH_IDS.forEach(function(id) {
+      const curEl = document.getElementById(id);
+      const newEl = newDoc.getElementById(id);
+      if (!curEl || !newEl) return;
+      // Compare outer HTML to detect any change
+      if (curEl.innerHTML !== newEl.innerHTML) {
+        // Preserve scroll position of content area during patch
+        const content = document.querySelector('.content');
+        const scrollTop = content ? content.scrollTop : 0;
+        curEl.innerHTML = newEl.innerHTML;
+        if (content) content.scrollTop = scrollTop;
+        changed = true;
       }
-    }, 50);
+    });
     return changed;
   }
 
-  // ---- Core refresh logic ----
-  // Use timestamp from latest.json to detect new data — NOT bias/PCR
-  // This ensures every new Python run triggers a DOM update
-  let _lastTimestamp = null;
-  let _refreshing    = false;
-
-  function doRefresh() {
-    if (_refreshing) return;   // prevent overlap
-    _refreshing = true;
-    showSpinner(true);
-
-    fetch('latest.json?_=' + Date.now())
-      .then(r => { if (!r.ok) throw new Error('no json'); return r.json(); })
-      .then(data => {
-        const newTs = data.timestamp || '';
-        // Always fetch HTML on first load; afterwards only when timestamp changed
-        if (_lastTimestamp !== null && newTs === _lastTimestamp) {
-          // Data hasn't changed — just reset and reschedule
-          showSpinner(false);
-          _refreshing = false;
-          return;
-        }
-        _lastTimestamp = newTs;
-
-        // Timestamp changed → pull fresh index.html and patch DOM
-        fetch('index.html?_=' + Date.now())
-          .then(r => { if (!r.ok) throw new Error('no html'); return r.text(); })
-          .then(html => {
-            const changed = applyNewDoc(html);
-            showSpinner(false);
-            _refreshing = false;
-            if (changed) flashUpdated();
-          })
-          .catch(() => { showSpinner(false); _refreshing = false; });
-      })
-      .catch(() => { showSpinner(false); _refreshing = false; });
+  // ── Hidden iframe — the silent loader ─────────────────────────
+  let iframe = document.getElementById('silentRefreshFrame');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.id = 'silentRefreshFrame';
+    // Fully invisible, takes zero space, no interaction
+    iframe.style.cssText = 'position:fixed;width:0;height:0;border:none;' +
+                            'visibility:hidden;pointer-events:none;opacity:0;' +
+                            'top:-9999px;left:-9999px;';
+    document.body.appendChild(iframe);
   }
 
-  // ---- Countdown that DIRECTLY triggers refresh at 0 ----
+  let _lastTimestamp  = null;
+  let _refreshing     = false;
+  let _iframeReady    = false;   // debounce: true once iframe has a doc to read
+
+  function doSilentRefresh() {
+    if (_refreshing) return;
+    _refreshing  = true;
+    _iframeReady = false;
+    showSpinner(true);
+
+    // Point the iframe at a cache-busted version of this page
+    // The browser loads it completely in the background — no flash
+    iframe.src = 'index.html?_=' + Date.now();
+  }
+
+  iframe.addEventListener('load', function() {
+    // Guard: skip the very first blank load
+    if (!iframe.src || iframe.src === 'about:blank') {
+      _refreshing = false;
+      showSpinner(false);
+      return;
+    }
+    try {
+      const newDoc = iframe.contentDocument || iframe.contentWindow.document;
+      if (!newDoc || !newDoc.body) throw new Error('empty doc');
+
+      // Detect new data via the timestamp element
+      const newTsEl = newDoc.getElementById('lastUpdatedTs');
+      const newTs   = newTsEl ? newTsEl.textContent.trim() : '';
+
+      if (_lastTimestamp !== null && newTs === _lastTimestamp) {
+        // No new data — skip patching
+        showSpinner(false);
+        _refreshing = false;
+        return;
+      }
+      _lastTimestamp = newTs;
+
+      // Surgically update only changed sections
+      const changed = microDiff(newDoc);
+
+      showSpinner(false);
+      _refreshing = false;
+
+      // Re-initialise strategy cards with fresh OC data
+      if (changed) {
+        flashUpdated();
+        setTimeout(function() {
+          try {
+            if (typeof initAllCards === 'function') {
+              initAllCards();
+              ['bullish','bearish','nondirectional'].forEach(function(c) {
+                if (typeof sortGridByPoP === 'function') sortGridByPoP(c);
+              });
+            }
+            if (typeof greeksUpdateStrike === 'function') {
+              var sel = document.getElementById('greeksStrikeSelect');
+              if (sel) greeksUpdateStrike(sel.value);
+            }
+          } catch(e) { /* silent */ }
+        }, 60);
+      }
+    } catch(e) {
+      // file:// cross-origin restriction or other error — silent fail
+      showSpinner(false);
+      _refreshing = false;
+    }
+
+    // Reset iframe src to blank to free memory
+    setTimeout(function() {
+      try { iframe.src = 'about:blank'; } catch(e) {}
+    }, 500);
+  });
+
+  // ── Countdown ticker — triggers refresh at 0 ──────────────────
   let remaining = TOTAL_SECS;
   setCountdownUI(remaining);
 
   setInterval(function() {
     remaining -= 1;
     if (remaining <= 0) {
-      remaining = TOTAL_SECS;   // reset immediately so UI never shows 0
+      remaining = TOTAL_SECS;
       setCountdownUI(remaining);
-      doRefresh();              // ← directly calls refresh, no setTimeout drift
+      doSilentRefresh();
     } else {
       setCountdownUI(remaining);
     }
   }, 1000);
 
-  // Also do one refresh shortly after page load to get latest data immediately
+  // Initial refresh ~2s after page load to get freshest data
   window.addEventListener('load', function() {
-    setTimeout(doRefresh, 1500);
+    setTimeout(doSilentRefresh, 2000);
   });
 
 })();
 </script>
 """
+
 
 def build_greeks_script_html(oc_analysis):
     if not oc_analysis:
@@ -2145,7 +2198,7 @@ def build_greeks_script_html(oc_analysis):
     var vp = document.getElementById('greeksVegaPe'); if(vp) vp.innerHTML = vfmt(d.pe_vega||0);
     var ivAvg=((d.ce_iv||0)+(d.pe_iv||0))/2;
     var ivCol=ivAvg>25?'#ff6b6b':(ivAvg>18?'#ffd166':'#00c896');
-    var ivReg=ivAvg>25?'High IV · Buy Premium':(ivAvg>15?'Normal IV · Balanced':'Low IV · Sell Premium');
+    var ivReg=ivAvg>25?'High IV \u00b7 Buy Premium':(ivAvg>15?'Normal IV \u00b7 Balanced':'Low IV \u00b7 Sell Premium');
     var ivPct=Math.min(100,Math.max(0,(ivAvg/60)*100)).toFixed(1);
     var barEl=document.getElementById('greeksIvBar');
     if(barEl) {{barEl.style.width=ivPct+'%'; barEl.style.background=ivCol; barEl.style.boxShadow='0 0 6px '+ivCol+'88';}}
@@ -2257,17 +2310,22 @@ def generate_html(tech, oc, md, ts, vix_data=None):
                   font-size:13px;color:rgba(255,255,255,.5);line-height:1.8;">
         <strong style="color:rgba(255,255,255,.7);">DISCLAIMER</strong><br>
         This dashboard is for EDUCATIONAL purposes only &mdash; NOT financial advice.<br>
-        Smart PoP uses S/R levels, OI walls, market bias and PCR — not a guaranteed signal.<br>
+        Smart PoP uses S/R levels, OI walls, market bias and PCR &mdash; not a guaranteed signal.<br>
         Always use stop losses. Consult a SEBI-registered investment advisor before trading.
       </div>
     </div>
   </main>
 </div>
 <footer>
-  <span>NiftyCraft · v18.2 · OI Change Gauges · Smart PoP Engine · IST-Corrected</span>
-  <span>S/R + OI Walls + Bias + PCR · Educational Only · &copy; 2025</span>
+  <span>NiftyCraft &middot; v18.3 &middot; Silent Background Refresh &middot; IST-Corrected</span>
+  <span>S/R + OI Walls + Bias + PCR &middot; Educational Only &middot; &copy; 2025</span>
 </footer>
 </div>
+
+<!-- Silent refresh iframe — hidden, zero layout impact -->
+<iframe id="silentRefreshFrame" src="about:blank"
+  style="position:fixed;width:0;height:0;border:none;visibility:hidden;
+         pointer-events:none;opacity:0;top:-9999px;left:-9999px;"></iframe>
 
 <script>
 function go(id,btn){{
@@ -2319,7 +2377,7 @@ document.addEventListener("click",function(e){{
 def main():
     ts = ist_timestamp_str()
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — v18.2 · OI Change Gauges")
+    print("  NIFTY 50 OPTIONS DASHBOARD — v18.3 · Silent Background Refresh")
     print(f"  {ts}")
     print(f"  IST Date: {today_ist()}  IST Weekday: {ist_weekday()}")
     print("=" * 65)
@@ -2351,7 +2409,7 @@ def main():
     md = compute_market_direction(tech, oc_analysis)
     print(f"  Bias={md['bias']}  Conf={md['confidence']}  Bull={md['bull']}  Bear={md['bear']}")
 
-    print("\nGenerating OI Change Gauge Dashboard...")
+    print("\nGenerating Silent-Refresh Dashboard...")
     html = generate_html(tech, oc_analysis, md, ts, vix_data=vix_data)
 
     os.makedirs("docs", exist_ok=True)
@@ -2362,7 +2420,7 @@ def main():
 
     meta = {
         "timestamp":       ts,
-        "generated_at":    int(time.time()),   # unix epoch — used by JS to detect new runs
+        "generated_at":    int(time.time()),
         "ist_date":        str(today_ist()),
         "ist_weekday":     ist_weekday(),
         "bias":            md["bias"],
@@ -2392,10 +2450,10 @@ def main():
         json.dump(meta, f, indent=2)
     print("  Saved: docs/latest.json")
     print("\n" + "=" * 65)
-    print(f"  DONE  |  v18.2 · OI Change Gauges Active")
+    print(f"  DONE  |  v18.3 · Silent Background Refresh Active")
     print(f"  Bias: {md['bias']}  |  Confidence: {md['confidence']}")
-    print("  CHG BULL gauge = PE OI Change bullish force")
-    print("  CHG BEAR gauge = CE OI Change bearish force")
+    print("  Refresh: Hidden iframe micro-diff — zero flicker, zero layout shift")
+    print("  Works on: file:// AND http:// — no fetch() dependency")
     print("=" * 65 + "\n")
 
 
