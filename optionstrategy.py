@@ -1914,6 +1914,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 
 ANIMATED_JS = """
 <script>
+// ── Logo rotator ────────────────────────────────────────────────
 (function() {
   const NAMES = ['NIFTYCRAFT','Nifty Option Strategy Builder','OI Signal Dashboard','Options Analytics Hub','PCR & Max Pain Tracker'];
   const wrap = document.getElementById('logoWrap');
@@ -1933,52 +1934,71 @@ ANIMATED_JS = """
   }, 4000);
 })();
 
+// ── Countdown + Auto-Refresh (fully unified) ────────────────────
 (function() {
-  const TOTAL = 30, R = 7, C = 2 * Math.PI * R;
-  let remaining = TOTAL, countdownTimer = null;
-  const numEl = document.getElementById('cdNum'), arcEl = document.getElementById('cdArc');
-  function updateCountdown(secs) {
+  const TOTAL_SECS = 30;
+  const R = 7, C = 2 * Math.PI * R;
+
+  // ---- UI helpers ----
+  const numEl = document.getElementById('cdNum');
+  const arcEl = document.getElementById('cdArc');
+
+  function setCountdownUI(secs) {
     if (!numEl || !arcEl) return;
     numEl.textContent = secs;
     numEl.className = 'countdown-num' + (secs <= 5 ? ' urgent' : secs <= 15 ? ' halfway' : '');
-    arcEl.style.strokeDashoffset = (C * (1 - secs / TOTAL)).toFixed(2);
+    arcEl.style.strokeDashoffset = (C * (1 - secs / TOTAL_SECS)).toFixed(2);
     arcEl.style.stroke = secs <= 5 ? '#ff6b6b' : secs <= 15 ? '#ffd166' : '#00c896';
   }
-  function startCountdown(from) {
-    clearInterval(countdownTimer); remaining = from; updateCountdown(remaining);
-    countdownTimer = setInterval(() => { remaining = Math.max(0, remaining - 1); updateCountdown(remaining); }, 1000);
-  }
-  window.__resetCountdown = function() { startCountdown(TOTAL); };
-  startCountdown(TOTAL);
-})();
 
-(function() {
-  const INTERVAL_MS = 30000;
-  let _lastBias = null, _lastPCR = null, _refreshTimer = null;
   function showSpinner(on) {
-    const ring = document.getElementById('refreshRing'), txt = document.getElementById('refreshStatus');
+    const ring = document.getElementById('refreshRing');
+    const txt  = document.getElementById('refreshStatus');
     if (ring) ring.classList.toggle('active', on);
-    if (txt) txt.textContent = on ? 'Refreshing...' : '';
+    if (txt)  txt.textContent = on ? 'Refreshing...' : '';
   }
+
   function flashUpdated() {
     const txt = document.getElementById('refreshStatus');
     if (!txt) return;
-    txt.textContent = 'Updated \u2713'; txt.classList.add('updated');
+    txt.textContent = 'Updated \u2713';
+    txt.classList.add('updated');
     setTimeout(() => { txt.textContent = ''; txt.classList.remove('updated'); }, 2500);
   }
+
+  // ---- DOM patching ----
   function patchEl(cur, neo) {
-    if (cur && neo && cur.innerHTML !== neo.innerHTML) { cur.innerHTML = neo.innerHTML; return true; }
+    if (cur && neo && cur.innerHTML !== neo.innerHTML) {
+      cur.innerHTML = neo.innerHTML;
+      return true;
+    }
     return false;
   }
+
   function applyNewDoc(html) {
-    const parser = new DOMParser(), newDoc = parser.parseFromString(html, 'text/html');
+    const parser = new DOMParser();
+    const newDoc = parser.parseFromString(html, 'text/html');
     let changed = false;
-    const curHero = document.getElementById('heroWidget'), neoHero = newDoc.getElementById('heroWidget');
-    if (curHero && neoHero && curHero.outerHTML !== neoHero.outerHTML) { curHero.outerHTML = neoHero.outerHTML; changed = true; }
-    ['oi','kl','strikes','greeksTable','greeksPanel'].forEach(id => { changed |= patchEl(document.getElementById(id), newDoc.getElementById(id)); });
-    changed |= patchEl(document.getElementById('tkTrack'), newDoc.getElementById('tkTrack'));
-    const curTs = document.getElementById('lastUpdatedTs'), neoTs = newDoc.getElementById('lastUpdatedTs');
-    if (curTs && neoTs && curTs.textContent !== neoTs.textContent) { curTs.textContent = neoTs.textContent; changed = true; }
+
+    // Hero widget
+    const curHero = document.getElementById('heroWidget');
+    const neoHero = newDoc.getElementById('heroWidget');
+    if (curHero && neoHero && curHero.outerHTML !== neoHero.outerHTML) {
+      curHero.outerHTML = neoHero.outerHTML;
+      changed = true;
+    }
+    // All data sections
+    ['oi','kl','strikes','greeksTable','greeksPanel','tkTrack'].forEach(id => {
+      changed |= patchEl(document.getElementById(id), newDoc.getElementById(id));
+    });
+    // Timestamp
+    const curTs = document.getElementById('lastUpdatedTs');
+    const neoTs = newDoc.getElementById('lastUpdatedTs');
+    if (curTs && neoTs && curTs.textContent !== neoTs.textContent) {
+      curTs.textContent = neoTs.textContent;
+      changed = true;
+    }
+    // Re-init strategy cards
     setTimeout(function() {
       if (typeof initAllCards === 'function') {
         try { initAllCards(); ['bullish','bearish','nondirectional'].forEach(sortGridByPoP); } catch(e) {}
@@ -1986,23 +2006,65 @@ ANIMATED_JS = """
     }, 50);
     return changed;
   }
-  function silentRefresh() {
+
+  // ---- Core refresh logic ----
+  // Use timestamp from latest.json to detect new data — NOT bias/PCR
+  // This ensures every new Python run triggers a DOM update
+  let _lastTimestamp = null;
+  let _refreshing    = false;
+
+  function doRefresh() {
+    if (_refreshing) return;   // prevent overlap
+    _refreshing = true;
+    showSpinner(true);
+
     fetch('latest.json?_=' + Date.now())
-      .then(r => { if (!r.ok) throw new Error('json'); return r.json(); })
+      .then(r => { if (!r.ok) throw new Error('no json'); return r.json(); })
       .then(data => {
-        if (window.__resetCountdown) window.__resetCountdown();
-        if (_lastBias !== null && data.bias === _lastBias && String(data.pcr) === String(_lastPCR)) { schedule(); return; }
-        _lastBias = data.bias; _lastPCR = String(data.pcr);
-        showSpinner(true);
+        const newTs = data.timestamp || '';
+        // Always fetch HTML on first load; afterwards only when timestamp changed
+        if (_lastTimestamp !== null && newTs === _lastTimestamp) {
+          // Data hasn't changed — just reset and reschedule
+          showSpinner(false);
+          _refreshing = false;
+          return;
+        }
+        _lastTimestamp = newTs;
+
+        // Timestamp changed → pull fresh index.html and patch DOM
         fetch('index.html?_=' + Date.now())
-          .then(r => { if (!r.ok) throw new Error('html'); return r.text(); })
-          .then(html => { const changed = applyNewDoc(html); showSpinner(false); if (changed) flashUpdated(); schedule(); })
-          .catch(() => { showSpinner(false); schedule(); });
+          .then(r => { if (!r.ok) throw new Error('no html'); return r.text(); })
+          .then(html => {
+            const changed = applyNewDoc(html);
+            showSpinner(false);
+            _refreshing = false;
+            if (changed) flashUpdated();
+          })
+          .catch(() => { showSpinner(false); _refreshing = false; });
       })
-      .catch(() => { if (window.__resetCountdown) window.__resetCountdown(); schedule(); });
+      .catch(() => { showSpinner(false); _refreshing = false; });
   }
-  function schedule() { clearTimeout(_refreshTimer); _refreshTimer = setTimeout(silentRefresh, INTERVAL_MS); }
-  window.addEventListener('load', function() { schedule(); });
+
+  // ---- Countdown that DIRECTLY triggers refresh at 0 ----
+  let remaining = TOTAL_SECS;
+  setCountdownUI(remaining);
+
+  setInterval(function() {
+    remaining -= 1;
+    if (remaining <= 0) {
+      remaining = TOTAL_SECS;   // reset immediately so UI never shows 0
+      setCountdownUI(remaining);
+      doRefresh();              // ← directly calls refresh, no setTimeout drift
+    } else {
+      setCountdownUI(remaining);
+    }
+  }, 1000);
+
+  // Also do one refresh shortly after page load to get latest data immediately
+  window.addEventListener('load', function() {
+    setTimeout(doRefresh, 1500);
+  });
+
 })();
 </script>
 """
@@ -2300,6 +2362,7 @@ def main():
 
     meta = {
         "timestamp":       ts,
+        "generated_at":    int(time.time()),   # unix epoch — used by JS to detect new runs
         "ist_date":        str(today_ist()),
         "ist_weekday":     ist_weekday(),
         "bias":            md["bias"],
