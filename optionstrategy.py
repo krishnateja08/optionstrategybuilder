@@ -1545,9 +1545,9 @@ function calcMetrics(shape, smartPop) {{
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#00c8e0'}}];break;}}
     case 'long_put':{{const p=pe_atm||150;mp=999999;ml=p*lotSz;be=[atm-p];nc=-p*lotSz;margin=p*lotSz;
       ltpParts=[{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#ff9090'}}];break;}}
-    case 'short_put':{{const p=pe_atm||150;mp=p*lotSz;ml=(atm-p)*lotSz;be=[atm-p];nc=p*lotSz;margin=atm*lotSz*0.15;rrRatio=((atm-p)/p).toFixed(2);
+    margin=atm*lotSz*0.10*1.5;
       ltpParts=[{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#ff9090'}}];break;}}
-    case 'short_call':{{const p=ce_atm||150;mp=p*lotSz;ml=999999;be=[atm+p];nc=p*lotSz;margin=atm*lotSz*0.15;
+    margin=atm*lotSz*0.10*1.5;
       ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#00c8e0'}}];break;}}
     case 'bull_call_spread':{{const bp=ce_atm||150,sp=co1.ltp||80,nd=bp-sp,sw=co1.strike-atm;mp=(sw-nd)*lotSz;ml=nd*lotSz;be=[atm+nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((sw-nd)/nd).toFixed(2);
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:bp,c:'#00c8e0'}},{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sp,c:'#ff9090'}}];break;}}
@@ -1559,27 +1559,27 @@ function calcMetrics(shape, smartPop) {{
       ltpParts=[{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:bp,c:'#ff9090'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#00c896'}}];break;}}
     case 'long_straddle':{{const cp2=ce_atm||150,pp=pe_atm||150,tp=cp2+pp;mp=999999;ml=tp*lotSz;be=[atm-tp,atm+tp];nc=-tp*lotSz;margin=tp*lotSz;
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
-    case 'short_straddle':{{const cp2=ce_atm||150,pp=pe_atm||150,tp=cp2+pp;mp=tp*lotSz;ml=999999;be=[atm-tp,atm+tp];nc=tp*lotSz;margin=atm*lotSz*0.25;
+    margin=atm*lotSz*0.10*2.2;
       ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
     case 'long_strangle':{{const cp2=co1.ltp||100,pp=po1.ltp||100,tp=cp2+pp;mp=999999;ml=tp*lotSz;be=[po1.strike-tp,co1.strike+tp];nc=-tp*lotSz;margin=tp*lotSz;
       ltpParts=[{{l:'BUY CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
-    case 'short_strangle':{{const cp2=co1.ltp||100,pp=po1.ltp||100,tp=cp2+pp;mp=tp*lotSz;ml=999999;be=[po1.strike-tp,co1.strike+tp];nc=tp*lotSz;margin=atm*lotSz*0.20;
+    margin=atm*lotSz*0.10*1.8;
       ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
-    case 'short_iron_condor':{{const sc=co1.ltp||100,bc=co2.ltp||50,sp=po1.ltp||100,bp=po2.ltp||50,nc2=sc-bc+sp-bp;mp=nc2*lotSz;ml=(50-nc2)*lotSz;be=[po1.strike-nc2,co1.strike+nc2];nc=nc2*lotSz;margin=50*lotSz*2;rrRatio=(nc2/(50-nc2)).toFixed(2);
+    margin=Math.max(atm*lotSz*0.10*1.8-(co2.strike-co1.strike)*lotSz*2,atm*lotSz*0.03);
       ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sc,c:'#00c8e0'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:bc,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#ff9090'}},{{l:'BUY PE \u20b9'+po2.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}}];break;}}
     case 'long_iron_condor':{{const sc=co1.ltp||100,bc=co2.ltp||50,sp=po1.ltp||100,bp=po2.ltp||50,nd=bc-sc+bp-sp;mp=(50-Math.abs(nd))*lotSz;ml=Math.abs(nd)*lotSz;be=[po1.strike-Math.abs(nd),co1.strike+Math.abs(nd)];nc=nd*lotSz;margin=Math.abs(nd)*lotSz;rrRatio=((50-Math.abs(nd))/Math.abs(nd)).toFixed(2);
       ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sc,c:'#00c8e0'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:bc,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#ff9090'}},{{l:'BUY PE \u20b9'+po2.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}}];break;}}
-    case 'short_iron_fly':{{const cp2=ce_atm||150,pp=pe_atm||150,wc=co1.ltp||80,wp=po1.ltp||80,nc2=cp2+pp-wc-wp;mp=nc2*lotSz;ml=(50-nc2)*lotSz;be=[atm-nc2,atm+nc2];nc=nc2*lotSz;margin=50*lotSz*2;rrRatio=(nc2/(50-nc2)).toFixed(2);
+    margin=Math.max(atm*lotSz*0.10*2.2-(co1.strike-atm)*lotSz*2,atm*lotSz*0.035);
       ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}},{{l:'BUY CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:wc,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:wp,c:'#ff9090'}}];break;}}
     case 'long_iron_fly':{{const cp2=ce_atm||150,pp=pe_atm||150,wc=co1.ltp||80,wp=po1.ltp||80,nd=wc+wp-cp2-pp;mp=(50-Math.abs(nd))*lotSz;ml=Math.abs(nd)*lotSz;be=[atm-Math.abs(nd),atm+Math.abs(nd)];nc=-Math.abs(nd)*lotSz;margin=Math.abs(nd)*lotSz;rrRatio=((50-Math.abs(nd))/Math.abs(nd)).toFixed(2);
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}},{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:wc,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:wp,c:'#ff9090'}}];break;}}
-    case 'call_ratio_back':{{const sp=ce_atm||150,bp=co1.ltp||80,nd=2*bp-sp;mp=999999;ml=nd>0?nd*lotSz:0;be=[co1.strike+bp];nc=-nd*lotSz;margin=co1.strike*lotSz*0.15;
+    margin=atm*lotSz*0.10*1.2;
       ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:sp,c:'#00c896'}},{{l:'BUY 2x CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:bp,c:'#00c8e0'}}];break;}}
-    case 'put_ratio_back':{{const sp=pe_atm||150,bp=po1.ltp||80,nd=2*bp-sp;mp=999999;ml=nd>0?nd*lotSz:0;be=[po1.strike-bp];nc=-nd*lotSz;margin=po1.strike*lotSz*0.15;
+    margin=atm*lotSz*0.10*1.2;
       ltpParts=[{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:sp,c:'#00c896'}},{{l:'BUY 2x PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}}];break;}}
-    case 'long_synthetic':{{const cp2=ce_atm||150,pp=pe_atm||150,nd=cp2-pp;mp=999999;ml=999999;be=[atm+nd];nc=-Math.abs(nd)*lotSz;margin=atm*lotSz*0.30;
+    margin=atm*lotSz*0.15;
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
-    case 'short_synthetic':{{const cp2=ce_atm||150,pp=pe_atm||150,nc2=cp2-pp;mp=999999;ml=999999;be=[atm+nc2];nc=Math.abs(nc2)*lotSz;margin=atm*lotSz*0.30;
+    margin=atm*lotSz*0.15;
       ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
     case 'call_butterfly': case 'bull_butterfly':{{const lp=ce_atm||150,mp2=co1.ltp||80,hp=co2.ltp||40,nd=lp-2*mp2+hp;mp=(50-nd)*lotSz;ml=nd*lotSz;be=[atm+nd,co2.strike-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd)/nd).toFixed(2);
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:lp,c:'#00c8e0'}},{{l:'SELL 2x CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:mp2,c:'#00c896'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:hp,c:'#00c8e0'}}];break;}}
@@ -1589,9 +1589,9 @@ function calcMetrics(shape, smartPop) {{
       ltpParts=[{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:pp,c:'#ff9090'}},{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cs,c:'#00c8e0'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:cb,c:'#00c8e0'}}];break;}}
     case 'reverse_jade':{{const cp2=co1.ltp||100,ps=po1.ltp||80,pb=po2.ltp||40,nc2=cp2+ps-pb;mp=nc2*lotSz;ml=(co1.strike-nc2)*lotSz;be=[co1.strike+nc2];nc=nc2*lotSz;margin=co1.strike*lotSz*0.15;
       ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:ps,c:'#ff9090'}},{{l:'BUY PE \u20b9'+po2.strike.toLocaleString('en-IN'),v:pb,c:'#ff9090'}}];break;}}
-    case 'bull_condor': case 'bear_condor':{{const s1=shape==='bull_condor'?ce_atm:pe_atm,s2=shape==='bull_condor'?co1.ltp:po1.ltp,s3=s2*0.7,s4=s2*0.4,nc2=(s1-s2)-(s3-s4);mp=nc2*lotSz;ml=(50-nc2)*lotSz;be=[atm+nc2];nc=nc2*lotSz;margin=100*lotSz;rrRatio=(nc2/(50-nc2)).toFixed(2);
+    margin=atm*lotSz*0.10*0.40;
       ltpParts=[{{l:(shape==='bull_condor'?'BUY CE ':'BUY PE ')+'\u20b9'+atm.toLocaleString('en-IN'),v:s1,c:'#00c8e0'}},{{l:(shape==='bull_condor'?'SELL CE ':'SELL PE ')+'\u20b9'+(shape==='bull_condor'?co1:po1).strike.toLocaleString('en-IN'),v:s2,c:'#00c8e0'}},{{l:(shape==='bull_condor'?'SELL CE ':'SELL PE ')+'\u20b9'+(shape==='bull_condor'?co2:po2).strike.toLocaleString('en-IN'),v:s3,c:'#ff9090'}},{{l:(shape==='bull_condor'?'BUY CE ':'BUY PE ')+'\u20b9'+((shape==='bull_condor'?co2.strike:po2.strike)+50).toLocaleString('en-IN'),v:s4,c:'#ff9090'}}];break;}}
-    default:{{const p=ce_atm||150;mp=p*lotSz*0.5;ml=p*lotSz*0.3;be=[atm];nc=-p*0.3*lotSz;margin=p*lotSz;rrRatio=1.5;
+    margin=atm*lotSz*0.10;
       ltpParts=[{{l:'ATM \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#00c8e0'}}];}}
   }}
   const beStr=be.map(v=>'\u20b9'+Math.round(v).toLocaleString('en-IN')).join(' / ');
