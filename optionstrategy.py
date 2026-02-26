@@ -1540,57 +1540,110 @@ function calcMetrics(shape, smartPop) {{
   const co1=getOTM('ce',1),co2=getOTM('ce',2),po1=getOTM('pe',1),po2=getOTM('pe',2);
   let pop=smartPop||50, mp=0,ml=0,be=[],nc=0,margin=0,rrRatio=0;
   let ltpParts=[];
+  // ── SPAN margin helpers ──────────────────────────────────────────
+  // Naked short (index options): SPAN ~3.5% + Exposure ~1.5% = ~5% of notional
+  // Defined-risk spreads: margin = max possible loss (strike_width × lotSize)
+  // Debit strategies: margin = net premium paid (already locked in)
+  const nakedMargin = atm * lotSz * 0.05;   // ~5% of notional for single naked short
+  const sw50 = 50 * lotSz;                  // 1-step (50pt) spread max loss
+  const sw100 = 100 * lotSz;                // 2-step (100pt) spread max loss
   switch(shape) {{
+    // ── LONG (DEBIT) SINGLE LEG — margin = premium paid ──────────
     case 'long_call':{{const p=ce_atm||150;mp=999999;ml=p*lotSz;be=[atm+p];nc=-p*lotSz;margin=p*lotSz;
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#00c8e0'}}];break;}}
     case 'long_put':{{const p=pe_atm||150;mp=999999;ml=p*lotSz;be=[atm-p];nc=-p*lotSz;margin=p*lotSz;
       ltpParts=[{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#ff9090'}}];break;}}
-    case 'short_put':{{const p=pe_atm||150;mp=p*lotSz;ml=(atm-p)*lotSz;be=[atm-p];nc=p*lotSz;margin=atm*lotSz*0.15;rrRatio=((atm-p)/p).toFixed(2);
+    // ── SHORT (NAKED) SINGLE LEG — SPAN ~5% of notional ──────────
+    case 'short_put':{{const p=pe_atm||150;mp=p*lotSz;ml=(atm-p)*lotSz;be=[atm-p];nc=p*lotSz;margin=nakedMargin;rrRatio=((atm-p)/p).toFixed(2);
       ltpParts=[{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#ff9090'}}];break;}}
-    case 'short_call':{{const p=ce_atm||150;mp=p*lotSz;ml=999999;be=[atm+p];nc=p*lotSz;margin=atm*lotSz*0.15;
+    case 'short_call':{{const p=ce_atm||150;mp=p*lotSz;ml=999999;be=[atm+p];nc=p*lotSz;margin=nakedMargin;
       ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#00c8e0'}}];break;}}
-    case 'bull_call_spread':{{const bp=ce_atm||150,sp=co1.ltp||80,nd=bp-sp,sw=co1.strike-atm;mp=(sw-nd)*lotSz;ml=nd*lotSz;be=[atm+nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((sw-nd)/nd).toFixed(2);
+    // ── DEBIT SPREADS — margin = net debit paid ───────────────────
+    case 'bull_call_spread':{{const bp=ce_atm||150,sp=co1.ltp||80,nd=Math.max(bp-sp,1),sw=co1.strike-atm;mp=(sw-nd)*lotSz;ml=nd*lotSz;be=[atm+nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((sw-nd)/nd).toFixed(2);
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:bp,c:'#00c8e0'}},{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sp,c:'#ff9090'}}];break;}}
-    case 'bull_put_spread':{{const sp=pe_atm||150,bp=po1.ltp||80,nc2=sp-bp,sw=atm-po1.strike;mp=nc2*lotSz;ml=(sw-nc2)*lotSz;be=[atm-nc2];nc=nc2*lotSz;margin=sw*lotSz;rrRatio=(nc2/(sw-nc2)).toFixed(2);
-      ltpParts=[{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:sp,c:'#00c896'}},{{l:'BUY PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}}];break;}}
-    case 'bear_call_spread':{{const sp=ce_atm||150,bp=co1.ltp||80,nc2=sp-bp,sw=co1.strike-atm;mp=nc2*lotSz;ml=(sw-nc2)*lotSz;be=[atm+nc2];nc=nc2*lotSz;margin=sw*lotSz;rrRatio=(nc2/(sw-nc2)).toFixed(2);
-      ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:sp,c:'#00c896'}},{{l:'BUY CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:bp,c:'#00c8e0'}}];break;}}
-    case 'bear_put_spread':{{const bp=pe_atm||150,sp=po1.ltp||80,nd=bp-sp,sw=atm-po1.strike;mp=(sw-nd)*lotSz;ml=nd*lotSz;be=[atm-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((sw-nd)/nd).toFixed(2);
+    case 'bear_put_spread':{{const bp=pe_atm||150,sp=po1.ltp||80,nd=Math.max(bp-sp,1),sw=atm-po1.strike;mp=(sw-nd)*lotSz;ml=nd*lotSz;be=[atm-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((sw-nd)/nd).toFixed(2);
       ltpParts=[{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:bp,c:'#ff9090'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#00c896'}}];break;}}
+    // ── CREDIT SPREADS — margin = strike width × lotSize ─────────
+    case 'bull_put_spread':{{const sp=pe_atm||150,bp=po1.ltp||80,nc2=Math.max(sp-bp,0),sw=atm-po1.strike;mp=nc2*lotSz;ml=Math.max(sw-nc2,0)*lotSz;be=[atm-nc2];nc=nc2*lotSz;margin=sw*lotSz;rrRatio=(nc2/Math.max(sw-nc2,1)).toFixed(2);
+      ltpParts=[{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:sp,c:'#00c896'}},{{l:'BUY PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}}];break;}}
+    case 'bear_call_spread':{{const sp=ce_atm||150,bp=co1.ltp||80,nc2=Math.max(sp-bp,0),sw=co1.strike-atm;mp=nc2*lotSz;ml=Math.max(sw-nc2,0)*lotSz;be=[atm+nc2];nc=nc2*lotSz;margin=sw*lotSz;rrRatio=(nc2/Math.max(sw-nc2,1)).toFixed(2);
+      ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:sp,c:'#00c896'}},{{l:'BUY CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:bp,c:'#00c8e0'}}];break;}}
+    // ── LONG STRADDLE/STRANGLE — margin = total premium paid ─────
     case 'long_straddle':{{const cp2=ce_atm||150,pp=pe_atm||150,tp=cp2+pp;mp=999999;ml=tp*lotSz;be=[atm-tp,atm+tp];nc=-tp*lotSz;margin=tp*lotSz;
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
-    case 'short_straddle':{{const cp2=ce_atm||150,pp=pe_atm||150,tp=cp2+pp;mp=tp*lotSz;ml=999999;be=[atm-tp,atm+tp];nc=tp*lotSz;margin=atm*lotSz*0.25;
-      ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
     case 'long_strangle':{{const cp2=co1.ltp||100,pp=po1.ltp||100,tp=cp2+pp;mp=999999;ml=tp*lotSz;be=[po1.strike-tp,co1.strike+tp];nc=-tp*lotSz;margin=tp*lotSz;
       ltpParts=[{{l:'BUY CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
-    case 'short_strangle':{{const cp2=co1.ltp||100,pp=po1.ltp||100,tp=cp2+pp;mp=tp*lotSz;ml=999999;be=[po1.strike-tp,co1.strike+tp];nc=tp*lotSz;margin=atm*lotSz*0.20;
+    // ── SHORT STRADDLE — ~10% of notional (two naked legs with offset) ──
+    case 'short_straddle':{{const cp2=ce_atm||150,pp=pe_atm||150,tp=cp2+pp;mp=tp*lotSz;ml=999999;be=[atm-tp,atm+tp];nc=tp*lotSz;margin=atm*lotSz*0.10;
+      ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
+    // ── SHORT STRANGLE — ~8% of notional (OTM legs, lower SPAN than straddle) ──
+    case 'short_strangle':{{const cp2=co1.ltp||100,pp=po1.ltp||100,tp=cp2+pp;mp=tp*lotSz;ml=999999;be=[po1.strike-tp,co1.strike+tp];nc=tp*lotSz;margin=atm*lotSz*0.08;
       ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
-    case 'short_iron_condor':{{const sc=co1.ltp||100,bc=co2.ltp||50,sp=po1.ltp||100,bp=po2.ltp||50,nc2=sc-bc+sp-bp;mp=nc2*lotSz;ml=(50-nc2)*lotSz;be=[po1.strike-nc2,co1.strike+nc2];nc=nc2*lotSz;margin=50*lotSz*2;rrRatio=(nc2/(50-nc2)).toFixed(2);
+    // ── SHORT IRON CONDOR — margin = larger of call or put spread width ──
+    case 'short_iron_condor':{{const sc=co1.ltp||100,bc=co2.ltp||50,sp=po1.ltp||100,bp=po2.ltp||50,nc2=sc-bc+sp-bp,csw=(co2.strike-co1.strike),psw=(po1.strike-po2.strike);mp=nc2*lotSz;ml=Math.max(csw,psw,50)*lotSz-nc2*lotSz;be=[po1.strike-nc2,co1.strike+nc2];nc=nc2*lotSz;margin=Math.max(csw,psw,50)*lotSz;rrRatio=(nc2/Math.max(Math.max(csw,psw,50)-nc2,1)).toFixed(2);
       ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sc,c:'#00c8e0'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:bc,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#ff9090'}},{{l:'BUY PE \u20b9'+po2.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}}];break;}}
-    case 'long_iron_condor':{{const sc=co1.ltp||100,bc=co2.ltp||50,sp=po1.ltp||100,bp=po2.ltp||50,nd=bc-sc+bp-sp;mp=(50-Math.abs(nd))*lotSz;ml=Math.abs(nd)*lotSz;be=[po1.strike-Math.abs(nd),co1.strike+Math.abs(nd)];nc=nd*lotSz;margin=Math.abs(nd)*lotSz;rrRatio=((50-Math.abs(nd))/Math.abs(nd)).toFixed(2);
+    // ── LONG IRON CONDOR — margin = net debit paid ────────────────
+    case 'long_iron_condor':{{const sc=co1.ltp||100,bc=co2.ltp||50,sp=po1.ltp||100,bp=po2.ltp||50,nd=bc-sc+bp-sp;mp=(50-Math.abs(nd))*lotSz;ml=Math.abs(nd)*lotSz;be=[po1.strike-Math.abs(nd),co1.strike+Math.abs(nd)];nc=nd*lotSz;margin=Math.abs(nd)*lotSz;rrRatio=((50-Math.abs(nd))/Math.max(Math.abs(nd),1)).toFixed(2);
       ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sc,c:'#00c8e0'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:bc,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#ff9090'}},{{l:'BUY PE \u20b9'+po2.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}}];break;}}
-    case 'short_iron_fly':{{const cp2=ce_atm||150,pp=pe_atm||150,wc=co1.ltp||80,wp=po1.ltp||80,nc2=cp2+pp-wc-wp;mp=nc2*lotSz;ml=(50-nc2)*lotSz;be=[atm-nc2,atm+nc2];nc=nc2*lotSz;margin=50*lotSz*2;rrRatio=(nc2/(50-nc2)).toFixed(2);
+    // ── SHORT IRON FLY — margin = spread width (one side) ────────
+    case 'short_iron_fly':{{const cp2=ce_atm||150,pp=pe_atm||150,wc=co1.ltp||80,wp=po1.ltp||80,nc2=cp2+pp-wc-wp,sw2=co1.strike-atm;mp=nc2*lotSz;ml=Math.max(sw2-nc2,0)*lotSz;be=[atm-nc2,atm+nc2];nc=nc2*lotSz;margin=sw2*lotSz;rrRatio=(nc2/Math.max(sw2-nc2,1)).toFixed(2);
       ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}},{{l:'BUY CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:wc,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:wp,c:'#ff9090'}}];break;}}
-    case 'long_iron_fly':{{const cp2=ce_atm||150,pp=pe_atm||150,wc=co1.ltp||80,wp=po1.ltp||80,nd=wc+wp-cp2-pp;mp=(50-Math.abs(nd))*lotSz;ml=Math.abs(nd)*lotSz;be=[atm-Math.abs(nd),atm+Math.abs(nd)];nc=-Math.abs(nd)*lotSz;margin=Math.abs(nd)*lotSz;rrRatio=((50-Math.abs(nd))/Math.abs(nd)).toFixed(2);
+    // ── LONG IRON FLY — margin = net debit paid ───────────────────
+    case 'long_iron_fly':{{const cp2=ce_atm||150,pp=pe_atm||150,wc=co1.ltp||80,wp=po1.ltp||80,nd=wc+wp-cp2-pp;mp=(50-Math.abs(nd))*lotSz;ml=Math.abs(nd)*lotSz;be=[atm-Math.abs(nd),atm+Math.abs(nd)];nc=-Math.abs(nd)*lotSz;margin=Math.abs(nd)*lotSz;rrRatio=((50-Math.abs(nd))/Math.max(Math.abs(nd),1)).toFixed(2);
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}},{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:wc,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:wp,c:'#ff9090'}}];break;}}
-    case 'call_ratio_back':{{const sp=ce_atm||150,bp=co1.ltp||80,nd=2*bp-sp;mp=999999;ml=nd>0?nd*lotSz:0;be=[co1.strike+bp];nc=-nd*lotSz;margin=co1.strike*lotSz*0.15;
+    // ── RATIO BACK SPREADS — 1 sell + 2 buys: net debit/credit ───
+    // Margin = SPAN for the 1 naked short leg (~5%) minus buy hedge credit
+    case 'call_ratio_back':{{const sp=ce_atm||150,bp=co1.ltp||80,nd=2*bp-sp;mp=999999;ml=nd>0?nd*lotSz:0;be=[co1.strike+Math.max(nd,0)];nc=-nd*lotSz;margin=nakedMargin;
       ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:sp,c:'#00c896'}},{{l:'BUY 2x CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:bp,c:'#00c8e0'}}];break;}}
-    case 'put_ratio_back':{{const sp=pe_atm||150,bp=po1.ltp||80,nd=2*bp-sp;mp=999999;ml=nd>0?nd*lotSz:0;be=[po1.strike-bp];nc=-nd*lotSz;margin=po1.strike*lotSz*0.15;
+    case 'put_ratio_back':{{const sp=pe_atm||150,bp=po1.ltp||80,nd=2*bp-sp;mp=999999;ml=nd>0?nd*lotSz:0;be=[po1.strike-Math.max(nd,0)];nc=-nd*lotSz;margin=nakedMargin;
       ltpParts=[{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:sp,c:'#00c896'}},{{l:'BUY 2x PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}}];break;}}
-    case 'long_synthetic':{{const cp2=ce_atm||150,pp=pe_atm||150,nd=cp2-pp;mp=999999;ml=999999;be=[atm+nd];nc=-Math.abs(nd)*lotSz;margin=atm*lotSz*0.30;
+    // ── RATIO SPREADS (1 buy + 2 sells) — 1 naked short leg ──────
+    case 'call_ratio_spread':{{const bp=ce_atm||150,sp=co1.ltp||80,nc2=2*sp-bp;mp=nc2*lotSz;ml=999999;be=[atm+bp,co1.strike+(co1.strike-atm)+nc2];nc=nc2*lotSz;margin=nakedMargin;
+      ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:bp,c:'#00c8e0'}},{{l:'SELL 2x CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sp,c:'#00c896'}}];break;}}
+    case 'put_ratio_spread':{{const bp=pe_atm||150,sp=po1.ltp||80,nc2=2*sp-bp;mp=nc2*lotSz;ml=999999;be=[atm-bp,po1.strike-(po1.strike-atm)-nc2];nc=nc2*lotSz;margin=nakedMargin;
+      ltpParts=[{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:bp,c:'#ff9090'}},{{l:'SELL 2x PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#00c896'}}];break;}}
+    // ── SYNTHETIC FUTURES — ~10% of notional (futures-equivalent margin) ──
+    case 'long_synthetic':{{const cp2=ce_atm||150,pp=pe_atm||150,nd=cp2-pp;mp=999999;ml=999999;be=[atm+nd];nc=-Math.abs(nd)*lotSz;margin=atm*lotSz*0.10;
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
-    case 'short_synthetic':{{const cp2=ce_atm||150,pp=pe_atm||150,nc2=cp2-pp;mp=999999;ml=999999;be=[atm+nc2];nc=Math.abs(nc2)*lotSz;margin=atm*lotSz*0.30;
+    case 'short_synthetic':{{const cp2=ce_atm||150,pp=pe_atm||150,nc2=cp2-pp;mp=999999;ml=999999;be=[atm+nc2];nc=Math.abs(nc2)*lotSz;margin=atm*lotSz*0.10;
       ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
-    case 'call_butterfly': case 'bull_butterfly':{{const lp=ce_atm||150,mp2=co1.ltp||80,hp=co2.ltp||40,nd=lp-2*mp2+hp;mp=(50-nd)*lotSz;ml=nd*lotSz;be=[atm+nd,co2.strike-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd)/nd).toFixed(2);
+    // ── RISK REVERSAL — naked short + long hedge ──────────────────
+    case 'risk_reversal':{{const bp=po1.ltp||80,sp=co1.ltp||100,nd=bp-sp;mp=999999;ml=999999;be=[atm+nd];nc=nd<0?nd*lotSz:-nd*lotSz;margin=nakedMargin;
+      ltpParts=[{{l:'BUY PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}},{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sp,c:'#00c8e0'}}];break;}}
+    case 'range_forward':{{const bp=co1.ltp||100,sp=po1.ltp||80,nd=bp-sp;mp=999999;ml=999999;be=[atm+nd];nc=-Math.abs(nd)*lotSz;margin=nakedMargin;
+      ltpParts=[{{l:'BUY CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:bp,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#ff9090'}}];break;}}
+    // ── BUTTERFLY SPREADS — margin = net debit (limited risk) ────
+    case 'call_butterfly': case 'bull_butterfly':{{const lp=ce_atm||150,mp2=co1.ltp||80,hp=co2.ltp||40,nd=Math.max(lp-2*mp2+hp,1);mp=(50-nd)*lotSz;ml=nd*lotSz;be=[atm+nd,co2.strike-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd)/nd).toFixed(2);
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:lp,c:'#00c8e0'}},{{l:'SELL 2x CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:mp2,c:'#00c896'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:hp,c:'#00c8e0'}}];break;}}
-    case 'put_butterfly': case 'bear_butterfly':{{const hp=pe_atm||150,mp2=po1.ltp||80,lp=po2.ltp||40,nd=hp-2*mp2+lp;mp=(50-nd)*lotSz;ml=nd*lotSz;be=[po2.strike+nd,atm-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd)/nd).toFixed(2);
+    case 'put_butterfly': case 'bear_butterfly':{{const hp=pe_atm||150,mp2=po1.ltp||80,lp=po2.ltp||40,nd=Math.max(hp-2*mp2+lp,1);mp=(50-nd)*lotSz;ml=nd*lotSz;be=[po2.strike+nd,atm-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd)/nd).toFixed(2);
       ltpParts=[{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:hp,c:'#ff9090'}},{{l:'SELL 2x PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:mp2,c:'#00c896'}},{{l:'BUY PE \u20b9'+po2.strike.toLocaleString('en-IN'),v:lp,c:'#ff9090'}}];break;}}
-    case 'jade_lizard':{{const pp=po1.ltp||100,cs=co1.ltp||80,cb=co2.ltp||40,nc2=pp+cs-cb;mp=nc2*lotSz;ml=(po1.strike-nc2)*lotSz;be=[po1.strike-nc2];nc=nc2*lotSz;margin=po1.strike*lotSz*0.15;
+    // ── JADE LIZARD — short put + short call spread (no upside risk) ──
+    // Margin = put strike width (downside risk only)
+    case 'jade_lizard':{{const pp=po1.ltp||100,cs=co1.ltp||80,cb=co2.ltp||40,nc2=pp+cs-cb,sw2=po1.strike-(po1.strike-50);mp=nc2*lotSz;ml=(po1.strike-nc2)*lotSz;be=[po1.strike-nc2];nc=nc2*lotSz;margin=(po1.strike-atm+50)*lotSz;
       ltpParts=[{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:pp,c:'#ff9090'}},{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cs,c:'#00c8e0'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:cb,c:'#00c8e0'}}];break;}}
-    case 'reverse_jade':{{const cp2=co1.ltp||100,ps=po1.ltp||80,pb=po2.ltp||40,nc2=cp2+ps-pb;mp=nc2*lotSz;ml=(co1.strike-nc2)*lotSz;be=[co1.strike+nc2];nc=nc2*lotSz;margin=co1.strike*lotSz*0.15;
+    // ── REVERSE JADE LIZARD — short call + short put spread (no downside risk) ──
+    case 'reverse_jade':{{const cp2=co1.ltp||100,ps=po1.ltp||80,pb=po2.ltp||40,nc2=cp2+ps-pb,sw2=co1.strike-atm+50;mp=nc2*lotSz;ml=(co1.strike-nc2)*lotSz;be=[co1.strike+nc2];nc=nc2*lotSz;margin=sw2*lotSz;
       ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:ps,c:'#ff9090'}},{{l:'BUY PE \u20b9'+po2.strike.toLocaleString('en-IN'),v:pb,c:'#ff9090'}}];break;}}
-    case 'bull_condor': case 'bear_condor':{{const s1=shape==='bull_condor'?ce_atm:pe_atm,s2=shape==='bull_condor'?co1.ltp:po1.ltp,s3=s2*0.7,s4=s2*0.4,nc2=(s1-s2)-(s3-s4);mp=nc2*lotSz;ml=(50-nc2)*lotSz;be=[atm+nc2];nc=nc2*lotSz;margin=100*lotSz;rrRatio=(nc2/(50-nc2)).toFixed(2);
+    // ── CONDOR SPREADS — 4 legs, max-loss = outer-width × lotSize ─
+    case 'bull_condor': case 'bear_condor':{{const s1=shape==='bull_condor'?ce_atm:pe_atm,s2=shape==='bull_condor'?co1.ltp:po1.ltp,s3=s2*0.7,s4=s2*0.4,nc2=(s1-s2)-(s3-s4);mp=nc2*lotSz;ml=Math.max(50-nc2,0)*lotSz;be=[atm+nc2];nc=nc2*lotSz;margin=sw50;rrRatio=(nc2/Math.max(50-nc2,1)).toFixed(2);
       ltpParts=[{{l:(shape==='bull_condor'?'BUY CE ':'BUY PE ')+'\u20b9'+atm.toLocaleString('en-IN'),v:s1,c:'#00c8e0'}},{{l:(shape==='bull_condor'?'SELL CE ':'SELL PE ')+'\u20b9'+(shape==='bull_condor'?co1:po1).strike.toLocaleString('en-IN'),v:s2,c:'#00c8e0'}},{{l:(shape==='bull_condor'?'SELL CE ':'SELL PE ')+'\u20b9'+(shape==='bull_condor'?co2:po2).strike.toLocaleString('en-IN'),v:s3,c:'#ff9090'}},{{l:(shape==='bull_condor'?'BUY CE ':'BUY PE ')+'\u20b9'+((shape==='bull_condor'?co2.strike:po2.strike)+50).toLocaleString('en-IN'),v:s4,c:'#ff9090'}}];break;}}
+    // ── BATMAN (Double Butterfly) — sum of two butterfly debits ───
+    case 'batman':{{const lp=ce_atm||150,mp2=co1.ltp||80,hp=co2.ltp||40,nd1=Math.max(lp-2*mp2+hp,1),nd2=nd1*0.8;mp=(100-nd1-nd2)*lotSz;ml=(nd1+nd2)*lotSz;be=[atm+nd1,co2.strike-nd1];nc=-(nd1+nd2)*lotSz;margin=(nd1+nd2)*lotSz;rrRatio=((100-nd1-nd2)/(nd1+nd2)).toFixed(2);
+      ltpParts=[{{l:'BUY 2x CE \u20b9'+atm.toLocaleString('en-IN'),v:lp,c:'#00c8e0'}},{{l:'SELL 4x CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:mp2,c:'#00c896'}},{{l:'BUY 2x CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:hp,c:'#00c8e0'}}];break;}}
+    // ── DOUBLE FLY — two butterfly spreads ───────────────────────
+    case 'double_fly':{{const lp=ce_atm||150,mp2=co1.ltp||80,hp=co2.ltp||40,nd=Math.max(lp-2*mp2+hp,1)*2;mp=(50-nd/2)*lotSz*2;ml=nd*lotSz;be=[atm+nd/2,co2.strike-nd/2];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd/2)/(nd/2)).toFixed(2);
+      ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:lp,c:'#00c8e0'}},{{l:'SELL 2x CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:mp2,c:'#00c896'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:hp,c:'#00c8e0'}}];break;}}
+    // ── DOUBLE CONDOR — two condor spreads ───────────────────────
+    case 'double_condor':{{const sc=co1.ltp||100,bc=co2.ltp||50,sp=po1.ltp||100,bp=po2.ltp||50,nc2=(sc-bc+sp-bp)*1.5;mp=nc2*lotSz;ml=Math.max(sw100-nc2,0)*lotSz;be=[po1.strike-nc2,co1.strike+nc2];nc=nc2*lotSz;margin=sw100;rrRatio=(nc2/Math.max(sw100-nc2,1)).toFixed(2);
+      ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sc,c:'#00c8e0'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:bc,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#ff9090'}},{{l:'BUY PE \u20b9'+po2.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}}];break;}}
+    // ── CALENDAR SPREADS — margin = far-leg premium (dominant cost) ──
+    // Short near = margin; long far = hedge. Net ~= far premium paid
+    case 'call_calendar':{{const np=co1.ltp||80,fp=ce_atm||150,nd=Math.max(fp-np,1);mp=nd*lotSz*0.5;ml=np*lotSz;be=[atm-np,atm+np];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=(0.5).toFixed(2);
+      ltpParts=[{{l:'SELL NEAR CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:np,c:'#00c896'}},{{l:'BUY FAR CE \u20b9'+atm.toLocaleString('en-IN'),v:fp,c:'#00c8e0'}}];break;}}
+    case 'put_calendar':{{const np=po1.ltp||80,fp=pe_atm||150,nd=Math.max(fp-np,1);mp=nd*lotSz*0.5;ml=np*lotSz;be=[atm-np,atm+np];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=(0.5).toFixed(2);
+      ltpParts=[{{l:'SELL NEAR PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:np,c:'#00c896'}},{{l:'BUY FAR PE \u20b9'+atm.toLocaleString('en-IN'),v:fp,c:'#ff9090'}}];break;}}
+    case 'diagonal_calendar':{{const np=co1.ltp||80,fp=ce_atm||150,nd=Math.max(fp-np,1),sw2=co1.strike-atm;mp=nd*lotSz*0.4;ml=nd*lotSz;be=[atm+nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=(0.4).toFixed(2);
+      ltpParts=[{{l:'SELL NEAR \u20b9'+co1.strike.toLocaleString('en-IN'),v:np,c:'#00c896'}},{{l:'BUY FAR \u20b9'+atm.toLocaleString('en-IN'),v:fp,c:'#00c8e0'}}];break;}}
     default:{{const p=ce_atm||150;mp=p*lotSz*0.5;ml=p*lotSz*0.3;be=[atm];nc=-p*0.3*lotSz;margin=p*lotSz;rrRatio=1.5;
       ltpParts=[{{l:'ATM \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#00c8e0'}}];}}
   }}
@@ -1643,8 +1696,9 @@ function renderMetrics(m, scoreBreakdown) {{
     <span class="metric-val" style="color:#00c8e0;font-size:11px;">${{m.beStr}}</span></div>
     <div class="metric-row"><span class="metric-lbl">Net Credit / Debit</span>
     <span class="metric-val" style="color:${{nc}};">${{m.ncStr}}</span></div>
-    <div class="metric-row" style="border-bottom:none;"><span class="metric-lbl">Est. Margin/Premium</span>
-    <span class="metric-val" style="color:#8aa0ff;">${{m.marginStr}}</span></div>
+    <div class="metric-row" style="border-bottom:none;">
+      <span class="metric-lbl">Est. Margin/Premium<br><span style="font-size:8px;color:rgba(255,255,255,.3);font-weight:400;">~SPAN approx. Actual varies by broker</span></span>
+      <span class="metric-val" style="color:#8aa0ff;">${{m.marginStr}}</span></div>
     ${{sbHtml}}`;
 }}
 
