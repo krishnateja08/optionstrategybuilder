@@ -1718,7 +1718,57 @@ function calcMetrics(shape, smartPop) {{
   </span>`).join('<br>');
   const strikeStr='ATM \u20b9'+atm.toLocaleString('en-IN');
   return {{pop,mpStr,mlStr,rrStr,beStr,ncStr,marginStr,mpPct,strikeStr,ltpStr,
-           mpRaw:mp,mlRaw:ml,ncRaw:Math.round(nc),ncPositive:nc>=0}};
+           mpRaw:mp,mlRaw:ml,ncRaw:Math.round(nc),ncPositive:nc>=0,shape}};
+}}
+
+
+function sensibullURL(shape) {{
+  // Build Sensibull strategy builder URL with live strikes
+  // URL format: https://sensibull.com/nifty?strategy=custom&legs=...
+  // legs param: comma-separated, each leg = BUY/SELL_CE/PE_STRIKE_QTY_EXPIRY
+  // Sensibull also accepts direct strategy page links for named strategies
+  const atm=OC.atm, lot=OC.lotSize;
+  const co1s=getOTM('ce',1).strike, co2s=getOTM('ce',2).strike;
+  const po1s=getOTM('pe',1).strike, po2s=getOTM('pe',2).strike;
+
+  // Sensibull named strategy shortcuts (most accurate - uses their own calc)
+  const namedMap = {{
+    'long_call':        `https://sensibull.com/nifty?strategy=long-call&strike=${{atm}}`,
+    'long_put':         `https://sensibull.com/nifty?strategy=long-put&strike=${{atm}}`,
+    'short_call':       `https://sensibull.com/nifty?strategy=short-call&strike=${{atm}}`,
+    'short_put':        `https://sensibull.com/nifty?strategy=short-put&strike=${{atm}}`,
+    'bull_call_spread':  `https://sensibull.com/nifty?strategy=bull-call-spread&strike=${{atm}}`,
+    'bear_put_spread':   `https://sensibull.com/nifty?strategy=bear-put-spread&strike=${{atm}}`,
+    'bull_put_spread':   `https://sensibull.com/nifty?strategy=bull-put-spread&strike=${{atm}}`,
+    'bear_call_spread':  `https://sensibull.com/nifty?strategy=bear-call-spread&strike=${{atm}}`,
+    'long_straddle':    `https://sensibull.com/nifty?strategy=long-straddle&strike=${{atm}}`,
+    'short_straddle':   `https://sensibull.com/nifty?strategy=short-straddle&strike=${{atm}}`,
+    'long_strangle':    `https://sensibull.com/nifty?strategy=long-strangle&strike=${{atm}}`,
+    'short_strangle':   `https://sensibull.com/nifty?strategy=short-strangle&strike=${{atm}}`,
+    'short_iron_fly':   `https://sensibull.com/nifty?strategy=short-iron-butterfly&strike=${{atm}}`,
+    'long_iron_fly':    `https://sensibull.com/nifty?strategy=long-iron-butterfly&strike=${{atm}}`,
+    'short_iron_condor':`https://sensibull.com/nifty?strategy=short-iron-condor&strike=${{atm}}`,
+    'long_iron_condor': `https://sensibull.com/nifty?strategy=long-iron-condor&strike=${{atm}}`,
+    'call_butterfly':   `https://sensibull.com/nifty?strategy=call-butterfly&strike=${{atm}}`,
+    'put_butterfly':    `https://sensibull.com/nifty?strategy=put-butterfly&strike=${{atm}}`,
+    'call_calendar':    `https://sensibull.com/nifty?strategy=call-calendar-spread&strike=${{atm}}`,
+    'put_calendar':     `https://sensibull.com/nifty?strategy=put-calendar-spread&strike=${{atm}}`,
+    'call_ratio_spread':`https://sensibull.com/nifty?strategy=call-ratio-spread&strike=${{atm}}`,
+    'put_ratio_spread': `https://sensibull.com/nifty?strategy=put-ratio-spread&strike=${{atm}}`,
+    'call_ratio_back':  `https://sensibull.com/nifty?strategy=call-ratio-backspread&strike=${{atm}}`,
+    'put_ratio_back':   `https://sensibull.com/nifty?strategy=put-ratio-backspread&strike=${{atm}}`,
+    'long_synthetic':   `https://sensibull.com/nifty?strategy=synthetic-long&strike=${{atm}}`,
+    'short_synthetic':  `https://sensibull.com/nifty?strategy=synthetic-short&strike=${{atm}}`,
+    'risk_reversal':    `https://sensibull.com/nifty?strategy=risk-reversal&strike=${{atm}}`,
+    'jade_lizard':      `https://sensibull.com/nifty?strategy=jade-lizard&strike=${{atm}}`,
+    'reverse_jade':     `https://sensibull.com/nifty?strategy=reverse-jade-lizard&strike=${{atm}}`,
+    'diagonal_calendar':`https://sensibull.com/nifty?strategy=diagonal-spread&strike=${{atm}}`,
+    'bull_butterfly':   `https://sensibull.com/nifty?strategy=call-butterfly&strike=${{atm}}`,
+    'bear_butterfly':   `https://sensibull.com/nifty?strategy=put-butterfly&strike=${{atm}}`,
+  }};
+  if (namedMap[shape]) return namedMap[shape];
+  // Fallback: open Sensibull NIFTY options page
+  return `https://sensibull.com/nifty`;
 }}
 
 function renderMetrics(m, scoreBreakdown) {{
@@ -1759,9 +1809,23 @@ function renderMetrics(m, scoreBreakdown) {{
         <span style="display:inline-block;margin-left:4px;padding:1px 6px;border-radius:4px;font-size:8px;font-weight:700;
           background:${{MARGIN_TYPE==='MIS'?'rgba(255,209,102,.2)':'rgba(100,128,255,.2)'}};
           color:${{MARGIN_TYPE==='MIS'?'#ffd166':'#8aa0ff'}};">${{MARGIN_TYPE}}</span><br>
-        <span style="font-size:8px;color:rgba(255,209,102,.55);font-weight:400;">⚠ Indicative · Add 10-15% buffer</span>
+        <span style="font-size:8px;color:rgba(255,209,102,.55);font-weight:400;">⚠ Indicative only</span>
       </span>
       <span class="metric-val" style="color:#8aa0ff;">${{m.marginStr}}</span></div>
+    <div style="padding:8px 12px;border-top:1px solid rgba(255,255,255,.05);">
+      <a href="${{sensibullURL(m.shape)}}" target="_blank" rel="noopener"
+        style="display:flex;align-items:center;justify-content:center;gap:7px;
+               width:100%;padding:8px 0;border-radius:9px;text-decoration:none;
+               background:linear-gradient(135deg,rgba(0,180,120,.15),rgba(0,140,90,.1));
+               border:1px solid rgba(0,200,150,.3);
+               color:#00c896;font-size:11px;font-weight:700;letter-spacing:.5px;
+               transition:all .2s;"
+        onmouseover="this.style.background='linear-gradient(135deg,rgba(0,200,150,.25),rgba(0,160,100,.18))';this.style.borderColor='rgba(0,200,150,.6)'"
+        onmouseout="this.style.background='linear-gradient(135deg,rgba(0,180,120,.15),rgba(0,140,90,.1))';this.style.borderColor='rgba(0,200,150,.3)'">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        Get Exact Margin on Sensibull
+      </a>
+    </div>
     ${{sbHtml}}`;
 }}
 
