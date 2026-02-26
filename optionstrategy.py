@@ -1819,28 +1819,25 @@ window.addEventListener('load',function(){{
 // ── Multi-Expiry Switcher ─────────────────────────────────────
 const ALL_EXPIRY_DATA = {all_expiry_json};
 
-window.switchExpiry = function(exp) {
+window.switchExpiry = function(exp) {{
   let d = ALL_EXPIRY_DATA[exp];
-  // If no data for selected expiry, find next available one
-  if (!d) {
+  if (!d) {{
     const sel = document.getElementById('expiryDropdown');
-    if (sel) {
+    if (sel) {{
       const opts = Array.from(sel.options);
       const curIdx = opts.findIndex(o => o.value === exp);
-      // Search forward for next expiry with data
-      for (let i = curIdx + 1; i < opts.length; i++) {
+      for (let i = curIdx + 1; i < opts.length; i++) {{
         const nextExp = opts[i].value;
-        if (ALL_EXPIRY_DATA[nextExp]) {
-          // Auto-select it in dropdown
+        if (ALL_EXPIRY_DATA[nextExp]) {{
           sel.value = nextExp;
           exp = nextExp;
           d = ALL_EXPIRY_DATA[nextExp];
           break;
-        }
-      }
-    }
-    if (!d) return; // still no data found anywhere ahead
-  }
+        }}
+      }}
+    }}
+    if (!d) return;
+  }}
   // Update OC object with selected expiry's data
   OC.spot        = d.spot;
   OC.atm         = d.atm;
