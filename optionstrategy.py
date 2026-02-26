@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v18.5 · Smart Dynamic PoP Engine + Holiday-Aware Expiry
+Aurora Borealis Theme · v18.4 · Smart Dynamic PoP Engine + Holiday-Aware Expiry
 - PoP now reflects: Market Bias + Support/Resistance + Max CE/PE OI walls + PCR
 - lotSize fixed to 65
 - Strategies ranked by smart PoP — highest PoP = best trade right now
@@ -11,9 +11,6 @@ Aurora Borealis Theme · v18.5 · Smart Dynamic PoP Engine + Holiday-Aware Expir
                Works on both file:// and http:// protocols using hidden iframe trick
 - FIXED v18.4: Holiday-aware expiry — if Tuesday is NSE holiday, expiry moves to
                previous trading day (Monday, then Friday if Monday also holiday)
-- FIXED v18.5: LTP (per leg) display — readable card rows with colored left borders,
-               larger bold price font (15px), clear label text (10.5px), proper
-               contrast. Works for all 1–4 leg strategies. No more tiny unreadable text.
 
 pip install curl_cffi pandas numpy yfinance pytz scipy
 """
@@ -47,9 +44,13 @@ def ist_timestamp_str():
 
 # =================================================================
 #  NSE MARKET HOLIDAYS 2026
+#  Source: NSE India official holiday list
+#  If Tuesday expiry falls on a holiday → move to Monday
+#  If Monday also holiday → move to Friday
 # =================================================================
 
 NSE_HOLIDAYS_2026 = {
+    # date-string: description
     "15-Jan-2026": "Municipal Corporation Election - Maharashtra",
     "26-Jan-2026": "Republic Day",
     "03-Mar-2026": "Holi",
@@ -68,6 +69,7 @@ NSE_HOLIDAYS_2026 = {
     "25-Dec-2026": "Christmas",
 }
 
+# Convert to a set of date objects for fast lookup
 _HOLIDAY_DATES_2026 = set()
 for _ds in NSE_HOLIDAYS_2026:
     try:
@@ -77,18 +79,20 @@ for _ds in NSE_HOLIDAYS_2026:
 
 
 def is_nse_holiday(dt):
-    if dt.weekday() >= 5:
+    """Return True if the given date is an NSE trading holiday or weekend."""
+    if dt.weekday() >= 5:   # Saturday=5, Sunday=6
         return True
     return dt in _HOLIDAY_DATES_2026
 
 
 def get_prev_trading_day(dt):
+    """Return the nearest previous trading day (not holiday, not weekend)."""
     candidate = dt - timedelta(days=1)
-    for _ in range(10):
+    for _ in range(10):           # safety: max 10 look-back days
         if not is_nse_holiday(candidate):
             return candidate
         candidate -= timedelta(days=1)
-    return candidate
+    return candidate              # fallback (should never reach here)
 
 
 # =================================================================
@@ -118,17 +122,25 @@ class NSEOptionChain:
         return session, headers
 
     def _current_or_next_tuesday_ist(self):
+        """
+        Find the current/next Tuesday and apply holiday adjustment:
+        - If Tuesday is an NSE holiday  → move to previous trading day
+        - Prints a clear log of the adjustment made
+        """
         today  = today_ist()
-        wd     = today.weekday()
-        if wd == 1:
+        wd     = today.weekday()        # Mon=0 … Sun=6
+
+        # ── Find the target Tuesday ──────────────────────────────
+        if wd == 1:                     # today IS Tuesday
             target_tuesday = today
-        elif wd < 1:
+        elif wd < 1:                    # Sunday/Monday — next day is Tuesday
             days_ahead = 1 - wd
             target_tuesday = today + timedelta(days=days_ahead)
-        else:
-            days_ahead = (8 - wd)
+        else:                           # Wed–Sat — skip to next week's Tuesday
+            days_ahead = (8 - wd)       # e.g. Wed(2): 8-2=6 days → next Tue
             target_tuesday = today + timedelta(days=days_ahead)
 
+        # ── Holiday adjustment ────────────────────────────────────
         if is_nse_holiday(target_tuesday):
             reason = NSE_HOLIDAYS_2026.get(
                 target_tuesday.strftime("%d-%b-%Y"), "Holiday/Weekend"
@@ -147,6 +159,7 @@ class NSEOptionChain:
         return result
 
     def _fetch_available_expiries(self, session, headers):
+        """Fallback: fetch actual expiry list from NSE and pick nearest upcoming."""
         try:
             url = f"https://www.nseindia.com/api/option-chain-v3?type=Indices&symbol={self.symbol}"
             resp = session.get(url, headers=headers, impersonate="chrome", timeout=20)
@@ -224,13 +237,20 @@ class NSEOptionChain:
 
     def fetch(self):
         session, headers = self._make_session()
+
+        # ── Step 1: compute holiday-adjusted expiry ───────────────
         expiry = self._current_or_next_tuesday_ist()
+
+        # ── Step 2: try to fetch with computed expiry ─────────────
         result = self._fetch_for_expiry(session, headers, expiry)
+
+        # ── Step 3: fallback — ask NSE for actual expiry list ─────
         if result is None:
             print(f"  Computed expiry {expiry} not found on NSE. Trying API fallback...")
             real_expiry = self._fetch_available_expiries(session, headers)
             if real_expiry and real_expiry != expiry:
                 result = self._fetch_for_expiry(session, headers, real_expiry)
+
         if result is None:
             print("  ERROR: Option chain fetch failed for all expiries.")
         return result, session, headers
@@ -1399,8 +1419,7 @@ def build_strategies_html(oc_analysis, tech=None, md=None):
     </div>
   </div>
 
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
-  <div class="sc-tabs" style="margin-bottom:0;">
+  <div class="sc-tabs">
     <button class="sc-tab active" onclick="filterStrat('bullish',this)"
       style="border-color:#00c896;color:#00c896;background:rgba(0,200,150,.12);">
       &#9650; BULLISH <span class="sc-cnt" style="background:#00c896;">9</span>
@@ -1413,16 +1432,6 @@ def build_strategies_html(oc_analysis, tech=None, md=None):
       style="border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.5);">
       &#8596; NON-DIRECTIONAL <span class="sc-cnt" style="background:#6480ff;">20</span>
     </button>
-  </div>
-  <div style="display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:5px 8px;">
-    <span style="font-size:9px;color:rgba(255,255,255,.4);letter-spacing:1px;text-transform:uppercase;">Margin Type</span>
-    <button id="btnMIS" onclick="setMarginType('MIS')"
-      style="padding:4px 14px;border-radius:7px;border:1px solid #ffd166;background:rgba(255,209,102,.18);
-             color:#ffd166;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px;">MIS</button>
-    <button id="btnNRML" onclick="setMarginType('NRML')"
-      style="padding:4px 14px;border-radius:7px;border:1px solid rgba(255,255,255,.15);background:transparent;
-             color:rgba(255,255,255,.35);font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px;">NRML</button>
-  </div>
   </div>
   <div class="sc-grid" id="sc-grid">
     {bull_cards}{bear_cards}{nd_cards}
@@ -1451,33 +1460,6 @@ const OC={{
 
 const STRIKE_MAP={{}};
 OC.strikes.forEach(s=>{{ STRIKE_MAP[s.strike]=s; }});
-
-let MARGIN_TYPE = 'MIS';
-function setMarginType(type) {{
-  MARGIN_TYPE = type;
-  const btnMIS  = document.getElementById('btnMIS');
-  const btnNRML = document.getElementById('btnNRML');
-  if (type === 'MIS') {{
-    btnMIS.style.cssText  = 'padding:4px 14px;border-radius:7px;border:1px solid #ffd166;background:rgba(255,209,102,.18);color:#ffd166;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px;';
-    btnNRML.style.cssText = 'padding:4px 14px;border-radius:7px;border:1px solid rgba(255,255,255,.15);background:transparent;color:rgba(255,255,255,.35);font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px;';
-  }} else {{
-    btnNRML.style.cssText = 'padding:4px 14px;border-radius:7px;border:1px solid #8aa0ff;background:rgba(100,128,255,.18);color:#8aa0ff;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px;';
-    btnMIS.style.cssText  = 'padding:4px 14px;border-radius:7px;border:1px solid rgba(255,255,255,.15);background:transparent;color:rgba(255,255,255,.35);font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px;';
-  }}
-  document.querySelectorAll('.sc-card.expanded').forEach(card => {{
-    const mel = card.querySelector('.sc-metrics-live');
-    if (mel) {{
-      try {{
-        const scoreResult = smartPoP(card.dataset.shape, card.dataset.cat);
-        const m = calcMetrics(card.dataset.shape, scoreResult.pop);
-        mel.innerHTML = renderMetrics(m, scoreResult);
-      }} catch(e) {{ mel.innerHTML = '<div class="sc-loading">Could not recalculate</div>'; }}
-    }}
-  }});
-  document.querySelectorAll('.sc-card:not(.expanded) .sc-metrics-live').forEach(mel => {{
-    mel.innerHTML = '<div class="sc-loading">&#9685; Calculating metrics...</div>';
-  }});
-}}
 
 function smartPoP(shape, cat) {{
   const spot=OC.spot, pcr=OC.pcr;
@@ -1558,86 +1540,57 @@ function calcMetrics(shape, smartPop) {{
   const co1=getOTM('ce',1),co2=getOTM('ce',2),po1=getOTM('pe',1),po2=getOTM('pe',2);
   let pop=smartPop||50, mp=0,ml=0,be=[],nc=0,margin=0,rrRatio=0;
   let ltpParts=[];
-  const isMIS = (MARGIN_TYPE === 'MIS');
-  const nakedMargin    = atm * lotSz * (isMIS ? 0.056 : 0.112);
-  const straddleMargin = atm * lotSz * (isMIS ? 0.061 : 0.123);
-  const strangleMargin = atm * lotSz * (isMIS ? 0.1225: 0.1225);
-  const ironFlyMargin  = atm * lotSz * (isMIS ? 0.040 : 0.081);
-  const ironCondMargin = atm * lotSz * (isMIS ? 0.035 : 0.070);
-  const synthMargin    = atm * lotSz * (isMIS ? 0.061 : 0.123);
-  const sw50  = 50  * lotSz;
-  const sw100 = 100 * lotSz;
   switch(shape) {{
     case 'long_call':{{const p=ce_atm||150;mp=999999;ml=p*lotSz;be=[atm+p];nc=-p*lotSz;margin=p*lotSz;
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#00c8e0'}}];break;}}
     case 'long_put':{{const p=pe_atm||150;mp=999999;ml=p*lotSz;be=[atm-p];nc=-p*lotSz;margin=p*lotSz;
       ltpParts=[{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#ff9090'}}];break;}}
-    case 'short_put':{{const p=pe_atm||150;mp=p*lotSz;ml=(atm-p)*lotSz;be=[atm-p];nc=p*lotSz;margin=nakedMargin;rrRatio=((atm-p)/p).toFixed(2);
+    case 'short_put':{{const p=pe_atm||150;mp=p*lotSz;ml=(atm-p)*lotSz;be=[atm-p];nc=p*lotSz;margin=atm*lotSz*0.15;rrRatio=((atm-p)/p).toFixed(2);
       ltpParts=[{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#ff9090'}}];break;}}
-    case 'short_call':{{const p=ce_atm||150;mp=p*lotSz;ml=999999;be=[atm+p];nc=p*lotSz;margin=nakedMargin;
+    case 'short_call':{{const p=ce_atm||150;mp=p*lotSz;ml=999999;be=[atm+p];nc=p*lotSz;margin=atm*lotSz*0.15;
       ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#00c8e0'}}];break;}}
-    case 'bull_call_spread':{{const bp=ce_atm||150,sp=co1.ltp||80,nd=Math.max(bp-sp,1),sw=co1.strike-atm;mp=(sw-nd)*lotSz;ml=nd*lotSz;be=[atm+nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((sw-nd)/nd).toFixed(2);
+    case 'bull_call_spread':{{const bp=ce_atm||150,sp=co1.ltp||80,nd=bp-sp,sw=co1.strike-atm;mp=(sw-nd)*lotSz;ml=nd*lotSz;be=[atm+nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((sw-nd)/nd).toFixed(2);
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:bp,c:'#00c8e0'}},{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sp,c:'#ff9090'}}];break;}}
-    case 'bear_put_spread':{{const bp=pe_atm||150,sp=po1.ltp||80,nd=Math.max(bp-sp,1),sw=atm-po1.strike;mp=(sw-nd)*lotSz;ml=nd*lotSz;be=[atm-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((sw-nd)/nd).toFixed(2);
-      ltpParts=[{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:bp,c:'#ff9090'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#00c896'}}];break;}}
-    case 'bull_put_spread':{{const sp=pe_atm||150,bp=po1.ltp||80,nc2=Math.max(sp-bp,0),sw=atm-po1.strike;mp=nc2*lotSz;ml=Math.max(sw-nc2,0)*lotSz;be=[atm-nc2];nc=nc2*lotSz;margin=sw*lotSz;rrRatio=(nc2/Math.max(sw-nc2,1)).toFixed(2);
+    case 'bull_put_spread':{{const sp=pe_atm||150,bp=po1.ltp||80,nc2=sp-bp,sw=atm-po1.strike;mp=nc2*lotSz;ml=(sw-nc2)*lotSz;be=[atm-nc2];nc=nc2*lotSz;margin=sw*lotSz;rrRatio=(nc2/(sw-nc2)).toFixed(2);
       ltpParts=[{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:sp,c:'#00c896'}},{{l:'BUY PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}}];break;}}
-    case 'bear_call_spread':{{const sp=ce_atm||150,bp=co1.ltp||80,nc2=Math.max(sp-bp,0),sw=co1.strike-atm;mp=nc2*lotSz;ml=Math.max(sw-nc2,0)*lotSz;be=[atm+nc2];nc=nc2*lotSz;margin=sw*lotSz;rrRatio=(nc2/Math.max(sw-nc2,1)).toFixed(2);
+    case 'bear_call_spread':{{const sp=ce_atm||150,bp=co1.ltp||80,nc2=sp-bp,sw=co1.strike-atm;mp=nc2*lotSz;ml=(sw-nc2)*lotSz;be=[atm+nc2];nc=nc2*lotSz;margin=sw*lotSz;rrRatio=(nc2/(sw-nc2)).toFixed(2);
       ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:sp,c:'#00c896'}},{{l:'BUY CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:bp,c:'#00c8e0'}}];break;}}
+    case 'bear_put_spread':{{const bp=pe_atm||150,sp=po1.ltp||80,nd=bp-sp,sw=atm-po1.strike;mp=(sw-nd)*lotSz;ml=nd*lotSz;be=[atm-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((sw-nd)/nd).toFixed(2);
+      ltpParts=[{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:bp,c:'#ff9090'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#00c896'}}];break;}}
     case 'long_straddle':{{const cp2=ce_atm||150,pp=pe_atm||150,tp=cp2+pp;mp=999999;ml=tp*lotSz;be=[atm-tp,atm+tp];nc=-tp*lotSz;margin=tp*lotSz;
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
+    case 'short_straddle':{{const cp2=ce_atm||150,pp=pe_atm||150,tp=cp2+pp;mp=tp*lotSz;ml=999999;be=[atm-tp,atm+tp];nc=tp*lotSz;margin=atm*lotSz*0.25;
+      ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
     case 'long_strangle':{{const cp2=co1.ltp||100,pp=po1.ltp||100,tp=cp2+pp;mp=999999;ml=tp*lotSz;be=[po1.strike-tp,co1.strike+tp];nc=-tp*lotSz;margin=tp*lotSz;
       ltpParts=[{{l:'BUY CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
-    case 'short_straddle':{{const cp2=ce_atm||150,pp=pe_atm||150,tp=cp2+pp;mp=tp*lotSz;ml=999999;be=[atm-tp,atm+tp];nc=tp*lotSz;margin=straddleMargin;
-      ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
-    case 'short_strangle':{{const cp2=co1.ltp||100,pp=po1.ltp||100,tp=cp2+pp;mp=tp*lotSz;ml=999999;be=[po1.strike-tp,co1.strike+tp];nc=tp*lotSz;margin=strangleMargin;
+    case 'short_strangle':{{const cp2=co1.ltp||100,pp=po1.ltp||100,tp=cp2+pp;mp=tp*lotSz;ml=999999;be=[po1.strike-tp,co1.strike+tp];nc=tp*lotSz;margin=atm*lotSz*0.20;
       ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
-    case 'short_iron_condor':{{const sc=co1.ltp||100,bc=co2.ltp||50,sp=po1.ltp||100,bp=po2.ltp||50,nc2=sc-bc+sp-bp,csw=(co2.strike-co1.strike),psw=(po1.strike-po2.strike);mp=nc2*lotSz;ml=Math.max(csw,psw,50)*lotSz-nc2*lotSz;be=[po1.strike-nc2,co1.strike+nc2];nc=nc2*lotSz;margin=ironCondMargin;rrRatio=(nc2/Math.max(Math.max(csw,psw,50)-nc2,1)).toFixed(2);
+    case 'short_iron_condor':{{const sc=co1.ltp||100,bc=co2.ltp||50,sp=po1.ltp||100,bp=po2.ltp||50,nc2=sc-bc+sp-bp;mp=nc2*lotSz;ml=(50-nc2)*lotSz;be=[po1.strike-nc2,co1.strike+nc2];nc=nc2*lotSz;margin=50*lotSz*2;rrRatio=(nc2/(50-nc2)).toFixed(2);
       ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sc,c:'#00c8e0'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:bc,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#ff9090'}},{{l:'BUY PE \u20b9'+po2.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}}];break;}}
-    case 'long_iron_condor':{{const sc=co1.ltp||100,bc=co2.ltp||50,sp=po1.ltp||100,bp=po2.ltp||50,nd=bc-sc+bp-sp;mp=(50-Math.abs(nd))*lotSz;ml=Math.abs(nd)*lotSz;be=[po1.strike-Math.abs(nd),co1.strike+Math.abs(nd)];nc=nd*lotSz;margin=Math.abs(nd)*lotSz;rrRatio=((50-Math.abs(nd))/Math.max(Math.abs(nd),1)).toFixed(2);
+    case 'long_iron_condor':{{const sc=co1.ltp||100,bc=co2.ltp||50,sp=po1.ltp||100,bp=po2.ltp||50,nd=bc-sc+bp-sp;mp=(50-Math.abs(nd))*lotSz;ml=Math.abs(nd)*lotSz;be=[po1.strike-Math.abs(nd),co1.strike+Math.abs(nd)];nc=nd*lotSz;margin=Math.abs(nd)*lotSz;rrRatio=((50-Math.abs(nd))/Math.abs(nd)).toFixed(2);
       ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sc,c:'#00c8e0'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:bc,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#ff9090'}},{{l:'BUY PE \u20b9'+po2.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}}];break;}}
-    case 'short_iron_fly':{{const cp2=ce_atm||150,pp=pe_atm||150,wc=co1.ltp||80,wp=po1.ltp||80,nc2=cp2+pp-wc-wp,sw2=co1.strike-atm;mp=nc2*lotSz;ml=Math.max(sw2-nc2,0)*lotSz;be=[atm-nc2,atm+nc2];nc=nc2*lotSz;margin=ironFlyMargin;rrRatio=(nc2/Math.max(sw2-nc2,1)).toFixed(2);
+    case 'short_iron_fly':{{const cp2=ce_atm||150,pp=pe_atm||150,wc=co1.ltp||80,wp=po1.ltp||80,nc2=cp2+pp-wc-wp;mp=nc2*lotSz;ml=(50-nc2)*lotSz;be=[atm-nc2,atm+nc2];nc=nc2*lotSz;margin=50*lotSz*2;rrRatio=(nc2/(50-nc2)).toFixed(2);
       ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}},{{l:'BUY CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:wc,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:wp,c:'#ff9090'}}];break;}}
-    case 'long_iron_fly':{{const cp2=ce_atm||150,pp=pe_atm||150,wc=co1.ltp||80,wp=po1.ltp||80,nd=wc+wp-cp2-pp;mp=(50-Math.abs(nd))*lotSz;ml=Math.abs(nd)*lotSz;be=[atm-Math.abs(nd),atm+Math.abs(nd)];nc=-Math.abs(nd)*lotSz;margin=Math.abs(nd)*lotSz;rrRatio=((50-Math.abs(nd))/Math.max(Math.abs(nd),1)).toFixed(2);
+    case 'long_iron_fly':{{const cp2=ce_atm||150,pp=pe_atm||150,wc=co1.ltp||80,wp=po1.ltp||80,nd=wc+wp-cp2-pp;mp=(50-Math.abs(nd))*lotSz;ml=Math.abs(nd)*lotSz;be=[atm-Math.abs(nd),atm+Math.abs(nd)];nc=-Math.abs(nd)*lotSz;margin=Math.abs(nd)*lotSz;rrRatio=((50-Math.abs(nd))/Math.abs(nd)).toFixed(2);
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}},{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:wc,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:wp,c:'#ff9090'}}];break;}}
-    case 'call_ratio_back':{{const sp=ce_atm||150,bp=co1.ltp||80,nd=2*bp-sp;mp=999999;ml=nd>0?nd*lotSz:0;be=[co1.strike+Math.max(nd,0)];nc=-nd*lotSz;margin=nakedMargin;
+    case 'call_ratio_back':{{const sp=ce_atm||150,bp=co1.ltp||80,nd=2*bp-sp;mp=999999;ml=nd>0?nd*lotSz:0;be=[co1.strike+bp];nc=-nd*lotSz;margin=co1.strike*lotSz*0.15;
       ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:sp,c:'#00c896'}},{{l:'BUY 2x CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:bp,c:'#00c8e0'}}];break;}}
-    case 'put_ratio_back':{{const sp=pe_atm||150,bp=po1.ltp||80,nd=2*bp-sp;mp=999999;ml=nd>0?nd*lotSz:0;be=[po1.strike-Math.max(nd,0)];nc=-nd*lotSz;margin=nakedMargin;
+    case 'put_ratio_back':{{const sp=pe_atm||150,bp=po1.ltp||80,nd=2*bp-sp;mp=999999;ml=nd>0?nd*lotSz:0;be=[po1.strike-bp];nc=-nd*lotSz;margin=po1.strike*lotSz*0.15;
       ltpParts=[{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:sp,c:'#00c896'}},{{l:'BUY 2x PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}}];break;}}
-    case 'call_ratio_spread':{{const bp=ce_atm||150,sp=co1.ltp||80,nc2=2*sp-bp;mp=nc2*lotSz;ml=999999;be=[atm+bp,co1.strike+(co1.strike-atm)+nc2];nc=nc2*lotSz;margin=strangleMargin;
-      ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:bp,c:'#00c8e0'}},{{l:'SELL 2x CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sp,c:'#00c896'}}];break;}}
-    case 'put_ratio_spread':{{const bp=pe_atm||150,sp=po1.ltp||80,nc2=2*sp-bp;mp=nc2*lotSz;ml=999999;be=[atm-bp,po1.strike-(po1.strike-atm)-nc2];nc=nc2*lotSz;margin=strangleMargin;
-      ltpParts=[{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:bp,c:'#ff9090'}},{{l:'SELL 2x PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#00c896'}}];break;}}
-    case 'long_synthetic':{{const cp2=ce_atm||150,pp=pe_atm||150,nd=cp2-pp;mp=999999;ml=999999;be=[atm+nd];nc=-Math.abs(nd)*lotSz;margin=synthMargin;
+    case 'long_synthetic':{{const cp2=ce_atm||150,pp=pe_atm||150,nd=cp2-pp;mp=999999;ml=999999;be=[atm+nd];nc=-Math.abs(nd)*lotSz;margin=atm*lotSz*0.30;
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
-    case 'short_synthetic':{{const cp2=ce_atm||150,pp=pe_atm||150,nc2=cp2-pp;mp=999999;ml=999999;be=[atm+nc2];nc=Math.abs(nc2)*lotSz;margin=synthMargin;
+    case 'short_synthetic':{{const cp2=ce_atm||150,pp=pe_atm||150,nc2=cp2-pp;mp=999999;ml=999999;be=[atm+nc2];nc=Math.abs(nc2)*lotSz;margin=atm*lotSz*0.30;
       ltpParts=[{{l:'SELL CE \u20b9'+atm.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:pp,c:'#ff9090'}}];break;}}
-    case 'risk_reversal':{{const bp=po1.ltp||80,sp=co1.ltp||100,nd=bp-sp;mp=999999;ml=999999;be=[atm+nd];nc=nd<0?nd*lotSz:-nd*lotSz;margin=nakedMargin;
-      ltpParts=[{{l:'BUY PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}},{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sp,c:'#00c8e0'}}];break;}}
-    case 'range_forward':{{const bp=co1.ltp||100,sp=po1.ltp||80,nd=bp-sp;mp=999999;ml=999999;be=[atm+nd];nc=-Math.abs(nd)*lotSz;margin=nakedMargin;
-      ltpParts=[{{l:'BUY CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:bp,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#ff9090'}}];break;}}
-    case 'call_butterfly': case 'bull_butterfly':{{const lp=ce_atm||150,mp2=co1.ltp||80,hp=co2.ltp||40,nd=Math.max(lp-2*mp2+hp,1);mp=(50-nd)*lotSz;ml=nd*lotSz;be=[atm+nd,co2.strike-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd)/nd).toFixed(2);
+    case 'call_butterfly': case 'bull_butterfly':{{const lp=ce_atm||150,mp2=co1.ltp||80,hp=co2.ltp||40,nd=lp-2*mp2+hp;mp=(50-nd)*lotSz;ml=nd*lotSz;be=[atm+nd,co2.strike-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd)/nd).toFixed(2);
       ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:lp,c:'#00c8e0'}},{{l:'SELL 2x CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:mp2,c:'#00c896'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:hp,c:'#00c8e0'}}];break;}}
-    case 'put_butterfly': case 'bear_butterfly':{{const hp=pe_atm||150,mp2=po1.ltp||80,lp=po2.ltp||40,nd=Math.max(hp-2*mp2+lp,1);mp=(50-nd)*lotSz;ml=nd*lotSz;be=[po2.strike+nd,atm-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd)/nd).toFixed(2);
+    case 'put_butterfly': case 'bear_butterfly':{{const hp=pe_atm||150,mp2=po1.ltp||80,lp=po2.ltp||40,nd=hp-2*mp2+lp;mp=(50-nd)*lotSz;ml=nd*lotSz;be=[po2.strike+nd,atm-nd];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd)/nd).toFixed(2);
       ltpParts=[{{l:'BUY PE \u20b9'+atm.toLocaleString('en-IN'),v:hp,c:'#ff9090'}},{{l:'SELL 2x PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:mp2,c:'#00c896'}},{{l:'BUY PE \u20b9'+po2.strike.toLocaleString('en-IN'),v:lp,c:'#ff9090'}}];break;}}
-    case 'jade_lizard':{{const pp=po1.ltp||100,cs=co1.ltp||80,cb=co2.ltp||40,nc2=pp+cs-cb,sw2=po1.strike-(po1.strike-50);mp=nc2*lotSz;ml=(po1.strike-nc2)*lotSz;be=[po1.strike-nc2];nc=nc2*lotSz;margin=straddleMargin;
+    case 'jade_lizard':{{const pp=po1.ltp||100,cs=co1.ltp||80,cb=co2.ltp||40,nc2=pp+cs-cb;mp=nc2*lotSz;ml=(po1.strike-nc2)*lotSz;be=[po1.strike-nc2];nc=nc2*lotSz;margin=po1.strike*lotSz*0.15;
       ltpParts=[{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:pp,c:'#ff9090'}},{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cs,c:'#00c8e0'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:cb,c:'#00c8e0'}}];break;}}
-    case 'reverse_jade':{{const cp2=co1.ltp||100,ps=po1.ltp||80,pb=po2.ltp||40,nc2=cp2+ps-pb,sw2=co1.strike-atm+50;mp=nc2*lotSz;ml=(co1.strike-nc2)*lotSz;be=[co1.strike+nc2];nc=nc2*lotSz;margin=straddleMargin;
+    case 'reverse_jade':{{const cp2=co1.ltp||100,ps=po1.ltp||80,pb=po2.ltp||40,nc2=cp2+ps-pb;mp=nc2*lotSz;ml=(co1.strike-nc2)*lotSz;be=[co1.strike+nc2];nc=nc2*lotSz;margin=co1.strike*lotSz*0.15;
       ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:cp2,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:ps,c:'#ff9090'}},{{l:'BUY PE \u20b9'+po2.strike.toLocaleString('en-IN'),v:pb,c:'#ff9090'}}];break;}}
-    case 'bull_condor': case 'bear_condor':{{const s1=shape==='bull_condor'?ce_atm:pe_atm,s2=shape==='bull_condor'?co1.ltp:po1.ltp,s3=s2*0.7,s4=s2*0.4,nc2=(s1-s2)-(s3-s4);mp=nc2*lotSz;ml=Math.max(50-nc2,0)*lotSz;be=[atm+nc2];nc=nc2*lotSz;margin=sw50;rrRatio=(nc2/Math.max(50-nc2,1)).toFixed(2);
+    case 'bull_condor': case 'bear_condor':{{const s1=shape==='bull_condor'?ce_atm:pe_atm,s2=shape==='bull_condor'?co1.ltp:po1.ltp,s3=s2*0.7,s4=s2*0.4,nc2=(s1-s2)-(s3-s4);mp=nc2*lotSz;ml=(50-nc2)*lotSz;be=[atm+nc2];nc=nc2*lotSz;margin=100*lotSz;rrRatio=(nc2/(50-nc2)).toFixed(2);
       ltpParts=[{{l:(shape==='bull_condor'?'BUY CE ':'BUY PE ')+'\u20b9'+atm.toLocaleString('en-IN'),v:s1,c:'#00c8e0'}},{{l:(shape==='bull_condor'?'SELL CE ':'SELL PE ')+'\u20b9'+(shape==='bull_condor'?co1:po1).strike.toLocaleString('en-IN'),v:s2,c:'#00c8e0'}},{{l:(shape==='bull_condor'?'SELL CE ':'SELL PE ')+'\u20b9'+(shape==='bull_condor'?co2:po2).strike.toLocaleString('en-IN'),v:s3,c:'#ff9090'}},{{l:(shape==='bull_condor'?'BUY CE ':'BUY PE ')+'\u20b9'+((shape==='bull_condor'?co2.strike:po2.strike)+50).toLocaleString('en-IN'),v:s4,c:'#ff9090'}}];break;}}
-    case 'batman':{{const lp=ce_atm||150,mp2=co1.ltp||80,hp=co2.ltp||40,nd1=Math.max(lp-2*mp2+hp,1),nd2=nd1*0.8;mp=(100-nd1-nd2)*lotSz;ml=(nd1+nd2)*lotSz;be=[atm+nd1,co2.strike-nd1];nc=-(nd1+nd2)*lotSz;margin=(nd1+nd2)*lotSz;rrRatio=((100-nd1-nd2)/(nd1+nd2)).toFixed(2);
-      ltpParts=[{{l:'BUY 2x CE \u20b9'+atm.toLocaleString('en-IN'),v:lp,c:'#00c8e0'}},{{l:'SELL 4x CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:mp2,c:'#00c896'}},{{l:'BUY 2x CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:hp,c:'#00c8e0'}}];break;}}
-    case 'double_fly':{{const lp=ce_atm||150,mp2=co1.ltp||80,hp=co2.ltp||40,nd=Math.max(lp-2*mp2+hp,1)*2;mp=(50-nd/2)*lotSz*2;ml=nd*lotSz;be=[atm+nd/2,co2.strike-nd/2];nc=-nd*lotSz;margin=nd*lotSz;rrRatio=((50-nd/2)/(nd/2)).toFixed(2);
-      ltpParts=[{{l:'BUY CE \u20b9'+atm.toLocaleString('en-IN'),v:lp,c:'#00c8e0'}},{{l:'SELL 2x CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:mp2,c:'#00c896'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:hp,c:'#00c8e0'}}];break;}}
-    case 'double_condor':{{const sc=co1.ltp||100,bc=co2.ltp||50,sp=po1.ltp||100,bp=po2.ltp||50,nc2=(sc-bc+sp-bp)*1.5;mp=nc2*lotSz;ml=Math.max(sw100-nc2,0)*lotSz;be=[po1.strike-nc2,co1.strike+nc2];nc=nc2*lotSz;margin=sw100;rrRatio=(nc2/Math.max(sw100-nc2,1)).toFixed(2);
-      ltpParts=[{{l:'SELL CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:sc,c:'#00c8e0'}},{{l:'BUY CE \u20b9'+co2.strike.toLocaleString('en-IN'),v:bc,c:'#00c8e0'}},{{l:'SELL PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:sp,c:'#ff9090'}},{{l:'BUY PE \u20b9'+po2.strike.toLocaleString('en-IN'),v:bp,c:'#ff9090'}}];break;}}
-    case 'call_calendar':{{const np=co1.ltp||80,fp=ce_atm||150,nd=Math.max(fp-np,1);mp=nd*lotSz*0.5;ml=np*lotSz;be=[atm-np,atm+np];nc=-nd*lotSz;margin=nakedMargin;rrRatio=(0.5).toFixed(2);
-      ltpParts=[{{l:'SELL NEAR CE \u20b9'+co1.strike.toLocaleString('en-IN'),v:np,c:'#00c896'}},{{l:'BUY FAR CE \u20b9'+atm.toLocaleString('en-IN'),v:fp,c:'#00c8e0'}}];break;}}
-    case 'put_calendar':{{const np=po1.ltp||80,fp=pe_atm||150,nd=Math.max(fp-np,1);mp=nd*lotSz*0.5;ml=np*lotSz;be=[atm-np,atm+np];nc=-nd*lotSz;margin=nakedMargin;rrRatio=(0.5).toFixed(2);
-      ltpParts=[{{l:'SELL NEAR PE \u20b9'+po1.strike.toLocaleString('en-IN'),v:np,c:'#00c896'}},{{l:'BUY FAR PE \u20b9'+atm.toLocaleString('en-IN'),v:fp,c:'#ff9090'}}];break;}}
-    case 'diagonal_calendar':{{const np=co1.ltp||80,fp=ce_atm||150,nd=Math.max(fp-np,1),sw2=co1.strike-atm;mp=nd*lotSz*0.4;ml=nd*lotSz;be=[atm+nd];nc=-nd*lotSz;margin=nakedMargin;rrRatio=(0.4).toFixed(2);
-      ltpParts=[{{l:'SELL NEAR \u20b9'+co1.strike.toLocaleString('en-IN'),v:np,c:'#00c896'}},{{l:'BUY FAR \u20b9'+atm.toLocaleString('en-IN'),v:fp,c:'#00c8e0'}}];break;}}
     default:{{const p=ce_atm||150;mp=p*lotSz*0.5;ml=p*lotSz*0.3;be=[atm];nc=-p*0.3*lotSz;margin=p*lotSz;rrRatio=1.5;
       ltpParts=[{{l:'ATM \u20b9'+atm.toLocaleString('en-IN'),v:p,c:'#00c8e0'}}];}}
   }}
@@ -1648,62 +1601,13 @@ function calcMetrics(shape, smartPop) {{
   const marginStr='\u20b9'+Math.round(margin).toLocaleString('en-IN');
   const rrStr=rrRatio===0?'\u221e':('1:'+Math.abs(rrRatio));
   const mpPct=mp===999999?'\u221e':(ml>0?(mp/ml*100).toFixed(0)+'%':'—');
-
-  // ── v18.5 FIX: Readable LTP per leg — card rows with colored left border ──
-  // Each leg is a flex row: [label left | ₹price right], border-left = leg color
-  // Label: 10.5px semi-bold, 70% white — readable but not dominant
-  // Price: 15px bold DM Mono in leg color — immediately scannable
-  const ltpStr=ltpParts.map(x=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 9px;margin-bottom:3px;background:rgba(255,255,255,.05);border-radius:6px;border-left:3px solid ${{x.c}};min-width:0;">
-    <span style="font-size:10.5px;font-weight:600;color:rgba(255,255,255,.70);letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;flex-shrink:1;">${{x.l}}</span>
-    <span style="font-family:'DM Mono',monospace;font-size:15px;font-weight:800;color:${{x.c}};letter-spacing:.5px;white-space:nowrap;flex-shrink:0;margin-left:8px;">\u20b9${{x.v.toFixed(2)}}</span>
-  </div>`).join('');
-
+  const ltpStr=ltpParts.map(x=>`<span style="display:inline-flex;align-items:center;gap:4px;margin-bottom:2px;">
+    <span style="font-size:8.5px;color:rgba(255,255,255,.35);">${{x.l}}</span>
+    <span style="font-family:'DM Mono',monospace;font-weight:700;color:${{x.c}};">\u20b9${{x.v.toFixed(2)}}</span>
+  </span>`).join('<br>');
   const strikeStr='ATM \u20b9'+atm.toLocaleString('en-IN');
   return {{pop,mpStr,mlStr,rrStr,beStr,ncStr,marginStr,mpPct,strikeStr,ltpStr,
-           mpRaw:mp,mlRaw:ml,ncRaw:Math.round(nc),ncPositive:nc>=0,shape}};
-}}
-
-
-function sensibullURL(shape) {{
-  const atm=OC.atm, lot=OC.lotSize;
-  const co1s=getOTM('ce',1).strike, co2s=getOTM('ce',2).strike;
-  const po1s=getOTM('pe',1).strike, po2s=getOTM('pe',2).strike;
-  const namedMap = {{
-    'long_call':        `https://sensibull.com/nifty?strategy=long-call&strike=${{atm}}`,
-    'long_put':         `https://sensibull.com/nifty?strategy=long-put&strike=${{atm}}`,
-    'short_call':       `https://sensibull.com/nifty?strategy=short-call&strike=${{atm}}`,
-    'short_put':        `https://sensibull.com/nifty?strategy=short-put&strike=${{atm}}`,
-    'bull_call_spread':  `https://sensibull.com/nifty?strategy=bull-call-spread&strike=${{atm}}`,
-    'bear_put_spread':   `https://sensibull.com/nifty?strategy=bear-put-spread&strike=${{atm}}`,
-    'bull_put_spread':   `https://sensibull.com/nifty?strategy=bull-put-spread&strike=${{atm}}`,
-    'bear_call_spread':  `https://sensibull.com/nifty?strategy=bear-call-spread&strike=${{atm}}`,
-    'long_straddle':    `https://sensibull.com/nifty?strategy=long-straddle&strike=${{atm}}`,
-    'short_straddle':   `https://sensibull.com/nifty?strategy=short-straddle&strike=${{atm}}`,
-    'long_strangle':    `https://sensibull.com/nifty?strategy=long-strangle&strike=${{atm}}`,
-    'short_strangle':   `https://sensibull.com/nifty?strategy=short-strangle&strike=${{atm}}`,
-    'short_iron_fly':   `https://sensibull.com/nifty?strategy=short-iron-butterfly&strike=${{atm}}`,
-    'long_iron_fly':    `https://sensibull.com/nifty?strategy=long-iron-butterfly&strike=${{atm}}`,
-    'short_iron_condor':`https://sensibull.com/nifty?strategy=short-iron-condor&strike=${{atm}}`,
-    'long_iron_condor': `https://sensibull.com/nifty?strategy=long-iron-condor&strike=${{atm}}`,
-    'call_butterfly':   `https://sensibull.com/nifty?strategy=call-butterfly&strike=${{atm}}`,
-    'put_butterfly':    `https://sensibull.com/nifty?strategy=put-butterfly&strike=${{atm}}`,
-    'call_calendar':    `https://sensibull.com/nifty?strategy=call-calendar-spread&strike=${{atm}}`,
-    'put_calendar':     `https://sensibull.com/nifty?strategy=put-calendar-spread&strike=${{atm}}`,
-    'call_ratio_spread':`https://sensibull.com/nifty?strategy=call-ratio-spread&strike=${{atm}}`,
-    'put_ratio_spread': `https://sensibull.com/nifty?strategy=put-ratio-spread&strike=${{atm}}`,
-    'call_ratio_back':  `https://sensibull.com/nifty?strategy=call-ratio-backspread&strike=${{atm}}`,
-    'put_ratio_back':   `https://sensibull.com/nifty?strategy=put-ratio-backspread&strike=${{atm}}`,
-    'long_synthetic':   `https://sensibull.com/nifty?strategy=synthetic-long&strike=${{atm}}`,
-    'short_synthetic':  `https://sensibull.com/nifty?strategy=synthetic-short&strike=${{atm}}`,
-    'risk_reversal':    `https://sensibull.com/nifty?strategy=risk-reversal&strike=${{atm}}`,
-    'jade_lizard':      `https://sensibull.com/nifty?strategy=jade-lizard&strike=${{atm}}`,
-    'reverse_jade':     `https://sensibull.com/nifty?strategy=reverse-jade-lizard&strike=${{atm}}`,
-    'diagonal_calendar':`https://sensibull.com/nifty?strategy=diagonal-spread&strike=${{atm}}`,
-    'bull_butterfly':   `https://sensibull.com/nifty?strategy=call-butterfly&strike=${{atm}}`,
-    'bear_butterfly':   `https://sensibull.com/nifty?strategy=put-butterfly&strike=${{atm}}`,
-  }};
-  if (namedMap[shape]) return namedMap[shape];
-  return `https://sensibull.com/nifty`;
+           mpRaw:mp,mlRaw:ml,ncRaw:Math.round(nc),ncPositive:nc>=0}};
 }}
 
 function renderMetrics(m, scoreBreakdown) {{
@@ -1721,13 +1625,11 @@ function renderMetrics(m, scoreBreakdown) {{
         <span style="font-size:9px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">Strat <b style="color:${{scoreBreakdown.stratAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.stratAdj>=0?'+':''}}${{scoreBreakdown.stratAdj}}</b></span>
       </div>
     </div>` : '';
-
-  // ── v18.5: LTP container uses align-items:flex-start + flex column for multi-leg ──
   return `<div class="metric-row metric-strike"><span class="metric-lbl">Strike Price</span>
     <span class="metric-val" style="color:#ffd166;font-size:11px;text-align:right;">${{m.strikeStr}}</span></div>
-    <div class="metric-row" style="background:rgba(0,200,220,.06);border-bottom:1px solid rgba(0,200,220,.12);align-items:flex-start;padding-top:10px;padding-bottom:10px;">
-      <span class="metric-lbl" style="color:rgba(0,200,220,.85);padding-top:4px;flex-shrink:0;font-size:10px;font-weight:700;letter-spacing:.8px;">LTP<br>(per leg)</span>
-      <div style="display:flex;flex-direction:column;gap:0;min-width:0;flex:1;margin-left:6px;">${{m.ltpStr}}</div>
+    <div class="metric-row" style="background:rgba(0,200,220,.04);border-bottom:1px solid rgba(0,200,220,.10);">
+      <span class="metric-lbl" style="color:rgba(0,200,220,.7);">LTP (per leg)</span>
+      <span class="metric-val" style="text-align:right;line-height:1.6;display:flex;flex-direction:column;align-items:flex-end;">${{m.ltpStr}}</span>
     </div>
     <div class="metric-row"><span class="metric-lbl">Prob. of Profit</span>
     <span class="metric-val" style="color:${{pc}};font-weight:800;font-size:15px;">${{m.pop}}%</span></div>
@@ -1741,28 +1643,8 @@ function renderMetrics(m, scoreBreakdown) {{
     <span class="metric-val" style="color:#00c8e0;font-size:11px;">${{m.beStr}}</span></div>
     <div class="metric-row"><span class="metric-lbl">Net Credit / Debit</span>
     <span class="metric-val" style="color:${{nc}};">${{m.ncStr}}</span></div>
-    <div class="metric-row" style="border-bottom:none;">
-      <span class="metric-lbl">Est. Margin/Premium
-        <span style="display:inline-block;margin-left:4px;padding:1px 6px;border-radius:4px;font-size:8px;font-weight:700;
-          background:${{MARGIN_TYPE==='MIS'?'rgba(255,209,102,.2)':'rgba(100,128,255,.2)'}};
-          color:${{MARGIN_TYPE==='MIS'?'#ffd166':'#8aa0ff'}};">${{MARGIN_TYPE}}</span><br>
-        <span style="font-size:8px;color:rgba(255,209,102,.55);font-weight:400;">⚠ Indicative only</span>
-      </span>
-      <span class="metric-val" style="color:#8aa0ff;">${{m.marginStr}}</span></div>
-    <div style="padding:8px 12px;border-top:1px solid rgba(255,255,255,.05);">
-      <a href="${{sensibullURL(m.shape)}}" target="_blank" rel="noopener"
-        style="display:flex;align-items:center;justify-content:center;gap:7px;
-               width:100%;padding:8px 0;border-radius:9px;text-decoration:none;
-               background:linear-gradient(135deg,rgba(0,180,120,.15),rgba(0,140,90,.1));
-               border:1px solid rgba(0,200,150,.3);
-               color:#00c896;font-size:11px;font-weight:700;letter-spacing:.5px;
-               transition:all .2s;"
-        onmouseover="this.style.background='linear-gradient(135deg,rgba(0,200,150,.25),rgba(0,160,100,.18))';this.style.borderColor='rgba(0,200,150,.6)'"
-        onmouseout="this.style.background='linear-gradient(135deg,rgba(0,180,120,.15),rgba(0,140,90,.1))';this.style.borderColor='rgba(0,200,150,.3)'">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-        Get Exact Margin on Sensibull
-      </a>
-    </div>
+    <div class="metric-row" style="border-bottom:none;"><span class="metric-lbl">Est. Margin/Premium</span>
+    <span class="metric-val" style="color:#8aa0ff;">${{m.marginStr}}</span></div>
     ${{sbHtml}}`;
 }}
 
@@ -2093,6 +1975,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .greeks-tbl-row:hover{background:rgba(255,255,255,.03);}
 .greeks-tbl-strike{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:rgba(255,255,255,.8);}
 .greeks-tbl-cell{font-family:'DM Mono',monospace;font-size:11px;font-weight:600;text-align:center;color:rgba(255,255,255,.65);}
+/* Hidden refresh iframe — zero footprint */
 #silentRefreshFrame{position:fixed;width:0;height:0;border:none;visibility:hidden;pointer-events:none;opacity:0;}
 @media(max-width:1024px){
   .main{grid-template-columns:1fr}.sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid rgba(255,255,255,.06)}
@@ -2110,11 +1993,12 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 """
 
 # =================================================================
-#  SECTION 9 -- ANIMATED JS (v18.3 SILENT BACKGROUND REFRESH)
+#  SECTION 9 -- ANIMATED JS  (v18.3 — SILENT BACKGROUND REFRESH)
 # =================================================================
 
 ANIMATED_JS = """
 <script>
+// ── Logo rotator ────────────────────────────────────────────────
 (function() {
   const NAMES = ['NIFTYCRAFT','Nifty Option Strategy Builder','OI Signal Dashboard','Options Analytics Hub','PCR & Max Pain Tracker'];
   const wrap = document.getElementById('logoWrap');
@@ -2136,6 +2020,7 @@ ANIMATED_JS = """
   }, 4000);
 })();
 
+// ── Silent Background Refresh Engine (v18.3) ───────────────────
 (function() {
   const TOTAL_SECS = 30;
   const R = 7, C = 2 * Math.PI * R;
@@ -2162,7 +2047,7 @@ ANIMATED_JS = """
   function flashUpdated() {
     const txt = document.getElementById('refreshStatus');
     if (!txt) return;
-    txt.textContent = 'Updated ✓';
+    txt.textContent = 'Updated \u2713';
     txt.classList.add('updated');
     setTimeout(() => { txt.textContent = ''; txt.classList.remove('updated'); }, 2500);
   }
@@ -2214,412 +2099,411 @@ ANIMATED_JS = """
     }
     try {
       const newDoc = iframe.contentDocument || iframe.contentWindow.document;
-            if (!newDoc || !newDoc.body) throw new Error('empty doc');
-            const newTsEl = newDoc.getElementById('lastUpdatedTs');
-            const newTs   = newTsEl ? newTsEl.textContent.trim() : '';
-            if (_lastTimestamp !== null && newTs === _lastTimestamp) {
-              showSpinner(false); _refreshing = false; return;
+      if (!newDoc || !newDoc.body) throw new Error('empty doc');
+      const newTsEl = newDoc.getElementById('lastUpdatedTs');
+      const newTs   = newTsEl ? newTsEl.textContent.trim() : '';
+      if (_lastTimestamp !== null && newTs === _lastTimestamp) {
+        showSpinner(false); _refreshing = false; return;
+      }
+      _lastTimestamp = newTs;
+      const changed = microDiff(newDoc);
+      showSpinner(false); _refreshing = false;
+      if (changed) {
+        flashUpdated();
+        setTimeout(function() {
+          try {
+            if (typeof initAllCards === 'function') {
+              initAllCards();
+              ['bullish','bearish','nondirectional'].forEach(function(c) {
+                if (typeof sortGridByPoP === 'function') sortGridByPoP(c);
+              });
             }
-            _lastTimestamp = newTs;
-            const changed = microDiff(newDoc);
-            showSpinner(false); _refreshing = false;
-            if (changed) {
-              flashUpdated();
-              setTimeout(function() {
-                try {
-                  if (typeof initAllCards === 'function') {
-                    initAllCards();
-                    ['bullish','bearish','nondirectional'].forEach(function(c) {
-                      if (typeof sortGridByPoP === 'function') sortGridByPoP(c);
-                    });
-                  }
-                  if (typeof greeksUpdateStrike === 'function') {
-                    var sel = document.getElementById('greeksStrikeSelect');
-                    if (sel) greeksUpdateStrike(sel.value);
-                  }
-                } catch(e) {}
-              }, 60);
+            if (typeof greeksUpdateStrike === 'function') {
+              var sel = document.getElementById('greeksStrikeSelect');
+              if (sel) greeksUpdateStrike(sel.value);
             }
-          } catch(e) {
-            showSpinner(false); _refreshing = false;
-          }
-          setTimeout(function() { try { iframe.src = 'about:blank'; } catch(e) {} }, 500);
-        });
+          } catch(e) {}
+        }, 60);
+      }
+    } catch(e) {
+      showSpinner(false); _refreshing = false;
+    }
+    setTimeout(function() { try { iframe.src = 'about:blank'; } catch(e) {} }, 500);
+  });
 
-        let remaining = TOTAL_SECS;
-        setCountdownUI(remaining);
+  let remaining = TOTAL_SECS;
+  setCountdownUI(remaining);
 
-        setInterval(function() {
-          remaining -= 1;
-          if (remaining <= 0) {
-            remaining = TOTAL_SECS;
-            setCountdownUI(remaining);
-            doSilentRefresh();
-          } else {
-            setCountdownUI(remaining);
-          }
-        }, 1000);
+  setInterval(function() {
+    remaining -= 1;
+    if (remaining <= 0) {
+      remaining = TOTAL_SECS;
+      setCountdownUI(remaining);
+      doSilentRefresh();
+    } else {
+      setCountdownUI(remaining);
+    }
+  }, 1000);
 
-        window.addEventListener('load', function() {
-          setTimeout(doSilentRefresh, 2000);
-        });
-      })();
-      </script>
-      """
-
-
-      def build_greeks_script_html(oc_analysis):
-          if not oc_analysis:
-              return ""
-          all_rows = oc_analysis.get("all_strikes", oc_analysis.get("greeks_table", []))
-          atm      = int(oc_analysis.get("atm_strike", 0))
-          if not all_rows:
-              return ""
-          strikes_json_parts = []
-          for row in all_rows:
-              s = int(row["strike"])
-              strikes_json_parts.append(
-                  f'"{s}":{{'
-                  + f'"ce_ltp":{round(float(row["ce_ltp"]),2)},'
-                  + f'"pe_ltp":{round(float(row["pe_ltp"]),2)},'
-                  + f'"ce_delta":{round(float(row["ce_delta"]),4)},'
-                  + f'"pe_delta":{round(float(row["pe_delta"]),4)},'
-                  + f'"ce_iv":{round(float(row["ce_iv"]),2)},'
-                  + f'"pe_iv":{round(float(row["pe_iv"]),2)},'
-                  + f'"ce_theta":{round(float(row["ce_theta"]),4)},'
-                  + f'"pe_theta":{round(float(row["pe_theta"]),4)},'
-                  + f'"ce_vega":{round(float(row["ce_vega"]),4)},'
-                  + f'"pe_vega":{round(float(row["pe_vega"]),4)}'
-                  + f'}}')
-          strikes_json = "{" + ",".join(strikes_json_parts) + "}"
-          return f"""<script>
-      (function() {{
-        var _gData = {strikes_json};
-        var _atm   = {atm};
-        function _initGreeks() {{
-          var sel = document.getElementById('greeksStrikeSelect');
-          if (sel) {{ greeksUpdateStrike(sel.value); }}
-        }}
-        window.greeksUpdateStrike = function(strike) {{
-          var key = String(parseInt(strike, 10));
-          var d   = _gData[key];
-          if (!d) {{
-            var keys = Object.keys(_gData).map(Number);
-            var nearest = keys.reduce((a,b) => Math.abs(b-parseInt(strike))<Math.abs(a-parseInt(strike))?b:a, keys[0]);
-            d = _gData[String(nearest)];
-          }}
-          if (!d) return;
-          var sel  = parseInt(strike, 10);
-          var dist = Math.round(Math.abs(sel - _atm) / 50);
-          var lbl  = sel === _atm ? 'ATM' : (sel > _atm ? 'CE+' + dist : 'PE-' + dist);
-          var e1 = document.getElementById('greeksStrikeTypeLabel'); if(e1) e1.textContent = lbl;
-          var e2 = document.getElementById('greeksStrikeLabel'); if(e2) e2.innerHTML = '&#8377;' + sel.toLocaleString('en-IN');
-          var e3 = document.getElementById('greeksCeLtp'); if(e3) e3.innerHTML = 'CE &#8377;' + (d.ce_ltp||0).toFixed(1);
-          var e4 = document.getElementById('greeksPeLtp'); if(e4) e4.innerHTML = 'PE &#8377;' + (d.pe_ltp||0).toFixed(1);
-          var ceCol='#00c896', peCol='#ff6b6b';
-          var cePct=Math.min(100,Math.abs(d.ce_delta)*100).toFixed(0);
-          var pePct=Math.min(100,Math.abs(d.pe_delta)*100).toFixed(0);
-          var dw = document.getElementById('greeksDeltaWrap');
-          if(dw) dw.innerHTML =
-            '<div style="display:flex;align-items:center;gap:5px;">' +
-              '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">' +
-                '<div style="width:'+cePct+'%;height:100%;background:'+ceCol+';border-radius:2px;"></div></div>' +
-              '<span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:'+ceCol+';">' +
-                   (d.ce_delta>=0?'+':'')+d.ce_delta.toFixed(3)+'</span></div>' +
-            '<div style="display:flex;align-items:center;gap:5px;margin-top:3px;">' +
-              '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">' +
-                '<div style="width:'+pePct+'%;height:100%;background:'+peCol+';border-radius:2px;"></div></div>' +
-              '<span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:'+peCol+';">' +
-                   (d.pe_delta>=0?'+':'')+d.pe_delta.toFixed(3)+'</span></div>';
-          var ice = document.getElementById('greeksIvCe'); if(ice) ice.textContent = (d.ce_iv||0).toFixed(1)+'%';
-          var ipe = document.getElementById('greeksIvPe'); if(ipe) ipe.textContent = (d.pe_iv||0).toFixed(1)+'%';
-          var skew=((d.pe_iv||0)-(d.ce_iv||0)).toFixed(1);
-          var skewEl=document.getElementById('greeksSkewLbl');
-          if(skewEl) {{ skewEl.textContent = parseFloat(skew)>0?'PE Skew +'+skew:'CE Skew '+skew; skewEl.style.color = parseFloat(skew)>1.5?'#ff6b6b':(parseFloat(skew)<-1.5?'#00c896':'#6480ff'); }}
-          function tfmt(t){{ return Math.abs(t)>=0.01?'&#8377;'+Math.abs(t).toFixed(2):t.toFixed(4); }}
-          var tc = document.getElementById('greeksThetaCe'); if(tc) tc.innerHTML = tfmt(d.ce_theta||0);
-          var tp = document.getElementById('greeksThetaPe'); if(tp) tp.innerHTML = tfmt(d.pe_theta||0);
-          function vfmt(v){{ return Math.abs(v)>=0.0001?v.toFixed(4):'&mdash;'; }}
-          var vc = document.getElementById('greeksVegaCe'); if(vc) vc.innerHTML = vfmt(d.ce_vega||0);
-          var vp = document.getElementById('greeksVegaPe'); if(vp) vp.innerHTML = vfmt(d.pe_vega||0);
-          var ivAvg=((d.ce_iv||0)+(d.pe_iv||0))/2;
-          var ivCol=ivAvg>25?'#ff6b6b':(ivAvg>18?'#ffd166':'#00c896');
-          var ivReg=ivAvg>25?'High IV \u00b7 Buy Premium':(ivAvg>15?'Normal IV \u00b7 Balanced':'Low IV \u00b7 Sell Premium');
-          var ivPct=Math.min(100,Math.max(0,(ivAvg/60)*100)).toFixed(1);
-          var barEl=document.getElementById('greeksIvBar');
-          if(barEl) {{barEl.style.width=ivPct+'%'; barEl.style.background=ivCol; barEl.style.boxShadow='0 0 6px '+ivCol+'88';}}
-          var avgEl=document.getElementById('greeksIvAvg');
-          if(avgEl) {{avgEl.textContent=ivAvg.toFixed(1)+'%'; avgEl.style.color=ivCol;}}
-          var regEl=document.getElementById('greeksIvRegime');
-          if(regEl) {{regEl.textContent=ivReg; regEl.style.color=ivCol;}}
-        }};
-        if (document.readyState === 'loading') {{
-          document.addEventListener('DOMContentLoaded', _initGreeks);
-        }} else {{
-          setTimeout(_initGreeks, 80);
-        }}
-      }})();
-      </script>"""
+  window.addEventListener('load', function() {
+    setTimeout(doSilentRefresh, 2000);
+  });
+})();
+</script>
+"""
 
 
-      # =================================================================
-      #  SECTION 10 -- HTML ASSEMBLER
-      # =================================================================
+def build_greeks_script_html(oc_analysis):
+    if not oc_analysis:
+        return ""
+    all_rows = oc_analysis.get("all_strikes", oc_analysis.get("greeks_table", []))
+    atm      = int(oc_analysis.get("atm_strike", 0))
+    if not all_rows:
+        return ""
+    strikes_json_parts = []
+    for row in all_rows:
+        s = int(row["strike"])
+        strikes_json_parts.append(
+            f'"{s}":{{'
+            + f'"ce_ltp":{round(float(row["ce_ltp"]),2)},'
+            + f'"pe_ltp":{round(float(row["pe_ltp"]),2)},'
+            + f'"ce_delta":{round(float(row["ce_delta"]),4)},'
+            + f'"pe_delta":{round(float(row["pe_delta"]),4)},'
+            + f'"ce_iv":{round(float(row["ce_iv"]),2)},'
+            + f'"pe_iv":{round(float(row["pe_iv"]),2)},'
+            + f'"ce_theta":{round(float(row["ce_theta"]),4)},'
+            + f'"pe_theta":{round(float(row["pe_theta"]),4)},'
+            + f'"ce_vega":{round(float(row["ce_vega"]),4)},'
+            + f'"pe_vega":{round(float(row["pe_vega"]),4)}'
+            + f'}}')
+    strikes_json = "{" + ",".join(strikes_json_parts) + "}"
+    return f"""<script>
+(function() {{
+  var _gData = {strikes_json};
+  var _atm   = {atm};
+  function _initGreeks() {{
+    var sel = document.getElementById('greeksStrikeSelect');
+    if (sel) {{ greeksUpdateStrike(sel.value); }}
+  }}
+  window.greeksUpdateStrike = function(strike) {{
+    var key = String(parseInt(strike, 10));
+    var d   = _gData[key];
+    if (!d) {{
+      var keys = Object.keys(_gData).map(Number);
+      var nearest = keys.reduce((a,b) => Math.abs(b-parseInt(strike))<Math.abs(a-parseInt(strike))?b:a, keys[0]);
+      d = _gData[String(nearest)];
+    }}
+    if (!d) return;
+    var sel  = parseInt(strike, 10);
+    var dist = Math.round(Math.abs(sel - _atm) / 50);
+    var lbl  = sel === _atm ? 'ATM' : (sel > _atm ? 'CE+' + dist : 'PE-' + dist);
+    var e1 = document.getElementById('greeksStrikeTypeLabel'); if(e1) e1.textContent = lbl;
+    var e2 = document.getElementById('greeksStrikeLabel'); if(e2) e2.innerHTML = '&#8377;' + sel.toLocaleString('en-IN');
+    var e3 = document.getElementById('greeksCeLtp'); if(e3) e3.innerHTML = 'CE &#8377;' + (d.ce_ltp||0).toFixed(1);
+    var e4 = document.getElementById('greeksPeLtp'); if(e4) e4.innerHTML = 'PE &#8377;' + (d.pe_ltp||0).toFixed(1);
+    var ceCol='#00c896', peCol='#ff6b6b';
+    var cePct=Math.min(100,Math.abs(d.ce_delta)*100).toFixed(0);
+    var pePct=Math.min(100,Math.abs(d.pe_delta)*100).toFixed(0);
+    var dw = document.getElementById('greeksDeltaWrap');
+    if(dw) dw.innerHTML =
+      '<div style="display:flex;align-items:center;gap:5px;">' +
+        '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">' +
+          '<div style="width:'+cePct+'%;height:100%;background:'+ceCol+';border-radius:2px;"></div></div>' +
+        '<span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:'+ceCol+';">' +
+             (d.ce_delta>=0?'+':'')+d.ce_delta.toFixed(3)+'</span></div>' +
+      '<div style="display:flex;align-items:center;gap:5px;margin-top:3px;">' +
+        '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">' +
+          '<div style="width:'+pePct+'%;height:100%;background:'+peCol+';border-radius:2px;"></div></div>' +
+        '<span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:'+peCol+';">' +
+             (d.pe_delta>=0?'+':'')+d.pe_delta.toFixed(3)+'</span></div>';
+    var ice = document.getElementById('greeksIvCe'); if(ice) ice.textContent = (d.ce_iv||0).toFixed(1)+'%';
+    var ipe = document.getElementById('greeksIvPe'); if(ipe) ipe.textContent = (d.pe_iv||0).toFixed(1)+'%';
+    var skew=((d.pe_iv||0)-(d.ce_iv||0)).toFixed(1);
+    var skewEl=document.getElementById('greeksSkewLbl');
+    if(skewEl) {{ skewEl.textContent = parseFloat(skew)>0?'PE Skew +'+skew:'CE Skew '+skew; skewEl.style.color = parseFloat(skew)>1.5?'#ff6b6b':(parseFloat(skew)<-1.5?'#00c896':'#6480ff'); }}
+    function tfmt(t){{ return Math.abs(t)>=0.01?'&#8377;'+Math.abs(t).toFixed(2):t.toFixed(4); }}
+    var tc = document.getElementById('greeksThetaCe'); if(tc) tc.innerHTML = tfmt(d.ce_theta||0);
+    var tp = document.getElementById('greeksThetaPe'); if(tp) tp.innerHTML = tfmt(d.pe_theta||0);
+    function vfmt(v){{ return Math.abs(v)>=0.0001?v.toFixed(4):'&mdash;'; }}
+    var vc = document.getElementById('greeksVegaCe'); if(vc) vc.innerHTML = vfmt(d.ce_vega||0);
+    var vp = document.getElementById('greeksVegaPe'); if(vp) vp.innerHTML = vfmt(d.pe_vega||0);
+    var ivAvg=((d.ce_iv||0)+(d.pe_iv||0))/2;
+    var ivCol=ivAvg>25?'#ff6b6b':(ivAvg>18?'#ffd166':'#00c896');
+    var ivReg=ivAvg>25?'High IV \u00b7 Buy Premium':(ivAvg>15?'Normal IV \u00b7 Balanced':'Low IV \u00b7 Sell Premium');
+    var ivPct=Math.min(100,Math.max(0,(ivAvg/60)*100)).toFixed(1);
+    var barEl=document.getElementById('greeksIvBar');
+    if(barEl) {{barEl.style.width=ivPct+'%'; barEl.style.background=ivCol; barEl.style.boxShadow='0 0 6px '+ivCol+'88';}}
+    var avgEl=document.getElementById('greeksIvAvg');
+    if(avgEl) {{avgEl.textContent=ivAvg.toFixed(1)+'%'; avgEl.style.color=ivCol;}}
+    var regEl=document.getElementById('greeksIvRegime');
+    if(regEl) {{regEl.textContent=ivReg; regEl.style.color=ivCol;}}
+  }};
+  if (document.readyState === 'loading') {{
+    document.addEventListener('DOMContentLoaded', _initGreeks);
+  }} else {{
+    setTimeout(_initGreeks, 80);
+  }}
+}})();
+</script>"""
 
-      def generate_html(tech, oc, md, ts, vix_data=None):
-          oi_html        = build_oi_html(oc)               if oc   else ""
-          kl_html        = build_key_levels_html(tech, oc) if tech else ""
-          strat_html     = build_strategies_html(oc, tech, md)
-          strikes_html   = build_strikes_html(oc)
-          ticker_html    = build_ticker_bar(tech, oc, vix_data)
-          gauge_html     = build_dual_gauge_hero(oc, tech, md, ts)
-          greeks_sidebar = build_greeks_sidebar_html(oc)
-          greeks_script  = build_greeks_script_html(oc)
-          greeks_table   = build_greeks_table_html(oc)
 
-          C = 2 * 3.14159 * 7
-          cp    = tech["price"] if tech else 0
-          bias  = md["bias"]; conf = md["confidence"]
-          bull  = md["bull"]; bear  = md["bear"]; diff = md["diff"]
+# =================================================================
+#  SECTION 10 -- HTML ASSEMBLER
+# =================================================================
 
-          return f"""<!DOCTYPE html>
-      <html lang="en">
-      <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width,initial-scale=1.0">
-      <title>Nifty 50 Options Dashboard v18.4</title>
-      <link rel="preconnect" href="https://fonts.googleapis.com">
-      <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-      <style>{CSS}</style>
-      </head>
-      <body>
-      <div class="app">
-      <header>
-        <div class="logo-wrap" id="logoWrap"></div>
-        <div class="hdr-meta">
-          <div class="live-dot"></div>
-          <span>NSE Options Dashboard</span>
-          <span style="color:rgba(255,255,255,.15);">|</span>
-          <span>{ts}</span>
-          <span style="color:rgba(255,255,255,.15);">|</span>
-          <div class="refresh-countdown">
-            <div class="countdown-arc-wrap">
-              <svg width="18" height="18" viewBox="0 0 18 18">
-                <circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="2"/>
-                <circle id="cdArc" cx="9" cy="9" r="7" fill="none" stroke="#00c896" stroke-width="2"
-                  stroke-linecap="round" stroke-dasharray="{C:.2f}" stroke-dashoffset="0"
-                  style="transform:rotate(-90deg);transform-origin:9px 9px;transition:stroke-dashoffset 1s linear,stroke .3s;"/>
-              </svg>
-            </div>
-            <span class="countdown-num" id="cdNum">30</span>
-            <span class="countdown-lbl" id="cdLbl">s</span>
-            <div class="refresh-ring" id="refreshRing"></div>
-            <span id="refreshStatus"></span>
-          </div>
-        </div>
-      </header>
-      {ticker_html}
-      {gauge_html}
-      <div class="main">
-        <aside class="sidebar">
-          <div class="sidebar-sticky-top">
-            <div id="greeksPanel">{greeks_sidebar}</div>
-          </div>
-          <div class="sidebar-scroll">
-          <div class="sb-sec">
-            <div class="sb-lbl">LIVE ANALYSIS</div>
-            <button class="sb-btn active" onclick="go('oi',this)">OI Dashboard</button>
-            <button class="sb-btn"        onclick="go('greeksTable',this)">&#9652; Option Greeks</button>
-            <button class="sb-btn"        onclick="go('kl',this)">Key Levels</button>
-          </div>
-          <div class="sb-sec">
-            <div class="sb-lbl">STRATEGIES</div>
-            <button class="sb-btn" onclick="go('strat',this);filterStrat('bullish',null)">&#9650; Bullish <span class="sb-badge" style="color:var(--bull);">9</span></button>
-            <button class="sb-btn" onclick="go('strat',this);filterStrat('bearish',null)">&#9660; Bearish <span class="sb-badge" style="color:var(--bear);">9</span></button>
-            <button class="sb-btn" onclick="go('strat',this);filterStrat('nondirectional',null)">&#8596; Non-Directional <span class="sb-badge" style="color:var(--neut);">20</span></button>
-          </div>
-          <div class="sb-sec">
-            <div class="sb-lbl">OPTION CHAIN</div>
-            <button class="sb-btn" onclick="go('strikes',this)">Top 5 Strikes</button>
-          </div>
-          </div>
-        </aside>
-        <main class="content">
-          <div id="oi">{oi_html}</div>
-          {greeks_table}
-          <div id="kl">{kl_html}</div>
-          {strat_html}
-          <div id="strikes">{strikes_html}</div>
-          <div class="section">
-            <div style="background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.18);
-                        border-left:3px solid #6480ff;border-radius:12px;padding:16px 18px;
-                        font-size:13px;color:rgba(255,255,255,.5);line-height:1.8;">
-              <strong style="color:rgba(255,255,255,.7);">DISCLAIMER</strong><br>
-              This dashboard is for EDUCATIONAL purposes only &mdash; NOT financial advice.<br>
-              Smart PoP uses S/R levels, OI walls, market bias and PCR &mdash; not a guaranteed signal.<br>
-              Always use stop losses. Consult a SEBI-registered investment advisor before trading.
-            </div>
-          </div>
-        </main>
+def generate_html(tech, oc, md, ts, vix_data=None):
+    oi_html        = build_oi_html(oc)               if oc   else ""
+    kl_html        = build_key_levels_html(tech, oc) if tech else ""
+    strat_html     = build_strategies_html(oc, tech, md)
+    strikes_html   = build_strikes_html(oc)
+    ticker_html    = build_ticker_bar(tech, oc, vix_data)
+    gauge_html     = build_dual_gauge_hero(oc, tech, md, ts)
+    greeks_sidebar = build_greeks_sidebar_html(oc)
+    greeks_script  = build_greeks_script_html(oc)
+    greeks_table   = build_greeks_table_html(oc)
+
+    C = 2 * 3.14159 * 7
+    cp    = tech["price"] if tech else 0
+    bias  = md["bias"]; conf = md["confidence"]
+    bull  = md["bull"]; bear  = md["bear"]; diff = md["diff"]
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Nifty 50 Options Dashboard v18.4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>{CSS}</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="logo-wrap" id="logoWrap"></div>
+  <div class="hdr-meta">
+    <div class="live-dot"></div>
+    <span>NSE Options Dashboard</span>
+    <span style="color:rgba(255,255,255,.15);">|</span>
+    <span>{ts}</span>
+    <span style="color:rgba(255,255,255,.15);">|</span>
+    <div class="refresh-countdown">
+      <div class="countdown-arc-wrap">
+        <svg width="18" height="18" viewBox="0 0 18 18">
+          <circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="2"/>
+          <circle id="cdArc" cx="9" cy="9" r="7" fill="none" stroke="#00c896" stroke-width="2"
+            stroke-linecap="round" stroke-dasharray="{C:.2f}" stroke-dashoffset="0"
+            style="transform:rotate(-90deg);transform-origin:9px 9px;transition:stroke-dashoffset 1s linear,stroke .3s;"/>
+        </svg>
       </div>
-      <footer>
-        <span>NiftyCraft &middot; v18.4 &middot; Holiday-Aware Expiry + Silent Background Refresh</span>
-        <span>S/R + OI Walls + Bias + PCR &middot; Educational Only &middot; &copy; 2025</span>
-      </footer>
+      <span class="countdown-num" id="cdNum">30</span>
+      <span class="countdown-lbl" id="cdLbl">s</span>
+      <div class="refresh-ring" id="refreshRing"></div>
+      <span id="refreshStatus"></span>
+    </div>
+  </div>
+</header>
+{ticker_html}
+{gauge_html}
+<div class="main">
+  <aside class="sidebar">
+    <div class="sidebar-sticky-top">
+      <div id="greeksPanel">{greeks_sidebar}</div>
+    </div>
+    <div class="sidebar-scroll">
+    <div class="sb-sec">
+      <div class="sb-lbl">LIVE ANALYSIS</div>
+      <button class="sb-btn active" onclick="go('oi',this)">OI Dashboard</button>
+      <button class="sb-btn"        onclick="go('greeksTable',this)">&#9652; Option Greeks</button>
+      <button class="sb-btn"        onclick="go('kl',this)">Key Levels</button>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">STRATEGIES</div>
+      <button class="sb-btn" onclick="go('strat',this);filterStrat('bullish',null)">&#9650; Bullish <span class="sb-badge" style="color:var(--bull);">9</span></button>
+      <button class="sb-btn" onclick="go('strat',this);filterStrat('bearish',null)">&#9660; Bearish <span class="sb-badge" style="color:var(--bear);">9</span></button>
+      <button class="sb-btn" onclick="go('strat',this);filterStrat('nondirectional',null)">&#8596; Non-Directional <span class="sb-badge" style="color:var(--neut);">20</span></button>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">OPTION CHAIN</div>
+      <button class="sb-btn" onclick="go('strikes',this)">Top 5 Strikes</button>
+    </div>
+    </div>
+  </aside>
+  <main class="content">
+    <div id="oi">{oi_html}</div>
+    {greeks_table}
+    <div id="kl">{kl_html}</div>
+    {strat_html}
+    <div id="strikes">{strikes_html}</div>
+    <div class="section">
+      <div style="background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.18);
+                  border-left:3px solid #6480ff;border-radius:12px;padding:16px 18px;
+                  font-size:13px;color:rgba(255,255,255,.5);line-height:1.8;">
+        <strong style="color:rgba(255,255,255,.7);">DISCLAIMER</strong><br>
+        This dashboard is for EDUCATIONAL purposes only &mdash; NOT financial advice.<br>
+        Smart PoP uses S/R levels, OI walls, market bias and PCR &mdash; not a guaranteed signal.<br>
+        Always use stop losses. Consult a SEBI-registered investment advisor before trading.
       </div>
+    </div>
+  </main>
+</div>
+<footer>
+  <span>NiftyCraft &middot; v18.4 &middot; Holiday-Aware Expiry + Silent Background Refresh</span>
+  <span>S/R + OI Walls + Bias + PCR &middot; Educational Only &middot; &copy; 2025</span>
+</footer>
+</div>
 
-      <iframe id="silentRefreshFrame" src="about:blank"
-        style="position:fixed;width:0;height:0;border:none;visibility:hidden;
-               pointer-events:none;opacity:0;top:-9999px;left:-9999px;"></iframe>
+<iframe id="silentRefreshFrame" src="about:blank"
+  style="position:fixed;width:0;height:0;border:none;visibility:hidden;
+         pointer-events:none;opacity:0;top:-9999px;left:-9999px;"></iframe>
 
-      <script>
-      function go(id,btn){{
-        const el=document.getElementById(id);
-        if(el)el.scrollIntoView({{behavior:"smooth",block:"start"}});
-        if(btn){{document.querySelectorAll(".sb-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");}}
+<script>
+function go(id,btn){{
+  const el=document.getElementById(id);
+  if(el)el.scrollIntoView({{behavior:"smooth",block:"start"}});
+  if(btn){{document.querySelectorAll(".sb-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");}}
+}}
+function filterStrat(cat,btn){{
+  document.querySelectorAll(".sc-card").forEach(c=>{{c.classList.toggle("hidden",c.dataset.cat!==cat);}});
+  const colors={{bullish:"#00c896",bearish:"#ff6b6b",nondirectional:"#6480ff"}};
+  const col=colors[cat]||"#00c896";
+  document.querySelectorAll(".sc-tab").forEach(t=>{{t.style.borderColor="rgba(255,255,255,.15)";t.style.color="rgba(255,255,255,.5)";t.style.background="transparent";}});
+  if(btn){{btn.style.borderColor=col;btn.style.color=col;btn.style.background=col+"20";}}
+  else{{document.querySelectorAll(".sc-tab").forEach(t=>{{
+    if((cat==="bullish"&&t.textContent.includes("BULLISH"))||(cat==="bearish"&&t.textContent.includes("BEARISH"))||(cat==="nondirectional"&&t.textContent.includes("NON")))
+    {{t.style.borderColor=col;t.style.color=col;t.style.background=col+"20";}}
+  }});}}
+}}
+document.addEventListener("click",function(e){{
+  const card=e.target.closest(".sc-card");
+  if(card){{
+    const was=card.classList.contains("expanded");
+    document.querySelectorAll(".sc-card.expanded").forEach(c=>c.classList.remove("expanded"));
+    if(!was){{
+      card.classList.add("expanded");
+      const mel=card.querySelector('.sc-metrics-live');
+      if(mel&&mel.querySelector('.sc-loading')){{
+        try{{
+          const shape=card.dataset.shape, cat=card.dataset.cat;
+          const scoreResult=smartPoP(shape,cat);
+          const m=calcMetrics(shape,scoreResult.pop);
+          mel.innerHTML=renderMetrics(m, scoreResult);
+        }}catch(err){{mel.innerHTML='<div class="sc-loading">Could not calculate metrics</div>';}}
       }}
-      function filterStrat(cat,btn){{
-        document.querySelectorAll(".sc-card").forEach(c=>{{c.classList.toggle("hidden",c.dataset.cat!==cat);}});
-        const colors={{bullish:"#00c896",bearish:"#ff6b6b",nondirectional:"#6480ff"}};
-        const col=colors[cat]||"#00c896";
-        document.querySelectorAll(".sc-tab").forEach(t=>{{t.style.borderColor="rgba(255,255,255,.15)";t.style.color="rgba(255,255,255,.5)";t.style.background="transparent";}});
-        if(btn){{btn.style.borderColor=col;btn.style.color=col;btn.style.background=col+"20";}}
-        else{{document.querySelectorAll(".sc-tab").forEach(t=>{{
-          if((cat==="bullish"&&t.textContent.includes("BULLISH"))||(cat==="bearish"&&t.textContent.includes("BEARISH"))||(cat==="nondirectional"&&t.textContent.includes("NON")))
-          {{t.style.borderColor=col;t.style.color=col;t.style.background=col+"20";}}
-        }});}}
-      }}
-      document.addEventListener("click",function(e){{
-        const card=e.target.closest(".sc-card");
-        if(card){{
-          const was=card.classList.contains("expanded");
-          document.querySelectorAll(".sc-card.expanded").forEach(c=>c.classList.remove("expanded"));
-          if(!was){{
-            card.classList.add("expanded");
-            const mel=card.querySelector('.sc-metrics-live');
-            if(mel){{
-              // Always recalculate so MIS/NRML toggle is reflected immediately
-              try{{
-                const shape=card.dataset.shape, cat=card.dataset.cat;
-                const scoreResult=smartPoP(shape,cat);
-                const m=calcMetrics(shape,scoreResult.pop);
-                mel.innerHTML=renderMetrics(m, scoreResult);
-              }}catch(err){{mel.innerHTML='<div class="sc-loading">Could not calculate metrics</div>';}}
-            }}
-          }}
-        }}
-      }});
-      </script>
-      {greeks_script}
-      {ANIMATED_JS}
-      </body>
-      </html>"""
+    }}
+  }}
+}});
+</script>
+{greeks_script}
+{ANIMATED_JS}
+</body>
+</html>"""
 
 
-      # =================================================================
-      #  SECTION 11 -- MAIN
-      # =================================================================
+# =================================================================
+#  SECTION 11 -- MAIN
+# =================================================================
 
-      def main():
-          ts = ist_timestamp_str()
-          print("=" * 65)
-          print("  NIFTY 50 OPTIONS DASHBOARD — v18.4 · Holiday-Aware Expiry")
-          print(f"  {ts}")
-          print(f"  IST Date: {today_ist()}  IST Weekday: {ist_weekday()}")
-          print("=" * 65)
+def main():
+    ts = ist_timestamp_str()
+    print("=" * 65)
+    print("  NIFTY 50 OPTIONS DASHBOARD — v18.4 · Holiday-Aware Expiry")
+    print(f"  {ts}")
+    print(f"  IST Date: {today_ist()}  IST Weekday: {ist_weekday()}")
+    print("=" * 65)
 
-          # ── Print holiday check for current week ──────────────────────
-          print("\n[0/4] Holiday Awareness Check...")
-          from datetime import date as _date
-          today = today_ist()
-          wd    = today.weekday()
-          if wd <= 1:
-              days = 1 - wd
-          else:
-              days = (8 - wd)
-          this_tue = today + timedelta(days=days) if wd != 1 else today
-          if is_nse_holiday(this_tue):
-              reason = NSE_HOLIDAYS_2026.get(this_tue.strftime("%d-%b-%Y"), "Holiday")
-              prev_td = get_prev_trading_day(this_tue)
-              print(f"  ⚠ {this_tue.strftime('%d-%b-%Y')} (Tue) = {reason}")
-              print(f"  ✓ Expiry shifted to {prev_td.strftime('%d-%b-%Y')} ({prev_td.strftime('%A')})")
-          else:
-              print(f"  ✓ {this_tue.strftime('%d-%b-%Y')} (Tue) is a normal trading day. No holiday adjustment needed.")
+    # ── Print holiday check for current week ──────────────────────
+    print("\n[0/4] Holiday Awareness Check...")
+    from datetime import date as _date
+    today = today_ist()
+    wd    = today.weekday()
+    if wd <= 1:
+        days = 1 - wd
+    else:
+        days = (8 - wd)
+    this_tue = today + timedelta(days=days) if wd != 1 else today
+    if is_nse_holiday(this_tue):
+        reason = NSE_HOLIDAYS_2026.get(this_tue.strftime("%d-%b-%Y"), "Holiday")
+        prev_td = get_prev_trading_day(this_tue)
+        print(f"  ⚠ {this_tue.strftime('%d-%b-%Y')} (Tue) = {reason}")
+        print(f"  ✓ Expiry shifted to {prev_td.strftime('%d-%b-%Y')} ({prev_td.strftime('%A')})")
+    else:
+        print(f"  ✓ {this_tue.strftime('%d-%b-%Y')} (Tue) is a normal trading day. No holiday adjustment needed.")
 
-          print("\n[1/4] Fetching NSE Option Chain...")
-          nse = NSEOptionChain()
-          oc_raw, nse_session, nse_headers = nse.fetch()
+    print("\n[1/4] Fetching NSE Option Chain...")
+    nse = NSEOptionChain()
+    oc_raw, nse_session, nse_headers = nse.fetch()
 
-          print("\n[2/4] Fetching India VIX...")
-          vix_data = fetch_india_vix(nse_session, nse_headers)
-          live_vix = vix_data["value"] if vix_data else 18.0
+    print("\n[2/4] Fetching India VIX...")
+    vix_data = fetch_india_vix(nse_session, nse_headers)
+    live_vix = vix_data["value"] if vix_data else 18.0
 
-          oc_analysis = analyze_option_chain(oc_raw, vix=live_vix) if oc_raw else None
-          if oc_analysis:
-              print(f"\n  OK  Spot={oc_analysis['underlying']:.2f}  ATM={oc_analysis['atm_strike']}")
-              print(f"      MaxCE={oc_analysis['max_ce_strike']}  MaxPE={oc_analysis['max_pe_strike']}")
-              print(f"      Expiry={oc_analysis['expiry']}  PCR={oc_analysis['pcr_oi']:.3f}")
-              print(f"      CE CHG={oc_analysis['ce_chg']:+,}  PE CHG={oc_analysis['pe_chg']:+,}")
-              print(f"      CHG Bull Force={oc_analysis['chg_bull_force']:,}  CHG Bear Force={oc_analysis['chg_bear_force']:,}")
-              print(f"      CHG Bull%={oc_analysis['chg_bull_pct']}%  CHG Bear%={oc_analysis['chg_bear_pct']}%")
+    oc_analysis = analyze_option_chain(oc_raw, vix=live_vix) if oc_raw else None
+    if oc_analysis:
+        print(f"\n  OK  Spot={oc_analysis['underlying']:.2f}  ATM={oc_analysis['atm_strike']}")
+        print(f"      MaxCE={oc_analysis['max_ce_strike']}  MaxPE={oc_analysis['max_pe_strike']}")
+        print(f"      Expiry={oc_analysis['expiry']}  PCR={oc_analysis['pcr_oi']:.3f}")
+        print(f"      CE CHG={oc_analysis['ce_chg']:+,}  PE CHG={oc_analysis['pe_chg']:+,}")
+        print(f"      CHG Bull Force={oc_analysis['chg_bull_force']:,}  CHG Bear Force={oc_analysis['chg_bear_force']:,}")
+        print(f"      CHG Bull%={oc_analysis['chg_bull_pct']}%  CHG Bear%={oc_analysis['chg_bear_pct']}%")
 
-          print("\n[3/4] Fetching Technical Indicators (S/R levels)...")
-          tech = get_technical_data()
-          if tech:
-              print(f"  Support={tech['support']:.0f}  Resistance={tech['resistance']:.0f}")
-              print(f"  StrongSup={tech['strong_sup']:.0f}  StrongRes={tech['strong_res']:.0f}")
+    print("\n[3/4] Fetching Technical Indicators (S/R levels)...")
+    tech = get_technical_data()
+    if tech:
+        print(f"  Support={tech['support']:.0f}  Resistance={tech['resistance']:.0f}")
+        print(f"  StrongSup={tech['strong_sup']:.0f}  StrongRes={tech['strong_res']:.0f}")
 
-          print("\n[4/4] Scoring Market Direction...")
-          md = compute_market_direction(tech, oc_analysis)
-          print(f"  Bias={md['bias']}  Conf={md['confidence']}  Bull={md['bull']}  Bear={md['bear']}")
+    print("\n[4/4] Scoring Market Direction...")
+    md = compute_market_direction(tech, oc_analysis)
+    print(f"  Bias={md['bias']}  Conf={md['confidence']}  Bull={md['bull']}  Bear={md['bear']}")
 
-          print("\nGenerating Holiday-Aware Dashboard...")
-          html = generate_html(tech, oc_analysis, md, ts, vix_data=vix_data)
+    print("\nGenerating Holiday-Aware Dashboard...")
+    html = generate_html(tech, oc_analysis, md, ts, vix_data=vix_data)
 
-          os.makedirs("docs", exist_ok=True)
-          out = os.path.join("docs", "index.html")
-          with open(out, "w", encoding="utf-8") as f:
-              f.write(html)
-          print(f"  Saved: {out}  ({len(html)/1024:.1f} KB)")
+    os.makedirs("docs", exist_ok=True)
+    out = os.path.join("docs", "index.html")
+    with open(out, "w", encoding="utf-8") as f:
+        f.write(html)
+    print(f"  Saved: {out}  ({len(html)/1024:.1f} KB)")
 
-          meta = {
-              "timestamp":       ts,
-              "generated_at":    int(time.time()),
-              "ist_date":        str(today_ist()),
-              "ist_weekday":     ist_weekday(),
-              "bias":            md["bias"],
-              "confidence":      md["confidence"],
-              "bull":            md["bull"],
-              "bear":            md["bear"],
-              "diff":            md["diff"],
-              "price":           round(tech["price"], 2)         if tech        else None,
-              "expiry":          oc_analysis["expiry"]           if oc_analysis else None,
-              "pcr":             oc_analysis["pcr_oi"]           if oc_analysis else None,
-              "oi_dir":          oc_analysis["oi_dir"]           if oc_analysis else None,
-              "raw_oi_dir":      oc_analysis["raw_oi_dir"]       if oc_analysis else None,
-              "india_vix":       vix_data["value"]               if vix_data    else None,
-              "atm_strike":      oc_analysis["atm_strike"]       if oc_analysis else None,
-              "max_ce":          oc_analysis["max_ce_strike"]    if oc_analysis else None,
-              "max_pe":          oc_analysis["max_pe_strike"]    if oc_analysis else None,
-              "support":         round(tech["support"], 0)       if tech        else None,
-              "resistance":      round(tech["resistance"], 0)    if tech        else None,
-              "ce_chg":          oc_analysis["ce_chg"]           if oc_analysis else None,
-              "pe_chg":          oc_analysis["pe_chg"]           if oc_analysis else None,
-              "chg_bull_force":  oc_analysis["chg_bull_force"]   if oc_analysis else None,
-              "chg_bear_force":  oc_analysis["chg_bear_force"]   if oc_analysis else None,
-              "chg_bull_pct":    oc_analysis["chg_bull_pct"]     if oc_analysis else None,
-              "chg_bear_pct":    oc_analysis["chg_bear_pct"]     if oc_analysis else None,
-          }
-          with open(os.path.join("docs", "latest.json"), "w") as f:
-              json.dump(meta, f, indent=2)
-          print("  Saved: docs/latest.json")
-          print("\n" + "=" * 65)
-          print(f"  DONE  |  v18.4 · Holiday-Aware Expiry Active")
-          print(f"  Bias: {md['bias']}  |  Confidence: {md['confidence']}")
-          print("  Holiday list: 2026 NSE official holidays pre-loaded")
-          print("  Logic: Tuesday holiday → Monday → Friday (fallback)")
-          print("=" * 65 + "\n")
+    meta = {
+        "timestamp":       ts,
+        "generated_at":    int(time.time()),
+        "ist_date":        str(today_ist()),
+        "ist_weekday":     ist_weekday(),
+        "bias":            md["bias"],
+        "confidence":      md["confidence"],
+        "bull":            md["bull"],
+        "bear":            md["bear"],
+        "diff":            md["diff"],
+        "price":           round(tech["price"], 2)         if tech        else None,
+        "expiry":          oc_analysis["expiry"]           if oc_analysis else None,
+        "pcr":             oc_analysis["pcr_oi"]           if oc_analysis else None,
+        "oi_dir":          oc_analysis["oi_dir"]           if oc_analysis else None,
+        "raw_oi_dir":      oc_analysis["raw_oi_dir"]       if oc_analysis else None,
+        "india_vix":       vix_data["value"]               if vix_data    else None,
+        "atm_strike":      oc_analysis["atm_strike"]       if oc_analysis else None,
+        "max_ce":          oc_analysis["max_ce_strike"]    if oc_analysis else None,
+        "max_pe":          oc_analysis["max_pe_strike"]    if oc_analysis else None,
+        "support":         round(tech["support"], 0)       if tech        else None,
+        "resistance":      round(tech["resistance"], 0)    if tech        else None,
+        "ce_chg":          oc_analysis["ce_chg"]           if oc_analysis else None,
+        "pe_chg":          oc_analysis["pe_chg"]           if oc_analysis else None,
+        "chg_bull_force":  oc_analysis["chg_bull_force"]   if oc_analysis else None,
+        "chg_bear_force":  oc_analysis["chg_bear_force"]   if oc_analysis else None,
+        "chg_bull_pct":    oc_analysis["chg_bull_pct"]     if oc_analysis else None,
+        "chg_bear_pct":    oc_analysis["chg_bear_pct"]     if oc_analysis else None,
+    }
+    with open(os.path.join("docs", "latest.json"), "w") as f:
+        json.dump(meta, f, indent=2)
+    print("  Saved: docs/latest.json")
+    print("\n" + "=" * 65)
+    print(f"  DONE  |  v18.4 · Holiday-Aware Expiry Active")
+    print(f"  Bias: {md['bias']}  |  Confidence: {md['confidence']}")
+    print("  Holiday list: 2026 NSE official holidays pre-loaded")
+    print("  Logic: Tuesday holiday → Monday → Friday (fallback)")
+    print("=" * 65 + "\n")
 
 
-      if __name__ == "__main__":
-          main()
+if __name__ == "__main__":
+    main()
