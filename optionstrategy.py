@@ -235,6 +235,36 @@ class NSEOptionChain:
                 time.sleep(2)
         return None
 
+    def fetch_multiple_expiries(self, session, headers, n=7):
+    """Fetch option chain data for next n expiries for dropdown."""
+    expiry_list = []
+    try:
+        url = f"https://www.nseindia.com/api/option-chain-v3?type=Indices&symbol={self.symbol}"
+        resp = session.get(url, headers=headers, impersonate="chrome", timeout=20)
+        if resp.status_code == 200:
+            expiries = resp.json().get("records", {}).get("expiryDates", [])
+            today = today_ist()
+            for exp_str in expiries:
+                try:
+                    exp_dt = datetime.strptime(exp_str, "%d-%b-%Y").date()
+                    if exp_dt >= today:
+                        expiry_list.append(exp_str)
+                        if len(expiry_list) >= n:
+                            break
+                except Exception:
+                    continue
+    except Exception as e:
+        print(f"  WARNING fetch_multiple_expiries: {e}")
+
+    results = {}
+    for exp in expiry_list:
+        print(f"    Fetching expiry: {exp}")
+        data = self._fetch_for_expiry(session, headers, exp)
+        if data:
+            results[exp] = data
+        time.sleep(0.5)
+    return results, expiry_list
+
     def fetch(self):
         session, headers = self._make_session()
 
@@ -1327,7 +1357,7 @@ STRATEGIES_DATA = {
 }
 
 
-def build_strategies_html(oc_analysis, tech=None, md=None):
+def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed=None, expiry_list=None):
     spot       = oc_analysis["underlying"]   if oc_analysis else 23000
     atm        = oc_analysis["atm_strike"]   if oc_analysis else 23000
     pcr        = oc_analysis["pcr_oi"]       if oc_analysis else 1.0
@@ -1336,6 +1366,34 @@ def build_strategies_html(oc_analysis, tech=None, md=None):
     max_pe_s   = oc_analysis["max_pe_strike"] if oc_analysis else atm - 200
     strikes_json = json.dumps(oc_analysis.get("strikes_data", [])) if oc_analysis else "[]"
 
+    # Build multi-expiry data for dropdown
+    all_expiry_js = {}
+    if multi_expiry_analyzed and expiry_list:
+        for exp in expiry_list:
+            oc_e = multi_expiry_analyzed.get(exp)
+            if not oc_e:
+                continue
+            all_expiry_js[exp] = {
+                "spot":        round(oc_e["underlying"], 2),
+                "atm":         oc_e["atm_strike"],
+                "pcr":         round(oc_e["pcr_oi"], 3),
+                "maxCeStrike": oc_e["max_ce_strike"],
+                "maxPeStrike": oc_e["max_pe_strike"],
+                "support":     round(tech["support"], 2) if tech else spot - 150,
+                "resistance":  round(tech["resistance"], 2) if tech else spot + 150,
+                "strongSup":   round(tech["strong_sup"], 2) if tech else spot - 300,
+                "strongRes":   round(tech["strong_res"], 2) if tech else spot + 300,
+                "strikes":     oc_e.get("strikes_data", []),
+            }
+    all_expiry_json = json.dumps(all_expiry_js)
+    expiry_opts_html = ""
+    if expiry_list:
+        for i, exp in enumerate(expiry_list):
+            sel = "selected" if i == 0 else ""
+            expiry_opts_html += f'<option value="{exp}" {sel}>{exp}</option>\n'
+    else:
+        expiry_opts_html = f'<option value="">{oc_analysis["expiry"] if oc_analysis else "N/A"}</option>'
+    
     support     = tech["support"]    if tech else spot - 150
     resistance  = tech["resistance"] if tech else spot + 150
     strong_sup  = tech["strong_sup"] if tech else spot - 300
@@ -1432,6 +1490,18 @@ def build_strategies_html(oc_analysis, tech=None, md=None):
       style="border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.5);">
       &#8596; NON-DIRECTIONAL <span class="sc-cnt" style="background:#6480ff;">20</span>
     </button>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+      <span style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+                   color:rgba(255,209,102,.7);">&#128197; EXPIRY DATE</span>
+      <select id="expiryDropdown" onchange="switchExpiry(this.value)"
+        style="appearance:none;-webkit-appearance:none;
+               background:linear-gradient(135deg,rgba(245,197,24,.12),rgba(200,155,10,.06));
+               border:1px solid rgba(245,197,24,.45);border-radius:8px;
+               color:#ffd166;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;
+               padding:7px 28px 7px 12px;cursor:pointer;outline:none;letter-spacing:.5px;">
+        {expiry_opts_html}
+      </select>
+    </div>
   </div>
   <div class="sc-grid" id="sc-grid">
     {bull_cards}{bear_cards}{nd_cards}
@@ -1699,6 +1769,47 @@ window.addEventListener('load',function(){{
   ['bullish','bearish','nondirectional'].forEach(sortGridByPoP);
   filterStrat('bullish',document.querySelector('.sc-tab'));
 }});
+
+// ── Multi-Expiry Switcher ─────────────────────────────────────
+const ALL_EXPIRY_DATA = {all_expiry_json};
+
+window.switchExpiry = function(exp) {{
+  const d = ALL_EXPIRY_DATA[exp];
+  if (!d) return;
+  // Update OC object with selected expiry's data
+  OC.spot        = d.spot;
+  OC.atm         = d.atm;
+  OC.pcr         = d.pcr;
+  OC.maxCeStrike = d.maxCeStrike;
+  OC.maxPeStrike = d.maxPeStrike;
+  OC.support     = d.support;
+  OC.resistance  = d.resistance;
+  OC.strongSup   = d.strongSup;
+  OC.strongRes   = d.strongRes;
+  OC.strikes     = d.strikes;
+  // Rebuild strike map
+  Object.keys(STRIKE_MAP).forEach(k => delete STRIKE_MAP[k]);
+  OC.strikes.forEach(s => {{ STRIKE_MAP[s.strike] = s; }});
+  // Collapse all expanded cards first
+  document.querySelectorAll('.sc-card.expanded').forEach(c => c.classList.remove('expanded'));
+  // Reset all metrics panels
+  document.querySelectorAll('.sc-metrics-live').forEach(m => {{
+    m.innerHTML = '<div class="sc-loading">&#9685; Calculating metrics...</div>';
+  }});
+  // Re-run PoP + sort
+  initAllCards();
+  ['bullish','bearish','nondirectional'].forEach(sortGridByPoP);
+  // Flash indicator
+  const sel = document.getElementById('expiryDropdown');
+  if (sel) {{
+    sel.style.borderColor = '#00c896';
+    sel.style.boxShadow = '0 0 10px rgba(0,200,150,.3)';
+    setTimeout(() => {{
+      sel.style.borderColor = 'rgba(245,197,24,.45)';
+      sel.style.boxShadow = 'none';
+    }}, 800);
+  }}
+}};
 </script>
 """
 
@@ -2251,10 +2362,10 @@ def build_greeks_script_html(oc_analysis):
 #  SECTION 10 -- HTML ASSEMBLER
 # =================================================================
 
-def generate_html(tech, oc, md, ts, vix_data=None):
+def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, expiry_list=None):
     oi_html        = build_oi_html(oc)               if oc   else ""
     kl_html        = build_key_levels_html(tech, oc) if tech else ""
-    strat_html     = build_strategies_html(oc, tech, md)
+    strat_html     = build_strategies_html(oc, tech, md, multi_expiry_analyzed=multi_expiry_analyzed, expiry_list=expiry_list)
     strikes_html   = build_strikes_html(oc)
     ticker_html    = build_ticker_bar(tech, oc, vix_data)
     gauge_html     = build_dual_gauge_hero(oc, tech, md, ts)
@@ -2437,7 +2548,17 @@ def main():
     print("\n[2/4] Fetching India VIX...")
     vix_data = fetch_india_vix(nse_session, nse_headers)
     live_vix = vix_data["value"] if vix_data else 18.0
+    # Fetch all 7 expiries for dropdown
+print("\n  Fetching next 7 expiries for dropdown...")
+multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=7)
 
+# Pre-analyze all expiry data
+multi_expiry_analyzed = {}
+for exp, raw in multi_expiry_raw.items():
+    analyzed = analyze_option_chain(raw, vix=live_vix)
+    if analyzed:
+        multi_expiry_analyzed[exp] = analyzed
+        print(f"    Analyzed {exp}: ATM={analyzed['atm_strike']} PCR={analyzed['pcr_oi']:.3f}")
     oc_analysis = analyze_option_chain(oc_raw, vix=live_vix) if oc_raw else None
     if oc_analysis:
         print(f"\n  OK  Spot={oc_analysis['underlying']:.2f}  ATM={oc_analysis['atm_strike']}")
@@ -2458,7 +2579,9 @@ def main():
     print(f"  Bias={md['bias']}  Conf={md['confidence']}  Bull={md['bull']}  Bear={md['bear']}")
 
     print("\nGenerating Holiday-Aware Dashboard...")
-    html = generate_html(tech, oc_analysis, md, ts, vix_data=vix_data)
+    html = generate_html(tech, oc_analysis, md, ts, vix_data=vix_data,
+                     multi_expiry_analyzed=multi_expiry_analyzed,
+                     expiry_list=expiry_list)
 
     os.makedirs("docs", exist_ok=True)
     out = os.path.join("docs", "index.html")
