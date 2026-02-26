@@ -236,41 +236,52 @@ class NSEOptionChain:
         return None
 
     def fetch_multiple_expiries(self, session, headers, n=7):
-        """Fetch option chain data for next n expiries for dropdown."""
-        # Use cached list from fetch() to avoid re-hitting NSE
-        expiry_list = getattr(self, '_cached_expiry_list', [])
+        """Generate next n weekly expiry dates (Tuesdays) with holiday adjustment,
+           then fetch option chain for each. No extra NSE API call needed."""
 
-        # If cache empty, try one more time with a delay
-        if not expiry_list:
-            print("  Cache empty, retrying expiry list fetch...")
-            time.sleep(2)
-            try:
-                url = f"https://www.nseindia.com/api/option-chain-v3?type=Indices&symbol={self.symbol}"
-                resp = session.get(url, headers=headers, impersonate="chrome", timeout=20)
-                if resp.status_code == 200:
-                    all_exp = resp.json().get("records", {}).get("expiryDates", [])
-                    today = today_ist()
-                    for exp_str in all_exp:
-                        try:
-                            exp_dt = datetime.strptime(exp_str, "%d-%b-%Y").date()
-                            if exp_dt >= today:
-                                expiry_list.append(exp_str)
-                                if len(expiry_list) >= n:
-                                    break
-                        except Exception:
-                            continue
-                    print(f"  Retry expiry list: {expiry_list}")
-            except Exception as e:
-                print(f"  WARNING fetch_multiple_expiries retry: {e}")
+        # ── Step 1: Generate next n Tuesday expiry dates ──────────
+        expiry_list = []
+        today = today_ist()
+        wd = today.weekday()  # Mon=0 … Sun=6
 
-        # Fetch option chain data for each expiry
+        # Find this week's Tuesday
+        if wd <= 1:
+            days_to_tue = 1 - wd
+        else:
+            days_to_tue = 8 - wd
+        base_tuesday = today + timedelta(days=days_to_tue)
+
+        # Generate n Tuesdays from today forward
+        candidate = base_tuesday
+        attempts = 0
+        while len(expiry_list) < n and attempts < 30:
+            # Apply holiday adjustment
+            if is_nse_holiday(candidate):
+                adjusted = get_prev_trading_day(candidate)
+            else:
+                adjusted = candidate
+            exp_str = adjusted.strftime("%d-%b-%Y")
+            if exp_str not in expiry_list:
+                expiry_list.append(exp_str)
+            # Move to next Tuesday
+            candidate += timedelta(days=7)
+            attempts += 1
+
+        print(f"  Generated expiry list: {expiry_list}")
+
+        # ── Step 2: Fetch option chain for each expiry ─────────────
         results = {}
         for exp in expiry_list:
             print(f"    Fetching expiry: {exp}")
             data = self._fetch_for_expiry(session, headers, exp)
             if data:
                 results[exp] = data
-            time.sleep(0.8)   # slightly longer delay to avoid NSE rate limit
+                print(f"      OK: {exp}")
+            else:
+                print(f"      SKIP: {exp} not found on NSE (may be monthly/not listed yet)")
+            time.sleep(0.8)
+
+        print(f"  Successfully fetched {len(results)} of {len(expiry_list)} expiries")
         return results, expiry_list
 
     def fetch(self):
@@ -1416,9 +1427,14 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
     all_expiry_json = json.dumps(all_expiry_js)
     expiry_opts_html = ""
     if expiry_list:
-        for i, exp in enumerate(expiry_list):
-            sel = "selected" if i == 0 else ""
-            expiry_opts_html += f'<option value="{exp}" {sel}>{exp}</option>\n'
+        first = True
+        for exp in expiry_list:
+            # Show all generated dates; mark ones with data vs no data
+            has_data = exp in (all_expiry_js or {})
+            sel = "selected" if first else ""
+            label = exp if has_data else f"{exp} (no data)"
+            expiry_opts_html += f'<option value="{exp}" {sel}>{label}</option>\n'
+            first = False
     else:
         expiry_opts_html = f'<option value="">{oc_analysis["expiry"] if oc_analysis else "N/A"}</option>'
     
