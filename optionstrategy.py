@@ -236,34 +236,34 @@ class NSEOptionChain:
         return None
 
     def fetch_multiple_expiries(self, session, headers, n=7):
-    """Fetch option chain data for next n expiries for dropdown."""
-    expiry_list = []
-    try:
-        url = f"https://www.nseindia.com/api/option-chain-v3?type=Indices&symbol={self.symbol}"
-        resp = session.get(url, headers=headers, impersonate="chrome", timeout=20)
-        if resp.status_code == 200:
-            expiries = resp.json().get("records", {}).get("expiryDates", [])
-            today = today_ist()
-            for exp_str in expiries:
-                try:
-                    exp_dt = datetime.strptime(exp_str, "%d-%b-%Y").date()
-                    if exp_dt >= today:
-                        expiry_list.append(exp_str)
-                        if len(expiry_list) >= n:
-                            break
-                except Exception:
-                    continue
-    except Exception as e:
-        print(f"  WARNING fetch_multiple_expiries: {e}")
+        """Fetch option chain data for next n expiries for dropdown."""
+        expiry_list = []
+        try:
+            url = f"https://www.nseindia.com/api/option-chain-v3?type=Indices&symbol={self.symbol}"
+            resp = session.get(url, headers=headers, impersonate="chrome", timeout=20)
+            if resp.status_code == 200:
+                expiries = resp.json().get("records", {}).get("expiryDates", [])
+                today = today_ist()
+                for exp_str in expiries:
+                    try:
+                        exp_dt = datetime.strptime(exp_str, "%d-%b-%Y").date()
+                        if exp_dt >= today:
+                            expiry_list.append(exp_str)
+                            if len(expiry_list) >= n:
+                                break
+                    except Exception:
+                        continue
+        except Exception as e:
+            print(f"  WARNING fetch_multiple_expiries: {e}")
 
-    results = {}
-    for exp in expiry_list:
-        print(f"    Fetching expiry: {exp}")
-        data = self._fetch_for_expiry(session, headers, exp)
-        if data:
-            results[exp] = data
-        time.sleep(0.5)
-    return results, expiry_list
+        results = {}
+        for exp in expiry_list:
+            print(f"    Fetching expiry: {exp}")
+            data = self._fetch_for_expiry(session, headers, exp)
+            if data:
+                results[exp] = data
+            time.sleep(0.5)
+        return results, expiry_list
 
     def fetch(self):
         session, headers = self._make_session()
@@ -2549,16 +2549,17 @@ def main():
     vix_data = fetch_india_vix(nse_session, nse_headers)
     live_vix = vix_data["value"] if vix_data else 18.0
     # Fetch all 7 expiries for dropdown
-print("\n  Fetching next 7 expiries for dropdown...")
-multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=7)
+    print("\n  Fetching next 7 expiries for dropdown...")
+    multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=7)
 
-# Pre-analyze all expiry data
-multi_expiry_analyzed = {}
-for exp, raw in multi_expiry_raw.items():
-    analyzed = analyze_option_chain(raw, vix=live_vix)
-    if analyzed:
-        multi_expiry_analyzed[exp] = analyzed
-        print(f"    Analyzed {exp}: ATM={analyzed['atm_strike']} PCR={analyzed['pcr_oi']:.3f}")
+    # Pre-analyze all expiry data
+    multi_expiry_analyzed = {}
+    for exp, raw in multi_expiry_raw.items():
+        analyzed = analyze_option_chain(raw, vix=live_vix)
+        if analyzed:
+            multi_expiry_analyzed[exp] = analyzed
+            print(f"    Analyzed {exp}: ATM={analyzed['atm_strike']} PCR={analyzed['pcr_oi']:.3f}")
+
     oc_analysis = analyze_option_chain(oc_raw, vix=live_vix) if oc_raw else None
     if oc_analysis:
         print(f"\n  OK  Spot={oc_analysis['underlying']:.2f}  ATM={oc_analysis['atm_strike']}")
