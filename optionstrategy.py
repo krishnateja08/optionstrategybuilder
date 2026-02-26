@@ -1424,7 +1424,7 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
                 "strongRes":   round(tech["strong_res"], 2) if tech else spot + 300,
                 "strikes":     oc_e.get("strikes_data", []),
             }
-   all_expiry_json = json.dumps(all_expiry_js)
+    all_expiry_json = json.dumps(all_expiry_js)
     expiry_opts_html = ""
     if expiry_list:
         first_with_data = True
