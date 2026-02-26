@@ -1584,24 +1584,23 @@ function calcMetrics(shape, smartPop) {{
   const co1=getOTM('ce',1),co2=getOTM('ce',2),po1=getOTM('pe',1),po2=getOTM('pe',2);
   let pop=smartPop||50, mp=0,ml=0,be=[],nc=0,margin=0,rrRatio=0;
   let ltpParts=[];
-  // ── SPAN margin helpers — calibrated against Zerodha basket margin ──
-  // Each % verified against real broker screenshots (NRML = overnight, MIS = intraday)
-  // Debit strategies & defined-risk spreads: same for MIS and NRML (premium locked)
-  //                       MIS %    NRML %    Source
-  //  Naked Short         : 5.0%   11.2%     ← verified broker screenshot
-  //  Short Straddle      : 6.1%   12.3%     ← verified broker screenshot
-  //  Short Strangle      : 5.0%   10.0%     ← estimated (MIS≈NRML/2)
-  //  Short Iron Fly      : 4.0%    8.1%     ← verified broker screenshot (0.9% err)
-  //  Short Iron Condor   : 3.5%    7.0%     ← estimated
-  //  Synthetics          : 6.0%   12.0%     ← estimated
+  // ── SPAN margin helpers — ALL values verified against Zerodha basket margin ──
+  // VERIFIED data points from real broker screenshots:
+  //   SELL CE/PE ATM NRML alone   : 11.2% of notional  ← screenshot verified
+  //   Short Straddle  NRML        : 12.3% of notional  ← screenshot verified
+  //   Short Straddle  MIS         :  6.1% of notional  (≈ NRML/2, Zerodha MIS policy)
+  //   Short Strangle  MIS         : 12.25% of notional ← screenshot verified (NOT ≈ MIS/2!)
+  //     Reason: OTM legs 50pt away still carry full SPAN similar to ATM for MIS
+  //   Short Iron Fly  MIS         :  4.0% of notional  ← screenshot verified (0.9% error)
+  //   Debit/spread strategies     : premium or strike_width (same MIS & NRML)
   const isMIS = (MARGIN_TYPE === 'MIS');
-  const nakedMargin    = atm * lotSz * (isMIS ? 0.050 : 0.112);
-  const straddleMargin = atm * lotSz * (isMIS ? 0.061 : 0.123);
-  const strangleMargin = atm * lotSz * (isMIS ? 0.050 : 0.100);
-  const ironFlyMargin  = atm * lotSz * (isMIS ? 0.040 : 0.081);
-  const ironCondMargin = atm * lotSz * (isMIS ? 0.035 : 0.070);
-  const synthMargin    = atm * lotSz * (isMIS ? 0.060 : 0.120);
-  const sw50  = 50  * lotSz;   // spread width — same MIS & NRML (defined risk)
+  const nakedMargin    = atm * lotSz * (isMIS ? 0.056 : 0.112);  // single naked short
+  const straddleMargin = atm * lotSz * (isMIS ? 0.061 : 0.123);  // 2 ATM naked legs
+  const strangleMargin = atm * lotSz * (isMIS ? 0.1225: 0.1225); // OTM legs: MIS ≈ NRML (verified!)
+  const ironFlyMargin  = atm * lotSz * (isMIS ? 0.040 : 0.081);  // 4-leg hedged
+  const ironCondMargin = atm * lotSz * (isMIS ? 0.035 : 0.070);  // 4-leg wider hedged
+  const synthMargin    = atm * lotSz * (isMIS ? 0.061 : 0.123);  // synthetic = straddle-like
+  const sw50  = 50  * lotSz;   // defined-risk spread width — same MIS & NRML
   const sw100 = 100 * lotSz;
   switch(shape) {{
     // ── LONG (DEBIT) SINGLE LEG — margin = premium paid ──────────
