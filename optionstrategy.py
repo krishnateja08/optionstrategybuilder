@@ -1426,19 +1426,17 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
             }
     all_expiry_json = json.dumps(all_expiry_js)
     expiry_opts_html = ""
-    if expiry_list:
-        first = True
-        for exp in expiry_list:
-            # Show all generated dates; mark ones with data vs no data
-            has_data = exp in (all_expiry_js or {})
-            sel = "selected" if first else ""
-            if has_data:
-                expiry_opts_html += f'<option value="{exp}" {sel}>{exp}</option>\n'
-            else:
-                expiry_opts_html += f'<option value="{exp}" disabled style="color:rgba(255,255,255,.2);">{exp} ✕ no data</option>\n'
-            first = False
-    else:
-        expiry_opts_html = f'<option value="">{oc_analysis["expiry"] if oc_analysis else "N/A"}</option>'
+if expiry_list:
+    first_with_data = True                        # tracks if we found first valid expiry yet
+    for exp in expiry_list:
+        has_data = exp in (all_expiry_js or {})
+        if not has_data:
+            continue                               # skip no-data expiries completely
+        sel = "selected" if first_with_data else ""
+        expiry_opts_html += f'<option value="{exp}" {sel}>{exp}</option>\n'
+        first_with_data = False                   # after first valid one, rest are unselected
+else:
+    expiry_opts_html = f'<option value="">{oc_analysis["expiry"] if oc_analysis else "N/A"}</option>'
     
     support     = tech["support"]    if tech else spot - 150
     resistance  = tech["resistance"] if tech else spot + 150
