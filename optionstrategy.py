@@ -1432,8 +1432,10 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
             # Show all generated dates; mark ones with data vs no data
             has_data = exp in (all_expiry_js or {})
             sel = "selected" if first else ""
-            label = exp if has_data else f"{exp} (no data)"
-            expiry_opts_html += f'<option value="{exp}" {sel}>{label}</option>\n'
+            if has_data:
+                expiry_opts_html += f'<option value="{exp}" {sel}>{exp}</option>\n'
+            else:
+                expiry_opts_html += f'<option value="{exp}" disabled style="color:rgba(255,255,255,.2);">{exp} ✕ no data</option>\n'
             first = False
     else:
         expiry_opts_html = f'<option value="">{oc_analysis["expiry"] if oc_analysis else "N/A"}</option>'
@@ -1817,9 +1819,28 @@ window.addEventListener('load',function(){{
 // ── Multi-Expiry Switcher ─────────────────────────────────────
 const ALL_EXPIRY_DATA = {all_expiry_json};
 
-window.switchExpiry = function(exp) {{
-  const d = ALL_EXPIRY_DATA[exp];
-  if (!d) return;
+window.switchExpiry = function(exp) {
+  let d = ALL_EXPIRY_DATA[exp];
+  // If no data for selected expiry, find next available one
+  if (!d) {
+    const sel = document.getElementById('expiryDropdown');
+    if (sel) {
+      const opts = Array.from(sel.options);
+      const curIdx = opts.findIndex(o => o.value === exp);
+      // Search forward for next expiry with data
+      for (let i = curIdx + 1; i < opts.length; i++) {
+        const nextExp = opts[i].value;
+        if (ALL_EXPIRY_DATA[nextExp]) {
+          // Auto-select it in dropdown
+          sel.value = nextExp;
+          exp = nextExp;
+          d = ALL_EXPIRY_DATA[nextExp];
+          break;
+        }
+      }
+    }
+    if (!d) return; // still no data found anywhere ahead
+  }
   // Update OC object with selected expiry's data
   OC.spot        = d.spot;
   OC.atm         = d.atm;
