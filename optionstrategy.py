@@ -1779,7 +1779,7 @@ function calcMetrics(shape, smartPop) {{
       const cp2 = co1.ltp || 100, pp = po1.ltp || 100, tp = cp2 + pp;
       mp = tp * lotSz; ml = 999999;
       be = [po1.strike - tp, co1.strike + tp];
-      nc = tp * lotSz; margin = (function(){ var ceM=Math.max(0.117*OC.spot,0.075*co1.strike)*OC.lotSize; var peM=Math.max(0.117*OC.spot,0.075*po1.strike)*OC.lotSize; return Math.round(Math.max(ceM,peM)*0.85+Math.min(ceM,peM)*0.15); })(); // SPAN strangle: 85/15 netting
+      nc = tp * lotSz; margin = Math.round((Math.max(0.117*OC.spot,0.075*co1.strike)*OC.lotSize > Math.max(0.117*OC.spot,0.075*po1.strike)*OC.lotSize ? Math.max(0.117*OC.spot,0.075*co1.strike)*OC.lotSize*0.85 + Math.max(0.117*OC.spot,0.075*po1.strike)*OC.lotSize*0.15 : Math.max(0.117*OC.spot,0.075*po1.strike)*OC.lotSize*0.85 + Math.max(0.117*OC.spot,0.075*co1.strike)*OC.lotSize*0.15)); // SPAN strangle: 85/15 netting
       ltpParts = [
         {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
