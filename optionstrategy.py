@@ -1682,7 +1682,7 @@ function calcMetrics(shape, smartPop) {{
     case 'short_put': {{
       const p = pe_atm || 150;
       mp = p * lotSz; ml = (atm - p) * lotSz; be = [atm - p];
-      nc = p * lotSz; margin = (spot > 1000 ? spot : atm) * lotSz * 0.15;
+      nc = p * lotSz; margin = atm * lotSz * 0.15;
       rrRatio = ((atm - p) / p).toFixed(2);
       ltpParts = [{{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: p, c: '#ff9090' }}];
       break;
@@ -1690,7 +1690,7 @@ function calcMetrics(shape, smartPop) {{
     case 'short_call': {{
       const p = ce_atm || 150;
       mp = p * lotSz; ml = 999999; be = [atm + p];
-      nc = p * lotSz; margin = (spot > 1000 ? spot : atm) * lotSz * 0.15;
+      nc = p * lotSz; margin = atm * lotSz * 0.15;
       ltpParts = [{{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: p, c: '#00c8e0' }}];
       break;
     }}
@@ -1757,7 +1757,7 @@ function calcMetrics(shape, smartPop) {{
     case 'short_straddle': {{
       const cp2 = ce_atm || 150, pp = pe_atm || 150, tp = cp2 + pp;
       mp = tp * lotSz; ml = 999999; be = [atm - tp, atm + tp];
-      nc = tp * lotSz; margin = (spot > 1000 ? spot : atm) * lotSz * 0.18;
+      nc = tp * lotSz; margin = atm * lotSz * 0.25;
       ltpParts = [
         {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
@@ -1779,7 +1779,7 @@ function calcMetrics(shape, smartPop) {{
       const cp2 = co1.ltp || 100, pp = po1.ltp || 100, tp = cp2 + pp;
       mp = tp * lotSz; ml = 999999;
       be = [po1.strike - tp, co1.strike + tp];
-      nc = tp * lotSz; margin = (spot > 1000 ? spot : atm) * lotSz * 0.15;
+      nc = tp * lotSz; margin = atm * lotSz * 0.20;
       ltpParts = [
         {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
@@ -1793,7 +1793,7 @@ function calcMetrics(shape, smartPop) {{
       const nc2 = cp2 + pp - wc - wp;
       mp = nc2 * lotSz; ml = (ceWing1 - nc2) * lotSz;
       be = [atm - nc2, atm + nc2];
-      nc = nc2 * lotSz; margin = (ceWing1 - nc2) * lotSz;
+      nc = nc2 * lotSz; margin = ceWing1 * lotSz * 2;
       rrRatio = (nc2 / (ceWing1 - nc2)).toFixed(2);
       ltpParts = [
         {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
@@ -1825,7 +1825,7 @@ function calcMetrics(shape, smartPop) {{
       const nc2 = sc - bc + sp - bp;
       mp = nc2 * lotSz; ml = (ceWing1 - nc2) * lotSz;
       be = [po1.strike - nc2, co1.strike + nc2];
-      nc = nc2 * lotSz; margin = (ceWing1 - nc2) * lotSz;
+      nc = nc2 * lotSz; margin = ceWing1 * lotSz * 2;
       rrRatio = (nc2 / (ceWing1 - nc2)).toFixed(2);
       ltpParts = [
         {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: sc, c: '#00c8e0' }},
@@ -1941,7 +1941,7 @@ function calcMetrics(shape, smartPop) {{
       const cp2 = ce_atm || 150, pp = pe_atm || 150, nd = cp2 - pp;
       mp = 999999; ml = 999999;
       be = [atm + nd]; nc = -Math.abs(nd) * lotSz;
-      margin = (spot > 1000 ? spot : atm) * lotSz * 0.30;
+      margin = atm * lotSz * 0.30;
       ltpParts = [
         {{ l: 'BUY CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
@@ -1952,7 +1952,7 @@ function calcMetrics(shape, smartPop) {{
       const cp2 = ce_atm || 150, pp = pe_atm || 150, nc2 = cp2 - pp;
       mp = 999999; ml = 999999;
       be = [atm + nc2]; nc = Math.abs(nc2) * lotSz;
-      margin = (spot > 1000 ? spot : atm) * lotSz * 0.30;
+      margin = atm * lotSz * 0.30;
       ltpParts = [
         {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'BUY PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
