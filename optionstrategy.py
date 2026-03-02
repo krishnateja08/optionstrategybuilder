@@ -1757,7 +1757,7 @@ function calcMetrics(shape, smartPop) {{
     case 'short_straddle': {{
       const cp2 = ce_atm || 150, pp = pe_atm || 150, tp = cp2 + pp;
       mp = tp * lotSz; ml = 999999; be = [atm - tp, atm + tp];
-      nc = tp * lotSz; margin = atm * lotSz * 0.25;
+      nc = tp * lotSz; margin = Math.round(0.155 * OC.spot * OC.lotSize); // SPAN straddle: both ATM naked ~15.5% notional
       ltpParts = [
         {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
@@ -1779,7 +1779,7 @@ function calcMetrics(shape, smartPop) {{
       const cp2 = co1.ltp || 100, pp = po1.ltp || 100, tp = cp2 + pp;
       mp = tp * lotSz; ml = 999999;
       be = [po1.strike - tp, co1.strike + tp];
-      nc = tp * lotSz; margin = atm * lotSz * 0.20;
+      nc = tp * lotSz; margin = (function(){ var ceM=Math.max(0.117*OC.spot,0.075*co1.strike)*OC.lotSize; var peM=Math.max(0.117*OC.spot,0.075*po1.strike)*OC.lotSize; return Math.round(Math.max(ceM,peM)*0.85+Math.min(ceM,peM)*0.15); })(); // SPAN strangle: 85/15 netting
       ltpParts = [
         {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
@@ -1887,7 +1887,7 @@ function calcMetrics(shape, smartPop) {{
       const sp = ce_atm || 150, bp = co1.ltp || 80, nd = 2 * bp - sp;
       mp = 999999; ml = nd > 0 ? nd * lotSz : 0;
       be = [co1.strike + Math.abs(nd)];
-      nc = -nd * lotSz; margin = co1.strike * lotSz * 0.15;
+      nc = -nd * lotSz; margin = Math.round((0.117 - 0.01) * OC.spot * OC.lotSize); // SPAN: naked(11.7%) - 1 BUY hedge(1%)
       ltpParts = [
         {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: sp, c: '#00c896' }},
         {{ l: 'BUY 2x CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: bp, c: '#00c8e0' }}
@@ -1898,7 +1898,7 @@ function calcMetrics(shape, smartPop) {{
       const sp = pe_atm || 150, bp = po1.ltp || 80, nd = 2 * bp - sp;
       mp = 999999; ml = nd > 0 ? nd * lotSz : 0;
       be = [po1.strike - Math.abs(nd)];
-      nc = -nd * lotSz; margin = po1.strike * lotSz * 0.15;
+      nc = -nd * lotSz; margin = Math.round((0.117 - 0.01) * OC.spot * OC.lotSize); // SPAN: naked(11.7%) - 1 BUY hedge(1%)
       ltpParts = [
         {{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: sp, c: '#00c896' }},
         {{ l: 'BUY 2x PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: bp, c: '#ff9090' }}
