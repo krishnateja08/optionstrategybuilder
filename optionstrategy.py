@@ -1682,18 +1682,491 @@ def build_ticker_bar(tech, oc, vix_data):
 </div>'''
 
 
-# =================================================================
-#  SECTION 6 -- STRATEGIES  (unchanged from v18.4 — abbreviated here)
-# =================================================================
-# NOTE: Copy the full STRATEGIES_DATA dict, make_payoff_svg(), and
-# build_strategies_html() from v18.4 verbatim here.
-# (Omitted in this diff for brevity — they are unchanged)
 
-# Placeholder so main() can run without strategies section:
-STRATEGIES_DATA = {"bullish":[],"bearish":[],"nondirectional":[]}
-def make_payoff_svg(shape, bull_color="#00c896", bear_color="#ff6b6b"): return ""
+# =================================================================
+#  SECTION 6 -- STRATEGIES WITH SMART POP ENGINE
+# =================================================================
+
+def make_payoff_svg(shape, bull_color="#00c896", bear_color="#ff6b6b"):
+    w, h, pad = 80, 50, 8; mid = h // 2
+    def pts(*c): return " ".join(f"{x},{y}" for x,y in c)
+    shapes = {
+        "long_call":         {"p":[(pad,mid),(40,mid),(72,h-pad)],             "l":[(pad,mid),(40,mid)]},
+        "short_put":         {"p":[(pad,h-pad),(40,mid),(72,mid)],             "l":[(pad,mid),(40,mid)]},
+        "bull_call_spread":  {"p":[(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],  "l":[(pad,mid),(30,mid)]},
+        "bull_put_spread":   {"p":[(pad,h-pad),(30,h-pad),(55,mid),(72,mid)],  "l":[(pad,mid),(72,mid)]},
+        "call_ratio_back":   {"p":[(pad,h-pad),(25,mid),(50,mid),(72,h-pad)],  "l":[(pad,mid),(25,mid),(50,mid)]},
+        "long_synthetic":    {"p":[(pad,mid),(72,h-pad)],                      "l":[(pad,pad),(40,mid)]},
+        "range_forward":     {"p":[(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],  "l":[(pad,pad),(30,pad),(55,mid)]},
+        "bull_butterfly":    {"p":[(pad,mid),(36,h-pad),(54,mid)],             "l":[(pad,mid),(72,mid)]},
+        "bull_condor":       {"p":[(pad,mid),(28,mid),(36,h-pad),(50,h-pad),(58,mid),(72,mid)],"l":[(pad,mid),(72,mid)]},
+        "short_call":        {"p":[(pad,mid),(40,mid),(72,pad)],               "l":[(pad,mid),(40,mid)]},
+        "long_put":          {"p":[(pad,h-pad),(40,mid),(72,mid)],             "l":[(pad,mid),(40,mid)]},
+        "bear_call_spread":  {"p":[(pad,h-pad),(30,h-pad),(55,mid),(72,mid)],  "l":[(pad,mid),(72,mid)]},
+        "bear_put_spread":   {"p":[(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],  "l":[(pad,mid),(30,mid)]},
+        "put_ratio_back":    {"p":[(pad,h-pad),(25,mid),(50,mid),(72,pad)],    "l":[(pad,mid),(25,mid),(50,mid)]},
+        "short_synthetic":   {"p":[(pad,mid),(72,pad)],                        "l":[(pad,h-pad),(40,mid)]},
+        "risk_reversal":     {"p":[(pad,h-pad),(36,mid),(72,pad)],             "l":[(pad,mid),(36,mid)]},
+        "bear_butterfly":    {"p":[(pad,mid),(36,pad),(54,mid)],               "l":[(pad,mid),(72,mid)]},
+        "bear_condor":       {"p":[(pad,mid),(28,mid),(36,pad),(50,pad),(58,mid),(72,mid)], "l":[(pad,mid),(72,mid)]},
+        "long_straddle":     {"p":[(pad,h-pad),(36,mid),(54,mid),(72,h-pad)],  "l":[(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "short_straddle":    {"p":[(pad,mid),(36,mid),(54,mid),(72,mid)],      "l":[(pad,h-pad),(36,mid),(54,mid),(72,h-pad)]},
+        "long_strangle":     {"p":[(pad,h-pad),(30,mid),(50,mid),(72,h-pad)],  "l":[(pad,mid),(30,mid),(50,mid),(72,mid)]},
+        "short_strangle":    {"p":[(pad,mid),(30,mid),(50,mid),(72,mid)],      "l":[(pad,h-pad),(30,mid),(50,mid),(72,h-pad)]},
+        "jade_lizard":       {"p":[(pad,pad),(30,mid),(55,mid),(72,mid)],      "l":[(pad,mid),(30,mid)]},
+        "reverse_jade":      {"p":[(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],  "l":[(pad,pad),(30,mid)]},
+        "call_ratio_spread": {"p":[(pad,mid),(36,h-pad),(72,mid)],             "l":[(pad,mid),(36,mid),(72,pad)]},
+        "put_ratio_spread":  {"p":[(pad,mid),(36,h-pad),(72,mid)],             "l":[(pad,pad),(36,mid),(72,mid)]},
+        "batman":            {"p":[(pad,mid),(20,h-pad),(36,mid),(54,mid),(68,h-pad),(72,mid)],"l":[(pad,mid),(72,mid)]},
+        "long_iron_fly":     {"p":[(pad,pad),(36,mid),(54,mid),(72,pad)],      "l":[(pad,mid),(36,h-pad),(54,h-pad),(72,mid)]},
+        "short_iron_fly":    {"p":[(pad,mid),(36,h-pad),(54,h-pad),(72,mid)],  "l":[(pad,pad),(36,mid),(54,mid),(72,pad)]},
+        "double_fly":        {"p":[(pad,mid),(20,h-pad),(36,mid),(54,mid),(68,h-pad),(72,mid)],"l":[(pad,mid),(72,mid)]},
+        "long_iron_condor":  {"p":[(pad,pad),(24,mid),(36,mid),(54,mid),(66,pad),(72,pad)],   "l":[(pad,mid),(24,mid),(66,mid),(72,mid)]},
+        "short_iron_condor": {"p":[(pad,mid),(24,h-pad),(36,h-pad),(54,h-pad),(66,mid),(72,mid)],"l":[(pad,pad),(72,pad)]},
+        "double_condor":     {"p":[(pad,mid),(20,h-pad),(36,mid),(54,mid),(68,h-pad),(72,mid)],"l":[(pad,mid),(72,mid)]},
+        "call_calendar":     {"p":[(pad,mid),(36,h-pad),(54,mid),(72,mid)],    "l":[(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "put_calendar":      {"p":[(pad,mid),(36,h-pad),(54,mid),(72,mid)],    "l":[(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "diagonal_calendar": {"p":[(pad,mid),(30,h-pad),(55,mid),(72,mid)],    "l":[(pad,mid),(30,mid),(55,mid),(72,mid)]},
+        "call_butterfly":    {"p":[(pad,mid),(36,h-pad),(54,mid),(72,mid)],    "l":[(pad,mid),(72,mid)]},
+        "put_butterfly":     {"p":[(pad,mid),(36,h-pad),(54,mid),(72,mid)],    "l":[(pad,mid),(72,mid)]},
+    }
+    s = shapes.get(shape, {"p":[(pad,mid),(72,mid)], "l":[]})
+    def area(coords, is_p):
+        if not coords: return ""
+        col = bull_color if is_p else bear_color
+        d = f"M {coords[0][0]},{mid} " + " ".join(f"L {x},{y}" for x,y in coords) + f" L {coords[-1][0]},{mid} Z"
+        return f'<path d="{d}" fill="{col}" fill-opacity="0.18"/>'
+    profit_pts = pts(*s["p"]); loss_pts = pts(*s["l"]) if s["l"] else ""
+    svg = (f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}">'
+           f'<line x1="{pad}" y1="{pad}" x2="{pad}" y2="{h-pad}" stroke="rgba(255,255,255,.15)" stroke-width="1"/>'
+           f'<line x1="{pad}" y1="{mid}" x2="{w-pad}" y2="{mid}" stroke="rgba(255,255,255,.15)" stroke-width="1"/>'
+           + area(s["p"],True) + area(s["l"],False)
+           + f'<polyline points="{profit_pts}" fill="none" stroke="{bull_color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>')
+    if loss_pts:
+        svg += f'<polyline points="{loss_pts}" fill="none" stroke="{bear_color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="3,2"/>'
+    return svg + '</svg>'
+
+
+STRATEGIES_DATA = {
+    "bullish": [
+        {"name":"Long Call","shape":"long_call","risk":"Limited","reward":"Unlimited",
+         "legs":"BUY 1 CALL (ATM)","premium":"Debit","margin":"Low",
+         "desc":"Buy an ATM call. Profits as market rises above strike. Max loss = premium paid. Best when strongly bullish before a move."},
+        {"name":"Short Put","shape":"short_put","risk":"Moderate","reward":"Limited",
+         "legs":"SELL 1 PUT (OTM)","premium":"Credit","margin":"Moderate",
+         "desc":"Sell an OTM put below current price. Collect premium. Profit if market stays above strike till expiry."},
+        {"name":"Bull Call Spread","shape":"bull_call_spread","risk":"Limited","reward":"Limited",
+         "legs":"BUY CALL (Low) · SELL CALL (High)","premium":"Debit","margin":"Low",
+         "desc":"Buy lower strike call, sell higher strike call. Reduces cost vs naked call. Caps profit at upper strike."},
+        {"name":"Bull Put Spread","shape":"bull_put_spread","risk":"Limited","reward":"Limited",
+         "legs":"SELL PUT (High) · BUY PUT (Low)","premium":"Credit","margin":"Low",
+         "desc":"Sell higher put, buy lower put. Receive credit upfront. Profit if market stays above higher strike."},
+        {"name":"Call Ratio Back Spread","shape":"call_ratio_back","risk":"Limited","reward":"Unlimited",
+         "legs":"SELL 1 CALL (Low) · BUY 2 CALLS (High)","premium":"Credit/Debit","margin":"Low",
+         "desc":"Sell fewer lower calls, buy more higher calls. Benefits from a large upside breakout. Low cost structure."},
+        {"name":"Long Synthetic","shape":"long_synthetic","risk":"High","reward":"Unlimited",
+         "legs":"BUY CALL (ATM) · SELL PUT (ATM)","premium":"Debit","margin":"High",
+         "desc":"Replicates owning the underlying index. Unlimited profit above strike, large loss below."},
+        {"name":"Range Forward","shape":"range_forward","risk":"Limited","reward":"Limited",
+         "legs":"BUY CALL (High) · SELL PUT (Low)","premium":"Debit/Credit","margin":"Moderate",
+         "desc":"Collar-like structure. Profit if market moves in a defined range. Common hedging structure."},
+        {"name":"Bull Butterfly","shape":"bull_butterfly","risk":"Limited","reward":"Limited",
+         "legs":"BUY Low · SELL 2 Mid · BUY High (CALLS)","premium":"Debit","margin":"Low",
+         "desc":"Three-leg call spread. Max profit at middle strike. Very low net cost. Good for moderate bullish view."},
+        {"name":"Bull Condor","shape":"bull_condor","risk":"Limited","reward":"Limited",
+         "legs":"BUY Low · SELL Mid-Low · SELL Mid-High · BUY High","premium":"Debit","margin":"Low",
+         "desc":"Four-leg bullish structure. Profit in a range above current price. Wider profit zone than butterfly."},
+    ],
+    "bearish": [
+        {"name":"Short Call","shape":"short_call","risk":"Unlimited","reward":"Limited",
+         "legs":"SELL 1 CALL (ATM/OTM)","premium":"Credit","margin":"High",
+         "desc":"Sell a call above market. Collect premium. Profit if market falls or stays below strike. Unlimited risk above."},
+        {"name":"Long Put","shape":"long_put","risk":"Limited","reward":"High",
+         "legs":"BUY 1 PUT (ATM)","premium":"Debit","margin":"Low",
+         "desc":"Buy an ATM put. Profits as market falls below strike. Max loss = premium paid. Best when strongly bearish."},
+        {"name":"Bear Call Spread","shape":"bear_call_spread","risk":"Limited","reward":"Limited",
+         "legs":"SELL CALL (Low) · BUY CALL (High)","premium":"Credit","margin":"Low",
+         "desc":"Sell lower call, buy higher call. Credit received. Profit if market stays below lower strike at expiry."},
+        {"name":"Bear Put Spread","shape":"bear_put_spread","risk":"Limited","reward":"Limited",
+         "legs":"BUY PUT (High) · SELL PUT (Low)","premium":"Debit","margin":"Low",
+         "desc":"Buy higher put, sell lower put. Cheaper bearish bet vs naked put. Capped profit at lower strike."},
+        {"name":"Put Ratio Back Spread","shape":"put_ratio_back","risk":"Limited","reward":"High",
+         "legs":"SELL 1 PUT (High) · BUY 2 PUTS (Low)","premium":"Credit/Debit","margin":"Low",
+         "desc":"Sell fewer higher puts, buy more lower puts. Benefits from a large downside move. Low cost."},
+        {"name":"Short Synthetic","shape":"short_synthetic","risk":"High","reward":"High",
+         "legs":"SELL CALL (ATM) · BUY PUT (ATM)","premium":"Credit","margin":"High",
+         "desc":"Replicates shorting the underlying. Unlimited profit as market falls, large loss if it rises."},
+        {"name":"Risk Reversal","shape":"risk_reversal","risk":"High","reward":"High",
+         "legs":"BUY PUT (Low) · SELL CALL (High)","premium":"Credit/Debit","margin":"Moderate",
+         "desc":"Protect downside while giving up upside. Common hedging structure for portfolio protection."},
+        {"name":"Bear Butterfly","shape":"bear_butterfly","risk":"Limited","reward":"Limited",
+         "legs":"BUY High · SELL 2 Mid · BUY Low (PUTS)","premium":"Debit","margin":"Low",
+         "desc":"Three-leg put spread. Max profit at middle strike. Very low net cost for moderate bearish view."},
+        {"name":"Bear Condor","shape":"bear_condor","risk":"Limited","reward":"Limited",
+         "legs":"BUY High · SELL Mid-High · SELL Mid-Low · BUY Low","premium":"Debit","margin":"Low",
+         "desc":"Four-leg bearish structure. Profit in a range below current price. Wider profit zone than butterfly."},
+    ],
+    "nondirectional": [
+        {"name":"Long Straddle","shape":"long_straddle","risk":"Limited","reward":"Unlimited",
+         "legs":"BUY CALL (ATM) + BUY PUT (ATM)","premium":"Debit","margin":"Low",
+         "desc":"Buy both ATM call and put. Profit from a big move in either direction. Best before events like budget or RBI."},
+        {"name":"Short Straddle","shape":"short_straddle","risk":"Unlimited","reward":"Limited",
+         "legs":"SELL CALL (ATM) + SELL PUT (ATM)","premium":"Credit","margin":"High",
+         "desc":"Sell both ATM call and put. Max profit if market stays at strike. High risk — unlimited loss on big moves."},
+        {"name":"Long Strangle","shape":"long_strangle","risk":"Limited","reward":"Unlimited",
+         "legs":"BUY OTM CALL + BUY OTM PUT","premium":"Debit","margin":"Low",
+         "desc":"Cheaper than straddle. Buy OTM call and put. Needs a bigger move to profit. Lower cost, wider breakevens."},
+        {"name":"Short Strangle","shape":"short_strangle","risk":"Unlimited","reward":"Limited",
+         "legs":"SELL OTM CALL + SELL OTM PUT","premium":"Credit","margin":"High",
+         "desc":"Wider profit range than short straddle. Collect premium from both OTM sides. High risk on big moves."},
+        {"name":"Jade Lizard","shape":"jade_lizard","risk":"Limited","reward":"Limited",
+         "legs":"SELL OTM PUT + SELL CALL SPREAD","premium":"Credit","margin":"Moderate",
+         "desc":"No upside risk (unlike short strangle). Collect premium. Slightly bearish. Risk-defined above."},
+        {"name":"Reverse Jade Lizard","shape":"reverse_jade","risk":"Limited","reward":"Limited",
+         "legs":"SELL OTM CALL + SELL PUT SPREAD","premium":"Credit","margin":"Moderate",
+         "desc":"No downside risk. Collect premium. Slightly bullish with risk defined below."},
+        {"name":"Call Ratio Spread","shape":"call_ratio_spread","risk":"Unlimited","reward":"Limited",
+         "legs":"BUY 1 CALL (Low) · SELL 2 CALLS (High)","premium":"Credit","margin":"Moderate",
+         "desc":"Sell more calls than bought. Profit from flat-to-mild-up market. Risk if big rally occurs above short strikes."},
+        {"name":"Put Ratio Spread","shape":"put_ratio_spread","risk":"Unlimited","reward":"Limited",
+         "legs":"BUY 1 PUT (High) · SELL 2 PUTS (Low)","premium":"Credit","margin":"Moderate",
+         "desc":"Sell more puts than bought. Profit from flat-to-mild-down market. Risk if big crash below short strikes."},
+        {"name":"Batman Strategy","shape":"batman","risk":"Limited","reward":"Limited",
+         "legs":"Double Butterfly — 2 CALLS + 4 CALLS + 2 CALLS","premium":"Debit","margin":"Low",
+         "desc":"Two butterfly spreads combined. Two profit peaks. Complex strategy for sideways markets with two targets."},
+        {"name":"Long Iron Fly","shape":"long_iron_fly","risk":"Limited","reward":"Limited",
+         "legs":"BUY ATM CALL · BUY ATM PUT · SELL OTM CALL · SELL OTM PUT","premium":"Debit","margin":"Low",
+         "desc":"Debit iron fly. Profit from a big move. Max loss if price stays at ATM. Opposite of short iron fly."},
+        {"name":"Short Iron Fly","shape":"short_iron_fly","risk":"Limited","reward":"Limited",
+         "legs":"SELL ATM CALL · SELL ATM PUT · BUY OTM CALL · BUY OTM PUT","premium":"Credit","margin":"Low",
+         "desc":"Collect credit. Max profit if price stays at ATM at expiry. Most popular non-directional strategy."},
+        {"name":"Double Fly","shape":"double_fly","risk":"Limited","reward":"Limited",
+         "legs":"TWO BUTTERFLY SPREADS at different strikes","premium":"Debit","margin":"Low",
+         "desc":"Two butterfly spreads at different strikes. Two profit peaks. Lower max profit but wider profit zone."},
+        {"name":"Long Iron Condor","shape":"long_iron_condor","risk":"Limited","reward":"Limited",
+         "legs":"BUY CALL SPREAD + BUY PUT SPREAD","premium":"Debit","margin":"Low",
+         "desc":"Debit iron condor. Profit from a big move in either direction. Opposite of short iron condor."},
+        {"name":"Short Iron Condor","shape":"short_iron_condor","risk":"Limited","reward":"Limited",
+         "legs":"SELL CALL SPREAD + SELL PUT SPREAD","premium":"Credit","margin":"Low",
+         "desc":"Most popular range-bound strategy. Collect premium. Profit if price stays within defined range."},
+        {"name":"Double Condor","shape":"double_condor","risk":"Limited","reward":"Limited",
+         "legs":"TWO CONDOR SPREADS at different strikes","premium":"Debit","margin":"Low",
+         "desc":"Two overlapping condors. Wider profit range. Complex but robust for range-bound markets."},
+        {"name":"Call Calendar","shape":"call_calendar","risk":"Limited","reward":"Limited",
+         "legs":"SELL NEAR-TERM CALL · BUY FAR-TERM CALL (same strike)","premium":"Debit","margin":"Low",
+         "desc":"Profit from time decay difference. Best when price stays near strike. Benefits from IV increase in far leg."},
+        {"name":"Put Calendar","shape":"put_calendar","risk":"Limited","reward":"Limited",
+         "legs":"SELL NEAR-TERM PUT · BUY FAR-TERM PUT (same strike)","premium":"Debit","margin":"Low",
+         "desc":"Same as call calendar but using puts. Profit from theta decay. Best when price stays near strike."},
+        {"name":"Diagonal Calendar","shape":"diagonal_calendar","risk":"Limited","reward":"Limited",
+         "legs":"SELL NEAR CALL/PUT · BUY FAR DIFF STRIKE","premium":"Debit","margin":"Low",
+         "desc":"Calendar spread with different strikes. Combines time decay and directional bias. Flexible structure."},
+        {"name":"Call Butterfly","shape":"call_butterfly","risk":"Limited","reward":"Limited",
+         "legs":"BUY Low CALL · SELL 2 Mid CALL · BUY High CALL","premium":"Debit","margin":"Low",
+         "desc":"Max profit at middle strike using calls only. Very low net debit. Best for pinning to a target price."},
+        {"name":"Put Butterfly","shape":"put_butterfly","risk":"Limited","reward":"Limited",
+         "legs":"BUY High PUT · SELL 2 Mid PUT · BUY Low PUT","premium":"Debit","margin":"Low",
+         "desc":"Max profit at middle strike using puts only. Very low net debit. Mirror of call butterfly."},
+    ],
+}
+
+
 def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed=None, expiry_list=None):
-    return '<div class="section" id="strat"><div class="sec-title">STRATEGIES REFERENCE</div><div style="padding:20px;color:rgba(255,255,255,.4);">Copy full build_strategies_html() from v18.4 here.</div></div>'
+    spot       = oc_analysis["underlying"]    if oc_analysis else 0
+    atm        = oc_analysis["atm_strike"]    if oc_analysis else 0
+    pcr        = oc_analysis["pcr_oi"]        if oc_analysis else 1.0
+    max_ce_s   = oc_analysis["max_ce_strike"] if oc_analysis else 0
+    max_pe_s   = oc_analysis["max_pe_strike"] if oc_analysis else 0
+    max_pain   = oc_analysis["max_pain"]      if oc_analysis else 0
+    oi_cls     = oc_analysis["raw_oi_cls"]    if oc_analysis else "neutral"
+    ce_chg     = oc_analysis["ce_chg"]        if oc_analysis else 0
+    pe_chg     = oc_analysis["pe_chg"]        if oc_analysis else 0
+    sup        = tech["support"]              if tech else (spot - 150)
+    res        = tech["resistance"]           if tech else (spot + 150)
+    bias       = md["bias"]                   if md else "SIDEWAYS"
+    hv         = tech["hv"]                   if tech else 18.0
+    expiry     = oc_analysis["expiry"]        if oc_analysis else "N/A"
+
+    expiry_opts = ""
+    if expiry_list:
+        for e in expiry_list:
+            sel = 'selected' if e == expiry else ''
+            expiry_opts += f'<option value="{e}" {sel}>{e}</option>\n'
+    else:
+        expiry_opts = f'<option value="{expiry}" selected>{expiry}</option>'
+
+    LOT = 65
+
+    # ── Build strategy cards ──────────────────────────────────────────────────
+    def card_html(s, cat):
+        shape    = s["shape"]
+        svg      = make_payoff_svg(shape)
+        col      = "#00c896" if cat == "bullish" else ("#ff6b6b" if cat == "bearish" else "#6480ff")
+        bg       = ("rgba(0,200,150,.05)"   if cat == "bullish" else
+                    "rgba(255,107,107,.05)" if cat == "bearish" else "rgba(100,128,255,.05)")
+        bdr      = ("rgba(0,200,150,.18)"   if cat == "bullish" else
+                    "rgba(255,107,107,.18)" if cat == "bearish" else "rgba(100,128,255,.18)")
+        risk_col = "#00c896" if s["risk"] == "Limited" else "#ff6b6b"
+        rwd_col  = "#00c896" if "Unlimited" in s["reward"] else "#ffd166"
+        prem_col = "#00c896" if s["premium"] == "Credit" else "#ff9090"
+
+        return f"""
+<div class="sc-card" data-cat="{cat}" data-shape="{shape}" style="background:{bg};border:1px solid {bdr};border-radius:14px;padding:14px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+    <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.9);line-height:1.3;flex:1;padding-right:8px;">{s["name"]}</div>
+    <div style="flex-shrink:0;">{svg}</div>
+  </div>
+  <div style="font-size:9px;color:rgba(255,255,255,.4);margin-bottom:8px;line-height:1.6;">{s["legs"]}</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px;">
+    <div style="font-size:8.5px;background:rgba(255,255,255,.04);border-radius:5px;padding:4px 7px;">
+      <div style="color:rgba(255,255,255,.3);margin-bottom:1px;">RISK</div>
+      <div style="font-weight:700;color:{risk_col};">{s["risk"]}</div>
+    </div>
+    <div style="font-size:8.5px;background:rgba(255,255,255,.04);border-radius:5px;padding:4px 7px;">
+      <div style="color:rgba(255,255,255,.3);margin-bottom:1px;">REWARD</div>
+      <div style="font-weight:700;color:{rwd_col};">{s["reward"]}</div>
+    </div>
+    <div style="font-size:8.5px;background:rgba(255,255,255,.04);border-radius:5px;padding:4px 7px;">
+      <div style="color:rgba(255,255,255,.3);margin-bottom:1px;">PREMIUM</div>
+      <div style="font-weight:700;color:{prem_col};">{s["premium"]}</div>
+    </div>
+    <div style="font-size:8.5px;background:rgba(255,255,255,.04);border-radius:5px;padding:4px 7px;">
+      <div style="color:rgba(255,255,255,.3);margin-bottom:1px;">MARGIN</div>
+      <div style="font-weight:700;color:rgba(255,255,255,.7);">{s["margin"]}</div>
+    </div>
+  </div>
+  <div class="sc-metrics-live" style="margin-bottom:8px;">
+    <div class="sc-loading" style="font-size:10px;color:rgba(255,255,255,.3);text-align:center;padding:6px 0;">Click to load live metrics ▼</div>
+  </div>
+  <div class="sc-desc" style="font-size:10.5px;color:rgba(255,255,255,.4);line-height:1.6;border-top:1px solid rgba(255,255,255,.05);padding-top:8px;display:none;">{s["desc"]}</div>
+  <div style="position:absolute;top:10px;right:10px;width:6px;height:6px;border-radius:50%;background:{col};box-shadow:0 0 6px {col};"></div>
+</div>"""
+
+    bull_cards = "".join(card_html(s, "bullish")     for s in STRATEGIES_DATA["bullish"])
+    bear_cards = "".join(card_html(s, "bearish")     for s in STRATEGIES_DATA["bearish"])
+    nd_cards   = "".join(card_html(s, "nondirectional") for s in STRATEGIES_DATA["nondirectional"])
+
+    # ── Smart PoP JS Data ──────────────────────────────────────────────────────
+    dist_sup = round(spot - sup, 0)
+    dist_res = round(res - spot, 0)
+    sr_range = round(res - sup, 0)
+
+    return f"""
+<div class="section" id="strat">
+  <div class="sec-title" style="color:#00c896;border-color:rgba(0,200,150,.18);">
+    STRATEGIES REFERENCE
+    <span class="sec-sub">Smart PoP · Live Metrics · 38 Strategies · Click card to expand</span>
+  </div>
+
+  <!-- Filter Tabs -->
+  <div class="sc-tabs">
+    <button class="sc-tab" onclick="filterStrat('bullish',this)"
+      style="border-color:#00c896;color:#00c896;background:rgba(0,200,150,.1);">
+      ▲ BULLISH <span style="background:rgba(0,200,150,.2);color:#00c896;padding:1px 7px;border-radius:10px;font-size:10px;">{len(STRATEGIES_DATA["bullish"])}</span>
+    </button>
+    <button class="sc-tab" onclick="filterStrat('bearish',this)"
+      style="border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.5);">
+      ▼ BEARISH <span style="background:rgba(255,107,107,.15);color:#ff6b6b;padding:1px 7px;border-radius:10px;font-size:10px;">{len(STRATEGIES_DATA["bearish"])}</span>
+    </button>
+    <button class="sc-tab" onclick="filterStrat('nondirectional',this)"
+      style="border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.5);">
+      ◆ NON-DIRECTIONAL <span style="background:rgba(100,128,255,.15);color:#6480ff;padding:1px 7px;border-radius:10px;font-size:10px;">{len(STRATEGIES_DATA["nondirectional"])}</span>
+    </button>
+  </div>
+
+  <!-- Strategy Cards Grid -->
+  <div class="sc-grid">
+    {bull_cards}
+    {bear_cards}
+    {nd_cards}
+  </div>
+
+  <!-- Smart PoP JS Engine -->
+  <script>
+  (function() {{
+    var SPOT    = {spot:.2f};
+    var ATM     = {atm};
+    var PCR     = {pcr:.3f};
+    var MAX_CE  = {max_ce_s};
+    var MAX_PE  = {max_pe_s};
+    var MAX_PAIN= {max_pain};
+    var OI_CLS  = "{oi_cls}";
+    var CE_CHG  = {ce_chg};
+    var PE_CHG  = {pe_chg};
+    var SUP     = {sup:.2f};
+    var RES     = {res:.2f};
+    var BIAS    = "{bias}";
+    var HV      = {hv:.2f};
+    var LOT     = {LOT};
+    var ATM_CE  = 0; var ATM_PE  = 0;
+
+    // Try to get ATM LTP from strike data (injected by greeks script)
+    try {{
+      if (window._gData && window._gData[ATM]) {{
+        ATM_CE = window._gData[ATM].ce_ltp || 0;
+        ATM_PE = window._gData[ATM].pe_ltp || 0;
+      }}
+    }} catch(e) {{}}
+
+    // ── PoP Engine ─────────────────────────────────────────────────────────
+    window.smartPoP = function(shape, cat) {{
+      var score = 50;
+      var reasons = [];
+      var dist_sup = SPOT - SUP;
+      var dist_res = RES - SPOT;
+      var sr_range = RES - SUP || 200;
+      var ratio    = dist_sup / sr_range;
+
+      // Direction signals
+      var bull_signals = 0; var bear_signals = 0;
+      if (PCR > 1.3) {{ bull_signals += 2; }} else if (PCR > 1.1) {{ bull_signals += 1; }} else if (PCR < 0.7) {{ bear_signals += 2; }} else if (PCR < 0.9) {{ bear_signals += 1; }}
+      if (ratio <= 0.25) {{ bull_signals += 2; reasons.push("Spot near Support"); }}
+      else if (ratio >= 0.75) {{ bear_signals += 2; reasons.push("Spot near Resistance"); }}
+      if (Math.abs(MAX_PE - SUP) <= 200) {{ bull_signals += 1; reasons.push("PE wall at Support"); }}
+      if (Math.abs(MAX_CE - RES) <= 200) {{ bear_signals += 1; reasons.push("CE wall at Resistance"); }}
+      if (PE_CHG > 0 && CE_CHG < 0) {{ bull_signals += 2; reasons.push("Put buildup + Call unwinding"); }}
+      else if (CE_CHG > 0 && PE_CHG < 0) {{ bear_signals += 2; reasons.push("Call buildup + Put unwinding"); }}
+      if (BIAS === "BULLISH") {{ bull_signals += 1; }} else if (BIAS === "BEARISH") {{ bear_signals += 1; }}
+      if (SPOT > MAX_PAIN + 75) {{ bear_signals += 1; }} else if (SPOT < MAX_PAIN - 75) {{ bull_signals += 1; }}
+
+      var net = bull_signals - bear_signals;
+      var market_is_bullish = net > 0;
+      var market_is_sideways = Math.abs(net) <= 1;
+
+      // Strategy-specific PoP
+      var pop_map = {{
+        // Bullish strategies — score high when market is bullish
+        "long_call":50,         "short_put":62,          "bull_call_spread":60,
+        "bull_put_spread":65,   "call_ratio_back":42,    "long_synthetic":48,
+        "range_forward":55,     "bull_butterfly":55,     "bull_condor":52,
+        // Bearish strategies — score high when market is bearish
+        "short_call":50,        "long_put":50,           "bear_call_spread":60,
+        "bear_put_spread":55,   "put_ratio_back":42,     "short_synthetic":48,
+        "risk_reversal":55,     "bear_butterfly":55,     "bear_condor":52,
+        // Non-directional — score high when market is sideways / high IV
+        "long_straddle":52,     "short_straddle":62,     "long_strangle":48,
+        "short_strangle":60,    "jade_lizard":62,        "reverse_jade":62,
+        "call_ratio_spread":55,"put_ratio_spread":55,    "batman":58,
+        "long_iron_fly":50,     "short_iron_fly":65,     "double_fly":55,
+        "long_iron_condor":50,  "short_iron_condor":68,  "double_condor":56,
+        "call_calendar":58,     "put_calendar":58,       "diagonal_calendar":55,
+        "call_butterfly":57,    "put_butterfly":57,
+      }};
+      var base = pop_map[shape] || 50;
+
+      // Directional adjustment
+      var bullish_shapes = ["long_call","short_put","bull_call_spread","bull_put_spread","call_ratio_back","long_synthetic","range_forward","bull_butterfly","bull_condor"];
+      var bearish_shapes = ["short_call","long_put","bear_call_spread","bear_put_spread","put_ratio_back","short_synthetic","risk_reversal","bear_butterfly","bear_condor"];
+      var is_bull_strat = bullish_shapes.indexOf(shape) > -1;
+      var is_bear_strat = bearish_shapes.indexOf(shape) > -1;
+      var dir_adj = 0;
+      if (is_bull_strat) {{ dir_adj = net * 3; }}
+      else if (is_bear_strat) {{ dir_adj = -net * 3; }}
+      else {{
+        // Non-directional: higher PoP when sideways
+        dir_adj = market_is_sideways ? 5 : -3;
+        if (HV < 15) {{ dir_adj += 4; }} // low vol = good for sellers
+      }}
+
+      var pop = Math.min(88, Math.max(18, Math.round(base + dir_adj)));
+      var conf = Math.abs(net) >= 4 ? "HIGH" : Math.abs(net) >= 2 ? "MEDIUM" : "LOW";
+      return {{ pop: pop, confidence: conf, bull: bull_signals, bear: bear_signals, reasons: reasons }};
+    }};
+
+    // ── Metrics Calculator ──────────────────────────────────────────────────
+    window.calcMetrics = function(shape, pop) {{
+      var ltp_ce = ATM_CE || 120;
+      var ltp_pe = ATM_PE || 120;
+      var premium_debit_shapes = ["long_call","long_put","long_straddle","long_strangle","bull_call_spread","bear_put_spread","call_ratio_back","put_ratio_back","long_iron_fly","long_iron_condor","call_butterfly","put_butterfly","double_fly","double_condor","call_calendar","put_calendar","diagonal_calendar","bull_butterfly","bear_butterfly","bull_condor","bear_condor","batman","long_synthetic"];
+      var is_debit = premium_debit_shapes.indexOf(shape) > -1;
+
+      var atm_ce = ltp_ce || 120; var atm_pe = ltp_pe || 120;
+      var metrics = {{
+        "long_call":        {{max_loss: atm_ce*LOT,    max_profit: (RES - ATM - atm_ce)*LOT, be: ATM+atm_ce, net: -atm_ce*LOT}},
+        "long_put":         {{max_loss: atm_pe*LOT,    max_profit: (ATM - SUP - atm_pe)*LOT, be: ATM-atm_pe, net: -atm_pe*LOT}},
+        "short_call":       {{max_loss: 99999,          max_profit: atm_ce*LOT,               be: ATM+atm_ce, net: atm_ce*LOT}},
+        "short_put":        {{max_loss: (ATM*0.8)*LOT,  max_profit: atm_pe*LOT,               be: ATM-atm_pe, net: atm_pe*LOT}},
+        "long_straddle":    {{max_loss: (atm_ce+atm_pe)*LOT, max_profit: 9999*LOT,           be: ATM,        net: -(atm_ce+atm_pe)*LOT}},
+        "short_straddle":   {{max_loss: 9999*LOT,            max_profit: (atm_ce+atm_pe)*LOT, be: ATM,       net: (atm_ce+atm_pe)*LOT}},
+        "long_strangle":    {{max_loss: (atm_ce*0.6+atm_pe*0.6)*LOT, max_profit: 9999*LOT,  be: ATM,        net: -(atm_ce+atm_pe)*0.6*LOT}},
+        "short_strangle":   {{max_loss: 9999*LOT,            max_profit: (atm_ce+atm_pe)*0.6*LOT, be: ATM,  net: (atm_ce+atm_pe)*0.6*LOT}},
+        "bull_call_spread":  {{max_loss: atm_ce*0.5*LOT,      max_profit: (50-atm_ce*0.5)*LOT,  be: ATM+atm_ce*0.5, net: -atm_ce*0.5*LOT}},
+        "bear_put_spread":   {{max_loss: atm_pe*0.5*LOT,      max_profit: (50-atm_pe*0.5)*LOT,  be: ATM-atm_pe*0.5, net: -atm_pe*0.5*LOT}},
+        "bull_put_spread":   {{max_loss: 50*LOT,               max_profit: atm_pe*0.3*LOT,       be: ATM-atm_pe*0.3, net: atm_pe*0.3*LOT}},
+        "bear_call_spread":  {{max_loss: 50*LOT,               max_profit: atm_ce*0.3*LOT,       be: ATM+atm_ce*0.3, net: atm_ce*0.3*LOT}},
+        "short_iron_condor": {{max_loss: 75*LOT,               max_profit: (atm_ce+atm_pe)*0.25*LOT, be: ATM, net: (atm_ce+atm_pe)*0.25*LOT}},
+        "short_iron_fly":    {{max_loss: 100*LOT,              max_profit: (atm_ce+atm_pe)*0.5*LOT,  be: ATM, net: (atm_ce+atm_pe)*0.5*LOT}},
+        "long_iron_condor":  {{max_loss: (atm_ce+atm_pe)*0.25*LOT, max_profit: 75*LOT, be: ATM, net: -(atm_ce+atm_pe)*0.25*LOT}},
+        "long_iron_fly":     {{max_loss: (atm_ce+atm_pe)*0.5*LOT,  max_profit: 100*LOT, be: ATM, net: -(atm_ce+atm_pe)*0.5*LOT}},
+        "call_butterfly":    {{max_loss: atm_ce*0.3*LOT,    max_profit: (50-atm_ce*0.3)*LOT,  be: ATM, net: -atm_ce*0.3*LOT}},
+        "put_butterfly":     {{max_loss: atm_pe*0.3*LOT,    max_profit: (50-atm_pe*0.3)*LOT,  be: ATM, net: -atm_pe*0.3*LOT}},
+      }};
+      var m = metrics[shape] || {{max_loss: atm_ce*LOT, max_profit: atm_ce*LOT, be: ATM, net: -atm_ce*LOT}};
+      m.max_loss   = Math.abs(Math.round(m.max_loss));
+      m.max_profit = Math.abs(Math.round(m.max_profit));
+      m.net        = Math.round(m.net);
+      m.be         = Math.round(m.be);
+      m.rr         = m.max_loss > 0 ? (m.max_profit / m.max_loss) : 0;
+      m.margin     = m.max_loss;
+      return m;
+    }};
+
+    // ── Metrics Renderer ────────────────────────────────────────────────────
+    window.renderMetrics = function(m, sr) {{
+      var pop = sr.pop;
+      var pop_col = pop >= 65 ? "#00c896" : pop >= 50 ? "#ffd166" : "#ff6b6b";
+      var conf_col = sr.confidence === "HIGH" ? "#00c896" : sr.confidence === "MEDIUM" ? "#ffd166" : "#6480ff";
+      var prof_col = m.max_profit > m.max_loss ? "#00c896" : "#ffd166";
+      var rr_col   = m.rr >= 2 ? "#00c896" : m.rr >= 1 ? "#ffd166" : "#ff6b6b";
+      var net_sign = m.net >= 0 ? "+" : "-";
+      var net_col  = m.net >= 0 ? "#00c896" : "#ff9090";
+      function rs(n) {{ return "\u20b9" + Math.abs(Math.round(n)).toLocaleString("en-IN"); }}
+      return [
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:8.5px;">',
+          '<div style="background:rgba(255,255,255,.04);border-radius:5px;padding:5px 7px;">',
+            '<div style="color:rgba(255,255,255,.3);">PROB. PROFIT</div>',
+            '<div style="font-family:DM Mono,monospace;font-weight:700;color:'+pop_col+';font-size:13px;">'+pop+'%</div>',
+            '<div style="color:'+conf_col+';font-size:8px;font-weight:700;">'+sr.confidence+'</div>',
+          '</div>',
+          '<div style="background:rgba(255,255,255,.04);border-radius:5px;padding:5px 7px;">',
+            '<div style="color:rgba(255,255,255,.3);">MAX RR RATIO</div>',
+            '<div style="font-family:DM Mono,monospace;font-weight:700;color:'+rr_col+';font-size:13px;">1:'+m.rr.toFixed(2)+'</div>',
+          '</div>',
+          '<div style="background:rgba(255,255,255,.04);border-radius:5px;padding:5px 7px;">',
+            '<div style="color:rgba(255,255,255,.3);">MAX PROFIT</div>',
+            '<div style="font-family:DM Mono,monospace;font-weight:700;color:'+prof_col+';">'+rs(m.max_profit)+'</div>',
+          '</div>',
+          '<div style="background:rgba(255,255,255,.04);border-radius:5px;padding:5px 7px;">',
+            '<div style="color:rgba(255,255,255,.3);">MAX LOSS</div>',
+            '<div style="font-family:DM Mono,monospace;font-weight:700;color:#ff6b6b;">'+rs(m.max_loss)+'</div>',
+          '</div>',
+          '<div style="background:rgba(255,255,255,.04);border-radius:5px;padding:5px 7px;">',
+            '<div style="color:rgba(255,255,255,.3);">BREAKEVEN</div>',
+            '<div style="font-family:DM Mono,monospace;font-weight:700;color:#00c8e0;">\u20b9'+m.be.toLocaleString("en-IN")+'</div>',
+          '</div>',
+          '<div style="background:rgba(255,255,255,.04);border-radius:5px;padding:5px 7px;">',
+            '<div style="color:rgba(255,255,255,.3);">MARGIN</div>',
+            '<div style="font-family:DM Mono,monospace;font-weight:700;color:#8aa0ff;">'+rs(m.margin)+'</div>',
+          '</div>',
+        '</div>',
+        sr.reasons.length ? '<div style="font-size:9px;color:rgba(255,255,255,.35);margin-top:5px;padding:5px 7px;background:rgba(255,255,255,.03);border-radius:5px;">'+sr.reasons.join(' · ')+'</div>' : '',
+      ].join("");
+    }};
+
+    // Show description on expand
+    document.addEventListener("DOMContentLoaded", function() {{
+      document.querySelectorAll(".sc-card").forEach(function(card) {{
+        card.addEventListener("click", function() {{
+          var desc = card.querySelector(".sc-desc");
+          if (desc) desc.style.display = card.classList.contains("expanded") ? "block" : "none";
+        }});
+      }});
+    }});
+  }})();
+  </script>
+</div>
+"""
+
 
 
 # =================================================================
