@@ -1533,21 +1533,46 @@ var SRC = {{
 var _srcTimer=null;
 function srcDebounce(){{ clearTimeout(_srcTimer); _srcTimer=setTimeout(srcCalculate,600); }}
 
-function srcSnap(target,type){{
-  // FIX: safe fallback when no strikes available
-  if(!SRC.strikes||!SRC.strikes.length) {{
-    var fallbackLtp = Math.max(10, Math.round(150 - Math.abs(target - SRC.atm) * 0.3));
-    return {{strike:target, ltp:fallbackLtp, iv:15}};
+// ── FIXED srcSnap: index-aware, returns safe non-zero LTP ──────────
+// Returns {{strike, ltp, iv, idx}} where idx is position in sorted strikes array.
+// This lets callers pick the "next step" by index, avoiding degenerate same-strike legs.
+function srcSnap(target, type) {{
+  if (!SRC.strikes || !SRC.strikes.length) {{
+    var estLtp = Math.max(10, Math.round(120 * Math.exp(-Math.abs(target - SRC.atm) * 0.003)));
+    return {{strike:target, ltp:estLtp, iv:15, idx:-1}};
   }}
-  var b=SRC.strikes.reduce(function(a,s){{return Math.abs(s.strike-target)<Math.abs(a.strike-target)?s:a}},SRC.strikes[0]);
-  var rawLtp = type==='ce' ? b.ce_ltp : b.pe_ltp;
-  var rawIv  = type==='ce' ? b.ce_iv  : b.pe_iv;
-  // FIX: if LTP is 0 (OTM with no trades), estimate from IV using simplified Black-Scholes proxy
-  if(!rawLtp || rawLtp <= 0) {{
-    var distPct = Math.abs(b.strike - SRC.atm) / Math.max(SRC.atm, 1);
-    rawLtp = Math.max(5, Math.round(80 * Math.exp(-distPct * 12)));
+  var sorted = SRC.strikes.slice().sort(function(a,b){{return a.strike-b.strike;}});
+  var bestIdx = 0;
+  for (var i = 1; i < sorted.length; i++) {{
+    if (Math.abs(sorted[i].strike - target) < Math.abs(sorted[bestIdx].strike - target)) bestIdx = i;
   }}
-  return {{strike:b.strike, ltp:rawLtp, iv:rawIv||15}};
+  var b   = sorted[bestIdx];
+  var ltp = type === 'ce' ? b.ce_ltp : b.pe_ltp;
+  var iv  = (type === 'ce' ? b.ce_iv : b.pe_iv) || 15;
+  // If LTP is 0 (deep OTM with no trades), estimate it from distance to ATM
+  if (!ltp || ltp <= 0) {{
+    var dist = Math.abs(b.strike - SRC.atm);
+    ltp = Math.max(2, Math.round(120 * Math.exp(-dist * 0.003)));
+  }}
+  return {{strike:b.strike, ltp:ltp, iv:iv, idx:bestIdx, _sorted:sorted}};
+}}
+
+// ── srcSnapByIdx: get strike at a specific index in sorted array ───
+// Used to pick "1 step above/below" a snapped strike safely.
+function srcSnapByIdx(referenceSnap, offset, type) {{
+  var sorted = referenceSnap._sorted || (SRC.strikes.slice().sort(function(a,b){{return a.strike-b.strike;}}));
+  var idx    = Math.max(0, Math.min(sorted.length-1, referenceSnap.idx + offset));
+  // If offset would go out of range, mirror inward instead
+  if (referenceSnap.idx + offset < 0) idx = Math.min(referenceSnap.idx + 1, sorted.length-1);
+  if (referenceSnap.idx + offset >= sorted.length) idx = Math.max(referenceSnap.idx - 1, 0);
+  var b   = sorted[idx];
+  var ltp = type === 'ce' ? b.ce_ltp : b.pe_ltp;
+  var iv  = (type === 'ce' ? b.ce_iv : b.pe_iv) || 15;
+  if (!ltp || ltp <= 0) {{
+    var dist = Math.abs(b.strike - SRC.atm);
+    ltp = Math.max(2, Math.round(120 * Math.exp(-dist * 0.003)));
+  }}
+  return {{strike:b.strike, ltp:ltp, iv:iv, idx:idx, _sorted:sorted}};
 }}
 
 function srcPoP(cat,sup,res){{
@@ -1590,18 +1615,36 @@ function srcBuildStrats(sup,res){{
   var spot=SRC.spot, atm=SRC.atm, lot=SRC.lotSize;
   var range=Math.max(res-sup,50);
 
-  // ── Snap all required strikes from live option chain ──────────────
-  // CE side: nearest to resistance (sell), one step above (buy hedge), two steps above (wider hedge)
-  var sCe  = srcSnap(Math.round((res-25)/50)*50,  'ce');
-  var bCe  = srcSnap(Math.round((res+50)/50)*50,  'ce');
-  var bCe2 = srcSnap(Math.round((res+100)/50)*50, 'ce');
-  // PE side: nearest to support (sell), one step below (buy hedge), two steps below (wider hedge)
-  var sPe  = srcSnap(Math.round((sup+25)/50)*50,  'pe');
-  var bPe  = srcSnap(Math.round((sup-50)/50)*50,  'pe');
-  var bPe2 = srcSnap(Math.round((sup-100)/50)*50, 'pe');
+  // ── FIXED: Index-based leg selection ─────────────────────────────
+  // snap sCe = nearest CE to resistance (sell leg, capped inside chain)
+  var sCe  = srcSnap(res, 'ce');
+  // bCe  = 1 step ABOVE sCe inside chain (buy hedge) — by index, never the same strike
+  var bCe  = srcSnapByIdx(sCe, +1, 'ce');
+  // bCe2 = 2 steps ABOVE sCe (wider hedge)
+  var bCe2 = srcSnapByIdx(sCe, +2, 'ce');
+
+  // snap sPe = nearest PE to support (sell leg, capped inside chain)
+  var sPe  = srcSnap(sup, 'pe');
+  // bPe  = 1 step BELOW sPe inside chain (buy hedge) — by index, never the same strike
+  var bPe  = srcSnapByIdx(sPe, -1, 'pe');
+  // bPe2 = 2 steps BELOW sPe (wider hedge)
+  var bPe2 = srcSnapByIdx(sPe, -2, 'pe');
+
   // ATM legs
   var atmCe = srcSnap(atm, 'ce');
   var atmPe = srcSnap(atm, 'pe');
+
+  // Safety: if buy == sell (chain edge), force a 1-step offset using ATM-relative index
+  if (bCe.strike === sCe.strike)  bCe  = srcSnapByIdx(srcSnap(atm,'ce'), +1, 'ce');
+  if (bCe2.strike === sCe.strike) bCe2 = srcSnapByIdx(srcSnap(atm,'ce'), +2, 'ce');
+  if (bPe.strike === sPe.strike)  bPe  = srcSnapByIdx(srcSnap(atm,'pe'), -1, 'pe');
+  if (bPe2.strike === sPe.strike) bPe2 = srcSnapByIdx(srcSnap(atm,'pe'), -2, 'pe');
+
+  // Log for debugging
+  console.log('srcBuildStrats legs — sup:'+sup+' res:'+res,
+    'sCe:'+sCe.strike+'@'+sCe.ltp, 'bCe:'+bCe.strike+'@'+bCe.ltp,
+    'sPe:'+sPe.strike+'@'+sPe.ltp, 'bPe:'+bPe.strike+'@'+bPe.ltp,
+    'ATM CE:'+atmCe.ltp, 'ATM PE:'+atmPe.ltp);
 
   // ── Helper: breakeven proximity score (no hardcoded values) ──────
   // Measures how close each breakeven is to sup or res as a fraction of range.
@@ -1823,26 +1866,27 @@ function srcBuildStrats(sup,res){{
     }});
   }})();}}catch(e){{console.warn('Wide Iron Condor skipped:',e);}}
 
-  // ── FIX: Filter out any strategy that produced NaN/Infinity values ──
+  // ── FIXED: Filter NaN/degenerate strategies before ranking ──────────
   pool = pool.filter(function(s) {{
-    return isFinite(s.score) && !isNaN(s.nc) && !isNaN(s.mp) && !isNaN(s.ml) &&
-           s.legs.every(function(l) {{ return isFinite(l.l) && !isNaN(l.l); }});
+    return s && isFinite(s.score) && !isNaN(s.nc) && isFinite(s.mp) && isFinite(s.ml) &&
+           Array.isArray(s.legs) && s.legs.length > 0 &&
+           s.legs.every(function(l) {{ return l && isFinite(l.l) && !isNaN(l.l) && l.s > 0; }});
   }});
 
-  // ── FIX: If all real strategies failed, inject a guaranteed safe fallback ──
-  if(pool.length === 0) {{
-    var nc = (sCe.ltp||20) + (sPe.ltp||20);
+  // ── FIXED: Guaranteed fallback so something always renders ───────────
+  if (pool.length === 0) {{
+    var fbNc  = (sCe.ltp||20) + (sPe.ltp||20);
+    var fbPop = srcPoP('nondirectional', sup, res);
     pool.push({{
-      name:'Short Strangle (Safe Fallback)', cat:'nondirectional',
-      score:50,
-      legs:[{{a:'SELL CE',s:sCe.strike,l:sCe.ltp||20,c:'#00c8e0'}},
-            {{a:'SELL PE',s:sPe.strike,l:sPe.ltp||20,c:'#ff9090'}}],
-      nc:nc, mp:nc*lot, ml:999999,
-      be:[sPe.strike-nc, sCe.strike+nc],
-      margin:Math.round(0.155*spot*lot),
-      pop:srcPoP('nondirectional',sup,res),
-      note:'Fallback strategy — sell premium at both walls. Check live data.',
-      why:'Fallback: sell CE near resistance, sell PE near support. Profit if Nifty stays in range.'
+      name:'Short Strangle', cat:'nondirectional', score:50,
+      legs:[{{a:'SELL CE', s:sCe.strike, l:sCe.ltp||20, c:'#00c8e0'}},
+            {{a:'SELL PE', s:sPe.strike, l:sPe.ltp||20, c:'#ff9090'}}],
+      nc:fbNc, mp:fbNc*lot, ml:999999,
+      be:[sPe.strike-fbNc, sCe.strike+fbNc],
+      margin:Math.round(0.155*(SRC.spot||24000)*lot),
+      pop:fbPop,
+      note:'Sell CE near resistance + PE near support. Profit if Nifty stays in range.',
+      why:'Sell CE at \u20b9'+sCe.strike.toLocaleString('en-IN')+' (near resistance) & PE at \u20b9'+sPe.strike.toLocaleString('en-IN')+' (near support). Collect premium from both sides.'
     }});
   }}
 
@@ -1975,50 +2019,46 @@ window.srcCalculate=function(){{
         empty.innerHTML='<span style="color:#ffd166;">\u26a0 Enter two different S/R values.</span>';}}
       if(results)results.style.display='none'; return;
     }}
-    // FIX: Always sync from OC global (defined in strategies section above) before calculating
+    // ── FIXED: Always sync from OC global before calculating ─────────
     (function syncFromOC() {{
       try {{
-        if(typeof OC !== 'undefined') {{
-          if(OC.spot)         SRC.spot        = OC.spot;
-          if(OC.atm)          SRC.atm         = OC.atm;
-          if(OC.pcr)          SRC.pcr         = OC.pcr;
-          if(OC.maxCeStrike)  SRC.maxCeStrike = OC.maxCeStrike;
-          if(OC.maxPeStrike)  SRC.maxPeStrike = OC.maxPeStrike;
-          if(OC.bias)         SRC.bias        = OC.bias;
-          if(OC.biasConf)     SRC.biasConf    = OC.biasConf;
-          if(OC.strikes && OC.strikes.length > 0) SRC.strikes = OC.strikes;
-          // Update display values
+        if (typeof OC !== 'undefined') {{
+          if (OC.spot)        SRC.spot        = OC.spot;
+          if (OC.atm)         SRC.atm         = OC.atm;
+          if (OC.pcr)         SRC.pcr         = OC.pcr;
+          if (OC.maxCeStrike) SRC.maxCeStrike = OC.maxCeStrike;
+          if (OC.maxPeStrike) SRC.maxPeStrike = OC.maxPeStrike;
+          if (OC.bias)        SRC.bias        = OC.bias;
+          if (OC.biasConf)    SRC.biasConf    = OC.biasConf;
+          if (OC.strikes && OC.strikes.length > 0) SRC.strikes = OC.strikes;
           var sd = document.getElementById('srcSpotDisplay');
           var ad = document.getElementById('srcAtmDisplay');
-          if(sd) sd.textContent = (SRC.spot||0).toLocaleString('en-IN',{{minimumFractionDigits:2,maximumFractionDigits:2}});
-          if(ad) ad.textContent = (SRC.atm||0).toLocaleString('en-IN');
+          if (sd) sd.textContent = (SRC.spot||0).toLocaleString('en-IN',{{minimumFractionDigits:2,maximumFractionDigits:2}});
+          if (ad) ad.textContent = (SRC.atm||0).toLocaleString('en-IN');
         }}
       }} catch(syncErr) {{ console.warn('OC sync error:', syncErr); }}
     }})();
-    // FIX: Generate realistic synthetic strikes centred on ATM if no live data
+    // ── FIXED: Realistic synthetic strikes if no live data ────────────
     if(!SRC.strikes||SRC.strikes.length===0){{
-      var centreAtm=SRC.atm||Math.round(((sup+res)/2)/50)*50;
-      var synth=[];
-      for(var i=-12;i<=12;i++){{
-        var sk=centreAtm+(i*50);
-        // Realistic ATM-relative LTP: ATM ≈ 150, drops exponentially with distance
-        var atmBase = 150;
-        var decay   = Math.exp(-Math.abs(i) * 0.35);
-        var ltp     = Math.max(3, Math.round(atmBase * decay));
-        var iv      = Math.max(12, Math.min(35, 15 + Math.abs(i) * 0.8));
+      var centreAtm = SRC.atm || Math.round(((sup+res)/2)/50)*50;
+      var synth = [];
+      for (var i = -12; i <= 12; i++) {{
+        var sk  = centreAtm + (i * 50);
+        var ltp = Math.max(2, Math.round(120 * Math.exp(-Math.abs(i) * 0.35)));
+        var iv  = Math.max(12, Math.min(35, 15 + Math.abs(i) * 0.8));
         synth.push({{strike:sk, ce_ltp:ltp, pe_ltp:ltp, ce_iv:iv, pe_iv:iv, ce_oi:1000, pe_oi:1000}});
       }}
-      SRC.strikes=synth;
-      SRC.atm=centreAtm;
+      SRC.strikes = synth;
+      SRC.atm = centreAtm;
       console.log('SRC: using synthetic strikes centred on ATM', centreAtm);
     }}
     var banner=document.getElementById('srcContextBanner');
     var cards=document.getElementById('srcStratCards');
     if(banner)banner.innerHTML=srcBanner(sup,res);
     if(cards){{
-      console.log('SRC DEBUG: sup='+sup+' res='+res+' spot='+SRC.spot+' atm='+SRC.atm+' strikes='+SRC.strikes.length);
+      console.log('SRC CALCULATE: sup='+sup+' res='+res+' spot='+SRC.spot+' atm='+SRC.atm+' strikes='+SRC.strikes.length);
       var strats=srcBuildStrats(sup,res);
-      console.log('SRC DEBUG: built '+strats.length+' strategies:', strats.map(function(s){{return s.name+' score='+s.score;}}));
+      console.log('SRC CALCULATE: built '+strats.length+' strategies:', strats.map(function(s){{return s.name+'(score='+s.score+')';}}).join(', '));
       if(strats.length>0){{
         var html='';
         strats.forEach(function(s,i){{
@@ -2046,26 +2086,24 @@ window.srcCalculate=function(){{
   }}
 }};
 // Auto-calculate on load intentionally removed.
-// Fields start empty — results only appear when user presses CALCULATE
-// with their own Support & Resistance values.
+// Fields start empty — results appear only when user presses CALCULATE.
 
-// FIX: Sync Spot and ATM display values from OC global immediately on load
-// (OC is defined in the strategies section script tag above this one)
+// ── FIXED: Sync Spot/ATM display from OC immediately on page load ─────
 document.addEventListener('DOMContentLoaded', function() {{
   try {{
-    if(typeof OC !== 'undefined') {{
-      if(OC.spot) SRC.spot = OC.spot;
-      if(OC.atm)  SRC.atm  = OC.atm;
-      if(OC.pcr)  SRC.pcr  = OC.pcr;
-      if(OC.maxCeStrike) SRC.maxCeStrike = OC.maxCeStrike;
-      if(OC.maxPeStrike) SRC.maxPeStrike = OC.maxPeStrike;
-      if(OC.bias)        SRC.bias        = OC.bias;
-      if(OC.biasConf)    SRC.biasConf    = OC.biasConf;
-      if(OC.strikes && OC.strikes.length > 0) SRC.strikes = OC.strikes;
+    if (typeof OC !== 'undefined') {{
+      if (OC.spot)        SRC.spot        = OC.spot;
+      if (OC.atm)         SRC.atm         = OC.atm;
+      if (OC.pcr)         SRC.pcr         = OC.pcr;
+      if (OC.maxCeStrike) SRC.maxCeStrike = OC.maxCeStrike;
+      if (OC.maxPeStrike) SRC.maxPeStrike = OC.maxPeStrike;
+      if (OC.bias)        SRC.bias        = OC.bias;
+      if (OC.biasConf)    SRC.biasConf    = OC.biasConf;
+      if (OC.strikes && OC.strikes.length > 0) SRC.strikes = OC.strikes;
       var sd = document.getElementById('srcSpotDisplay');
       var ad = document.getElementById('srcAtmDisplay');
-      if(sd) sd.textContent = (SRC.spot||0).toLocaleString('en-IN',{{minimumFractionDigits:2,maximumFractionDigits:2}});
-      if(ad) ad.textContent = (SRC.atm||0).toLocaleString('en-IN');
+      if (sd) sd.textContent = (SRC.spot||0).toLocaleString('en-IN',{{minimumFractionDigits:2,maximumFractionDigits:2}});
+      if (ad) ad.textContent = (SRC.atm||0).toLocaleString('en-IN');
     }}
   }} catch(e) {{ console.warn('S/R Calc init sync error:', e); }}
 }});
