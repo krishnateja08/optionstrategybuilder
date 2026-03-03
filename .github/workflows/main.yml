@@ -5,14 +5,13 @@ on:
     branches: [ main ]
   schedule:
     # Run at 9:15 AM, 11:30 AM, 1:30 PM, 3:45 PM IST
-    # IST = UTC+5:30, so subtract 5:30 from IST times
+    # (IST = UTC+5:30 so subtract 5:30 from above)
     - cron: '45 3 * * 1-5'   # 9:15 AM IST
     - cron: '00 6 * * 1-5'   # 11:30 AM IST
     - cron: '00 8 * * 1-5'   # 1:30 PM IST
     - cron: '15 10 * * 1-5'  # 3:45 PM IST
   workflow_dispatch:          # manual trigger button
 
-# Workflow-level permissions (inherited by all jobs)
 permissions:
   contents: read
   pages: write
@@ -23,12 +22,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-
-  # ── Job 1: Build ─────────────────────────────────────────────────
+  # ── Job 1: Build ─────────────────────────────────────────────
   build:
     runs-on: ubuntu-latest
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -45,23 +42,14 @@ jobs:
       - name: Run dashboard generator
         run: python optionstrategy.py
 
-      # FIX 1: Create docs/ with a fallback index if script failed to produce one
-      - name: Ensure docs folder exists
-        run: |
-          mkdir -p docs
-          if [ ! -f docs/index.html ]; then
-            echo "<html><body><h1>Build failed — no index.html generated</h1></body></html>" > docs/index.html
-            echo "WARNING: docs/index.html was missing — placeholder created"
-          fi
-
       - name: Verify output
         run: |
           echo "=== Output files ==="
           ls -lh docs/
-          echo "=== HTML size ==="
-          wc -c docs/index.html
+          echo "=== HTML preview (first 5 lines) ==="
+          head -5 docs/index.html
 
-      # FIX 2: Removed 'enablement: true' — causes error if Pages already configured
+      # FIX 1: Removed enablement: true — crashes if Pages already enabled in repo settings
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v4
 
@@ -70,12 +58,12 @@ jobs:
         with:
           path: 'docs'
 
-  # ── Job 2: Deploy ────────────────────────────────────────────────
+  # ── Job 2: Deploy ────────────────────────────────────────────
   deploy:
     needs: build
     runs-on: ubuntu-latest
 
-    # FIX 3: Explicit permissions on deploy job (required by actions/deploy-pages)
+    # FIX 2: deploy job needs its own permissions for actions/deploy-pages@v4
     permissions:
       pages: write
       id-token: write
