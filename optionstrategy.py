@@ -2535,8 +2535,17 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .sc-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;position:relative;}
 .sc-card:hover{border-color:rgba(0,200,150,.3);transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,200,150,.1)}
 .sc-card.hidden{display:none}
-.sc-card.expanded .sc-detail{display:block}
-.sc-card.expanded{border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12)}
+/* ── Modal overlay ── */
+.sc-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .2s ease;}
+.sc-modal-overlay.open{opacity:1;pointer-events:all;}
+.sc-modal{background:linear-gradient(135deg,#0c1020,#0e1428);border:1px solid rgba(0,200,150,.3);border-radius:20px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,.7),0 0 0 1px rgba(0,200,150,.1);position:relative;animation:modalSlideIn .22s ease;}
+@keyframes modalSlideIn{from{opacity:0;transform:translateY(22px) scale(.97)}to{opacity:1;transform:none}}
+.sc-modal::-webkit-scrollbar{width:3px}.sc-modal::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+.sc-modal-close{position:sticky;top:0;z-index:10;display:flex;justify-content:flex-end;padding:12px 14px 0;background:linear-gradient(135deg,#0c1020,#0e1428);}
+.sc-modal-close button{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:50%;width:28px;height:28px;cursor:pointer;color:rgba(255,255,255,.6);font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .15s;line-height:1;}
+.sc-modal-close button:hover{background:rgba(255,107,107,.2);border-color:rgba(255,107,107,.4);color:#ff6b6b;}
+.sc-modal-header{padding:4px 18px 14px;border-bottom:1px solid rgba(255,255,255,.07);}
+.sc-modal-body{padding:0;}
 .sc-pop-badge{position:absolute;top:8px;right:8px;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);z-index:5;letter-spacing:.5px;transition:all .3s;min-width:38px;text-align:center;}
 .sc-svg{display:flex;align-items:center;justify-content:center;padding:14px 0 6px;background:rgba(255,255,255,.02)}
 .sc-body{padding:10px 12px 12px}
@@ -2544,7 +2553,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .sc-legs{font-family:var(--fm);font-size:9px;color:rgba(0,200,220,.7);margin-bottom:8px;letter-spacing:.3px;line-height:1.4}
 .sc-tags{display:flex;flex-direction:column;gap:4px}
 .sc-tag{font-size:9px;padding:2px 8px;border-radius:6px;border:1px solid;background:rgba(0,0,0,.2);display:inline-block;width:fit-content}
-.sc-detail{display:none;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,200,150,.03)}
+.sc-detail{display:none !important;}  /* content now shown in modal */
 .sc-desc{font-size:11px;color:rgba(255,255,255,.5);line-height:1.7;padding:12px 12px 8px;border-bottom:1px solid rgba(255,255,255,.05);}
 .sc-metrics-live{padding:0}
 .sc-loading{padding:14px 12px;font-size:11px;color:rgba(255,255,255,.3);text-align:center;font-family:'DM Mono',monospace}
@@ -2985,25 +2994,119 @@ function filterStrat(cat,btn){{
     {{t.style.borderColor=col;t.style.color=col;t.style.background=col+"20";}}
   }});}}
 }}
-document.addEventListener("click",function(e){{
-  const card=e.target.closest(".sc-card");
-  if(card){{
-    const was=card.classList.contains("expanded");
-    document.querySelectorAll(".sc-card.expanded").forEach(c=>c.classList.remove("expanded"));
-    if(!was){{
-      card.classList.add("expanded");
-      const mel=card.querySelector('.sc-metrics-live');
-      if(mel&&mel.querySelector('.sc-loading')){{
-        try{{
-          const shape=card.dataset.shape, cat=card.dataset.cat;
-          const scoreResult=smartPoP(shape,cat);
-          const m=calcMetrics(shape,scoreResult.pop);
-          mel.innerHTML=renderMetrics(m, scoreResult);
-        }}catch(err){{mel.innerHTML='<div class="sc-loading">Could not calculate metrics</div>';}}
-      }}
-    }}
-  }}
-}});
+// ── Strategy Modal Popup ────────────────────────────────────────
+(function() {
+  // Create overlay once
+  const overlay = document.createElement('div');
+  overlay.className = 'sc-modal-overlay';
+  overlay.innerHTML =
+    '<div class="sc-modal" id="scModal">' +
+      '<div class="sc-modal-close"><button id="scModalClose" title="Close">&#x2715;</button></div>' +
+      '<div class="sc-modal-header" id="scModalHeader"></div>' +
+      '<div class="sc-modal-body" id="scModalBody"></div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+
+  function closeModal() {
+    overlay.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  document.getElementById('scModalClose').addEventListener('click', closeModal);
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) closeModal(); });
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+
+  function openModal(card) {
+    const shape  = card.dataset.shape;
+    const cat    = card.dataset.cat;
+    const name   = card.dataset.name;
+    const legs   = card.dataset.legs;
+    const risk   = card.dataset.risk;
+    const reward = card.dataset.reward;
+
+    // SVG payoff from card
+    const svgEl  = card.querySelector('.sc-svg');
+    const svgHtml = svgEl ? svgEl.innerHTML : '';
+
+    // Category color
+    const col = cat === 'bullish' ? '#00c896' : cat === 'bearish' ? '#ff6b6b' : '#6480ff';
+    const arrow = cat === 'bullish' ? '▲' : cat === 'bearish' ? '▼' : '◆';
+    const rc  = (risk === 'Limited' || risk === 'Low') ? '#00c896' : (risk === 'Unlimited' || risk === 'High') ? '#ff6b6b' : '#6480ff';
+    const rwc = reward === 'Unlimited' ? '#00c896' : '#6480ff';
+
+    // Build header
+    document.getElementById('scModalHeader').innerHTML =
+      '<div style="display:flex;align-items:center;gap:14px;">' +
+        '<div style="flex-shrink:0;">' + svgHtml + '</div>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:9px;font-weight:700;letter-spacing:2px;color:' + col + ';text-transform:uppercase;margin-bottom:3px;">' + arrow + ' ' + cat.toUpperCase() + '</div>' +
+          '<div style="font-size:20px;font-weight:800;color:rgba(255,255,255,.95);margin-bottom:6px;">' + name + '</div>' +
+          '<div style="font-family:'DM Mono',monospace;font-size:9.5px;color:rgba(0,200,220,.75);margin-bottom:8px;">' + legs + '</div>' +
+          '<div style="display:flex;gap:7px;">' +
+            '<span style="font-size:9px;padding:2px 9px;border-radius:6px;border:1px solid ' + rc + '40;color:' + rc + ';">Risk: ' + risk + '</span>' +
+            '<span style="font-size:9px;padding:2px 9px;border-radius:6px;border:1px solid ' + rwc + '40;color:' + rwc + ';">Reward: ' + reward + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div style="flex-shrink:0;text-align:center;">' +
+          '<div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;margin-bottom:3px;">POP</div>' +
+          '<div id="scModalPop" style="font-family:'DM Mono',monospace;font-size:30px;font-weight:800;color:#6480ff;">—</div>' +
+        '</div>' +
+      '</div>';
+
+    // Build body: description + live metrics
+    const descEl = card.querySelector('.sc-desc');
+    const desc   = descEl ? descEl.textContent.trim() : '';
+
+    const bodyEl = document.getElementById('scModalBody');
+    bodyEl.innerHTML =
+      '<div style="padding:14px 18px;font-size:12px;color:rgba(255,255,255,.5);' +
+        'line-height:1.75;border-bottom:1px solid rgba(255,255,255,.06);' +
+        'border-left:3px solid ' + col + '60;margin:0 18px 0;border-radius:0 0 0 4px;">' + desc + '</div>' +
+      '<div id="scModalMetrics" style="padding:0;">' +
+        '<div class="sc-loading" style="padding:20px;text-align:center;font-size:12px;' +
+          'color:rgba(255,255,255,.3);font-family:'DM Mono',monospace;">&#9685; Calculating metrics...</div>' +
+      '</div>';
+
+    // Calculate metrics
+    try {
+      const scoreResult = smartPoP(shape, cat);
+      const m = calcMetrics(shape, scoreResult.pop);
+
+      // Update PoP badge
+      const popEl = document.getElementById('scModalPop');
+      if (popEl) {
+        const pc = m.pop >= 70 ? '#00c896' : m.pop >= 55 ? '#4de8b8' : m.pop >= 45 ? '#6480ff' : '#ff6b6b';
+        popEl.textContent = m.pop + '%';
+        popEl.style.color = pc;
+      }
+
+      // Update card badge too
+      const badge = document.getElementById('pop_' + card.id);
+      if (badge) {
+        badge.textContent = m.pop + '%';
+        badge.setAttribute('style', popBadgeStyle(m.pop));
+      }
+
+      document.getElementById('scModalMetrics').innerHTML = renderMetrics(m, scoreResult);
+    } catch(err) {
+      document.getElementById('scModalMetrics').innerHTML =
+        '<div class="sc-loading" style="padding:16px;text-align:center;color:#ff6b6b;">Could not calculate metrics.</div>';
+    }
+
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+
+    // Scroll modal to top
+    const modal = document.getElementById('scModal');
+    if (modal) modal.scrollTop = 0;
+  }
+
+  document.addEventListener('click', function(e) {
+    const card = e.target.closest('.sc-card');
+    if (card && !e.target.closest('.sc-modal-overlay')) {
+      openModal(card);
+    }
+  });
+})();
 </script>
 {greeks_script}
 {ANIMATED_JS}
