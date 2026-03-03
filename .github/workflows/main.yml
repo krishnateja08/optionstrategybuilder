@@ -1,4 +1,5 @@
 name: Deploy Nifty 50 Dashboard to GitHub Pages
+
 on:
   push:
     branches: [ main ]
@@ -41,21 +42,6 @@ jobs:
       - name: Run dashboard generator
         run: python optionstrategy.py
 
-      - name: Move output to docs folder
-        run: |
-          mkdir -p docs
-          if [ -f index.html ]; then
-            mv index.html docs/index.html
-            echo "✅ Moved index.html → docs/index.html"
-          elif [ -f docs/index.html ]; then
-            echo "✅ docs/index.html already exists"
-          else
-            echo "❌ ERROR: index.html not found anywhere!"
-            echo "Files in current directory:"
-            ls -lh
-            exit 1
-          fi
-
       - name: Verify output
         run: |
           echo "=== Output files ==="
@@ -80,6 +66,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
