@@ -140,7 +140,7 @@ class NSEOptionChain:
             days_ahead = (8 - wd)       # e.g. Wed(2): 8-2=6 days → next Tue
             target_tuesday = today + timedelta(days=days_ahead)
 
-        # ── Holiday adjustment ────────────────────────────────────
+        # -- Holiday adjustment --
         if is_nse_holiday(target_tuesday):
             reason = NSE_HOLIDAYS_2026.get(
                 target_tuesday.strftime("%d-%b-%Y"), "Holiday/Weekend"
@@ -153,6 +153,30 @@ class NSEOptionChain:
             expiry_date = adjusted
         else:
             expiry_date = target_tuesday
+
+        # -- PAST EXPIRY CHECK --
+        # Edge case: today IS Tuesday AND it is a holiday.
+        # get_prev_trading_day() pulls back to same week Mon/Fri
+        # but that date is already past (expiry already closed).
+        # Fix: if expiry_date < today, jump to next Tuesday.
+        if expiry_date < today:
+            print(
+                f"  [Expiry Passed] {expiry_date.strftime('%d-%b-%Y')} is already past. "
+                f"Jumping to next weekly expiry."
+            )
+            next_tuesday = target_tuesday + timedelta(days=7)
+            if is_nse_holiday(next_tuesday):
+                reason2 = NSE_HOLIDAYS_2026.get(
+                    next_tuesday.strftime("%d-%b-%Y"), "Holiday/Weekend"
+                )
+                next_adjusted = get_prev_trading_day(next_tuesday)
+                print(
+                    f"  [Holiday on Next] {next_tuesday.strftime('%d-%b-%Y')} is '{reason2}'. "
+                    f"Next expiry moved to {next_adjusted.strftime('%d-%b-%Y')}"
+                )
+                expiry_date = next_adjusted
+            else:
+                expiry_date = next_tuesday
 
         result = expiry_date.strftime("%d-%b-%Y")
         print(f"  Computed expiry (IST, holiday-adjusted): {result}")
