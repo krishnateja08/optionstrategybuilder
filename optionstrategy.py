@@ -1576,7 +1576,7 @@ function srcPoP(cat,sup,res){{
     if(ds>=0&&ds<=range*.25)sa=12; else if(ds>=0&&ds<=range*.5)sa=6;
     else if(dr>=0&&dr<=range*.2)sa=-12; else if(spot>res)sa=-8; else sa=2;
   }}else if(cat==='bearish'){{
-    if(dr>=0&&dr*.25)sa=12; else if(dr>=0&&dr<=range*.5)sa=6;
+    if(dr>=0&&dr<=range*.25)sa=12; else if(dr>=0&&dr<=range*.5)sa=6;
     else if(ds>=0&&ds<=range*.2)sa=-12; else if(spot<sup)sa=-8; else sa=2;
   }}else{{
     var d=Math.abs(spot-(sup+res)/2)/(range/2);
