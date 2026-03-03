@@ -3020,17 +3020,9 @@ document.addEventListener("click",function(e){{
 # =================================================================
 
 def build_sr_analyzer_html(oc_analysis):
-    """
-    Builds the S/R Analyzer section HTML.
-    Input: Support & Resistance typed by user in the HTML page.
-    Logic runs entirely in JavaScript using live OC data (OC object).
-    Results display inline, right below the input form.
-    Values are saved in localStorage so they persist across refreshes.
-    """
-    spot     = oc_analysis["underlying"]   if oc_analysis else 0
-    atm      = oc_analysis["atm_strike"]   if oc_analysis else 0
+    spot     = oc_analysis["underlying"] if oc_analysis else 0
+    atm      = oc_analysis["atm_strike"] if oc_analysis else 0
     lot_size = 65
-    wing     = 100   # default wing width between spread strikes
 
     return f"""
 <div class="section" id="srAnalyzer">
@@ -3045,56 +3037,33 @@ def build_sr_analyzer_html(oc_analysis):
               border:1px solid rgba(245,197,24,.22);border-radius:16px;padding:20px 22px;">
 
     <div style="display:flex;flex-direction:column;gap:6px;">
-      <label style="font-size:9px;font-weight:700;letter-spacing:2px;color:rgba(0,200,150,.8);text-transform:uppercase;">
-        SUPPORT LEVEL
-      </label>
+      <label style="font-size:9px;font-weight:700;letter-spacing:2px;color:rgba(0,200,150,.8);text-transform:uppercase;">SUPPORT LEVEL</label>
       <input id="srSupport" type="number" placeholder="e.g. 24500"
         style="background:rgba(0,0,0,.4);border:1px solid rgba(0,200,150,.35);border-radius:10px;
                color:#00c896;font-family:'DM Mono',monospace;font-size:17px;font-weight:700;
-               padding:10px 14px;width:160px;outline:none;
-               -moz-appearance:textfield;"
-        oninput="this.style.borderColor='rgba(0,200,150,.7)'"
-      />
+               padding:10px 14px;width:160px;outline:none;" />
     </div>
 
     <div style="display:flex;flex-direction:column;gap:6px;">
-      <label style="font-size:9px;font-weight:700;letter-spacing:2px;color:rgba(255,107,107,.8);text-transform:uppercase;">
-        RESISTANCE LEVEL
-      </label>
+      <label style="font-size:9px;font-weight:700;letter-spacing:2px;color:rgba(255,107,107,.8);text-transform:uppercase;">RESISTANCE LEVEL</label>
       <input id="srResistance" type="number" placeholder="e.g. 25000"
         style="background:rgba(0,0,0,.4);border:1px solid rgba(255,107,107,.35);border-radius:10px;
                color:#ff6b6b;font-family:'DM Mono',monospace;font-size:17px;font-weight:700;
-               padding:10px 14px;width:160px;outline:none;
-               -moz-appearance:textfield;"
-        oninput="this.style.borderColor='rgba(255,107,107,.7)'"
-      />
-    </div>
-
-    <div style="display:flex;flex-direction:column;gap:6px;">
-      <label style="font-size:9px;font-weight:700;letter-spacing:2px;color:rgba(255,209,102,.6);text-transform:uppercase;">
-        WING WIDTH (pts)
-      </label>
-      <input id="srWing" type="number" placeholder="100" value="{wing}"
-        style="background:rgba(0,0,0,.4);border:1px solid rgba(255,209,102,.3);border-radius:10px;
-               color:#ffd166;font-family:'DM Mono',monospace;font-size:17px;font-weight:700;
-               padding:10px 14px;width:110px;outline:none;
-               -moz-appearance:textfield;"
-      />
+               padding:10px 14px;width:160px;outline:none;" />
     </div>
 
     <button onclick="srAnalyze()"
       style="background:linear-gradient(135deg,rgba(245,197,24,.25),rgba(200,155,10,.15));
              border:1px solid rgba(245,197,24,.5);border-radius:12px;
              color:#ffd166;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;
-             padding:11px 28px;cursor:pointer;letter-spacing:.5px;
-             transition:all .2s;white-space:nowrap;align-self:flex-end;"
+             padding:11px 28px;cursor:pointer;letter-spacing:.5px;transition:all .2s;
+             white-space:nowrap;align-self:flex-end;"
       onmouseover="this.style.background='linear-gradient(135deg,rgba(245,197,24,.4),rgba(200,155,10,.25))';this.style.boxShadow='0 0 18px rgba(245,197,24,.3)'"
-      onmouseout="this.style.background='linear-gradient(135deg,rgba(245,197,24,.25),rgba(200,155,10,.15))';this.style.boxShadow='none'"
-    >
+      onmouseout="this.style.background='linear-gradient(135deg,rgba(245,197,24,.25),rgba(200,155,10,.15))';this.style.boxShadow='none'">
       &#9889; ANALYZE
     </button>
 
-    <div id="srSpotInfo" style="align-self:flex-end;font-family:'DM Mono',monospace;font-size:11px;
+    <div style="align-self:flex-end;font-family:'DM Mono',monospace;font-size:11px;
          color:rgba(255,255,255,.3);line-height:1.8;padding-bottom:2px;">
       Spot: <span style="color:rgba(255,255,255,.7);font-weight:700;">&#8377;{spot:,.2f}</span>
       &nbsp;&nbsp;ATM: <span style="color:#00c896;font-weight:700;">&#8377;{atm:,}</span>
@@ -3104,179 +3073,238 @@ def build_sr_analyzer_html(oc_analysis):
 
   <!-- RESULTS AREA -->
   <div id="srResults" style="display:none;"></div>
-
 </div>
 
 <script>
 (function() {{
 
-  // ── Restore saved S/R values ─────────────────────────────────
+  // ── Restore saved S/R values on load ──────────────────────────
   var saved = null;
-  try {{ saved = JSON.parse(localStorage.getItem('sr_levels')); }} catch(e) {{}}
+  try {{ saved = JSON.parse(localStorage.getItem('sr_levels_v2')); }} catch(e) {{}}
   if (saved) {{
     var si = document.getElementById('srSupport');
     var ri = document.getElementById('srResistance');
-    var wi = document.getElementById('srWing');
     if (si && saved.support)    si.value = saved.support;
     if (ri && saved.resistance) ri.value = saved.resistance;
-    if (wi && saved.wing)       wi.value = saved.wing;
-    // Auto-run on load if values were saved
     if (saved.support && saved.resistance) {{
-      setTimeout(srAnalyze, 300);
+      setTimeout(srAnalyze, 400);
     }}
   }}
 
-  // ── Helper: find nearest available strike ─────────────────────
-  function nearestStrike(target) {{
-    if (!OC.strikes || OC.strikes.length === 0) return Math.round(target / 50) * 50;
-    return OC.strikes.reduce(function(best, s) {{
-      return Math.abs(s.strike - target) < Math.abs(best - target) ? s.strike : best;
-    }}, OC.strikes[0].strike);
+  // ── Get strike from OC data — prefer strikes with real LTP ────
+  function getBestStrike(targetPrice, optionType) {{
+    if (!OC.strikes || OC.strikes.length === 0) return {{ strike: Math.round(targetPrice/50)*50, ltp: 0 }};
+    var ltpKey = optionType === 'ce' ? 'ce_ltp' : 'pe_ltp';
+
+    // Sort strikes by distance to target
+    var sorted = OC.strikes.slice().sort(function(a,b) {{
+      return Math.abs(a.strike - targetPrice) - Math.abs(b.strike - targetPrice);
+    }});
+
+    // Try nearest 3 strikes — pick one that has LTP > 0.5
+    for (var i = 0; i < Math.min(3, sorted.length); i++) {{
+      if ((sorted[i][ltpKey] || 0) > 0.5) {{
+        return {{ strike: sorted[i].strike, ltp: sorted[i][ltpKey] }};
+      }}
+    }}
+
+    // Fallback: if S/R strike is deep OTM (no premium), walk toward ATM
+    // until we find a strike with meaningful premium
+    var direction = targetPrice > OC.atm ? -1 : 1; // walk toward ATM
+    var candidate = sorted[0].strike;
+    for (var step = 0; step < 10; step++) {{
+      candidate += direction * 50;
+      var row = OC.strikes.find(function(s) {{ return s.strike === candidate; }});
+      if (row && (row[ltpKey] || 0) > 0.5) {{
+        return {{ strike: row.strike, ltp: row[ltpKey] }};
+      }}
+    }}
+
+    // Last resort: use ATM-relative (1 strike OTM for sells, 2 for buys)
+    return {{ strike: sorted[0].strike, ltp: sorted[0][ltpKey] || 0 }};
   }}
 
-  function getLTP(strike, type) {{
-    var s = OC.strikes.find(function(x) {{ return x.strike === strike; }});
-    if (!s) return 0;
-    return type === 'ce' ? (s.ce_ltp || 0) : (s.pe_ltp || 0);
+  // ── Get strike offset from ATM (e.g., ATM+1, ATM+2) ──────────
+  function getATMOffset(offsets, optionType) {{
+    // offsets: array of multiples of 50 from ATM, e.g. [1,2] = ATM+50, ATM+100
+    var ltpKey = optionType === 'ce' ? 'ce_ltp' : 'pe_ltp';
+    return offsets.map(function(n) {{
+      var targetStrike = optionType === 'ce' ? OC.atm + n*50 : OC.atm - n*50;
+      var row = OC.strikes.find(function(s) {{ return s.strike === targetStrike; }});
+      if (!row) {{
+        // find nearest
+        row = OC.strikes.reduce(function(best, s) {{
+          return Math.abs(s.strike - targetStrike) < Math.abs(best.strike - targetStrike) ? s : best;
+        }}, OC.strikes[0]);
+      }}
+      return {{ strike: row.strike, ltp: row[ltpKey] || 0 }};
+    }});
   }}
 
-  // ── Probability of Profit based on spread metrics ─────────────
-  function spreadPoP(netCredit, wingWidth) {{
+  // ── Smarter strike selection based on S/R vs ATM distance ────
+  function getSpreadStrikes(srPrice, optionType, wingPts) {{
+    var spot   = OC.spot;
+    var atmRef = OC.atm;
+
+    // How many 50-pt steps is the S/R level away from ATM?
+    var stepsFromAtm = Math.round(Math.abs(srPrice - atmRef) / 50);
+
+    // Cap at reasonable OTM level (don't go beyond ATM+6)
+    stepsFromAtm = Math.min(stepsFromAtm, 6);
+
+    // For SELL leg: use the S/R-nearest liquid strike
+    var sellData = getBestStrike(srPrice, optionType);
+
+    // For BUY leg (protection): wing away from sell
+    var buyTargetPrice = optionType === 'ce'
+      ? sellData.strike + wingPts
+      : sellData.strike - wingPts;
+    var buyData = getBestStrike(buyTargetPrice, optionType);
+
+    return {{
+      sellStrike: sellData.strike,
+      sellLTP:    sellData.ltp,
+      buyStrike:  buyData.strike,
+      buyLTP:     buyData.ltp,
+      wing:       Math.abs(sellData.strike - buyData.strike)
+    }};
+  }}
+
+  // ── PoP calculation ───────────────────────────────────────────
+  function spreadPoP(netCredit, wingWidth, isBullish) {{
     if (wingWidth <= 0) return 50;
-    var raw = 50 + (netCredit / wingWidth) * 100;
-    return Math.max(5, Math.min(95, Math.round(raw)));
+    // Base PoP from premium collected vs max loss
+    var creditPct = netCredit / wingWidth;
+    var base = 50 + creditPct * 80;
+
+    // S/R alignment bonus
+    var spot = OC.spot;
+    var srBonus = 0;
+    if (isBullish) {{
+      srBonus = (spot < OC.maxPeStrike) ? 8 : -5;
+    }} else {{
+      srBonus = (spot > OC.maxCeStrike - 200) ? -5 : 8;
+    }}
+    return Math.max(5, Math.min(92, Math.round(base + srBonus)));
   }}
 
-  // ── Card builder ─────────────────────────────────────────────
+  // ── Card HTML builder ────────────────────────────────────────
   function buildCard(cfg) {{
-    var col         = cfg.color;
-    var isSecondary = cfg.secondary || false;
-    var borderStyle = isSecondary
+    var col = cfg.color;
+    var border = cfg.secondary
       ? 'border:2px dashed ' + col + '40;'
       : 'border:2px solid ' + col + '40;';
 
-    // LTP per leg rows
+    // Legs
     var legsHtml = '';
     cfg.legs.forEach(function(leg) {{
       var actCol  = leg.action === 'BUY' ? '#00c896' : '#ff9090';
       var typeCol = leg.type   === 'CE'  ? '#00c8e0' : '#ff9090';
-      legsHtml += '<div style="display:flex;justify-content:space-between;align-items:center;' +
+      legsHtml +=
+        '<div style="display:flex;justify-content:space-between;align-items:center;' +
         'padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.05);">' +
-        '<div style="display:flex;align-items:center;gap:8px;">' +
-          '<span style="font-size:9px;font-weight:800;color:' + actCol + ';' +
-            'background:' + actCol + '22;padding:2px 8px;border-radius:6px;' +
-            'border:1px solid ' + actCol + '44;letter-spacing:1px;">' + leg.action + '</span>' +
-          '<span style="font-size:9px;font-weight:700;color:' + typeCol + ';letter-spacing:1px;">' + leg.type + '</span>' +
-          '<span style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;' +
-            'color:rgba(255,255,255,.85);">&#8377;' + leg.strike.toLocaleString('en-IN') + '</span>' +
-        '</div>' +
-        '<span style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:' + col + ';">' +
-          'LTP &#8377;' + leg.ltp.toFixed(2) + '</span>' +
+          '<div style="display:flex;align-items:center;gap:8px;">' +
+            '<span style="font-size:9px;font-weight:800;color:' + actCol + ';background:' + actCol + '22;' +
+              'padding:2px 8px;border-radius:6px;border:1px solid ' + actCol + '44;letter-spacing:1px;">' + leg.action + '</span>' +
+            '<span style="font-size:9px;font-weight:700;color:' + typeCol + ';letter-spacing:1px;">' + leg.type + '</span>' +
+            '<span style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:rgba(255,255,255,.85);">&#8377;' + leg.strike.toLocaleString('en-IN') + '</span>' +
+          '</div>' +
+          '<span style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:' + col + ';">LTP &#8377;' + (leg.ltp || 0).toFixed(2) + '</span>' +
         '</div>';
     }});
 
-    // Breakeven
-    var beStr = Array.isArray(cfg.breakeven)
-      ? cfg.breakeven.map(function(v) {{ return '&#8377;' + Math.round(v).toLocaleString('en-IN'); }}).join(' &ndash; ')
-      : (typeof cfg.breakeven === 'number'
-          ? '&#8377;' + Math.round(cfg.breakeven).toLocaleString('en-IN')
-          : cfg.breakeven);
+    // Breakevens — always show as array
+    var bes = Array.isArray(cfg.breakevens) ? cfg.breakevens : [cfg.breakevens];
+    var beStr = bes.map(function(v) {{
+      return '&#8377;' + Math.round(v).toLocaleString('en-IN');
+    }}).join(' &nbsp;&amp;&nbsp; ');
 
-    var nc     = cfg.netCredit;
-    var ncCol  = nc >= 0 ? '#00c896' : '#ff6b6b';
-    var ncLbl  = nc >= 0 ? 'NET CREDIT' : 'NET DEBIT';
-    var ncStr  = (nc >= 0 ? '+ ' : '&minus; ') + '&#8377;' + Math.abs(Math.round(nc * cfg.lotSize)).toLocaleString('en-IN');
+    var nc    = cfg.netCredit || 0;
+    var ncCol = nc >= 0 ? '#00c896' : '#ff6b6b';
+    var ncLbl = nc >= 0 ? 'NET CREDIT' : 'NET DEBIT';
+    var ncStr = (nc >= 0 ? '+ ' : '&minus; ') + '&#8377;' + Math.abs(Math.round(nc * cfg.lotSize)).toLocaleString('en-IN');
 
-    var mpStr  = cfg.maxProfit >= 999999 ? 'Unlimited' : '&#8377;' + Math.round(cfg.maxProfit).toLocaleString('en-IN');
-    var mlStr  = cfg.maxLoss   >= 999999 ? 'Unlimited' : '&#8377;' + Math.round(cfg.maxLoss).toLocaleString('en-IN');
-    var mpPct  = cfg.maxLoss > 0 && cfg.maxLoss < 999999
-      ? ' <small style="opacity:.45;">' + (cfg.maxProfit / cfg.maxLoss * 100).toFixed(0) + '%</small>' : '';
-    var rrStr  = cfg.maxLoss > 0 && cfg.maxLoss < 999999
-      ? '1:' + (cfg.maxProfit / cfg.maxLoss).toFixed(2) : '&infin;';
+    var mp = cfg.maxProfit || 0;
+    var ml = cfg.maxLoss   || 0;
+    var mpStr = mp >= 999999 ? 'Unlimited' : '&#8377;' + Math.round(mp).toLocaleString('en-IN');
+    var mlStr = ml >= 999999 ? 'Unlimited' : '&#8377;' + Math.round(ml).toLocaleString('en-IN');
+    var mpPct = (ml > 0 && ml < 999999) ? ' <small style="opacity:.45;">' + (mp/ml*100).toFixed(0) + '%</small>' : '';
+    var rrStr = (ml > 0 && ml < 999999) ? '1:' + (mp/ml).toFixed(2) : '&infin;';
     var popCol = cfg.pop >= 70 ? '#00c896' : cfg.pop >= 60 ? '#4de8b8' : cfg.pop >= 50 ? '#6480ff' : '#ff6b6b';
 
-    var condBadge = isSecondary
-      ? '<div style="font-size:8px;font-weight:700;letter-spacing:1.5px;color:' + col + ';' +
-          'background:' + col + '15;border:1px solid ' + col + '40;' +
-          'padding:2px 10px;border-radius:20px;margin-bottom:8px;display:inline-block;">' +
-          '&#9889; CONDITIONAL &mdash; Enter only on breakout</div>' : '';
+    var condBadge = cfg.secondary
+      ? '<div style="font-size:8px;font-weight:700;color:' + col + ';background:' + col + '15;' +
+        'border:1px solid ' + col + '40;padding:2px 10px;border-radius:20px;margin-bottom:8px;display:inline-block;">' +
+        '&#9889; CONDITIONAL &mdash; Enter only on breakout</div>' : '';
 
-    return '<div style="background:rgba(12,16,32,.9);' + borderStyle + 'border-radius:16px;' +
-      'overflow:hidden;margin-bottom:16px;">' +
-
-      // Header
-      '<div style="padding:16px 18px 12px;background:linear-gradient(135deg,' + col + '15,' + col + '08);' +
-        'border-bottom:1px solid ' + col + '25;">' +
-        condBadge +
-        '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">' +
-          '<div>' +
-            '<div style="font-size:11px;font-weight:700;letter-spacing:2px;color:' + col + ';' +
-              'text-transform:uppercase;margin-bottom:4px;">' + cfg.direction + '</div>' +
-            '<div style="font-size:20px;font-weight:800;color:rgba(255,255,255,.95);">' + cfg.name + '</div>' +
+    return (
+      '<div style="background:rgba(12,16,32,.9);' + border + 'border-radius:16px;overflow:hidden;margin-bottom:16px;">' +
+        // Header
+        '<div style="padding:16px 18px 12px;background:linear-gradient(135deg,' + col + '15,' + col + '08);border-bottom:1px solid ' + col + '25;">' +
+          condBadge +
+          '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">' +
+            '<div>' +
+              '<div style="font-size:11px;font-weight:700;letter-spacing:2px;color:' + col + ';text-transform:uppercase;margin-bottom:4px;">' + cfg.direction + '</div>' +
+              '<div style="font-size:20px;font-weight:800;color:rgba(255,255,255,.95);">' + cfg.name + '</div>' +
+            '</div>' +
+            '<div style="text-align:right;">' +
+              '<div style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:1px;margin-bottom:2px;">PROB. OF PROFIT</div>' +
+              '<div style="font-family:DM Mono,monospace;font-size:28px;font-weight:800;color:' + popCol + ';">' + cfg.pop + '%</div>' +
+            '</div>' +
           '</div>' +
-          '<div style="text-align:right;">' +
-            '<div style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:1px;margin-bottom:2px;">PROB. OF PROFIT</div>' +
-            '<div style="font-family:DM Mono,monospace;font-size:28px;font-weight:800;color:' + popCol + ';">' + cfg.pop + '%</div>' +
+          '<div style="margin-top:10px;font-size:11px;color:rgba(255,255,255,.45);line-height:1.7;border-left:3px solid ' + col + '60;padding-left:10px;">' + cfg.rationale + '</div>' +
+        '</div>' +
+
+        // Legs
+        '<div style="border-bottom:1px solid rgba(255,255,255,.07);">' +
+          '<div style="padding:8px 14px 4px;font-size:8.5px;font-weight:700;letter-spacing:2px;color:rgba(255,255,255,.3);text-transform:uppercase;">LEGS (STRIKE + LTP)</div>' +
+          legsHtml +
+        '</div>' +
+
+        // Row 1: Max Profit / Max Loss
+        '<div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(255,255,255,.07);">' +
+          '<div style="padding:12px 16px;border-right:1px solid rgba(255,255,255,.07);">' +
+            '<div style="font-size:8.5px;color:rgba(255,255,255,.3);letter-spacing:1.5px;margin-bottom:4px;">MAX. PROFIT</div>' +
+            '<div style="font-family:DM Mono,monospace;font-size:18px;font-weight:700;color:#00c896;">' + mpStr + mpPct + '</div>' +
+          '</div>' +
+          '<div style="padding:12px 16px;">' +
+            '<div style="font-size:8.5px;color:rgba(255,255,255,.3);letter-spacing:1.5px;margin-bottom:4px;">MAX. LOSS</div>' +
+            '<div style="font-family:DM Mono,monospace;font-size:18px;font-weight:700;color:#ff6b6b;">' + mlStr + '</div>' +
           '</div>' +
         '</div>' +
-        '<div style="margin-top:10px;font-size:11px;color:rgba(255,255,255,.45);line-height:1.7;' +
-          'border-left:3px solid ' + col + '60;padding-left:10px;">' + cfg.rationale + '</div>' +
-      '</div>' +
 
-      // Legs
-      '<div style="border-bottom:1px solid rgba(255,255,255,.07);">' +
-        '<div style="padding:8px 14px 6px;font-size:8.5px;font-weight:700;letter-spacing:2px;' +
-          'color:rgba(255,255,255,.3);text-transform:uppercase;">LEGS (STRIKE + LTP)</div>' +
-        legsHtml +
-      '</div>' +
+        // Row 2: RR / Breakevens / Net Credit
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid rgba(255,255,255,.07);">' +
+          '<div style="padding:10px 14px;border-right:1px solid rgba(255,255,255,.07);">' +
+            '<div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;margin-bottom:3px;">MAX RR RATIO</div>' +
+            '<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:#6480ff;">' + rrStr + '</div>' +
+          '</div>' +
+          '<div style="padding:10px 14px;border-right:1px solid rgba(255,255,255,.07);">' +
+            '<div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;margin-bottom:3px;">BREAKEVENS</div>' +
+            '<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;color:#00c8e0;">' + beStr + '</div>' +
+          '</div>' +
+          '<div style="padding:10px 14px;">' +
+            '<div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;margin-bottom:3px;">' + ncLbl + '</div>' +
+            '<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:' + ncCol + ';">' + ncStr + '</div>' +
+          '</div>' +
+        '</div>' +
 
-      // Metrics grid row 1
-      '<div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(255,255,255,.07);">' +
-        '<div style="padding:12px 16px;border-right:1px solid rgba(255,255,255,.07);">' +
-          '<div style="font-size:8.5px;color:rgba(255,255,255,.3);letter-spacing:1.5px;margin-bottom:4px;">MAX. PROFIT</div>' +
-          '<div style="font-family:DM Mono,monospace;font-size:18px;font-weight:700;color:#00c896;">' + mpStr + mpPct + '</div>' +
+        // Row 3: Margin
+        '<div style="padding:10px 16px;">' +
+          '<div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;margin-bottom:3px;">EST. MARGIN/PREMIUM</div>' +
+          '<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:#8aa0ff;">&#8377;' + Math.round(cfg.margin).toLocaleString('en-IN') + '</div>' +
         '</div>' +
-        '<div style="padding:12px 16px;">' +
-          '<div style="font-size:8.5px;color:rgba(255,255,255,.3);letter-spacing:1.5px;margin-bottom:4px;">MAX. LOSS</div>' +
-          '<div style="font-family:DM Mono,monospace;font-size:18px;font-weight:700;color:#ff6b6b;">' + mlStr + '</div>' +
-        '</div>' +
-      '</div>' +
-
-      // Metrics grid row 2
-      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid rgba(255,255,255,.07);">' +
-        '<div style="padding:10px 14px;border-right:1px solid rgba(255,255,255,.07);">' +
-          '<div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;margin-bottom:3px;">MAX RR RATIO</div>' +
-          '<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:#6480ff;">' + rrStr + '</div>' +
-        '</div>' +
-        '<div style="padding:10px 14px;border-right:1px solid rgba(255,255,255,.07);">' +
-          '<div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;margin-bottom:3px;">BREAKEVENS</div>' +
-          '<div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;color:#00c8e0;">' + beStr + '</div>' +
-        '</div>' +
-        '<div style="padding:10px 14px;">' +
-          '<div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;margin-bottom:3px;">' + ncLbl + '</div>' +
-          '<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:' + ncCol + ';">' + ncStr + '</div>' +
-        '</div>' +
-      '</div>' +
-
-      // Margin row
-      '<div style="padding:10px 16px;">' +
-        '<div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;margin-bottom:3px;">EST. MARGIN/PREMIUM</div>' +
-        '<div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:#8aa0ff;">' +
-          '&#8377;' + Math.round(cfg.margin).toLocaleString('en-IN') +
-        '</div>' +
-      '</div>' +
-
-    '</div>';
+      '</div>'
+    );
   }}
 
-  // ── MAIN ANALYZE FUNCTION ──────────────────────────────────────
+  // ── MAIN ANALYZE ─────────────────────────────────────────────
   window.srAnalyze = function() {{
-    var sup  = parseFloat(document.getElementById('srSupport').value);
-    var res  = parseFloat(document.getElementById('srResistance').value);
-    var wing = parseFloat(document.getElementById('srWing').value) || 100;
-    var spot = OC.spot;
-    var atm  = OC.atm;
+    var sup     = parseFloat(document.getElementById('srSupport').value);
+    var res     = parseFloat(document.getElementById('srResistance').value);
+    var spot    = OC.spot;
     var lotSize = OC.lotSize || 65;
+    var wing    = 100; // fixed 100pt wing — always 2 strikes apart on Nifty
 
     if (!sup || !res || isNaN(sup) || isNaN(res)) {{
       alert('Please enter both Support and Resistance levels.');
@@ -3287,13 +3315,11 @@ def build_sr_analyzer_html(oc_analysis):
       return;
     }}
 
-    // Save to localStorage
-    try {{
-      localStorage.setItem('sr_levels', JSON.stringify({{ support: sup, resistance: res, wing: wing }}));
-    }} catch(e) {{}}
+    // Save
+    try {{ localStorage.setItem('sr_levels_v2', JSON.stringify({{ support: sup, resistance: res }})); }} catch(e) {{}}
 
     var range    = res - sup;
-    var position = (spot - sup) / range;  // 0=at support, 1=at resistance
+    var position = (spot - sup) / range;
 
     var posLabel, posColor;
     if      (position <= 0.30) {{ posLabel = 'Near SUPPORT';    posColor = '#00c896'; }}
@@ -3303,219 +3329,189 @@ def build_sr_analyzer_html(oc_analysis):
     var pct = Math.max(3, Math.min(97, position * 100)).toFixed(1);
     var strategies = [];
 
-    // ── STRATEGY LOGIC ────────────────────────────────────────────
-
+    // ── STRATEGY SELECTION ────────────────────────────────────
     if (position <= 0.30) {{
-      // BULL PUT SPREAD — sell put at support, buy lower put
-      var sellStrike = nearestStrike(sup);
-      var buyStrike  = nearestStrike(sup - wing);
-      var sellLTP    = getLTP(sellStrike, 'pe');
-      var buyLTP     = getLTP(buyStrike, 'pe');
-      var nc         = sellLTP - buyLTP;
-      var actualWing = sellStrike - buyStrike;
-      var mp         = nc * lotSize;
-      var ml         = (actualWing - nc) * lotSize;
-      var pop        = spreadPoP(nc, actualWing);
+      // Near Support → BULL PUT SPREAD
+      // Sell put at/near support, buy put 100pts lower
+      var sp = getSpreadStrikes(sup, 'pe', wing);
+      var nc = sp.sellLTP - sp.buyLTP;
+      var mp = nc * lotSize;
+      var ml = (sp.wing - nc) * lotSize;
+      // Bull put spread: 1 breakeven = sellStrike - netCredit
+      var be1 = sp.sellStrike - nc;
       strategies.push({{
-        name:      'Bull Put Spread',
-        direction: 'BULLISH',
-        color:     '#00c896',
-        secondary: false,
-        rationale: 'Spot &#8377;' + spot.toLocaleString('en-IN') + ' is near Support &#8377;' + sup.toLocaleString('en-IN') +
-                   '. Market likely bounces. Sell put at support, buy lower put for protection.',
+        name: 'Bull Put Spread', direction: 'BULLISH', color: '#00c896', secondary: false,
+        rationale: 'Spot &#8377;' + spot.toLocaleString('en-IN') + ' is near Support &#8377;' +
+                   sup.toLocaleString('en-IN') + '. Collect premium below support. ' +
+                   'Sell put at support level, buy lower put for protection.',
         legs: [
-          {{ action: 'SELL', type: 'PE', strike: sellStrike, ltp: sellLTP }},
-          {{ action: 'BUY',  type: 'PE', strike: buyStrike,  ltp: buyLTP  }},
+          {{ action: 'SELL', type: 'PE', strike: sp.sellStrike, ltp: sp.sellLTP }},
+          {{ action: 'BUY',  type: 'PE', strike: sp.buyStrike,  ltp: sp.buyLTP  }},
         ],
-        netCredit: nc, maxProfit: mp, maxLoss: ml, pop: pop,
-        breakeven: sellStrike - nc,
-        margin:    actualWing * lotSize,
-        lotSize:   lotSize,
+        netCredit: nc, maxProfit: mp, maxLoss: ml,
+        pop: spreadPoP(nc, sp.wing, true),
+        breakevens: [be1],   // spreads have ONE breakeven
+        margin: sp.wing * lotSize, lotSize: lotSize,
       }});
 
     }} else if (position >= 0.70) {{
-      // BEAR CALL SPREAD — sell call at resistance, buy higher call
-      var sellStrike = nearestStrike(res);
-      var buyStrike  = nearestStrike(res + wing);
-      var sellLTP    = getLTP(sellStrike, 'ce');
-      var buyLTP     = getLTP(buyStrike, 'ce');
-      var nc         = sellLTP - buyLTP;
-      var actualWing = buyStrike - sellStrike;
-      var mp         = nc * lotSize;
-      var ml         = (actualWing - nc) * lotSize;
-      var pop        = spreadPoP(nc, actualWing);
+      // Near Resistance → BEAR CALL SPREAD
+      // Sell call at/near resistance, buy call 100pts higher
+      var sp = getSpreadStrikes(res, 'ce', wing);
+      var nc = sp.sellLTP - sp.buyLTP;
+      var mp = nc * lotSize;
+      var ml = (sp.wing - nc) * lotSize;
+      // Bear call spread: 1 breakeven = sellStrike + netCredit
+      var be1 = sp.sellStrike + nc;
       strategies.push({{
-        name:      'Bear Call Spread',
-        direction: 'BEARISH',
-        color:     '#ff6b6b',
-        secondary: false,
-        rationale: 'Spot &#8377;' + spot.toLocaleString('en-IN') + ' is near Resistance &#8377;' + res.toLocaleString('en-IN') +
-                   '. Market likely rejects. Sell call at resistance, buy higher call for protection.',
+        name: 'Bear Call Spread', direction: 'BEARISH', color: '#ff6b6b', secondary: false,
+        rationale: 'Spot &#8377;' + spot.toLocaleString('en-IN') + ' is near Resistance &#8377;' +
+                   res.toLocaleString('en-IN') + '. Collect premium above resistance. ' +
+                   'Sell call at resistance level, buy higher call for protection.',
         legs: [
-          {{ action: 'SELL', type: 'CE', strike: sellStrike, ltp: sellLTP }},
-          {{ action: 'BUY',  type: 'CE', strike: buyStrike,  ltp: buyLTP  }},
+          {{ action: 'SELL', type: 'CE', strike: sp.sellStrike, ltp: sp.sellLTP }},
+          {{ action: 'BUY',  type: 'CE', strike: sp.buyStrike,  ltp: sp.buyLTP  }},
         ],
-        netCredit: nc, maxProfit: mp, maxLoss: ml, pop: pop,
-        breakeven: sellStrike + nc,
-        margin:    actualWing * lotSize,
-        lotSize:   lotSize,
+        netCredit: nc, maxProfit: mp, maxLoss: ml,
+        pop: spreadPoP(nc, sp.wing, false),
+        breakevens: [be1],   // spreads have ONE breakeven
+        margin: sp.wing * lotSize, lotSize: lotSize,
       }});
 
     }} else {{
-      // IRON CONDOR — sell both sides
-      var ceSell = nearestStrike(res);
-      var ceBuy  = nearestStrike(res + wing);
-      var peSell = nearestStrike(sup);
-      var peBuy  = nearestStrike(sup - wing);
-      var ceSellLTP = getLTP(ceSell, 'ce');
-      var ceBuyLTP  = getLTP(ceBuy,  'ce');
-      var peSellLTP = getLTP(peSell, 'pe');
-      var peBuyLTP  = getLTP(peBuy,  'pe');
-      var totalNC   = (ceSellLTP - ceBuyLTP) + (peSellLTP - peBuyLTP);
-      var ceWing    = ceBuy - ceSell;
-      var mp        = totalNC * lotSize;
-      var ml        = (ceWing - totalNC) * lotSize;
-      var pop       = spreadPoP(totalNC, ceWing);
+      // Middle of range → IRON CONDOR (2 breakevens!)
+      var ceSp = getSpreadStrikes(res, 'ce', wing);
+      var peSp = getSpreadStrikes(sup, 'pe', wing);
+      var totalNC = (ceSp.sellLTP - ceSp.buyLTP) + (peSp.sellLTP - peSp.buyLTP);
+      var mp = totalNC * lotSize;
+      var ml = (ceSp.wing - totalNC) * lotSize;
+      // Iron Condor: 2 breakevens
+      var be1 = peSp.sellStrike - totalNC;  // lower breakeven
+      var be2 = ceSp.sellStrike + totalNC;  // upper breakeven
       strategies.push({{
-        name:      'Iron Condor',
-        direction: 'NEUTRAL',
-        color:     '#6480ff',
-        secondary: false,
-        rationale: 'Spot &#8377;' + spot.toLocaleString('en-IN') + ' is in the middle of S/R range. ' +
-                   'Market likely stays between &#8377;' + sup.toLocaleString('en-IN') + '&ndash;&#8377;' + res.toLocaleString('en-IN') + '. Collect premium from both sides.',
+        name: 'Iron Condor', direction: 'NEUTRAL', color: '#6480ff', secondary: false,
+        rationale: 'Spot &#8377;' + spot.toLocaleString('en-IN') + ' is in the middle of range. ' +
+                   'Collect premium from both sides. Profit if Nifty stays between &#8377;' +
+                   Math.round(be1).toLocaleString('en-IN') + ' &amp; &#8377;' + Math.round(be2).toLocaleString('en-IN') + '.',
         legs: [
-          {{ action: 'SELL', type: 'CE', strike: ceSell, ltp: ceSellLTP }},
-          {{ action: 'BUY',  type: 'CE', strike: ceBuy,  ltp: ceBuyLTP  }},
-          {{ action: 'SELL', type: 'PE', strike: peSell, ltp: peSellLTP }},
-          {{ action: 'BUY',  type: 'PE', strike: peBuy,  ltp: peBuyLTP  }},
+          {{ action: 'SELL', type: 'CE', strike: ceSp.sellStrike, ltp: ceSp.sellLTP }},
+          {{ action: 'BUY',  type: 'CE', strike: ceSp.buyStrike,  ltp: ceSp.buyLTP  }},
+          {{ action: 'SELL', type: 'PE', strike: peSp.sellStrike, ltp: peSp.sellLTP }},
+          {{ action: 'BUY',  type: 'PE', strike: peSp.buyStrike,  ltp: peSp.buyLTP  }},
         ],
-        netCredit: totalNC, maxProfit: mp, maxLoss: ml, pop: pop,
-        breakeven: [peSell - totalNC, ceSell + totalNC],
-        margin:    ceWing * lotSize * 2,
-        lotSize:   lotSize,
+        netCredit: totalNC, maxProfit: mp, maxLoss: ml,
+        pop: spreadPoP(totalNC, ceSp.wing, null),
+        breakevens: [be1, be2],  // Iron Condor has TWO breakevens
+        margin: ceSp.wing * lotSize * 2, lotSize: lotSize,
       }});
     }}
 
-    // ── ALWAYS add breakout trades ────────────────────────────────
+    // ── BREAKOUT STRATEGIES (always shown) ────────────────────
 
-    // Breakout UP → Bull Call Spread above resistance
-    var bcBuy  = nearestStrike(res);
-    var bcSell = nearestStrike(res + wing);
-    var bcBuyLTP  = getLTP(bcBuy,  'ce');
-    var bcSellLTP = getLTP(bcSell, 'ce');
-    var bcDebit   = bcBuyLTP - bcSellLTP;
-    var bcWing    = bcSell - bcBuy;
-    var bcMP      = (bcWing - bcDebit) * lotSize;
-    var bcML      = bcDebit * lotSize;
+    // Breakout UP → Bull Call Spread
+    var bcSp    = getSpreadStrikes(res, 'ce', wing);
+    var bcDebit = bcSp.sellLTP - bcSp.buyLTP; // will be negative (debit)
+    // For debit spread: buy lower, sell higher
+    var bcBuyLTP  = bcSp.sellLTP;  // buy the one closer to ATM (higher premium)
+    var bcSellLTP = bcSp.buyLTP;   // sell the one further (lower premium)
+    var bcBuyStrk = bcSp.sellStrike;
+    var bcSellStrk= bcSp.buyStrike;
+    var bcNetDebit= bcBuyLTP - bcSellLTP;
+    var bcMP      = (bcSp.wing - bcNetDebit) * lotSize;
+    var bcML      = bcNetDebit * lotSize;
     strategies.push({{
-      name:      'Bull Call Spread (Breakout UP)',
-      direction: 'BREAKOUT BULLISH',
-      color:     '#4de8b8',
-      secondary: true,
-      rationale: 'Enter ONLY if market breaks above &#8377;' + res.toLocaleString('en-IN') +
-                 '. Buy call at resistance, sell higher call to reduce cost.',
+      name: 'Bull Call Spread (Breakout UP)', direction: 'BREAKOUT BULLISH', color: '#4de8b8', secondary: true,
+      rationale: 'Enter ONLY if Nifty breaks &amp; closes above &#8377;' + res.toLocaleString('en-IN') +
+                 '. Buy call near resistance, sell higher call to reduce entry cost.',
       legs: [
-        {{ action: 'BUY',  type: 'CE', strike: bcBuy,  ltp: bcBuyLTP  }},
-        {{ action: 'SELL', type: 'CE', strike: bcSell, ltp: bcSellLTP }},
+        {{ action: 'BUY',  type: 'CE', strike: bcBuyStrk,  ltp: bcBuyLTP  }},
+        {{ action: 'SELL', type: 'CE', strike: bcSellStrk, ltp: bcSellLTP }},
       ],
-      netCredit: -bcDebit, maxProfit: bcMP, maxLoss: bcML,
+      netCredit: -bcNetDebit, maxProfit: bcMP, maxLoss: bcML,
       pop: 55,
-      breakeven: bcBuy + bcDebit,
-      margin:    bcDebit * lotSize,
-      lotSize:   lotSize,
+      breakevens: [bcBuyStrk + bcNetDebit],  // 1 breakeven for debit spread
+      margin: bcNetDebit * lotSize, lotSize: lotSize,
     }});
 
-    // Breakout DOWN → Bear Put Spread below support
-    var bpBuy  = nearestStrike(sup);
-    var bpSell = nearestStrike(sup - wing);
-    var bpBuyLTP  = getLTP(bpBuy,  'pe');
-    var bpSellLTP = getLTP(bpSell, 'pe');
-    var bpDebit   = bpBuyLTP - bpSellLTP;
-    var bpWing    = bpBuy - bpSell;
-    var bpMP      = (bpWing - bpDebit) * lotSize;
-    var bpML      = bpDebit * lotSize;
+    // Breakout DOWN → Bear Put Spread
+    var bpSp    = getSpreadStrikes(sup, 'pe', wing);
+    var bpBuyLTP  = bpSp.sellLTP;
+    var bpSellLTP = bpSp.buyLTP;
+    var bpBuyStrk = bpSp.sellStrike;
+    var bpSellStrk= bpSp.buyStrike;
+    var bpNetDebit= bpBuyLTP - bpSellLTP;
+    var bpMP      = (bpSp.wing - bpNetDebit) * lotSize;
+    var bpML      = bpNetDebit * lotSize;
     strategies.push({{
-      name:      'Bear Put Spread (Breakout DOWN)',
-      direction: 'BREAKOUT BEARISH',
-      color:     '#ffd166',
-      secondary: true,
-      rationale: 'Enter ONLY if market breaks below &#8377;' + sup.toLocaleString('en-IN') +
-                 '. Buy put at support, sell lower put to reduce cost.',
+      name: 'Bear Put Spread (Breakout DOWN)', direction: 'BREAKOUT BEARISH', color: '#ffd166', secondary: true,
+      rationale: 'Enter ONLY if Nifty breaks &amp; closes below &#8377;' + sup.toLocaleString('en-IN') +
+                 '. Buy put near support, sell lower put to reduce entry cost.',
       legs: [
-        {{ action: 'BUY',  type: 'PE', strike: bpBuy,  ltp: bpBuyLTP  }},
-        {{ action: 'SELL', type: 'PE', strike: bpSell, ltp: bpSellLTP }},
+        {{ action: 'BUY',  type: 'PE', strike: bpBuyStrk,  ltp: bpBuyLTP  }},
+        {{ action: 'SELL', type: 'PE', strike: bpSellStrk, ltp: bpSellLTP }},
       ],
-      netCredit: -bpDebit, maxProfit: bpMP, maxLoss: bpML,
+      netCredit: -bpNetDebit, maxProfit: bpMP, maxLoss: bpML,
       pop: 55,
-      breakeven: bpBuy - bpDebit,
-      margin:    bpDebit * lotSize,
-      lotSize:   lotSize,
+      breakevens: [bpBuyStrk - bpNetDebit],  // 1 breakeven for debit spread
+      margin: bpNetDebit * lotSize, lotSize: lotSize,
     }});
 
-    // ── BUILD RESULTS HTML ────────────────────────────────────────
+    // ── BUILD OUTPUT HTML ─────────────────────────────────────
     var primary   = strategies.filter(function(s) {{ return !s.secondary; }});
-    var secondary = strategies.filter(function(s) {{ return s.secondary; }});
+    var secondary = strategies.filter(function(s) {{ return  s.secondary; }});
 
     var html = '';
 
-    // S/R position bar
-    html += '<div style="background:linear-gradient(135deg,rgba(0,200,150,.08),rgba(100,128,255,.06));' +
+    // S/R summary bar
+    html +=
+      '<div style="background:linear-gradient(135deg,rgba(0,200,150,.08),rgba(100,128,255,.06));' +
       'border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px 22px;margin-bottom:20px;">' +
-      '<div style="font-size:9px;font-weight:700;letter-spacing:2px;color:rgba(255,255,255,.3);' +
-        'text-transform:uppercase;margin-bottom:14px;">WEEKLY S/R SUMMARY</div>' +
+        '<div style="font-size:9px;font-weight:700;letter-spacing:2px;color:rgba(255,255,255,.3);text-transform:uppercase;margin-bottom:14px;">WEEKLY S/R SUMMARY</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px;">' +
+          '<div style="text-align:center;">' +
+            '<div style="font-size:8.5px;color:rgba(0,200,150,.7);letter-spacing:1.5px;margin-bottom:4px;">SUPPORT</div>' +
+            '<div style="font-family:DM Mono,monospace;font-size:22px;font-weight:700;color:#00c896;">&#8377;' + sup.toLocaleString('en-IN') + '</div>' +
+          '</div>' +
+          '<div style="text-align:center;">' +
+            '<div style="font-size:8.5px;color:rgba(255,255,255,.3);letter-spacing:1.5px;margin-bottom:4px;">NIFTY SPOT</div>' +
+            '<div style="font-family:DM Mono,monospace;font-size:22px;font-weight:700;color:rgba(255,255,255,.9);">&#8377;' + spot.toFixed(2) + '</div>' +
+          '</div>' +
+          '<div style="text-align:center;">' +
+            '<div style="font-size:8.5px;color:rgba(255,107,107,.7);letter-spacing:1.5px;margin-bottom:4px;">RESISTANCE</div>' +
+            '<div style="font-family:DM Mono,monospace;font-size:22px;font-weight:700;color:#ff6b6b;">&#8377;' + res.toLocaleString('en-IN') + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="margin-bottom:10px;">' +
+          '<div style="display:flex;justify-content:space-between;font-size:9px;color:rgba(255,255,255,.3);margin-bottom:6px;">' +
+            '<span>&#8377;' + sup.toLocaleString('en-IN') + '</span>' +
+            '<span style="color:' + posColor + ';font-weight:700;">' + posLabel + ' &mdash; ' + (position*100).toFixed(0) + '% of range</span>' +
+            '<span>&#8377;' + res.toLocaleString('en-IN') + '</span>' +
+          '</div>' +
+          '<div style="height:8px;background:linear-gradient(90deg,#00c896,#6480ff,#ff6b6b);border-radius:4px;position:relative;">' +
+            '<div style="position:absolute;left:' + pct + '%;top:50%;transform:translate(-50%,-50%);' +
+              'width:14px;height:14px;background:#fff;border-radius:50%;' +
+              'box-shadow:0 0 10px rgba(255,255,255,.8);border:2px solid #06080f;"></div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="font-size:11px;color:rgba(255,255,255,.4);">' +
+          'Range: <strong style="color:rgba(255,255,255,.7);">' + range.toLocaleString('en-IN') + ' pts</strong>' +
+          ' &nbsp;&middot;&nbsp; Lot: <strong style="color:rgba(255,255,255,.7);">' + lotSize + '</strong>' +
+          ' &nbsp;&middot;&nbsp; Wing: <strong style="color:rgba(255,255,255,.7);">100 pts (2 strikes)</strong>' +
+        '</div>' +
+      '</div>';
 
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px;">' +
-        '<div style="text-align:center;">' +
-          '<div style="font-size:8.5px;color:rgba(0,200,150,.7);letter-spacing:1.5px;margin-bottom:4px;">SUPPORT</div>' +
-          '<div style="font-family:DM Mono,monospace;font-size:22px;font-weight:700;color:#00c896;">&#8377;' + sup.toLocaleString('en-IN') + '</div>' +
-        '</div>' +
-        '<div style="text-align:center;">' +
-          '<div style="font-size:8.5px;color:rgba(255,255,255,.3);letter-spacing:1.5px;margin-bottom:4px;">NIFTY SPOT</div>' +
-          '<div style="font-family:DM Mono,monospace;font-size:22px;font-weight:700;color:rgba(255,255,255,.9);">&#8377;' + spot.toFixed(2) + '</div>' +
-        '</div>' +
-        '<div style="text-align:center;">' +
-          '<div style="font-size:8.5px;color:rgba(255,107,107,.7);letter-spacing:1.5px;margin-bottom:4px;">RESISTANCE</div>' +
-          '<div style="font-family:DM Mono,monospace;font-size:22px;font-weight:700;color:#ff6b6b;">&#8377;' + res.toLocaleString('en-IN') + '</div>' +
-        '</div>' +
-      '</div>' +
-
-      // Bar
-      '<div style="margin-bottom:10px;">' +
-        '<div style="display:flex;justify-content:space-between;font-size:9px;color:rgba(255,255,255,.3);margin-bottom:6px;">' +
-          '<span>Support &#8377;' + sup.toLocaleString('en-IN') + '</span>' +
-          '<span style="color:' + posColor + ';font-weight:700;">' + posLabel + ' &mdash; ' + (position*100).toFixed(0) + '% of range</span>' +
-          '<span>Resistance &#8377;' + res.toLocaleString('en-IN') + '</span>' +
-        '</div>' +
-        '<div style="height:8px;background:linear-gradient(90deg,#00c896,#6480ff,#ff6b6b);border-radius:4px;position:relative;">' +
-          '<div style="position:absolute;left:' + pct + '%;top:50%;transform:translate(-50%,-50%);' +
-            'width:14px;height:14px;background:#fff;border-radius:50%;' +
-            'box-shadow:0 0 10px rgba(255,255,255,.8);border:2px solid #06080f;"></div>' +
-        '</div>' +
-      '</div>' +
-
-      '<div style="font-size:11px;color:rgba(255,255,255,.4);">' +
-        'Range: <strong style="color:rgba(255,255,255,.7);">' + range.toLocaleString('en-IN') + ' pts</strong>' +
-        ' &nbsp;&middot;&nbsp; Wing: <strong style="color:rgba(255,255,255,.7);">' + wing + ' pts</strong>' +
-        ' &nbsp;&middot;&nbsp; Lot: <strong style="color:rgba(255,255,255,.7);">' + lotSize + '</strong>' +
-      '</div>' +
-    '</div>';
-
-    // Primary strategy cards
-    html += '<div style="font-size:10px;font-weight:700;letter-spacing:2.5px;color:#00c896;' +
-      'text-transform:uppercase;margin:20px 0 12px;padding-bottom:10px;' +
-      'border-bottom:1px solid rgba(0,200,150,.15);">&#9733; RECOMMENDED STRATEGY</div>';
+    html += '<div style="font-size:10px;font-weight:700;letter-spacing:2.5px;color:#00c896;text-transform:uppercase;' +
+      'margin:0 0 12px;padding-bottom:10px;border-bottom:1px solid rgba(0,200,150,.15);">&#9733; RECOMMENDED STRATEGY</div>';
     primary.forEach(function(s) {{ html += buildCard(s); }});
 
-    // Secondary / breakout cards
-    html += '<div style="font-size:10px;font-weight:700;letter-spacing:2.5px;color:#6480ff;' +
-      'text-transform:uppercase;margin:20px 0 12px;padding-bottom:10px;' +
-      'border-bottom:1px solid rgba(100,128,255,.15);">&#9889; CONDITIONAL BREAKOUT STRATEGIES</div>';
+    html += '<div style="font-size:10px;font-weight:700;letter-spacing:2.5px;color:#6480ff;text-transform:uppercase;' +
+      'margin:20px 0 12px;padding-bottom:10px;border-bottom:1px solid rgba(100,128,255,.15);">&#9889; CONDITIONAL BREAKOUT STRATEGIES</div>';
     secondary.forEach(function(s) {{ html += buildCard(s); }});
 
-    var resultsEl = document.getElementById('srResults');
-    resultsEl.innerHTML = html;
-    resultsEl.style.display = 'block';
-    resultsEl.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+    var el = document.getElementById('srResults');
+    el.innerHTML = html;
+    el.style.display = 'block';
+    el.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
   }};
 
 }})();
