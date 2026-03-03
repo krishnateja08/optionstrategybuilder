@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v18.4 · Smart Dynamic PoP Engine + Holiday-Aware Expiry
+Aurora Borealis Theme · v18.5 · Smart Dynamic PoP Engine + Holiday-Aware Expiry
 - PoP now reflects: Market Bias + Support/Resistance + Max CE/PE OI walls + PCR
 - lotSize fixed to 65
 - Strategies ranked by smart PoP — highest PoP = best trade right now
@@ -259,7 +259,7 @@ class NSEOptionChain:
                 time.sleep(2)
         return None
 
-    def fetch_multiple_expiries(self, session, headers, n=7):
+    def fetch_multiple_expiries(self, session, headers, n=8):
         """Generate next n weekly expiry dates (Tuesdays) with holiday adjustment,
            then fetch option chain for each. No extra NSE API call needed."""
 
@@ -1764,34 +1764,38 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
 
     # Build multi-expiry data for dropdown
     all_expiry_js = {}
-    if multi_expiry_analyzed and expiry_list:
+    if expiry_list:
         for exp in expiry_list:
-            oc_e = multi_expiry_analyzed.get(exp)
-            if not oc_e:
+            oc_e = (multi_expiry_analyzed or {}).get(exp)
+            # Use primary expiry data as fallback for weeks not yet fetched
+            fallback_oc = oc_e or oc_analysis
+            if not fallback_oc:
                 continue
             all_expiry_js[exp] = {
-                "spot":        round(oc_e["underlying"], 2),
-                "atm":         oc_e["atm_strike"],
-                "pcr":         round(oc_e["pcr_oi"], 3),
-                "maxCeStrike": oc_e["max_ce_strike"],
-                "maxPeStrike": oc_e["max_pe_strike"],
+                "spot":        round(fallback_oc["underlying"], 2),
+                "atm":         fallback_oc["atm_strike"],
+                "pcr":         round(fallback_oc["pcr_oi"], 3),
+                "maxCeStrike": fallback_oc["max_ce_strike"],
+                "maxPeStrike": fallback_oc["max_pe_strike"],
                 "support":     round(tech["support"], 2) if tech else spot - 150,
                 "resistance":  round(tech["resistance"], 2) if tech else spot + 150,
                 "strongSup":   round(tech["strong_sup"], 2) if tech else spot - 300,
                 "strongRes":   round(tech["strong_res"], 2) if tech else spot + 300,
-                "strikes":     oc_e.get("strikes_data", []),
+                "strikes":     fallback_oc.get("strikes_data", []),
             }
     all_expiry_json = json.dumps(all_expiry_js)
     expiry_opts_html = ""
     if expiry_list:
-        first_with_data = True
+        first_selected = True
         for exp in expiry_list:
             has_data = exp in (all_expiry_js or {})
-            if not has_data:
-                continue
-            sel = "selected" if first_with_data else ""
-            expiry_opts_html += f'<option value="{exp}" {sel}>{exp}</option>\n'
-            first_with_data = False
+            # Show ALL expiries — disable ones with no data (rare edge case)
+            disabled = "" if has_data else "disabled style=\'color:rgba(255,255,255,.3);\'"
+            sel = "selected" if (has_data and first_selected) else ""
+            if has_data and first_selected:
+                first_selected = False
+            label = exp if has_data else f"{exp} (loading...)"
+            expiry_opts_html += f'<option value="{exp}" {sel} {disabled}>{label}</option>\n'
     else:
         expiry_opts_html = f'<option value="">{oc_analysis["expiry"] if oc_analysis else "N/A"}</option>'
     
@@ -3238,7 +3242,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Nifty 50 Options Dashboard v18.4</title>
+<title>Nifty 50 Options Dashboard v18.5</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>{CSS}</style>
@@ -3375,7 +3379,7 @@ document.addEventListener("click",function(e){{
 def main():
     ts = ist_timestamp_str()
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — v18.4 · Holiday-Aware Expiry")
+    print("  NIFTY 50 OPTIONS DASHBOARD — v18.5 · 8-Week Expiry Dropdown")
     print(f"  {ts}")
     print(f"  IST Date: {today_ist()}  IST Weekday: {ist_weekday()}")
     print("=" * 65)
@@ -3408,7 +3412,7 @@ def main():
     # Fetch all 7 expiries for dropdown
     print("\n  Fetching next 7 expiries for dropdown...")
     time.sleep(1.5)   # small gap so NSE doesn't block
-    multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=7)
+    multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=8)
     print(f"  Expiry dropdown will show: {expiry_list}")
 
     # Pre-analyze all expiry data
