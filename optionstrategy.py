@@ -1534,9 +1534,20 @@ var _srcTimer=null;
 function srcDebounce(){{ clearTimeout(_srcTimer); _srcTimer=setTimeout(srcCalculate,600); }}
 
 function srcSnap(target,type){{
-  if(!SRC.strikes||!SRC.strikes.length) return {{strike:target,ltp:0,iv:15}};
+  // FIX: safe fallback when no strikes available
+  if(!SRC.strikes||!SRC.strikes.length) {{
+    var fallbackLtp = Math.max(10, Math.round(150 - Math.abs(target - SRC.atm) * 0.3));
+    return {{strike:target, ltp:fallbackLtp, iv:15}};
+  }}
   var b=SRC.strikes.reduce(function(a,s){{return Math.abs(s.strike-target)<Math.abs(a.strike-target)?s:a}},SRC.strikes[0]);
-  return {{strike:b.strike, ltp:type==='ce'?b.ce_ltp:b.pe_ltp, iv:type==='ce'?b.ce_iv:b.pe_iv}};
+  var rawLtp = type==='ce' ? b.ce_ltp : b.pe_ltp;
+  var rawIv  = type==='ce' ? b.ce_iv  : b.pe_iv;
+  // FIX: if LTP is 0 (OTM with no trades), estimate from IV using simplified Black-Scholes proxy
+  if(!rawLtp || rawLtp <= 0) {{
+    var distPct = Math.abs(b.strike - SRC.atm) / Math.max(SRC.atm, 1);
+    rawLtp = Math.max(5, Math.round(80 * Math.exp(-distPct * 12)));
+  }}
+  return {{strike:b.strike, ltp:rawLtp, iv:rawIv||15}};
 }}
 
 function srcPoP(cat,sup,res){{
@@ -1812,6 +1823,29 @@ function srcBuildStrats(sup,res){{
     }});
   }})();}}catch(e){{console.warn('Wide Iron Condor skipped:',e);}}
 
+  // ── FIX: Filter out any strategy that produced NaN/Infinity values ──
+  pool = pool.filter(function(s) {{
+    return isFinite(s.score) && !isNaN(s.nc) && !isNaN(s.mp) && !isNaN(s.ml) &&
+           s.legs.every(function(l) {{ return isFinite(l.l) && !isNaN(l.l); }});
+  }});
+
+  // ── FIX: If all real strategies failed, inject a guaranteed safe fallback ──
+  if(pool.length === 0) {{
+    var nc = (sCe.ltp||20) + (sPe.ltp||20);
+    pool.push({{
+      name:'Short Strangle (Safe Fallback)', cat:'nondirectional',
+      score:50,
+      legs:[{{a:'SELL CE',s:sCe.strike,l:sCe.ltp||20,c:'#00c8e0'}},
+            {{a:'SELL PE',s:sPe.strike,l:sPe.ltp||20,c:'#ff9090'}}],
+      nc:nc, mp:nc*lot, ml:999999,
+      be:[sPe.strike-nc, sCe.strike+nc],
+      margin:Math.round(0.155*spot*lot),
+      pop:srcPoP('nondirectional',sup,res),
+      note:'Fallback strategy — sell premium at both walls. Check live data.',
+      why:'Fallback: sell CE near resistance, sell PE near support. Profit if Nifty stays in range.'
+    }});
+  }}
+
   // ── Sort by smart score descending, return top 3 ─────────────────
   pool.sort(function(a,b){{ return b.score - a.score; }});
   return pool.slice(0,3);
@@ -1941,34 +1975,50 @@ window.srcCalculate=function(){{
         empty.innerHTML='<span style="color:#ffd166;">\u26a0 Enter two different S/R values.</span>';}}
       if(results)results.style.display='none'; return;
     }}
-    // Sync live market data from OC if available
-    if(typeof OC!=='undefined'&&OC.atm){{
-      SRC.spot=OC.spot||SRC.spot; SRC.atm=OC.atm||SRC.atm; SRC.pcr=OC.pcr||SRC.pcr;
-      SRC.maxCeStrike=OC.maxCeStrike||SRC.maxCeStrike; SRC.maxPeStrike=OC.maxPeStrike||SRC.maxPeStrike;
-      SRC.bias=OC.bias||SRC.bias; SRC.biasConf=OC.biasConf||SRC.biasConf;
-      if(OC.strikes&&OC.strikes.length>0)SRC.strikes=OC.strikes;
-      var sd=document.getElementById('srcSpotDisplay');
-      var ad=document.getElementById('srcAtmDisplay');
-      if(sd)sd.textContent=(SRC.spot||0).toLocaleString('en-IN',{{minimumFractionDigits:2,maximumFractionDigits:2}});
-      if(ad)ad.textContent=(SRC.atm||0).toLocaleString('en-IN');
-    }}
-    // Fallback: generate synthetic strikes centred on ATM if no live data
+    // FIX: Always sync from OC global (defined in strategies section above) before calculating
+    (function syncFromOC() {{
+      try {{
+        if(typeof OC !== 'undefined') {{
+          if(OC.spot)         SRC.spot        = OC.spot;
+          if(OC.atm)          SRC.atm         = OC.atm;
+          if(OC.pcr)          SRC.pcr         = OC.pcr;
+          if(OC.maxCeStrike)  SRC.maxCeStrike = OC.maxCeStrike;
+          if(OC.maxPeStrike)  SRC.maxPeStrike = OC.maxPeStrike;
+          if(OC.bias)         SRC.bias        = OC.bias;
+          if(OC.biasConf)     SRC.biasConf    = OC.biasConf;
+          if(OC.strikes && OC.strikes.length > 0) SRC.strikes = OC.strikes;
+          // Update display values
+          var sd = document.getElementById('srcSpotDisplay');
+          var ad = document.getElementById('srcAtmDisplay');
+          if(sd) sd.textContent = (SRC.spot||0).toLocaleString('en-IN',{{minimumFractionDigits:2,maximumFractionDigits:2}});
+          if(ad) ad.textContent = (SRC.atm||0).toLocaleString('en-IN');
+        }}
+      }} catch(syncErr) {{ console.warn('OC sync error:', syncErr); }}
+    }})();
+    // FIX: Generate realistic synthetic strikes centred on ATM if no live data
     if(!SRC.strikes||SRC.strikes.length===0){{
       var centreAtm=SRC.atm||Math.round(((sup+res)/2)/50)*50;
       var synth=[];
-      for(var i=-10;i<=10;i++){{
+      for(var i=-12;i<=12;i++){{
         var sk=centreAtm+(i*50);
-        var ltp=Math.max(5,Math.round(200-Math.abs(i)*18));
-        synth.push({{strike:sk,ce_ltp:ltp,pe_ltp:ltp,ce_iv:15,pe_iv:15,ce_oi:1000,pe_oi:1000}});
+        // Realistic ATM-relative LTP: ATM ≈ 150, drops exponentially with distance
+        var atmBase = 150;
+        var decay   = Math.exp(-Math.abs(i) * 0.35);
+        var ltp     = Math.max(3, Math.round(atmBase * decay));
+        var iv      = Math.max(12, Math.min(35, 15 + Math.abs(i) * 0.8));
+        synth.push({{strike:sk, ce_ltp:ltp, pe_ltp:ltp, ce_iv:iv, pe_iv:iv, ce_oi:1000, pe_oi:1000}});
       }}
       SRC.strikes=synth;
       SRC.atm=centreAtm;
+      console.log('SRC: using synthetic strikes centred on ATM', centreAtm);
     }}
     var banner=document.getElementById('srcContextBanner');
     var cards=document.getElementById('srcStratCards');
     if(banner)banner.innerHTML=srcBanner(sup,res);
     if(cards){{
+      console.log('SRC DEBUG: sup='+sup+' res='+res+' spot='+SRC.spot+' atm='+SRC.atm+' strikes='+SRC.strikes.length);
       var strats=srcBuildStrats(sup,res);
+      console.log('SRC DEBUG: built '+strats.length+' strategies:', strats.map(function(s){{return s.name+' score='+s.score;}}));
       if(strats.length>0){{
         var html='';
         strats.forEach(function(s,i){{
@@ -1998,6 +2048,27 @@ window.srcCalculate=function(){{
 // Auto-calculate on load intentionally removed.
 // Fields start empty — results only appear when user presses CALCULATE
 // with their own Support & Resistance values.
+
+// FIX: Sync Spot and ATM display values from OC global immediately on load
+// (OC is defined in the strategies section script tag above this one)
+document.addEventListener('DOMContentLoaded', function() {{
+  try {{
+    if(typeof OC !== 'undefined') {{
+      if(OC.spot) SRC.spot = OC.spot;
+      if(OC.atm)  SRC.atm  = OC.atm;
+      if(OC.pcr)  SRC.pcr  = OC.pcr;
+      if(OC.maxCeStrike) SRC.maxCeStrike = OC.maxCeStrike;
+      if(OC.maxPeStrike) SRC.maxPeStrike = OC.maxPeStrike;
+      if(OC.bias)        SRC.bias        = OC.bias;
+      if(OC.biasConf)    SRC.biasConf    = OC.biasConf;
+      if(OC.strikes && OC.strikes.length > 0) SRC.strikes = OC.strikes;
+      var sd = document.getElementById('srcSpotDisplay');
+      var ad = document.getElementById('srcAtmDisplay');
+      if(sd) sd.textContent = (SRC.spot||0).toLocaleString('en-IN',{{minimumFractionDigits:2,maximumFractionDigits:2}});
+      if(ad) ad.textContent = (SRC.atm||0).toLocaleString('en-IN');
+    }}
+  }} catch(e) {{ console.warn('S/R Calc init sync error:', e); }}
+}});
 </script>
 <!-- ═══ END S/R STRATEGY CALCULATOR ═══ -->
 """
