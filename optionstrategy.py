@@ -3416,12 +3416,12 @@ def build_greeks_script_html(oc_analysis):
       '<div style="display:flex;align-items:center;gap:5px;">' +
         '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">' +
           '<div style="width:'+cePct+'%;height:100%;background:'+ceCol+';border-radius:2px;"></div></div>' +
-        '<span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:'+ceCol+';">' +
+        '<span style="font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;color:'+ceCol+';">' +
              (d.ce_delta>=0?'+':'')+d.ce_delta.toFixed(3)+'</span></div>' +
       '<div style="display:flex;align-items:center;gap:5px;margin-top:3px;">' +
         '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">' +
           '<div style="width:'+pePct+'%;height:100%;background:'+peCol+';border-radius:2px;"></div></div>' +
-        '<span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:'+peCol+';">' +
+        '<span style="font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;color:'+peCol+';">' +
              (d.pe_delta>=0?'+':'')+d.pe_delta.toFixed(3)+'</span></div>';
     var ice = document.getElementById('greeksIvCe'); if(ice) ice.textContent = (d.ce_iv||0).toFixed(1)+'%';
     var ipe = document.getElementById('greeksIvPe'); if(ipe) ipe.textContent = (d.pe_iv||0).toFixed(1)+'%';
