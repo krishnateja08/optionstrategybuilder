@@ -1654,7 +1654,7 @@ function srcBuildStrats(sup,res){{
   var pool = [];
 
   // 1. Bull Put Spread — sell PE at support, buy PE below
-  (function() {{
+  try{{(function() {{
     var nc  = sPe.ltp - bPe.ltp;
     var w   = Math.max(sPe.strike - bPe.strike, 50);
     var mp  = Math.max(nc, 0) * lot;
@@ -1670,10 +1670,10 @@ function srcBuildStrats(sup,res){{
       note:'Sell PE near support · Profit while Nifty stays above support',
       why:buildWhy(be,mp,ml,nc,'bullish','Bull Put Spread')
     }});
-  }})();
+  }})();}}catch(e){{console.warn('Bull Put Spread skipped:',e);}}
 
   // 2. Bear Call Spread — sell CE at resistance, buy CE above
-  (function() {{
+  try{{(function() {{
     var nc  = sCe.ltp - bCe.ltp;
     var w   = Math.max(bCe.strike - sCe.strike, 50);
     var mp  = Math.max(nc, 0) * lot;
@@ -1689,10 +1689,10 @@ function srcBuildStrats(sup,res){{
       note:'Sell CE near resistance · Profit while Nifty stays below resistance',
       why:buildWhy(be,mp,ml,nc,'bearish','Bear Call Spread')
     }});
-  }})();
+  }})();}}catch(e){{console.warn('Bear Call Spread skipped:',e);}}
 
   // 3. Short Iron Condor — sell both walls, buy wings outside
-  (function() {{
+  try{{(function() {{
     var nc  = sCe.ltp + sPe.ltp - bCe.ltp - bPe.ltp;
     var w   = Math.max(bCe.strike - sCe.strike, 50);
     var mp  = Math.max(nc, 0) * lot;
@@ -1711,10 +1711,10 @@ function srcBuildStrats(sup,res){{
       note:'Sell both S/R walls · Profit if Nifty stays inside the range',
       why:buildWhy(be,mp,ml,nc,'nondirectional','Short Iron Condor')
     }});
-  }})();
+  }})();}}catch(e){{console.warn('Short Iron Condor skipped:',e);}}
 
   // 4. Short Strangle — sell CE at resistance, sell PE at support (naked)
-  (function() {{
+  try{{(function() {{
     var nc  = sCe.ltp + sPe.ltp;
     var mp  = nc * lot;
     var be  = [sPe.strike - nc, sCe.strike + nc];
@@ -1729,10 +1729,10 @@ function srcBuildStrats(sup,res){{
       note:'Sell premium at both walls · Higher credit, unlimited risk',
       why:buildWhy(be,mp,999999,nc,'nondirectional','Short Strangle')
     }});
-  }})();
+  }})();}}catch(e){{console.warn('Short Strangle skipped:',e);}}
 
   // 5. Bull Call Spread — buy ATM CE, sell CE at resistance
-  (function() {{
+  try{{(function() {{
     var nc  = atmCe.ltp - sCe.ltp;   // debit
     var w   = Math.max(sCe.strike - atm, 50);
     var mp  = Math.max(w - Math.abs(nc), 0) * lot;
@@ -1748,10 +1748,10 @@ function srcBuildStrats(sup,res){{
       note:'Buy lower CE, sell CE at resistance · Capped profit at resistance',
       why:buildWhy(be,mp,ml,nc,'bullish','Bull Call Spread')
     }});
-  }})();
+  }})();}}catch(e){{console.warn('Bull Call Spread skipped:',e);}}
 
   // 6. Bear Put Spread — buy ATM PE, sell PE at support
-  (function() {{
+  try{{(function() {{
     var nc  = atmPe.ltp - sPe.ltp;   // debit
     var w   = Math.max(atm - sPe.strike, 50);
     var mp  = Math.max(w - Math.abs(nc), 0) * lot;
@@ -1767,10 +1767,10 @@ function srcBuildStrats(sup,res){{
       note:'Buy higher PE, sell PE at support · Capped profit at support',
       why:buildWhy(be,mp,ml,nc,'bearish','Bear Put Spread')
     }});
-  }})();
+  }})();}}catch(e){{console.warn('Bear Put Spread skipped:',e);}}
 
   // 7. Short Iron Butterfly — sell ATM CE+PE, buy wings at S and R
-  (function() {{
+  try{{(function() {{
     var nc  = atmCe.ltp + atmPe.ltp - sCe.ltp - sPe.ltp;
     var w   = Math.max(sCe.strike - atm, atm - sPe.strike, 50);
     var mp  = Math.max(nc, 0) * lot;
@@ -1788,10 +1788,10 @@ function srcBuildStrats(sup,res){{
       note:'Sell ATM straddle, hedge at S/R · High credit, tight breakevens',
       why:buildWhy(be,mp,ml,nc,'nondirectional','Short Iron Butterfly')
     }});
-  }})();
+  }})();}}catch(e){{console.warn('Short Iron Butterfly skipped:',e);}}
 
   // 8. Wide Iron Condor — wider wings for better credit
-  (function() {{
+  try{{(function() {{
     var nc  = sCe.ltp + sPe.ltp - bCe2.ltp - bPe2.ltp;
     var w   = Math.max(bCe2.strike - sCe.strike, 50);
     var mp  = Math.max(nc, 0) * lot;
@@ -1810,7 +1810,7 @@ function srcBuildStrats(sup,res){{
       note:'Wider wings for more credit · Better RR than standard condor',
       why:buildWhy(be,mp,ml,nc,'nondirectional','Wide Iron Condor')
     }});
-  }})();
+  }})();}}catch(e){{console.warn('Wide Iron Condor skipped:',e);}}
 
   // ── Sort by smart score descending, return top 3 ─────────────────
   pool.sort(function(a,b){{ return b.score - a.score; }});
@@ -1929,47 +1929,71 @@ function srcBanner(sup,res){{
 }}
 
 window.srcCalculate=function(){{
-  var rawSup=parseFloat(document.getElementById('srcSupport').value);
-  var rawRes=parseFloat(document.getElementById('srcResistance').value);
   var empty=document.getElementById('srcEmpty');
   var results=document.getElementById('srcResults');
-  var sup=Math.min(rawSup,rawRes);
-  var res=Math.max(rawSup,rawRes);
-  if(!sup||!res||isNaN(sup)||isNaN(res)||sup===res){{
-    if(empty){{empty.style.display='block';
-      empty.innerHTML='<span style="color:#ffd166;">\u26a0 Enter two different S/R values.</span>';}}
-    if(results)results.style.display='none'; return;
-  }}
-  if(typeof OC!=='undefined'){{
-    SRC.spot=OC.spot; SRC.atm=OC.atm; SRC.pcr=OC.pcr;
-    SRC.maxCeStrike=OC.maxCeStrike; SRC.maxPeStrike=OC.maxPeStrike;
-    SRC.bias=OC.bias; SRC.biasConf=OC.biasConf;
-    SRC.strikes=OC.strikes;
-    var sd=document.getElementById('srcSpotDisplay');
-    var ad=document.getElementById('srcAtmDisplay');
-    if(sd)sd.textContent=SRC.spot.toLocaleString('en-IN',{{minimumFractionDigits:2,maximumFractionDigits:2}});
-    if(ad)ad.textContent=SRC.atm.toLocaleString('en-IN');
-  }}
-  if(!SRC.strikes||SRC.strikes.length===0){{
-    var synth=[];
-    for(var i=-10;i<=10;i++){{
-      var sk=SRC.atm+(i*50);
-      var ltp=Math.max(5,Math.round(220-Math.abs(i)*20));
-      synth.push({{strike:sk,ce_ltp:ltp,pe_ltp:ltp,ce_iv:15,pe_iv:15,ce_oi:1000,pe_oi:1000}});
+  try{{
+    var rawSup=parseFloat(document.getElementById('srcSupport').value);
+    var rawRes=parseFloat(document.getElementById('srcResistance').value);
+    var sup=Math.min(rawSup,rawRes);
+    var res=Math.max(rawSup,rawRes);
+    if(!sup||!res||isNaN(sup)||isNaN(res)||sup===res){{
+      if(empty){{empty.style.display='block';
+        empty.innerHTML='<span style="color:#ffd166;">\u26a0 Enter two different S/R values.</span>';}}
+      if(results)results.style.display='none'; return;
     }}
-    SRC.strikes=synth;
+    // Sync live market data from OC if available
+    if(typeof OC!=='undefined'&&OC.atm){{
+      SRC.spot=OC.spot||SRC.spot; SRC.atm=OC.atm||SRC.atm; SRC.pcr=OC.pcr||SRC.pcr;
+      SRC.maxCeStrike=OC.maxCeStrike||SRC.maxCeStrike; SRC.maxPeStrike=OC.maxPeStrike||SRC.maxPeStrike;
+      SRC.bias=OC.bias||SRC.bias; SRC.biasConf=OC.biasConf||SRC.biasConf;
+      if(OC.strikes&&OC.strikes.length>0)SRC.strikes=OC.strikes;
+      var sd=document.getElementById('srcSpotDisplay');
+      var ad=document.getElementById('srcAtmDisplay');
+      if(sd)sd.textContent=(SRC.spot||0).toLocaleString('en-IN',{{minimumFractionDigits:2,maximumFractionDigits:2}});
+      if(ad)ad.textContent=(SRC.atm||0).toLocaleString('en-IN');
+    }}
+    // Fallback: generate synthetic strikes centred on ATM if no live data
+    if(!SRC.strikes||SRC.strikes.length===0){{
+      var centreAtm=SRC.atm||Math.round(((sup+res)/2)/50)*50;
+      var synth=[];
+      for(var i=-10;i<=10;i++){{
+        var sk=centreAtm+(i*50);
+        var ltp=Math.max(5,Math.round(200-Math.abs(i)*18));
+        synth.push({{strike:sk,ce_ltp:ltp,pe_ltp:ltp,ce_iv:15,pe_iv:15,ce_oi:1000,pe_oi:1000}});
+      }}
+      SRC.strikes=synth;
+      SRC.atm=centreAtm;
+    }}
+    var banner=document.getElementById('srcContextBanner');
+    var cards=document.getElementById('srcStratCards');
+    if(banner)banner.innerHTML=srcBanner(sup,res);
+    if(cards){{
+      var strats=srcBuildStrats(sup,res);
+      if(strats.length>0){{
+        var html='';
+        strats.forEach(function(s,i){{
+          try{{html+=srcCard(s,i);}}
+          catch(cardErr){{
+            console.error('srcCard error for '+s.name+':',cardErr);
+          }}
+        }});
+        cards.innerHTML=html||'<div style="color:#ff6b6b;padding:12px;">Strategy rendering failed — check console.</div>';
+      }}else{{
+        cards.innerHTML='<div style="color:#ff6b6b;padding:12px;">Could not build strategies for this S/R range.</div>';
+      }}
+    }}
+    if(empty)empty.style.display='none';
+    if(results)results.style.display='block';
+  }}catch(err){{
+    console.error('srcCalculate error:',err);
+    if(empty){{
+      empty.style.display='block';
+      empty.innerHTML='<div style="color:#ff6b6b;padding:12px 0;">'
+        +'<b>\u26a0 Calculator error:</b> '+err.message
+        +'<br><small style="opacity:.6;">Open browser DevTools console (F12) for full details.</small></div>';
+    }}
+    if(results)results.style.display='none';
   }}
-  var banner=document.getElementById('srcContextBanner');
-  var cards=document.getElementById('srcStratCards');
-  if(banner)banner.innerHTML=srcBanner(sup,res);
-  if(cards){{
-    var strats=srcBuildStrats(sup,res);
-    cards.innerHTML=strats.length>0
-      ? strats.map(function(s,i){{return srcCard(s,i);}}).join('')
-      : '<div style="color:#ff6b6b;padding:12px;">Could not build strategies.</div>';
-  }}
-  if(empty)empty.style.display='none';
-  if(results)results.style.display='block';
 }};
 // Auto-calculate on load intentionally removed.
 // Fields start empty — results only appear when user presses CALCULATE
@@ -3531,7 +3555,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
     {greeks_table}
     <div id="kl">{kl_html}</div>
     {strat_html}
-    <div id="srCalc">{sr_calc_html}</div>
+    {sr_calc_html}
     <div id="strikes">{strikes_html}</div>
     <div class="section">
       <div style="background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.18);
