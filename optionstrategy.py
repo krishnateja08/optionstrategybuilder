@@ -1461,7 +1461,8 @@ def build_sr_calculator_html(oc_analysis, tech=None, md=None):
     <div style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:130px;">
       <label style="font-size:9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;
                     color:rgba(0,200,150,.8);">&#9660; SUPPORT</label>
-      <input id="srcSupport" type="number" step="25" value="{support:.0f}"
+      <input id="srcSupport" type="number" step="25" value=""
+        placeholder="e.g. 24750"
         style="background:rgba(0,200,150,.08);border:1px solid rgba(0,200,150,.35);border-radius:8px;
                color:#00c896;font-family:'DM Mono',monospace;font-size:15px;font-weight:700;
                padding:9px 12px;outline:none;width:100%;"
@@ -1471,7 +1472,8 @@ def build_sr_calculator_html(oc_analysis, tech=None, md=None):
     <div style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:130px;">
       <label style="font-size:9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;
                     color:rgba(255,107,107,.8);">&#9650; RESISTANCE</label>
-      <input id="srcResistance" type="number" step="25" value="{resistance:.0f}"
+      <input id="srcResistance" type="number" step="25" value=""
+        placeholder="e.g. 25000"
         style="background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.35);border-radius:8px;
                color:#ff6b6b;font-family:'DM Mono',monospace;font-size:15px;font-weight:700;
                padding:9px 12px;outline:none;width:100%;"
@@ -1969,11 +1971,9 @@ window.srcCalculate=function(){{
   if(empty)empty.style.display='none';
   if(results)results.style.display='block';
 }};
-window.addEventListener('load',function(){{
-  setTimeout(function(){{
-    if(typeof OC!=='undefined'&&OC.atm&&OC.atm>0)srcCalculate();
-  }},1200);
-}});
+// Auto-calculate on load intentionally removed.
+// Fields start empty — results only appear when user presses CALCULATE
+// with their own Support & Resistance values.
 </script>
 <!-- ═══ END S/R STRATEGY CALCULATOR ═══ -->
 """
