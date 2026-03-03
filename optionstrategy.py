@@ -2037,7 +2037,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
   </aside>
   <main class="content">
     <div id="oi">{oi_html}</div>
-    {greeks_table}
+    {greeks_tbl}
     <div id="kl">{kl_html}</div>
     {strat_html}
     <div id="strikes">{strikes_html}</div>
@@ -2100,7 +2100,7 @@ document.addEventListener("click",function(e){{
   }}
 }});
 </script>
-{greeks_script}
+{greeks_scr}
 {ANIMATED_JS}
 </body>
 </html>"""
