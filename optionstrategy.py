@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v19.0 · Smart S&R Manual Input Recommender
-- NEW: Smart S&R Section — user enters weekly Support & Resistance
-  System auto-decides: BUY CALL or BUY PUT, ATM or 1-OTM strike
-  Calculates: PoP, Max Profit, Max Loss, RR Ratio, Breakeven, Margin
-- All v18.4 features retained (Holiday-aware expiry, silent refresh, etc.)
+Aurora Borealis Theme · v18.4 · Smart Dynamic PoP Engine + Holiday-Aware Expiry
+- PoP now reflects: Market Bias + Support/Resistance + Max CE/PE OI walls + PCR
 - lotSize fixed to 65
+- Strategies ranked by smart PoP — highest PoP = best trade right now
+- FIXED v18.1: All strategy legs now show actual strike prices (3-4 leg strategies)
+- FIXED v18.2: Gauges now show OI CHANGE data (chg_bull_force / chg_bear_force)
+- FIXED v18.3: Silent background auto-refresh — no flicker, no layout shift
+               Works on both file:// and http:// protocols using hidden iframe trick
+- FIXED v18.4: Holiday-aware expiry — if Tuesday is NSE holiday, expiry moves to
+               previous trading day (Monday, then Friday if Monday also holiday)
 
 pip install curl_cffi pandas numpy yfinance pytz scipy
 """
@@ -40,9 +44,13 @@ def ist_timestamp_str():
 
 # =================================================================
 #  NSE MARKET HOLIDAYS 2026
+#  Source: NSE India official holiday list
+#  If Tuesday expiry falls on a holiday → move to Monday
+#  If Monday also holiday → move to Friday
 # =================================================================
 
 NSE_HOLIDAYS_2026 = {
+    # date-string: description
     "15-Jan-2026": "Municipal Corporation Election - Maharashtra",
     "26-Jan-2026": "Republic Day",
     "03-Mar-2026": "Holi",
@@ -61,6 +69,7 @@ NSE_HOLIDAYS_2026 = {
     "25-Dec-2026": "Christmas",
 }
 
+# Convert to a set of date objects for fast lookup
 _HOLIDAY_DATES_2026 = set()
 for _ds in NSE_HOLIDAYS_2026:
     try:
@@ -70,18 +79,20 @@ for _ds in NSE_HOLIDAYS_2026:
 
 
 def is_nse_holiday(dt):
-    if dt.weekday() >= 5:
+    """Return True if the given date is an NSE trading holiday or weekend."""
+    if dt.weekday() >= 5:   # Saturday=5, Sunday=6
         return True
     return dt in _HOLIDAY_DATES_2026
 
 
 def get_prev_trading_day(dt):
+    """Return the nearest previous trading day (not holiday, not weekend)."""
     candidate = dt - timedelta(days=1)
-    for _ in range(10):
+    for _ in range(10):           # safety: max 10 look-back days
         if not is_nse_holiday(candidate):
             return candidate
         candidate -= timedelta(days=1)
-    return candidate
+    return candidate              # fallback (should never reach here)
 
 
 # =================================================================
@@ -111,21 +122,34 @@ class NSEOptionChain:
         return session, headers
 
     def _current_or_next_tuesday_ist(self):
+        """
+        Find the current/next Tuesday and apply holiday adjustment:
+        - If Tuesday is an NSE holiday  → move to previous trading day
+        - Prints a clear log of the adjustment made
+        """
         today  = today_ist()
-        wd     = today.weekday()
-        if wd == 1:
+        wd     = today.weekday()        # Mon=0 … Sun=6
+
+        # ── Find the target Tuesday ──────────────────────────────
+        if wd == 1:                     # today IS Tuesday
             target_tuesday = today
-        elif wd < 1:
+        elif wd < 1:                    # Sunday/Monday — next day is Tuesday
             days_ahead = 1 - wd
             target_tuesday = today + timedelta(days=days_ahead)
-        else:
-            days_ahead = (8 - wd)
+        else:                           # Wed–Sat — skip to next week's Tuesday
+            days_ahead = (8 - wd)       # e.g. Wed(2): 8-2=6 days → next Tue
             target_tuesday = today + timedelta(days=days_ahead)
 
+        # ── Holiday adjustment ────────────────────────────────────
         if is_nse_holiday(target_tuesday):
-            reason = NSE_HOLIDAYS_2026.get(target_tuesday.strftime("%d-%b-%Y"), "Holiday/Weekend")
+            reason = NSE_HOLIDAYS_2026.get(
+                target_tuesday.strftime("%d-%b-%Y"), "Holiday/Weekend"
+            )
             adjusted = get_prev_trading_day(target_tuesday)
-            print(f"  [Holiday] {target_tuesday.strftime('%d-%b-%Y')} is '{reason}'. Expiry moved to {adjusted.strftime('%d-%b-%Y')}")
+            print(
+                f"  [Holiday] {target_tuesday.strftime('%d-%b-%Y')} is '{reason}'. "
+                f"Expiry moved to {adjusted.strftime('%d-%b-%Y')} ({adjusted.strftime('%A')})"
+            )
             expiry_date = adjusted
         else:
             expiry_date = target_tuesday
@@ -135,6 +159,7 @@ class NSEOptionChain:
         return result
 
     def _fetch_available_expiries(self, session, headers):
+        """Fallback: fetch actual expiry list from NSE and pick nearest upcoming."""
         try:
             url = f"https://www.nseindia.com/api/option-chain-v3?type=Indices&symbol={self.symbol}"
             resp = session.get(url, headers=headers, impersonate="chrome", timeout=20)
@@ -146,6 +171,7 @@ class NSEOptionChain:
                         try:
                             exp_dt = datetime.strptime(exp_str, "%d-%b-%Y").date()
                             if exp_dt >= today:
+                                print(f"  Fallback expiry from NSE API: {exp_str}")
                                 return exp_str
                         except Exception:
                             continue
@@ -210,18 +236,26 @@ class NSEOptionChain:
         return None
 
     def fetch_multiple_expiries(self, session, headers, n=7):
+        """Generate next n weekly expiry dates (Tuesdays) with holiday adjustment,
+           then fetch option chain for each. No extra NSE API call needed."""
+
+        # ── Step 1: Generate next n Tuesday expiry dates ──────────
         expiry_list = []
         today = today_ist()
-        wd = today.weekday()
+        wd = today.weekday()  # Mon=0 … Sun=6
+
+        # Find this week's Tuesday
         if wd <= 1:
             days_to_tue = 1 - wd
         else:
             days_to_tue = 8 - wd
         base_tuesday = today + timedelta(days=days_to_tue)
 
+        # Generate n Tuesdays from today forward
         candidate = base_tuesday
         attempts = 0
         while len(expiry_list) < n and attempts < 30:
+            # Apply holiday adjustment
             if is_nse_holiday(candidate):
                 adjusted = get_prev_trading_day(candidate)
             else:
@@ -229,28 +263,46 @@ class NSEOptionChain:
             exp_str = adjusted.strftime("%d-%b-%Y")
             if exp_str not in expiry_list:
                 expiry_list.append(exp_str)
+            # Move to next Tuesday
             candidate += timedelta(days=7)
             attempts += 1
 
+        print(f"  Generated expiry list: {expiry_list}")
+
+        # ── Step 2: Fetch option chain for each expiry ─────────────
         results = {}
         for exp in expiry_list:
+            print(f"    Fetching expiry: {exp}")
             data = self._fetch_for_expiry(session, headers, exp)
             if data:
                 results[exp] = data
+                print(f"      OK: {exp}")
+            else:
+                print(f"      SKIP: {exp} not found on NSE (may be monthly/not listed yet)")
             time.sleep(0.8)
 
+        print(f"  Successfully fetched {len(results)} of {len(expiry_list)} expiries")
         return results, expiry_list
 
     def fetch(self):
         session, headers = self._make_session()
+
+        # ── Step 1: compute holiday-adjusted expiry ───────────────
         expiry = self._current_or_next_tuesday_ist()
+
+        # ── Step 2: try to fetch with computed expiry ─────────────
         result = self._fetch_for_expiry(session, headers, expiry)
 
+        # ── Step 3: fallback — ask NSE for actual expiry list ─────
         if result is None:
+            print(f"  Computed expiry {expiry} not found on NSE. Trying API fallback...")
             real_expiry = self._fetch_available_expiries(session, headers)
             if real_expiry and real_expiry != expiry:
                 result = self._fetch_for_expiry(session, headers, real_expiry)
 
+        if result is None:
+            print("  ERROR: Option chain fetch failed for all expiries.")
+        # Also capture full expiry list for dropdown
         self._cached_expiry_list = []
         try:
             url = f"https://www.nseindia.com/api/option-chain-v3?type=Indices&symbol={self.symbol}"
@@ -267,6 +319,7 @@ class NSEOptionChain:
                                 break
                     except Exception:
                         continue
+                print(f"  Expiry list fetched: {self._cached_expiry_list}")
         except Exception as e:
             print(f"  WARNING expiry list: {e}")
         return result, session, headers
@@ -294,7 +347,7 @@ def fetch_india_vix(nse_session=None, nse_headers=None):
                                 "high": float(item.get("high", last)),
                                 "low":  float(item.get("low",  last)), "status": "live"}
         except Exception as e:
-            print(f"  WARNING VIX: {e}")
+            print(f"  WARNING VIX source1: {e}")
 
     try:
         hist = yf.Ticker("^INDIAVIX").history(period="2d")
@@ -308,7 +361,7 @@ def fetch_india_vix(nse_session=None, nse_headers=None):
                     "high": float(hist.iloc[-1].get("High", last)),
                     "low":  float(hist.iloc[-1].get("Low",  last)), "status": "live"}
     except Exception as e:
-        print(f"  WARNING VIX yfinance: {e}")
+        print(f"  WARNING VIX source3 (yfinance): {e}")
     return None
 
 
@@ -492,6 +545,7 @@ def analyze_option_chain(oc_data, vix=18.0):
 
     chg_bull_force = (abs(pe_chg) if pe_chg > 0 else 0) + (abs(ce_chg) if ce_chg < 0 else 0)
     chg_bear_force = (abs(ce_chg) if ce_chg > 0 else 0) + (abs(pe_chg) if pe_chg < 0 else 0)
+
     chg_total = chg_bull_force + chg_bear_force
     chg_total = chg_total if chg_total > 0 else 1
     chg_bull_pct = round(chg_bull_force / chg_total * 100)
@@ -648,6 +702,7 @@ def compute_market_direction(tech, oc_analysis):
         elif cp < mp - 100: bull += 1
 
     diff = bull - bear
+
     if   diff >= 3:  bias, bias_cls = "BULLISH",  "bullish"; confidence = "HIGH" if diff >= 4 else "MEDIUM"
     elif diff <= -3: bias, bias_cls = "BEARISH",  "bearish"; confidence = "HIGH" if diff <= -4 else "MEDIUM"
     else:            bias, bias_cls = "SIDEWAYS", "neutral"; confidence = "MEDIUM"
@@ -685,7 +740,7 @@ def _fmt_chg_oi(n):
 
 
 # =================================================================
-#  SECTION 5A -- OPTION GREEKS PANEL  (unchanged from v18.4)
+#  SECTION 5A -- OPTION GREEKS PANEL
 # =================================================================
 
 def _delta_bar_html(delta_val, is_ce=True):
@@ -946,7 +1001,7 @@ def build_greeks_table_html(oc_analysis):
 
 
 # =================================================================
-#  SECTION 5B -- HERO  (unchanged from v18.4)
+#  SECTION 5B -- HERO
 # =================================================================
 
 def build_dual_gauge_hero(oc, tech, md, ts):
@@ -1050,7 +1105,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 
 
 # =================================================================
-#  SECTION 5C -- OI DASHBOARD  (unchanged from v18.4)
+#  SECTION 5C -- OI DASHBOARD
 # =================================================================
 
 def build_oi_html(oc):
@@ -1062,12 +1117,14 @@ def build_oi_html(oc):
 
     dir_col = _cls_color(oi_cls); dir_bg = _cls_bg(oi_cls); dir_bdr = _cls_bdr(oi_cls)
     pcr_col = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
+
     ce_col   = "#00c896" if ce < 0 else "#ff6b6b"
     ce_label = "Call Unwinding ↓ (Bullish)" if ce < 0 else "Call Build-up ↑ (Bearish)"
     ce_fmt   = _fmt_chg_oi(ce)
     pe_col   = "#00c896" if pe > 0 else "#ff6b6b"
     pe_label = "Put Build-up ↑ (Bullish)" if pe > 0 else "Put Unwinding ↓ (Bearish)"
     pe_fmt   = _fmt_chg_oi(pe)
+
     bull_force = (abs(pe) if pe > 0 else 0) + (abs(ce) if ce < 0 else 0)
     bear_force = (abs(ce) if ce > 0 else 0) + (abs(pe) if pe < 0 else 0)
     net_diff       = bull_force - bear_force
@@ -1075,6 +1132,7 @@ def build_oi_html(oc):
     net_col        = "#00c896" if net_is_bullish else "#ff6b6b"
     net_label      = "Net Bullish Flow" if net_is_bullish else "Net Bearish Flow"
     net_fmt        = _fmt_chg_oi(net_diff)
+
     total_abs  = abs(ce) + abs(pe) or 1
     ce_pct     = round(abs(ce) / total_abs * 100)
     ce_bullish = ce < 0
@@ -1084,6 +1142,7 @@ def build_oi_html(oc):
     pe_bullish = pe > 0
     pe_pct_display = f"+{pe_pct}%" if pe_bullish else f"−{pe_pct}%"
     pe_bar_col = "#00c896" if pe_bullish else "#ff6b6b"
+
     total_f    = bull_force + bear_force or 1
     bull_pct   = round(bull_force / total_f * 100)
     bear_pct   = 100 - bull_pct
@@ -1163,389 +1222,6 @@ def build_oi_html(oc):
     )
 
 
-# =================================================================
-#  SECTION 5D -- *** NEW *** SMART S&R OPTION RECOMMENDER
-# =================================================================
-
-def build_smart_sr_recommendation_html(oc_analysis, tech):
-    """
-    User enters Weekly Support & Resistance manually.
-    System auto-decides:
-      - BUY CALL or BUY PUT (based on spot position in S/R range + OI walls + PCR)
-      - ATM or 1-OTM strike  (whichever gives better Risk:Reward at target)
-    Calculates all fields shown in the trade card:
-      Strike, LTP, PoP, Max Profit, Max Loss, RR Ratio, Breakeven, Net Debit, Margin
-    """
-    if not oc_analysis:
-        return ""
-
-    spot      = oc_analysis["underlying"]
-    atm       = oc_analysis["atm_strike"]
-    pcr       = oc_analysis["pcr_oi"]
-    max_ce_s  = oc_analysis["max_ce_strike"]
-    max_pe_s  = oc_analysis["max_pe_strike"]
-    expiry    = oc_analysis["expiry"]
-    strikes_j = json.dumps(oc_analysis.get("strikes_data", []))
-
-    # Pre-fill from algo-detected levels (user can override)
-    default_sup = int(round((tech["support"]    if tech else spot - 150) / 25) * 25)
-    default_res = int(round((tech["resistance"] if tech else spot + 150) / 25) * 25)
-
-    return f"""
-<div class="section" id="srRec">
-  <div class="sec-title" style="color:#f5c518;border-color:rgba(245,197,24,.18);">
-    &#9889; SMART S&amp;R OPTION RECOMMENDER
-    <span class="sec-sub" style="color:rgba(255,209,102,.6);">Enter your weekly S&amp;R &rarr; System auto-picks the BEST option to buy</span>
-  </div>
-
-  <!-- ── INPUT PANEL ── -->
-  <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:14px;margin-bottom:22px;align-items:end;">
-    <div>
-      <label style="font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
-                    color:#00c896;display:block;margin-bottom:7px;">&#128205; WEEKLY SUPPORT</label>
-      <input type="number" id="srSupport" value="{default_sup}" step="25"
-        style="width:100%;background:rgba(0,200,150,.07);border:2px solid rgba(0,200,150,.3);
-               border-radius:10px;padding:13px 14px;color:#fff;font-family:'DM Mono',monospace;
-               font-size:18px;font-weight:700;outline:none;transition:all .2s;"
-        oninput="srCalc()"
-        onfocus="this.style.borderColor='rgba(0,200,150,.8)';this.style.boxShadow='0 0 0 3px rgba(0,200,150,.15)'"
-        onblur="this.style.borderColor='rgba(0,200,150,.3)';this.style.boxShadow='none'"/>
-    </div>
-    <div>
-      <label style="font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
-                    color:#ff6b6b;display:block;margin-bottom:7px;">&#128205; WEEKLY RESISTANCE</label>
-      <input type="number" id="srResistance" value="{default_res}" step="25"
-        style="width:100%;background:rgba(255,107,107,.07);border:2px solid rgba(255,107,107,.3);
-               border-radius:10px;padding:13px 14px;color:#fff;font-family:'DM Mono',monospace;
-               font-size:18px;font-weight:700;outline:none;transition:all .2s;"
-        oninput="srCalc()"
-        onfocus="this.style.borderColor='rgba(255,107,107,.8)';this.style.boxShadow='0 0 0 3px rgba(255,107,107,.15)'"
-        onblur="this.style.borderColor='rgba(255,107,107,.3)';this.style.boxShadow='none'"/>
-    </div>
-    <button onclick="srCalc()"
-      style="background:linear-gradient(135deg,#f5c518,#e6b000);color:#000;border:none;
-             border-radius:10px;padding:13px 26px;font-family:'Sora',sans-serif;font-weight:700;
-             font-size:13px;cursor:pointer;letter-spacing:.5px;white-space:nowrap;
-             box-shadow:0 4px 16px rgba(245,197,24,.35);transition:all .2s;"
-      onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 24px rgba(245,197,24,.45)'"
-      onmouseout="this.style.transform='';this.style.boxShadow='0 4px 16px rgba(245,197,24,.35)'">
-      &#9889; CALCULATE
-    </button>
-  </div>
-
-  <!-- ── RESULT PANEL ── -->
-  <div id="srResult" style="display:none;">
-    <div id="srBanner"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
-      <!-- Trade Metrics Card -->
-      <div id="srTradeCard" style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;">
-        <div style="padding:10px 14px;background:rgba(255,255,255,.04);border-bottom:1px solid rgba(255,255,255,.06);
-                    font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.35);">
-          RECOMMENDED TRADE · FULL METRICS
-        </div>
-        <div id="srMetrics"></div>
-      </div>
-      <!-- Why This Trade -->
-      <div style="background:rgba(100,128,255,.055);border:1px solid rgba(100,128,255,.18);border-radius:14px;padding:18px;">
-        <div style="font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
-                    color:rgba(138,160,255,.9);margin-bottom:14px;">WHY THIS TRADE?</div>
-        <div id="srLogic" style="font-size:12px;color:rgba(255,255,255,.5);line-height:2.1;"></div>
-      </div>
-    </div>
-    <!-- ATM vs 1-OTM Comparison -->
-    <div style="background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.07);border-radius:14px;overflow:hidden;">
-      <div style="padding:10px 14px;background:rgba(255,255,255,.03);border-bottom:1px solid rgba(255,255,255,.05);
-                  font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.3);">
-        ATM vs 1-OTM — FULL COMPARISON (SYSTEM PICKS THE BETTER ONE AUTOMATICALLY)
-      </div>
-      <div id="srCompGrid" style="display:grid;grid-template-columns:1fr 1fr;"></div>
-    </div>
-  </div>
-
-  <div id="srNoSignal" style="display:none;text-align:center;padding:36px;color:rgba(255,255,255,.3);
-       font-size:13px;background:rgba(255,255,255,.02);border-radius:14px;border:1px solid rgba(255,255,255,.06);">
-    &#9888; Spot is in the middle of S&amp;R range — no clear directional edge.<br>
-    <span style="font-size:11px;opacity:.6;">Wait for spot to move closer to Support or Resistance.</span>
-  </div>
-</div>
-
-<script>
-(function() {{
-  var LOT    = 65;
-  var SPOT   = {spot:.2f};
-  var ATM    = {atm};
-  var PCR    = {pcr:.3f};
-  var MAX_CE = {max_ce_s};
-  var MAX_PE = {max_pe_s};
-  var EXPIRY = "{expiry}";
-  var STRIKES= {strikes_j};
-  var SMAP   = {{}};
-  STRIKES.forEach(function(s) {{ SMAP[s.strike] = s; }});
-
-  function nearestStrike(t) {{
-    var keys = Object.keys(SMAP).map(Number);
-    if (!keys.length) return t;
-    return keys.reduce(function(a,b) {{ return Math.abs(b-t)<Math.abs(a-t)?b:a; }}, keys[0]);
-  }}
-  function getLTP(strike, type) {{
-    var s = SMAP[nearestStrike(strike)];
-    if (!s) return 0;
-    return type==='ce' ? (s.ce_ltp||0) : (s.pe_ltp||0);
-  }}
-  function rs(n) {{ return '\u20b9' + Math.abs(Math.round(n)).toLocaleString('en-IN'); }}
-
-  function metricRow(label, valHtml, color, extra) {{
-    return '<div style="display:flex;justify-content:space-between;align-items:center;' +
-      'padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.04);">' +
-      '<span style="font-size:10px;color:rgba(255,255,255,.32);letter-spacing:.5px;text-transform:uppercase;font-family:\\'DM Mono\\',monospace;">' + label + '</span>' +
-      '<span style="font-family:\\'DM Mono\\',monospace;font-size:13px;font-weight:700;color:' + (color||'rgba(255,255,255,.8)') + ';">' +
-        valHtml + (extra ? '<span style="font-size:10px;opacity:.55;margin-left:5px;">' + extra + '</span>' : '') +
-      '</span></div>';
-  }}
-
-  // ── CORE CALCULATION ──────────────────────────────────────────
-  function calcOption(direction, strikePx, target, sup, res) {{
-    var type = direction==='CALL'?'ce':'pe';
-    var ltp  = getLTP(strikePx, type);
-    if (!ltp || ltp <= 0) return null;
-
-    var maxLoss  = ltp * LOT;
-    var intAtTgt = direction==='CALL' ? Math.max(0,target-strikePx) : Math.max(0,strikePx-target);
-    var profPts  = intAtTgt - ltp;
-    var maxProfit= profPts * LOT;
-    var breakeven= direction==='CALL' ? strikePx+ltp : strikePx-ltp;
-
-    // PoP: what % of the S/R range must spot travel to cross breakeven?
-    // The less it needs to travel, the higher the probability.
-    var distToTarget = direction==='CALL'?(target-SPOT):(SPOT-target);
-    var distBe       = direction==='CALL'?(breakeven-SPOT):(SPOT-breakeven);
-    var beRatio      = distToTarget>0 ? distBe/distToTarget : 1;
-    // beRatio=0 means already in profit, =1 means breakeven is exactly at target
-    var basePoP = beRatio<=0?84 : beRatio<=0.25?76 : beRatio<=0.50?66 : beRatio<=0.75?54 : beRatio<=1.0?42 : 28;
-    // PCR nudge
-    var pcrAdj = 0;
-    if (direction==='CALL') {{ pcrAdj = PCR>1.3?6:PCR>1.1?3:PCR<0.8?-6:PCR<1.0?-3:0; }}
-    else                    {{ pcrAdj = PCR<0.7?6:PCR<0.9?3:PCR>1.2?-6:PCR>1.0?-3:0; }}
-    var pop = Math.min(88, Math.max(18, basePoP+pcrAdj));
-
-    var rrRatio   = maxLoss>0 ? maxProfit/maxLoss : 0;
-    var profitPct = maxLoss>0 ? Math.round(maxProfit/maxLoss*100) : 0;
-
-    return {{
-      direction:direction, strikePx:strikePx, ltp:ltp, type:type,
-      maxLoss:maxLoss, maxProfit:maxProfit, breakeven:breakeven,
-      pop:pop, rrRatio:rrRatio, profitPct:profitPct,
-      viable: profPts > 0
-    }};
-  }}
-
-  // ── MAIN FUNCTION ─────────────────────────────────────────────
-  window.srCalc = function() {{
-    var supEl = document.getElementById('srSupport');
-    var resEl = document.getElementById('srResistance');
-    if (!supEl||!resEl) return;
-    var sup = parseFloat(supEl.value);
-    var res = parseFloat(resEl.value);
-    if (!sup||!res||sup>=res) return;
-
-    var distToSup = SPOT-sup;
-    var distToRes = res-SPOT;
-    var range     = res-sup;
-    var ratio     = distToSup/range;   // 0=at support, 1=at resistance
-
-    // ── STEP 1: Direction ────────────────────────────────────────
-    var direction, dirConfidence, dirReason;
-    if      (ratio <= 0.30) {{ direction='CALL'; dirConfidence='HIGH';
-      dirReason='Spot is only <b style="color:#00c896;">'+Math.round(distToSup)+' pts</b> above Support. Strong bounce zone &mdash; high probability of upside move.'; }}
-    else if (ratio >= 0.70) {{ direction='PUT';  dirConfidence='HIGH';
-      dirReason='Spot is only <b style="color:#ff6b6b;">'+Math.round(distToRes)+' pts</b> below Resistance. Reversal zone &mdash; high probability of downside move.'; }}
-    else if (ratio <= 0.42) {{ direction='CALL'; dirConfidence='MEDIUM';
-      dirReason='Spot is closer to Support ('+Math.round(distToSup)+' pts) than Resistance ('+Math.round(distToRes)+' pts). Upside bias.'; }}
-    else if (ratio >= 0.58) {{ direction='PUT';  dirConfidence='MEDIUM';
-      dirReason='Spot is closer to Resistance ('+Math.round(distToRes)+' pts) than Support ('+Math.round(distToSup)+' pts). Downside bias.'; }}
-    else {{
-      if      (PCR >= 1.15) {{ direction='CALL'; dirConfidence='LOW';
-        dirReason='Spot is mid-range. PCR='+PCR.toFixed(3)+' is bullish &mdash; slight edge for CALL. Trade cautiously.'; }}
-      else if (PCR <= 0.85) {{ direction='PUT';  dirConfidence='LOW';
-        dirReason='Spot is mid-range. PCR='+PCR.toFixed(3)+' is bearish &mdash; slight edge for PUT. Trade cautiously.'; }}
-      else {{
-        document.getElementById('srResult').style.display='none';
-        document.getElementById('srNoSignal').style.display='block';
-        return;
-      }}
-    }}
-
-    // OI Wall confirmation
-    var oiLine='';
-    if (direction==='CALL' && Math.abs(MAX_PE-sup)<=200) {{
-      oiLine='\u2705 PE OI wall at \u20b9'+MAX_PE.toLocaleString('en-IN')+' is near your Support &mdash; confirms strong floor.';
-    }} else if (direction==='PUT' && Math.abs(MAX_CE-res)<=200) {{
-      oiLine='\u2705 CE OI wall at \u20b9'+MAX_CE.toLocaleString('en-IN')+' is near your Resistance &mdash; confirms strong cap.';
-    }} else {{
-      oiLine='\u2139\uFE0F CE wall: \u20b9'+MAX_CE.toLocaleString('en-IN')+' &middot; PE wall: \u20b9'+MAX_PE.toLocaleString('en-IN');
-    }}
-
-    // ── STEP 2: Strike Selection ──────────────────────────────────
-    var target    = direction==='CALL' ? res : sup;
-    var atmStrike = nearestStrike(ATM);
-    var otmStrike = direction==='CALL' ? nearestStrike(ATM+50) : nearestStrike(ATM-50);
-
-    var atmOpt = calcOption(direction, atmStrike, target, sup, res);
-    var otmOpt = calcOption(direction, otmStrike, target, sup, res);
-
-    // Pick the strike with BETTER Risk:Reward (and must be viable = profit positive at target)
-    var rec, alt;
-    if (otmOpt && otmOpt.viable && atmOpt && atmOpt.viable) {{
-      rec = otmOpt.rrRatio > atmOpt.rrRatio * 1.10 ? otmOpt : atmOpt;
-      alt = rec===otmOpt ? atmOpt : otmOpt;
-    }} else if (atmOpt && atmOpt.viable) {{ rec=atmOpt; alt=otmOpt; }}
-    else if (otmOpt && otmOpt.viable)   {{ rec=otmOpt; alt=atmOpt; }}
-    else {{ rec=atmOpt||otmOpt; alt=rec===atmOpt?otmOpt:atmOpt; }}
-
-    if (!rec) {{
-      document.getElementById('srResult').style.display='none';
-      document.getElementById('srNoSignal').style.display='block';
-      document.getElementById('srNoSignal').innerHTML='\u26A0 Live LTP unavailable. Please run during market hours.';
-      return;
-    }}
-
-    document.getElementById('srNoSignal').style.display='none';
-    document.getElementById('srResult').style.display='block';
-
-    // ── COLORS ────────────────────────────────────────────────────
-    var dirCol  = direction==='CALL'?'#00c896':'#ff6b6b';
-    var dirBg   = direction==='CALL'?'rgba(0,200,150,.07)':'rgba(255,107,107,.07)';
-    var dirBdr  = direction==='CALL'?'rgba(0,200,150,.28)':'rgba(255,107,107,.28)';
-    var ltpCol  = direction==='CALL'?'#00c8e0':'#ff9090';
-    var confCol = dirConfidence==='HIGH'?'#00c896':dirConfidence==='MEDIUM'?'#ffd166':'#6480ff';
-    var arrow   = direction==='CALL'?'\u25B2':'\u25BC';
-    var typeStr = direction==='CALL'?'BUY CE':'BUY PE';
-    var isATM   = rec.strikePx===atmStrike;
-    var badge   = isATM
-      ? '<span style="font-size:9px;background:rgba(100,128,255,.22);color:#8aa0ff;padding:1px 7px;border-radius:4px;margin-right:6px;font-weight:700;">ATM</span>'
-      : '<span style="font-size:9px;background:rgba(245,197,24,.18);color:#f5c518;padding:1px 7px;border-radius:4px;margin-right:6px;font-weight:700;">1-OTM</span>';
-
-    // ── BANNER ────────────────────────────────────────────────────
-    var bannerEl = document.getElementById('srBanner');
-    bannerEl.style.cssText = 'background:'+dirBg+';border:1.5px solid '+dirBdr+';border-radius:14px;'+
-      'padding:18px 22px;margin-bottom:18px;display:flex;align-items:center;gap:18px;';
-    bannerEl.innerHTML =
-      '<div style="font-size:44px;line-height:1;filter:drop-shadow(0 0 14px '+dirCol+'88);">'+arrow+'</div>'+
-      '<div style="flex:1;">'+
-        '<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:5px;">SYSTEM AUTO-RECOMMENDATION</div>'+
-        '<div style="font-size:26px;font-weight:900;color:'+dirCol+';line-height:1.1;margin-bottom:5px;text-shadow:0 0 20px '+dirCol+'55;">'+
-          typeStr+' &mdash; \u20b9'+rec.strikePx.toLocaleString('en-IN')+'</div>'+
-        '<div style="font-size:12px;color:rgba(255,255,255,.4);">'+
-          'Expiry: <b style="color:rgba(255,255,255,.7);">'+EXPIRY+'</b>'+
-          ' &nbsp;&middot;&nbsp; LTP: <b style="color:'+ltpCol+';">\u20b9'+rec.ltp.toFixed(2)+'</b>'+
-          ' &nbsp;&middot;&nbsp; Lot: <b style="color:rgba(255,255,255,.65);">'+LOT+' units</b>'+
-          ' &nbsp;&middot;&nbsp; Target: <b style="color:'+dirCol+';">\u20b9'+Math.round(target).toLocaleString('en-IN')+'</b>'+
-        '</div>'+
-      '</div>'+
-      '<div style="text-align:center;background:rgba(0,0,0,.25);border-radius:12px;padding:14px 22px;border:1px solid rgba(255,255,255,.07);">'+
-        '<div style="font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:5px;">CONFIDENCE</div>'+
-        '<div style="font-size:21px;font-weight:800;color:'+confCol+';letter-spacing:1px;">'+dirConfidence+'</div>'+
-      '</div>';
-
-    document.getElementById('srTradeCard').style.borderColor = dirBdr;
-
-    // ── METRICS ───────────────────────────────────────────────────
-    var popCol  = rec.pop>=65?'#00c896':rec.pop>=50?'#ffd166':'#ff6b6b';
-    var profCol = rec.maxProfit>0?'#00c896':'#ff6b6b';
-    var rrStr   = rec.rrRatio>0?'1:'+rec.rrRatio.toFixed(2):'\u2014';
-    var rrCol   = rec.rrRatio>=2?'#00c896':rec.rrRatio>=1?'#ffd166':'#ff6b6b';
-
-    document.getElementById('srMetrics').innerHTML =
-      metricRow('STRIKE PRICE', badge+'\u20b9'+rec.strikePx.toLocaleString('en-IN'), dirCol) +
-      '<div style="display:flex;justify-content:space-between;align-items:center;'+
-        'padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.04);">'+
-        '<span style="font-size:10px;color:rgba(255,255,255,.32);letter-spacing:.5px;'+
-          'text-transform:uppercase;font-family:\\'DM Mono\\',monospace;">LTP (PER LEG)</span>'+
-        '<div style="text-align:right;">'+
-          '<div style="font-size:10px;color:'+ltpCol+';opacity:.8;margin-bottom:2px;">'+typeStr+' \u20b9'+rec.strikePx.toLocaleString('en-IN')+'</div>'+
-          '<div style="font-family:\\'DM Mono\\',monospace;font-size:20px;font-weight:800;color:'+ltpCol+';">\u20b9'+rec.ltp.toFixed(2)+'</div>'+
-        '</div>'+
-      '</div>'+
-      metricRow('PROB. OF PROFIT', rec.pop+'%', popCol) +
-      metricRow('MAX. PROFIT', rec.maxProfit>0?rs(rec.maxProfit):'\u2014 (move not enough)', profCol,
-                rec.maxProfit>0?rec.profitPct+'%':'') +
-      metricRow('MAX. LOSS', rs(rec.maxLoss), '#ff6b6b') +
-      metricRow('MAX RR RATIO', rrStr, rrCol) +
-      metricRow('BREAKEVEN', '\u20b9'+Math.round(rec.breakeven).toLocaleString('en-IN'), '#00c8e0') +
-      metricRow('NET CREDIT / DEBIT', '- '+rs(rec.maxLoss), '#ff6b6b') +
-      '<div style="border-bottom:none;">'+
-        metricRow('EST. MARGIN/PREMIUM', rs(rec.maxLoss), '#8aa0ff') +
-      '</div>';
-
-    // ── LOGIC EXPLAINER ───────────────────────────────────────────
-    var tgtPts = direction==='CALL'?Math.round(res-SPOT):Math.round(SPOT-sup);
-    document.getElementById('srLogic').innerHTML = [
-      '\uD83D\uDCCD <b style="color:rgba(255,255,255,.8);">Current Spot:</b> \u20b9'+SPOT.toLocaleString('en-IN'),
-      '\uD83D\uDFE2 <b style="color:#00c896;">Your Support:</b> \u20b9'+sup.toLocaleString('en-IN')+'  <span style="color:rgba(255,255,255,.28);">('+Math.round(distToSup)+' pts below spot)</span>',
-      '\uD83D\uDD34 <b style="color:#ff6b6b;">Your Resistance:</b> \u20b9'+res.toLocaleString('en-IN')+'  <span style="color:rgba(255,255,255,.28);">('+Math.round(distToRes)+' pts above spot)</span>',
-      '\u26A1 '+dirReason,
-      oiLine,
-      '\uD83C\uDFAF <b style="color:rgba(255,255,255,.8);">Target:</b> \u20b9'+Math.round(target).toLocaleString('en-IN')+
-        ' <span style="color:rgba(255,255,255,.28);">('+tgtPts+' pts move needed)</span>',
-      '\uD83D\uDCCA <b style="color:rgba(255,255,255,.8);">PCR:</b> '+PCR.toFixed(3)+' &mdash; <span style="color:'+(PCR>1.2?'#00c896':PCR<0.8?'#ff6b6b':'#6480ff')+';">'+(PCR>1.2?'Bullish':PCR<0.8?'Bearish':'Neutral')+'</span>',
-      '\uD83D\uDCB0 <b style="color:rgba(255,255,255,.8);">Strike chosen:</b> '+(isATM?'ATM (better R:R for this move size)':'1-OTM (better % return for this move size)'),
-    ].join('<br>');
-
-    // ── COMPARISON GRID ────────────────────────────────────────────
-    function compCard(opt, isRec) {{
-      if (!opt) return '<div style="padding:24px;text-align:center;color:rgba(255,255,255,.18);font-size:12px;">Data unavailable</div>';
-      var col     = direction==='CALL'?'#00c8e0':'#ff9090';
-      var bg      = isRec?(direction==='CALL'?'rgba(0,200,150,.055)':'rgba(255,107,107,.055)'):'transparent';
-      var lbl     = opt.strikePx===atmStrike?'ATM':'1-OTM';
-      var pCol    = opt.maxProfit>0?'#00c896':'#ff6b6b';
-      var rrC     = opt.rrRatio>=2?'#00c896':opt.rrRatio>=1?'#ffd166':'#6480ff';
-      var popC    = opt.pop>=60?'#00c896':opt.pop>=50?'#ffd166':'#ff6b6b';
-      var cells   = [
-        ['LTP',         '\u20b9'+opt.ltp.toFixed(2),                         col],
-        ['Max Loss',    rs(opt.maxLoss),                                      '#ff6b6b'],
-        ['Max Profit',  opt.maxProfit>0?rs(opt.maxProfit):'\u2014',           pCol],
-        ['% Return',    opt.maxProfit>0?'+'+opt.profitPct+'%':'\u2014',       pCol],
-        ['RR Ratio',    opt.rrRatio>0?'1:'+opt.rrRatio.toFixed(2):'\u2014',  rrC],
-        ['Breakeven',   '\u20b9'+Math.round(opt.breakeven).toLocaleString('en-IN'), '#00c8e0'],
-        ['Prob. Profit', opt.pop+'%',                                          popC],
-        ['Margin',       rs(opt.maxLoss),                                     '#8aa0ff'],
-      ];
-      return '<div style="padding:18px;background:'+bg+';border-right:1px solid rgba(255,255,255,.04);">'+
-        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">'+
-          '<div style="font-size:13px;font-weight:700;color:'+col+';">'+lbl+' &mdash; \u20b9'+opt.strikePx.toLocaleString('en-IN')+'</div>'+
-          (isRec?'<span style="font-size:8.5px;background:rgba(245,197,24,.18);color:#f5c518;padding:2px 9px;border-radius:10px;font-weight:700;">\u2713 RECOMMENDED</span>':'')+
-        '</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'+
-          cells.map(function(c) {{
-            return '<div style="background:rgba(255,255,255,.03);border-radius:8px;padding:9px 11px;">'+
-              '<div style="font-size:8px;color:rgba(255,255,255,.28);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">'+c[0]+'</div>'+
-              '<div style="font-family:\\'DM Mono\\',monospace;font-size:14px;font-weight:700;color:'+c[2]+';">'+c[1]+'</div>'+
-            '</div>';
-          }}).join('')+
-        '</div></div>';
-    }}
-
-    var firstIsATM = rec.strikePx===atmStrike;
-    document.getElementById('srCompGrid').innerHTML =
-      compCard(firstIsATM?atmOpt:otmOpt, true) +
-      compCard(firstIsATM?otmOpt:atmOpt, false);
-  }};
-
-  // Auto-run on load
-  if (document.readyState==='loading') {{
-    document.addEventListener('DOMContentLoaded', function(){{ setTimeout(window.srCalc,300); }});
-  }} else {{
-    setTimeout(window.srCalc, 300);
-  }}
-}})();
-</script>
-"""
-
-
-# =================================================================
-#  SECTION 5E -- KEY LEVELS / STRIKES / TICKER  (unchanged)
-# =================================================================
-
 def build_key_levels_html(tech, oc):
     cp = tech["price"]; ss = tech["strong_sup"]; s1 = tech["support"]
     r1 = tech["resistance"]; sr = tech["strong_res"]; rng = sr - ss or 1
@@ -1595,7 +1271,7 @@ def build_strikes_html(oc):
                   f"<td style=\"color:#ff6b6b;font-weight:700;\">&#8377;{r['PE_LTP']:.2f}</td></tr>")
         return o
     return (
-        f'<div class="section" id="strikes"><div class="sec-title">TOP 5 STRIKES BY OPEN INTEREST'
+        f'<div class="section"><div class="sec-title">TOP 5 STRIKES BY OPEN INTEREST'
         f'<span class="sec-sub">Spot ±500 pts · Top 5 CE + PE</span></div>'
         f'<div class="strikes-wrap">'
         f'<div><div class="strikes-head" style="color:#00c8e0;">▲ CALL Options (CE)</div>'
@@ -1607,6 +1283,1037 @@ def build_strikes_html(oc):
         f'</div></div>'
     )
 
+
+# =================================================================
+#  SECTION 6 -- STRATEGIES WITH SMART POP ENGINE
+# =================================================================
+
+def make_payoff_svg(shape, bull_color="#00c896", bear_color="#ff6b6b"):
+    w, h = 80, 50; mid = h // 2; pad = 8
+    def pts(*coords): return " ".join(f"{x},{y}" for x, y in coords)
+    shapes = {
+        "long_call":         {"profit": [(pad,mid),(40,mid),(72,h-pad)],           "loss": [(pad,mid),(40,mid)]},
+        "short_put":         {"profit": [(pad,h-pad),(40,mid),(72,mid)],           "loss": [(pad,mid),(40,mid)]},
+        "bull_call_spread":  {"profit": [(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],"loss": [(pad,mid),(30,mid)]},
+        "bull_put_spread":   {"profit": [(pad,h-pad),(30,h-pad),(55,mid),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "call_ratio_back":   {"profit": [(pad,h-pad),(25,mid),(50,mid),(72,h-pad)],"loss": [(pad,mid),(25,mid),(50,mid)]},
+        "long_synthetic":    {"profit": [(pad,mid),(72,h-pad)],                    "loss": [(pad,pad),(40,mid)]},
+        "range_forward":     {"profit": [(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],"loss": [(pad,pad),(30,pad),(55,mid)]},
+        "bull_butterfly":    {"profit": [(pad,mid),(36,h-pad),(54,mid)],           "loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "bull_condor":       {"profit": [(pad,mid),(28,mid),(36,h-pad),(50,h-pad),(58,mid),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "short_call":        {"profit": [(pad,mid),(40,mid),(72,pad)],             "loss": [(pad,mid),(40,mid)]},
+        "long_put":          {"profit": [(pad,h-pad),(40,mid),(72,mid)],           "loss": [(pad,mid),(40,mid)]},
+        "bear_call_spread":  {"profit": [(pad,h-pad),(30,h-pad),(55,mid),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "bear_put_spread":   {"profit": [(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],"loss": [(pad,mid),(30,mid)]},
+        "put_ratio_back":    {"profit": [(pad,h-pad),(25,mid),(50,mid),(72,pad)],  "loss": [(pad,mid),(25,mid),(50,mid)]},
+        "short_synthetic":   {"profit": [(pad,mid),(72,pad)],                     "loss": [(pad,h-pad),(40,mid)]},
+        "risk_reversal":     {"profit": [(pad,h-pad),(36,mid),(72,pad)],           "loss": [(pad,mid),(36,mid)]},
+        "bear_butterfly":    {"profit": [(pad,mid),(36,pad),(54,mid)],             "loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "bear_condor":       {"profit": [(pad,mid),(28,mid),(36,pad),(50,pad),(58,mid),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "long_straddle":     {"profit": [(pad,h-pad),(36,mid),(54,mid),(72,h-pad)],"loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "short_straddle":    {"profit": [(pad,mid),(36,mid),(54,mid),(72,mid)],    "loss": [(pad,h-pad),(36,mid),(54,mid),(72,h-pad)]},
+        "long_strangle":     {"profit": [(pad,h-pad),(30,mid),(50,mid),(72,h-pad)],"loss": [(pad,mid),(30,mid),(50,mid),(72,mid)]},
+        "short_strangle":    {"profit": [(pad,mid),(30,mid),(50,mid),(72,mid)],    "loss": [(pad,h-pad),(30,mid),(50,mid),(72,h-pad)]},
+        "jade_lizard":       {"profit": [(pad,pad),(30,mid),(55,mid),(72,mid)],    "loss": [(pad,mid),(30,mid)]},
+        "reverse_jade":      {"profit": [(pad,mid),(30,mid),(55,h-pad),(72,h-pad)],"loss": [(pad,pad),(30,mid)]},
+        "call_ratio_spread": {"profit": [(pad,mid),(36,h-pad),(72,mid)],           "loss": [(pad,mid),(36,mid),(72,pad)]},
+        "put_ratio_spread":  {"profit": [(pad,mid),(36,h-pad),(72,mid)],           "loss": [(pad,pad),(36,mid),(72,mid)]},
+        "batman":            {"profit": [(pad,mid),(20,h-pad),(36,mid),(54,mid),(68,h-pad),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "long_iron_fly":     {"profit": [(pad,pad),(36,mid),(54,mid),(72,pad)],    "loss": [(pad,mid),(36,h-pad),(54,h-pad),(72,mid)]},
+        "short_iron_fly":    {"profit": [(pad,mid),(36,h-pad),(54,h-pad),(72,mid)],"loss": [(pad,pad),(36,mid),(54,mid),(72,pad)]},
+        "double_fly":        {"profit": [(pad,mid),(20,h-pad),(36,mid),(54,mid),(68,h-pad),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "long_iron_condor":  {"profit": [(pad,pad),(24,mid),(36,mid),(54,mid),(66,pad),(72,pad)],   "loss": [(pad,mid),(24,mid),(66,mid),(72,mid)]},
+        "short_iron_condor": {"profit": [(pad,mid),(24,h-pad),(36,h-pad),(54,h-pad),(66,mid),(72,mid)],"loss": [(pad,pad),(72,pad)]},
+        "double_condor":     {"profit": [(pad,mid),(20,h-pad),(36,mid),(54,mid),(68,h-pad),(72,mid)],"loss": [(pad,mid),(72,mid)]},
+        "call_calendar":     {"profit": [(pad,mid),(36,h-pad),(54,mid),(72,mid)],  "loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "put_calendar":      {"profit": [(pad,mid),(36,h-pad),(54,mid),(72,mid)],  "loss": [(pad,mid),(36,mid),(54,mid),(72,mid)]},
+        "diagonal_calendar": {"profit": [(pad,mid),(30,h-pad),(55,mid),(72,mid)],  "loss": [(pad,mid),(30,mid),(55,mid),(72,mid)]},
+        "call_butterfly":    {"profit": [(pad,mid),(36,h-pad),(54,mid),(72,mid)],  "loss": [(pad,mid),(72,mid)]},
+        "put_butterfly":     {"profit": [(pad,mid),(36,h-pad),(54,mid),(72,mid)],  "loss": [(pad,mid),(72,mid)]},
+    }
+    s = shapes.get(shape, {"profit": [(pad,mid),(72,mid)], "loss": []})
+    profit_pts = pts(*s["profit"]); loss_pts = pts(*s["loss"]) if s["loss"] else ""
+    def area(coords, is_p):
+        if not coords: return ""
+        col = bull_color if is_p else bear_color
+        d = f"M {coords[0][0]},{mid} " + " ".join(f"L {x},{y}" for x, y in coords) + f" L {coords[-1][0]},{mid} Z"
+        return f'<path d="{d}" fill="{col}" fill-opacity="0.18"/>'
+    svg = (f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" xmlns="http://www.w3.org/2000/svg">'
+           f'<line x1="{pad}" y1="{pad}" x2="{pad}" y2="{h-pad}" stroke="rgba(255,255,255,.15)" stroke-width="1"/>'
+           f'<line x1="{pad}" y1="{mid}" x2="{w-pad}" y2="{mid}" stroke="rgba(255,255,255,.15)" stroke-width="1"/>'
+           f'{area(s["profit"],True)}{area(s["loss"],False)}'
+           f'<polyline points="{profit_pts}" fill="none" stroke="{bull_color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>')
+    if loss_pts:
+        svg += f'<polyline points="{loss_pts}" fill="none" stroke="{bear_color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="3,2"/>'
+    return svg + '</svg>'
+
+
+STRATEGIES_DATA = {
+    "bullish": [
+        {"name":"Long Call","shape":"long_call","risk":"Limited","reward":"Unlimited","legs":"BUY CALL (ATM)","desc":"Buy a call option. Profits as market rises above strike. Risk is limited to premium paid."},
+        {"name":"Short Put","shape":"short_put","risk":"Moderate","reward":"Limited","legs":"SELL PUT (OTM)","desc":"Sell a put option below market. Collect premium. Profit if market stays above strike."},
+        {"name":"Bull Call Spread","shape":"bull_call_spread","risk":"Limited","reward":"Limited","legs":"BUY CALL (Low) · SELL CALL (High)","desc":"Buy lower call, sell higher call. Reduces cost; caps profit at upper strike."},
+        {"name":"Bull Put Spread","shape":"bull_put_spread","risk":"Limited","reward":"Limited","legs":"SELL PUT (High) · BUY PUT (Low)","desc":"Sell higher put, buy lower put. Credit received upfront. Profit if market stays above higher strike."},
+        {"name":"Call Ratio Back Spread","shape":"call_ratio_back","risk":"Limited","reward":"Unlimited","legs":"SELL 1 CALL (Low) · BUY 2 CALLS (High)","desc":"Sell fewer calls, buy more higher calls. Benefits from a big upside move."},
+        {"name":"Long Synthetic","shape":"long_synthetic","risk":"High","reward":"Unlimited","legs":"BUY CALL (ATM) · SELL PUT (ATM)","desc":"Replicates owning the underlying. Unlimited profit potential with high risk."},
+        {"name":"Range Forward","shape":"range_forward","risk":"Limited","reward":"Limited","legs":"BUY CALL (High) · SELL PUT (Low)","desc":"Collar-like structure. Profit in a range. Used to hedge existing positions."},
+        {"name":"Bull Butterfly","shape":"bull_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low CALL · SELL 2 Mid CALL · BUY High CALL","desc":"Max profit at middle strike. Low cost strategy for moderate bullish view."},
+        {"name":"Bull Condor","shape":"bull_condor","risk":"Limited","reward":"Limited","legs":"BUY Low · SELL Mid-Low · SELL Mid-High · BUY High","desc":"Four-leg bullish strategy. Profit in a range above current price."},
+    ],
+    "bearish": [
+        {"name":"Short Call","shape":"short_call","risk":"Unlimited","reward":"Limited","legs":"SELL CALL (ATM/OTM)","desc":"Sell a call option above market. Collect premium. Profit if market falls or stays below strike."},
+        {"name":"Long Put","shape":"long_put","risk":"Limited","reward":"High","legs":"BUY PUT (ATM)","desc":"Buy a put option. Profits as market falls below strike. Risk is limited to premium paid."},
+        {"name":"Bear Call Spread","shape":"bear_call_spread","risk":"Limited","reward":"Limited","legs":"SELL CALL (Low) · BUY CALL (High)","desc":"Sell lower call, buy higher call. Credit received. Profit if market stays below lower strike."},
+        {"name":"Bear Put Spread","shape":"bear_put_spread","risk":"Limited","reward":"Limited","legs":"BUY PUT (High) · SELL PUT (Low)","desc":"Buy higher put, sell lower put. Cheaper bearish bet with capped profit."},
+        {"name":"Put Ratio Back Spread","shape":"put_ratio_back","risk":"Limited","reward":"High","legs":"SELL 1 PUT (High) · BUY 2 PUTS (Low)","desc":"Sell fewer puts, buy more lower puts. Benefits from a big downside move."},
+        {"name":"Short Synthetic","shape":"short_synthetic","risk":"High","reward":"High","legs":"SELL CALL (ATM) · BUY PUT (ATM)","desc":"Replicates shorting the underlying. Profit as market falls. High risk."},
+        {"name":"Risk Reversal","shape":"risk_reversal","risk":"High","reward":"High","legs":"BUY PUT (Low) · SELL CALL (High)","desc":"Protect downside while giving up upside. Common hedging structure."},
+        {"name":"Bear Butterfly","shape":"bear_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low PUT · SELL 2 Mid PUT · BUY High PUT","desc":"Max profit at middle strike. Low cost strategy for moderate bearish view."},
+        {"name":"Bear Condor","shape":"bear_condor","risk":"Limited","reward":"Limited","legs":"BUY High · SELL Mid-High · SELL Mid-Low · BUY Low","desc":"Four-leg bearish strategy. Profit in a range below current price."},
+    ],
+    "nondirectional": [
+        {"name":"Long Straddle","shape":"long_straddle","risk":"Limited","reward":"Unlimited","legs":"BUY CALL (ATM) + BUY PUT (ATM)","desc":"Buy both ATM call and put. Profit from big move in either direction. Best before events."},
+        {"name":"Short Straddle","shape":"short_straddle","risk":"Unlimited","reward":"Limited","legs":"SELL CALL (ATM) + SELL PUT (ATM)","desc":"Sell both ATM call and put. Profit from low volatility. High risk unlimited loss."},
+        {"name":"Long Strangle","shape":"long_strangle","risk":"Limited","reward":"Unlimited","legs":"BUY OTM CALL + BUY OTM PUT","desc":"Buy OTM call and put. Cheaper than straddle. Needs bigger move to profit."},
+        {"name":"Short Strangle","shape":"short_strangle","risk":"Unlimited","reward":"Limited","legs":"SELL OTM CALL + SELL OTM PUT","desc":"Sell OTM call and put. Wider profit range than short straddle. Still high risk."},
+        {"name":"Jade Lizard","shape":"jade_lizard","risk":"Limited","reward":"Limited","legs":"SELL OTM PUT + SELL CALL SPREAD","desc":"No upside risk. Collect premium. Bearish but risk-defined."},
+        {"name":"Reverse Jade Lizard","shape":"reverse_jade","risk":"Limited","reward":"Limited","legs":"SELL OTM CALL + SELL PUT SPREAD","desc":"No downside risk. Collect premium. Bullish but risk-defined."},
+        {"name":"Call Ratio Spread","shape":"call_ratio_spread","risk":"Unlimited","reward":"Limited","legs":"BUY 1 CALL (Low) · SELL 2 CALLS (High)","desc":"Sell more calls than bought. Credit or debit. Risk if big upside move occurs."},
+        {"name":"Put Ratio Spread","shape":"put_ratio_spread","risk":"Unlimited","reward":"Limited","legs":"BUY 1 PUT (High) · SELL 2 PUTS (Low)","desc":"Sell more puts than bought. Risk if big downside move occurs."},
+        {"name":"Batman Strategy","shape":"batman","risk":"Limited","reward":"Limited","legs":"BUY 2 CALLS + SELL 4 CALLS + BUY 2 CALLS","desc":"Double butterfly. Two profit peaks. Complex strategy for range-bound markets."},
+        {"name":"Long Iron Fly","shape":"long_iron_fly","risk":"Limited","reward":"Limited","legs":"BUY CALL · BUY PUT · SELL ATM CALL · SELL ATM PUT","desc":"Debit iron fly. Profit from a big move. Max loss if price stays at ATM."},
+        {"name":"Short Iron Fly","shape":"short_iron_fly","risk":"Limited","reward":"Limited","legs":"SELL CALL · SELL PUT · BUY OTM CALL · BUY OTM PUT","desc":"Credit iron fly. Max profit at ATM. Common non-directional strategy."},
+        {"name":"Double Fly","shape":"double_fly","risk":"Limited","reward":"Limited","legs":"TWO BUTTERFLY SPREADS","desc":"Two butterfly spreads at different strikes. Two profit peaks."},
+        {"name":"Long Iron Condor","shape":"long_iron_condor","risk":"Limited","reward":"Limited","legs":"BUY CALL SPREAD + BUY PUT SPREAD","desc":"Debit condor. Profit from a big move. Opposite of short iron condor."},
+        {"name":"Short Iron Condor","shape":"short_iron_condor","risk":"Limited","reward":"Limited","legs":"SELL CALL SPREAD + SELL PUT SPREAD","desc":"Collect premium from both sides. Profit if price stays in a range."},
+        {"name":"Double Condor","shape":"double_condor","risk":"Limited","reward":"Limited","legs":"TWO CONDOR SPREADS","desc":"Two condor spreads. Wider profit range. Complex multi-leg strategy."},
+        {"name":"Call Calendar","shape":"call_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR-TERM CALL · BUY FAR-TERM CALL","desc":"Profit from time decay difference. Best when price stays near strike."},
+        {"name":"Put Calendar","shape":"put_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR-TERM PUT · BUY FAR-TERM PUT","desc":"Profit from time decay. Best when price stays near strike on expiry."},
+        {"name":"Diagonal Calendar","shape":"diagonal_calendar","risk":"Limited","reward":"Limited","legs":"SELL NEAR CALL/PUT · BUY FAR DIFF STRIKE","desc":"Calendar spread with different strikes. Combines time and price movement."},
+        {"name":"Call Butterfly","shape":"call_butterfly","risk":"Limited","reward":"Limited","legs":"BUY Low CALL · SELL 2 Mid CALL · BUY High CALL","desc":"Max profit at middle strike using calls only. Low net debit strategy."},
+        {"name":"Put Butterfly","shape":"put_butterfly","risk":"Limited","reward":"Limited","legs":"BUY High PUT · SELL 2 Mid PUT · BUY Low PUT","desc":"Max profit at middle strike using puts only. Low net debit strategy."},
+    ],
+}
+
+
+def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed=None, expiry_list=None):
+    spot       = oc_analysis["underlying"]   if oc_analysis else 23000
+    atm        = oc_analysis["atm_strike"]   if oc_analysis else 23000
+    pcr        = oc_analysis["pcr_oi"]       if oc_analysis else 1.0
+    mp         = oc_analysis["max_pain"]     if oc_analysis else 23000
+    max_ce_s   = oc_analysis["max_ce_strike"] if oc_analysis else atm + 200
+    max_pe_s   = oc_analysis["max_pe_strike"] if oc_analysis else atm - 200
+    strikes_json = json.dumps(oc_analysis.get("strikes_data", [])) if oc_analysis else "[]"
+
+    # Build multi-expiry data for dropdown
+    all_expiry_js = {}
+    if multi_expiry_analyzed and expiry_list:
+        for exp in expiry_list:
+            oc_e = multi_expiry_analyzed.get(exp)
+            if not oc_e:
+                continue
+            all_expiry_js[exp] = {
+                "spot":        round(oc_e["underlying"], 2),
+                "atm":         oc_e["atm_strike"],
+                "pcr":         round(oc_e["pcr_oi"], 3),
+                "maxCeStrike": oc_e["max_ce_strike"],
+                "maxPeStrike": oc_e["max_pe_strike"],
+                "support":     round(tech["support"], 2) if tech else spot - 150,
+                "resistance":  round(tech["resistance"], 2) if tech else spot + 150,
+                "strongSup":   round(tech["strong_sup"], 2) if tech else spot - 300,
+                "strongRes":   round(tech["strong_res"], 2) if tech else spot + 300,
+                "strikes":     oc_e.get("strikes_data", []),
+            }
+    all_expiry_json = json.dumps(all_expiry_js)
+    expiry_opts_html = ""
+    if expiry_list:
+        first_with_data = True
+        for exp in expiry_list:
+            has_data = exp in (all_expiry_js or {})
+            if not has_data:
+                continue
+            sel = "selected" if first_with_data else ""
+            expiry_opts_html += f'<option value="{exp}" {sel}>{exp}</option>\n'
+            first_with_data = False
+    else:
+        expiry_opts_html = f'<option value="">{oc_analysis["expiry"] if oc_analysis else "N/A"}</option>'
+    
+    support     = tech["support"]    if tech else spot - 150
+    resistance  = tech["resistance"] if tech else spot + 150
+    strong_sup  = tech["strong_sup"] if tech else spot - 300
+    strong_res  = tech["strong_res"] if tech else spot + 300
+
+    bias        = md["bias"]       if md else "SIDEWAYS"
+    conf        = md["confidence"] if md else "MEDIUM"
+    bull_sc     = md["bull"]       if md else 4
+    bear_sc     = md["bear"]       if md else 4
+
+    def render_cards(strats, cat):
+        cards = ""
+        for idx, s in enumerate(strats):
+            svg  = make_payoff_svg(s["shape"])
+            rc   = "#00c896" if s["risk"]   in ("Limited","Low") else ("#ff6b6b" if s["risk"] in ("Unlimited","High") else "#6480ff")
+            rwc  = "#00c896" if s["reward"] == "Unlimited" else "#6480ff"
+            cid  = f"sc_{cat}_{idx}"
+            cards += (
+                f'<div class="sc-card" data-cat="{cat}" data-shape="{s["shape"]}" '
+                f'data-name="{s["name"]}" data-legs="{s["legs"]}" '
+                f'data-risk="{s["risk"]}" data-reward="{s["reward"]}" '
+                f'data-margin-mult="{s.get("margin_mult",1.0)}" data-lot-size="{s.get("lot_size",65)}" id="{cid}">'
+                f'<div class="sc-pop-badge" id="pop_{cid}">—%</div>'
+                f'<div class="sc-svg">{svg}</div>'
+                f'<div class="sc-body">'
+                f'<div class="sc-name">{s["name"]}</div>'
+                f'<div class="sc-legs">{s["legs"]}</div>'
+                f'<div class="sc-tags">'
+                f'<span class="sc-tag" style="color:{rc};border-color:{rc}40;">Risk: {s["risk"]}</span>'
+                f'<span class="sc-tag" style="color:{rwc};border-color:{rwc}40;">Reward: {s["reward"]}</span>'
+                f'</div></div>'
+                f'<div class="sc-detail" id="detail_{cid}">'
+                f'<div class="sc-desc">{s["desc"]}</div>'
+                f'<div class="sc-metrics-live" id="metrics_{cid}">'
+                f'<div class="sc-loading">&#9685; Calculating metrics...</div>'
+                f'</div></div></div>'
+            )
+        return cards
+
+    bull_cards = render_cards(STRATEGIES_DATA["bullish"],       "bullish")
+    bear_cards = render_cards(STRATEGIES_DATA["bearish"],       "bearish")
+    nd_cards   = render_cards(STRATEGIES_DATA["nondirectional"],"nondirectional")
+
+    return f"""
+<div class="section" id="strat">
+  <div class="sec-title">STRATEGIES REFERENCE
+    <span class="sec-sub">Smart PoP · Live S/R + OI Walls + Market Bias · Click to expand</span>
+  </div>
+
+  <div id="smartPopLegend" style="
+    background:linear-gradient(135deg,rgba(100,128,255,.08),rgba(0,200,150,.06));
+    border:1px solid rgba(100,128,255,.2);border-radius:14px;padding:14px 18px;
+    margin-bottom:18px;display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;">
+    <div style="flex:0 0 auto;">
+      <div style="font-size:9px;font-weight:700;letter-spacing:2px;color:#8aa0ff;text-transform:uppercase;margin-bottom:8px;">&#9889; SMART POP ENGINE</div>
+      <div style="font-size:10px;color:rgba(255,255,255,.45);line-height:1.8;">
+        PoP = Base 50% + Bias Alignment + S/R Zone + OI Walls + PCR Weight
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;flex:1;">
+      <div id="legendBias" style="background:rgba(0,0,0,.2);border-radius:8px;padding:8px 12px;min-width:130px;">
+        <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">A · BIAS</div>
+        <div id="legendBiasVal" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#8aa0ff;">—</div>
+      </div>
+      <div id="legendSR" style="background:rgba(0,0,0,.2);border-radius:8px;padding:8px 12px;min-width:160px;">
+        <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">B · S/R ZONE</div>
+        <div id="legendSRVal" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#ffd166;">—</div>
+      </div>
+      <div id="legendOI" style="background:rgba(0,0,0,.2);border-radius:8px;padding:8px 12px;min-width:160px;">
+        <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">C · OI WALLS</div>
+        <div id="legendOIVal" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#00c8e0;">—</div>
+      </div>
+      <div id="legendPCR" style="background:rgba(0,0,0,.2);border-radius:8px;padding:8px 12px;min-width:120px;">
+        <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">D · PCR</div>
+        <div id="legendPCRVal" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#00c896;">—</div>
+      </div>
+      <div id="legendRec" style="background:rgba(0,200,150,.06);border:1px solid rgba(0,200,150,.2);border-radius:8px;padding:8px 12px;min-width:180px;">
+        <div style="font-size:8px;color:rgba(0,200,150,.6);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">&#9733; TOP STRATEGY</div>
+        <div id="legendRecVal" style="font-size:11px;font-weight:700;color:#00c896;">Calculating...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sc-tabs">
+    <button class="sc-tab active" onclick="filterStrat('bullish',this)"
+      style="border-color:#00c896;color:#00c896;background:rgba(0,200,150,.12);">
+      &#9650; BULLISH <span class="sc-cnt" style="background:#00c896;">9</span>
+    </button>
+    <button class="sc-tab" onclick="filterStrat('bearish',this)"
+      style="border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.5);">
+      &#9660; BEARISH <span class="sc-cnt" style="background:#ff6b6b;">9</span>
+    </button>
+    <button class="sc-tab" onclick="filterStrat('nondirectional',this)"
+      style="border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.5);">
+      &#8596; NON-DIRECTIONAL <span class="sc-cnt" style="background:#6480ff;">20</span>
+    </button>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+      <span style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+                   color:rgba(255,209,102,.7);">&#128197; EXPIRY DATE</span>
+      <select id="expiryDropdown" onchange="switchExpiry(this.value)"
+        style="appearance:none;-webkit-appearance:none;
+               background:linear-gradient(135deg,rgba(245,197,24,.12),rgba(200,155,10,.06));
+               border:1px solid rgba(245,197,24,.45);border-radius:8px;
+               color:#ffd166;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;
+               padding:7px 28px 7px 12px;cursor:pointer;outline:none;letter-spacing:.5px;">
+        {expiry_opts_html}
+      </select>
+    </div>
+  </div>
+  <div class="sc-grid" id="sc-grid">
+    {bull_cards}{bear_cards}{nd_cards}
+  </div>
+</div>
+
+<script>
+const OC={{
+  spot:        {spot:.2f},
+  atm:         {atm},
+  pcr:         {pcr:.3f},
+  maxPain:     {mp},
+  maxCeStrike: {max_ce_s},
+  maxPeStrike: {max_pe_s},
+  support:     {support:.2f},
+  resistance:  {resistance:.2f},
+  strongSup:   {strong_sup:.2f},
+  strongRes:   {strong_res:.2f},
+  bias:        "{bias}",
+  biasConf:    "{conf}",
+  bullScore:   {bull_sc},
+  bearScore:   {bear_sc},
+  strikes:     {strikes_json},
+  lotSize:     65
+}};
+
+const STRIKE_MAP={{}};
+OC.strikes.forEach(s=>{{ STRIKE_MAP[s.strike]=s; }});
+
+function smartPoP(shape, cat) {{
+  const spot=OC.spot, pcr=OC.pcr;
+  const sup=OC.support, res=OC.resistance;
+  const ssup=OC.strongSup, sres=OC.strongRes;
+  const maxCE=OC.maxCeStrike, maxPE=OC.maxPeStrike;
+  const bias=OC.bias, conf=OC.biasConf;
+  const rangeSize = res - sup || 200;
+  const confMult = conf==="HIGH" ? 1.25 : conf==="LOW" ? 0.6 : 1.0;
+  let biasAdj = 0;
+  if (cat === "bullish") {{ biasAdj = bias==="BULLISH" ? 15 : bias==="BEARISH" ? -15 : 0; }}
+  else if (cat === "bearish") {{ biasAdj = bias==="BEARISH" ? 15 : bias==="BULLISH" ? -15 : 0; }}
+  else {{ biasAdj = bias==="SIDEWAYS" ? 8 : (OC.bullScore===OC.bearScore ? 5 : -5); }}
+  biasAdj = biasAdj * confMult;
+  let srAdj = 0;
+  const distToSup = spot - sup; const distToRes = res - spot;
+  if (cat === "bullish") {{
+    if (distToSup >= 0 && distToSup <= rangeSize * 0.25) {{ srAdj = 10; }}
+    else if (distToSup >= 0 && distToSup <= rangeSize * 0.5) {{ srAdj = 5; }}
+    else if (distToRes >= 0 && distToRes <= rangeSize * 0.2) {{ srAdj = -10; }}
+    else if (spot > res) {{ srAdj = -8; }} else {{ srAdj = 2; }}
+  }} else if (cat === "bearish") {{
+    if (distToRes >= 0 && distToRes <= rangeSize * 0.25) {{ srAdj = 10; }}
+    else if (distToRes >= 0 && distToRes <= rangeSize * 0.5) {{ srAdj = 5; }}
+    else if (distToSup >= 0 && distToSup <= rangeSize * 0.2) {{ srAdj = -10; }}
+    else if (spot < sup) {{ srAdj = -8; }} else {{ srAdj = 2; }}
+  }} else {{
+    const midRange = (sup + res) / 2; const distFromMid = Math.abs(spot - midRange); const halfRange = rangeSize / 2;
+    if (distFromMid <= halfRange * 0.3) {{ srAdj = 10; }} else if (distFromMid <= halfRange * 0.6) {{ srAdj = 5; }} else {{ srAdj = -5; }}
+  }}
+  srAdj = srAdj * confMult;
+  let oiAdj = 0;
+  const distAboveMaxPE = spot - maxPE; const distBelowMaxCE = maxCE - spot;
+  if (cat === "bullish") {{
+    if (distAboveMaxPE > 0 && distAboveMaxPE < 150) {{ oiAdj += 8; }} else if (distAboveMaxPE > 150) {{ oiAdj += 4; }} else {{ oiAdj -= 8; }}
+    if (distBelowMaxCE > 200) {{ oiAdj += 5; }} else if (distBelowMaxCE < 100) {{ oiAdj -= 7; }}
+  }} else if (cat === "bearish") {{
+    if (distBelowMaxCE > 0 && distBelowMaxCE < 150) {{ oiAdj += 8; }} else if (distBelowMaxCE > 150) {{ oiAdj += 4; }} else {{ oiAdj -= 8; }}
+    if (distAboveMaxPE > 200) {{ oiAdj += 5; }} else if (distAboveMaxPE < 100) {{ oiAdj -= 7; }}
+  }} else {{
+    if (distAboveMaxPE > 0 && distBelowMaxCE > 0) {{
+      const oiRange = maxCE - maxPE || 200; const midOI = (maxPE + maxCE) / 2; const distFromOIMid = Math.abs(spot - midOI);
+      if (distFromOIMid < oiRange * 0.3) {{ oiAdj = 10; }} else {{ oiAdj = 4; }}
+    }} else {{ oiAdj = -5; }}
+  }}
+  let pcrAdj = 0;
+  if (cat === "bullish") {{ pcrAdj = pcr > 1.5 ? 8 : pcr > 1.2 ? 6 : pcr > 1.0 ? 3 : pcr < 0.7 ? -8 : pcr < 0.9 ? -4 : 0; }}
+  else if (cat === "bearish") {{ pcrAdj = pcr < 0.5 ? 8 : pcr < 0.7 ? 6 : pcr < 0.9 ? 3 : pcr > 1.3 ? -8 : pcr > 1.1 ? -4 : 0; }}
+  else {{ pcrAdj = (pcr >= 0.85 && pcr <= 1.15) ? 6 : (pcr >= 0.7 && pcr <= 1.3) ? 3 : -4; }}
+  let stratAdj = 0;
+  if (shape.includes('spread') || shape.includes('condor') || shape.includes('butterfly')) {{ stratAdj = 2; }}
+  if (shape === 'short_straddle' || shape === 'short_strangle') {{ stratAdj = bias === 'SIDEWAYS' ? 8 : -10; }}
+  if (shape === 'long_straddle' || shape === 'long_strangle') {{ stratAdj = bias === 'SIDEWAYS' ? -8 : 8; }}
+  if ((shape === 'short_iron_condor' || shape === 'short_iron_fly') && bias === 'SIDEWAYS') {{ stratAdj = 10; }}
+  const rawPoP = 50 + biasAdj + srAdj + oiAdj + pcrAdj + stratAdj;
+  return {{ pop: Math.min(95, Math.max(5, Math.round(rawPoP))), biasAdj: Math.round(biasAdj), srAdj: Math.round(srAdj), oiAdj: Math.round(oiAdj), pcrAdj: Math.round(pcrAdj), stratAdj: Math.round(stratAdj) }};
+}}
+
+function normCDF(x) {{
+  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  const sign=x<0?-1:1; x=Math.abs(x);
+  const t=1/(1+p*x); const y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+  return 0.5*(1+sign*y);
+}}
+function getATMLTP(type) {{
+  const row=STRIKE_MAP[OC.atm]||OC.strikes.reduce((b,s)=>Math.abs(s.strike-OC.atm)<Math.abs(b.strike-OC.atm)?s:b,OC.strikes[0]||{{strike:OC.atm,ce_ltp:0,pe_ltp:0,ce_iv:15,pe_iv:15}});
+  return type==='ce'?row.ce_ltp:row.pe_ltp;
+}}
+function getOTM(type,offset) {{
+  const t=type==='ce'?OC.atm+offset*50:OC.atm-offset*50;
+  const row=STRIKE_MAP[t]||OC.strikes.reduce((b,s)=>Math.abs(s.strike-t)<Math.abs(b.strike-t)?s:b,OC.strikes[0]||{{strike:OC.atm,ce_ltp:0,pe_ltp:0,ce_iv:15,pe_iv:15}});
+  return {{strike:row.strike||t,ltp:type==='ce'?row.ce_ltp:row.pe_ltp,iv:type==='ce'?row.ce_iv:row.pe_iv}};
+}}
+
+function calcMetrics(shape, smartPop) {{
+  const spot   = OC.spot, atm = OC.atm;
+  const lotSz  = OC.lotSize;
+  const ce_atm = getATMLTP('ce'), pe_atm = getATMLTP('pe');
+
+  const co1 = getOTM('ce', 1), co2 = getOTM('ce', 2), co3 = getOTM('ce', 3);
+  const po1 = getOTM('pe', 1), po2 = getOTM('pe', 2), po3 = getOTM('pe', 3);
+
+  const ceWing1 = co1.strike - atm;
+  const peWing1 = atm - po1.strike;
+
+  let pop = smartPop || 50;
+  let mp = 0, ml = 0, be = [], nc = 0, margin = 0, rrRatio = 0;
+  let ltpParts = [];
+
+  switch (shape) {{
+
+    case 'long_call': {{
+      const p = ce_atm || 150;
+      mp = 999999; ml = p * lotSz; be = [atm + p];
+      nc = -p * lotSz; margin = p * lotSz;
+      ltpParts = [{{ l: 'BUY CE \u20b9' + atm.toLocaleString('en-IN'), v: p, c: '#00c8e0' }}];
+      break;
+    }}
+    case 'long_put': {{
+      const p = pe_atm || 150;
+      mp = 999999; ml = p * lotSz; be = [atm - p];
+      nc = -p * lotSz; margin = p * lotSz;
+      ltpParts = [{{ l: 'BUY PE \u20b9' + atm.toLocaleString('en-IN'), v: p, c: '#ff9090' }}];
+      break;
+    }}
+    case 'short_put': {{
+      const p = pe_atm || 150;
+      mp = p * lotSz; ml = (atm - p) * lotSz; be = [atm - p];
+      nc = p * lotSz; margin = atm * lotSz * 0.15;
+      rrRatio = ((atm - p) / p).toFixed(2);
+      ltpParts = [{{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: p, c: '#ff9090' }}];
+      break;
+    }}
+    case 'short_call': {{
+      const p = ce_atm || 150;
+      mp = p * lotSz; ml = 999999; be = [atm + p];
+      nc = p * lotSz; margin = atm * lotSz * 0.15;
+      ltpParts = [{{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: p, c: '#00c8e0' }}];
+      break;
+    }}
+
+    case 'bull_call_spread': {{
+      const bp = ce_atm || 150, sp = co1.ltp || 80;
+      const nd = bp - sp, sw = ceWing1;
+      mp = (sw - nd) * lotSz; ml = nd * lotSz; be = [atm + nd];
+      nc = -nd * lotSz; margin = nd * lotSz;
+      rrRatio = ((sw - nd) / nd).toFixed(2);
+      ltpParts = [
+        {{ l: 'BUY CE \u20b9' + atm.toLocaleString('en-IN'), v: bp, c: '#00c8e0' }},
+        {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: sp, c: '#00c896' }}
+      ];
+      break;
+    }}
+    case 'bull_put_spread': {{
+      const sp = pe_atm || 150, bp = po1.ltp || 80;
+      const nc2 = sp - bp, sw = peWing1;
+      mp = nc2 * lotSz; ml = (sw - nc2) * lotSz; be = [atm - nc2];
+      nc = nc2 * lotSz; margin = sw * lotSz;
+      rrRatio = (nc2 / (sw - nc2)).toFixed(2);
+      ltpParts = [
+        {{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: sp, c: '#00c896' }},
+        {{ l: 'BUY PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: bp, c: '#ff9090' }}
+      ];
+      break;
+    }}
+    case 'bear_call_spread': {{
+      const sp = ce_atm || 150, bp = co1.ltp || 80;
+      const nc2 = sp - bp, sw = ceWing1;
+      mp = nc2 * lotSz; ml = (sw - nc2) * lotSz; be = [atm + nc2];
+      nc = nc2 * lotSz; margin = sw * lotSz;
+      rrRatio = (nc2 / (sw - nc2)).toFixed(2);
+      ltpParts = [
+        {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: sp, c: '#00c896' }},
+        {{ l: 'BUY CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: bp, c: '#00c8e0' }}
+      ];
+      break;
+    }}
+    case 'bear_put_spread': {{
+      const bp = pe_atm || 150, sp = po1.ltp || 80;
+      const nd = bp - sp, sw = peWing1;
+      mp = (sw - nd) * lotSz; ml = nd * lotSz; be = [atm - nd];
+      nc = -nd * lotSz; margin = nd * lotSz;
+      rrRatio = ((sw - nd) / nd).toFixed(2);
+      ltpParts = [
+        {{ l: 'BUY PE \u20b9' + atm.toLocaleString('en-IN'), v: bp, c: '#ff9090' }},
+        {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: sp, c: '#00c896' }}
+      ];
+      break;
+    }}
+
+    case 'long_straddle': {{
+      const cp2 = ce_atm || 150, pp = pe_atm || 150, tp = cp2 + pp;
+      mp = 999999; ml = tp * lotSz; be = [atm - tp, atm + tp];
+      nc = -tp * lotSz; margin = tp * lotSz;
+      ltpParts = [
+        {{ l: 'BUY CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
+        {{ l: 'BUY PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
+      ];
+      break;
+    }}
+    case 'short_straddle': {{
+      const cp2 = ce_atm || 150, pp = pe_atm || 150, tp = cp2 + pp;
+      mp = tp * lotSz; ml = 999999; be = [atm - tp, atm + tp];
+      nc = tp * lotSz; margin = Math.round(0.155 * OC.spot * OC.lotSize); // SPAN straddle: both ATM naked ~15.5% notional
+      ltpParts = [
+        {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
+        {{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
+      ];
+      break;
+    }}
+    case 'long_strangle': {{
+      const cp2 = co1.ltp || 100, pp = po1.ltp || 100, tp = cp2 + pp;
+      mp = 999999; ml = tp * lotSz;
+      be = [po1.strike - tp, co1.strike + tp];
+      nc = -tp * lotSz; margin = tp * lotSz;
+      ltpParts = [
+        {{ l: 'BUY CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
+        {{ l: 'BUY PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
+      ];
+      break;
+    }}
+    case 'short_strangle': {{
+      const cp2 = co1.ltp || 100, pp = po1.ltp || 100, tp = cp2 + pp;
+      mp = tp * lotSz; ml = 999999;
+      be = [po1.strike - tp, co1.strike + tp];
+      nc = tp * lotSz; margin = Math.round((Math.max(0.117*OC.spot,0.075*co1.strike)*OC.lotSize > Math.max(0.117*OC.spot,0.075*po1.strike)*OC.lotSize ? Math.max(0.117*OC.spot,0.075*co1.strike)*OC.lotSize*0.85 + Math.max(0.117*OC.spot,0.075*po1.strike)*OC.lotSize*0.15 : Math.max(0.117*OC.spot,0.075*po1.strike)*OC.lotSize*0.85 + Math.max(0.117*OC.spot,0.075*co1.strike)*OC.lotSize*0.15)); // SPAN strangle: 85/15 netting
+      ltpParts = [
+        {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
+        {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
+      ];
+      break;
+    }}
+
+    case 'short_iron_fly': {{
+      const cp2 = ce_atm || 150, pp = pe_atm || 150;
+      const wc = co1.ltp || 80, wp = po1.ltp || 80;
+      const nc2 = cp2 + pp - wc - wp;
+      mp = nc2 * lotSz; ml = (ceWing1 - nc2) * lotSz;
+      be = [atm - nc2, atm + nc2];
+      nc = nc2 * lotSz; margin = ceWing1 * lotSz * 2;
+      rrRatio = (nc2 / (ceWing1 - nc2)).toFixed(2);
+      ltpParts = [
+        {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
+        {{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }},
+        {{ l: 'BUY CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: wc, c: '#00c8e0' }},
+        {{ l: 'BUY PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: wp, c: '#ff9090' }}
+      ];
+      break;
+    }}
+    case 'long_iron_fly': {{
+      const cp2 = ce_atm || 150, pp = pe_atm || 150;
+      const wc = co1.ltp || 80, wp = po1.ltp || 80;
+      const nd = wc + wp - cp2 - pp;
+      mp = (ceWing1 - Math.abs(nd)) * lotSz; ml = Math.abs(nd) * lotSz;
+      be = [atm - Math.abs(nd), atm + Math.abs(nd)];
+      nc = -Math.abs(nd) * lotSz; margin = Math.abs(nd) * lotSz;
+      rrRatio = ((ceWing1 - Math.abs(nd)) / Math.abs(nd)).toFixed(2);
+      ltpParts = [
+        {{ l: 'BUY CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
+        {{ l: 'BUY PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }},
+        {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: wc, c: '#00c8e0' }},
+        {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: wp, c: '#ff9090' }}
+      ];
+      break;
+    }}
+    case 'short_iron_condor': {{
+      const sc = co1.ltp || 100, bc = co2.ltp || 50;
+      const sp = po1.ltp || 100, bp = po2.ltp || 50;
+      const nc2 = sc - bc + sp - bp;
+      mp = nc2 * lotSz; ml = (ceWing1 - nc2) * lotSz;
+      be = [po1.strike - nc2, co1.strike + nc2];
+      nc = nc2 * lotSz; margin = ceWing1 * lotSz * 2;
+      rrRatio = (nc2 / (ceWing1 - nc2)).toFixed(2);
+      ltpParts = [
+        {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: sc, c: '#00c8e0' }},
+        {{ l: 'BUY CE \u20b9' + co2.strike.toLocaleString('en-IN'), v: bc, c: '#00c8e0' }},
+        {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: sp, c: '#ff9090' }},
+        {{ l: 'BUY PE \u20b9' + po2.strike.toLocaleString('en-IN'), v: bp, c: '#ff9090' }}
+      ];
+      break;
+    }}
+    case 'long_iron_condor': {{
+      const sc = co1.ltp || 100, bc = co2.ltp || 50;
+      const sp = po1.ltp || 100, bp = po2.ltp || 50;
+      const nd = bc - sc + bp - sp;
+      mp = (ceWing1 - Math.abs(nd)) * lotSz; ml = Math.abs(nd) * lotSz;
+      be = [po1.strike - Math.abs(nd), co1.strike + Math.abs(nd)];
+      nc = nd * lotSz; margin = Math.abs(nd) * lotSz;
+      rrRatio = ((ceWing1 - Math.abs(nd)) / Math.abs(nd)).toFixed(2);
+      ltpParts = [
+        {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: sc, c: '#00c8e0' }},
+        {{ l: 'BUY CE \u20b9' + co2.strike.toLocaleString('en-IN'), v: bc, c: '#00c8e0' }},
+        {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: sp, c: '#ff9090' }},
+        {{ l: 'BUY PE \u20b9' + po2.strike.toLocaleString('en-IN'), v: bp, c: '#ff9090' }}
+      ];
+      break;
+    }}
+
+    case 'call_butterfly':
+    case 'bull_butterfly': {{
+      const lp = ce_atm || 150, mid = co1.ltp || 80, hp = co2.ltp || 40;
+      const nd = lp - 2 * mid + hp;
+      mp = (ceWing1 - nd) * lotSz; ml = nd * lotSz;
+      be = [atm + nd, co2.strike - nd];
+      nc = -nd * lotSz; margin = nd * lotSz;
+      rrRatio = ((ceWing1 - nd) / nd).toFixed(2);
+      ltpParts = [
+        {{ l: 'BUY CE \u20b9' + atm.toLocaleString('en-IN'), v: lp, c: '#00c8e0' }},
+        {{ l: 'SELL 2x CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: mid, c: '#00c896' }},
+        {{ l: 'BUY CE \u20b9' + co2.strike.toLocaleString('en-IN'), v: hp, c: '#00c8e0' }}
+      ];
+      break;
+    }}
+    case 'put_butterfly':
+    case 'bear_butterfly': {{
+      const hp = pe_atm || 150, mid = po1.ltp || 80, lp = po2.ltp || 40;
+      const nd = hp - 2 * mid + lp;
+      mp = (peWing1 - nd) * lotSz; ml = nd * lotSz;
+      be = [po2.strike + nd, atm - nd];
+      nc = -nd * lotSz; margin = nd * lotSz;
+      rrRatio = ((peWing1 - nd) / nd).toFixed(2);
+      ltpParts = [
+        {{ l: 'BUY PE \u20b9' + atm.toLocaleString('en-IN'), v: hp, c: '#ff9090' }},
+        {{ l: 'SELL 2x PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: mid, c: '#00c896' }},
+        {{ l: 'BUY PE \u20b9' + po2.strike.toLocaleString('en-IN'), v: lp, c: '#ff9090' }}
+      ];
+      break;
+    }}
+
+    case 'call_ratio_back': {{
+      const sp = ce_atm || 150, bp = co1.ltp || 80, nd = 2 * bp - sp;
+      mp = 999999; ml = nd > 0 ? nd * lotSz : 0;
+      be = [co1.strike + Math.abs(nd)];
+      nc = -nd * lotSz; margin = Math.round((0.117 - 0.01) * OC.spot * OC.lotSize); // SPAN: naked(11.7%) - 1 BUY hedge(1%)
+      ltpParts = [
+        {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: sp, c: '#00c896' }},
+        {{ l: 'BUY 2x CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: bp, c: '#00c8e0' }}
+      ];
+      break;
+    }}
+    case 'put_ratio_back': {{
+      const sp = pe_atm || 150, bp = po1.ltp || 80, nd = 2 * bp - sp;
+      mp = 999999; ml = nd > 0 ? nd * lotSz : 0;
+      be = [po1.strike - Math.abs(nd)];
+      nc = -nd * lotSz; margin = Math.round((0.117 - 0.01) * OC.spot * OC.lotSize); // SPAN: naked(11.7%) - 1 BUY hedge(1%)
+      ltpParts = [
+        {{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: sp, c: '#00c896' }},
+        {{ l: 'BUY 2x PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: bp, c: '#ff9090' }}
+      ];
+      break;
+    }}
+
+    case 'call_ratio_spread': {{
+      const bp = ce_atm || 150, sp = co1.ltp || 80;
+      const nc2 = 2 * sp - bp;
+      const maxProfitPts = ceWing1 + nc2;
+      mp = maxProfitPts * lotSz; ml = 999999;
+      be = nc2 >= 0
+        ? [2 * co1.strike - atm + nc2]
+        : [atm - nc2, 2 * co1.strike - atm + nc2];
+      nc = nc2 * lotSz; margin = co1.strike * lotSz * 0.15;
+      ltpParts = [
+        {{ l: 'BUY CE \u20b9' + atm.toLocaleString('en-IN'), v: bp, c: '#00c8e0' }},
+        {{ l: 'SELL 2x CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: sp, c: '#00c896' }}
+      ];
+      break;
+    }}
+    case 'put_ratio_spread': {{
+      const bp = pe_atm || 150, sp = po1.ltp || 80;
+      const nc2 = 2 * sp - bp;
+      const maxProfitPts = peWing1 + nc2;
+      mp = maxProfitPts * lotSz; ml = 999999;
+      be = nc2 >= 0
+        ? [2 * po1.strike - atm - nc2]
+        : [2 * po1.strike - atm - nc2, atm + nc2];
+      nc = nc2 * lotSz; margin = po1.strike * lotSz * 0.15;
+      ltpParts = [
+        {{ l: 'BUY PE \u20b9' + atm.toLocaleString('en-IN'), v: bp, c: '#ff9090' }},
+        {{ l: 'SELL 2x PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: sp, c: '#00c896' }}
+      ];
+      break;
+    }}
+
+    case 'long_synthetic': {{
+      const cp2 = ce_atm || 150, pp = pe_atm || 150, nd = cp2 - pp;
+      mp = 999999; ml = 999999;
+      be = [atm + nd]; nc = -Math.abs(nd) * lotSz;
+      margin = atm * lotSz * 0.30;
+      ltpParts = [
+        {{ l: 'BUY CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
+        {{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
+      ];
+      break;
+    }}
+    case 'short_synthetic': {{
+      const cp2 = ce_atm || 150, pp = pe_atm || 150, nc2 = cp2 - pp;
+      mp = 999999; ml = 999999;
+      be = [atm + nc2]; nc = Math.abs(nc2) * lotSz;
+      margin = atm * lotSz * 0.30;
+      ltpParts = [
+        {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
+        {{ l: 'BUY PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
+      ];
+      break;
+    }}
+
+    case 'risk_reversal': {{
+      const bp = po1.ltp || 100, sc = co1.ltp || 100;
+      const nd = bp - sc;
+      mp = 999999; ml = 999999;
+      be = [po1.strike - Math.abs(nd), co1.strike + Math.abs(nd)];
+      nc = -nd * lotSz; margin = atm * lotSz * 0.20;
+      ltpParts = [
+        {{ l: 'BUY PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: bp, c: '#ff9090' }},
+        {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: sc, c: '#00c8e0' }}
+      ];
+      break;
+    }}
+    case 'range_forward': {{
+      const bc = co1.ltp || 100, sp = po1.ltp || 100;
+      const nd = bc - sp;
+      mp = 999999; ml = 999999;
+      be = [po1.strike - Math.abs(nd), co1.strike + Math.abs(nd)];
+      nc = -nd * lotSz; margin = atm * lotSz * 0.20;
+      ltpParts = [
+        {{ l: 'BUY CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: bc, c: '#00c8e0' }},
+        {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: sp, c: '#ff9090' }}
+      ];
+      break;
+    }}
+
+    case 'jade_lizard': {{
+      const pp = po1.ltp || 100, cs = co1.ltp || 80, cb = co2.ltp || 40;
+      const nc2 = pp + cs - cb;
+      mp = nc2 * lotSz; ml = (po1.strike - nc2) * lotSz;
+      be = [po1.strike - nc2];
+      nc = nc2 * lotSz; margin = po1.strike * lotSz * 0.15;
+      ltpParts = [
+        {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: pp, c: '#ff9090' }},
+        {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: cs, c: '#00c8e0' }},
+        {{ l: 'BUY CE \u20b9' + co2.strike.toLocaleString('en-IN'), v: cb, c: '#00c8e0' }}
+      ];
+      break;
+    }}
+    case 'reverse_jade': {{
+      const cp2 = co1.ltp || 100, ps = po1.ltp || 80, pb = po2.ltp || 40;
+      const nc2 = cp2 + ps - pb;
+      mp = nc2 * lotSz; ml = (po1.strike - nc2) * lotSz;
+      be = [po1.strike - nc2];
+      nc = nc2 * lotSz; margin = co1.strike * lotSz * 0.15;
+      ltpParts = [
+        {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
+        {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: ps, c: '#ff9090' }},
+        {{ l: 'BUY PE \u20b9' + po2.strike.toLocaleString('en-IN'), v: pb, c: '#ff9090' }}
+      ];
+      break;
+    }}
+
+    case 'bull_condor': {{
+      const s1 = ce_atm || 150;
+      const s2 = co1.ltp || 100;
+      const s3 = co2.ltp || 60;
+      const s4 = co3.ltp || 30;
+      const nd = s1 - s2 - s3 + s4;
+      mp = (ceWing1 - nd) * lotSz; ml = nd * lotSz;
+      be = [atm + nd, co3.strike - nd];
+      nc = -nd * lotSz; margin = nd * lotSz;
+      rrRatio = ((ceWing1 - nd) / nd).toFixed(2);
+      ltpParts = [
+        {{ l: 'BUY CE \u20b9'  + atm.toLocaleString('en-IN'),        v: s1, c: '#00c8e0' }},
+        {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: s2, c: '#00c896' }},
+        {{ l: 'SELL CE \u20b9' + co2.strike.toLocaleString('en-IN'), v: s3, c: '#00c896' }},
+        {{ l: 'BUY CE \u20b9'  + co3.strike.toLocaleString('en-IN'), v: s4, c: '#00c8e0' }}
+      ];
+      break;
+    }}
+    case 'bear_condor': {{
+      const s1 = pe_atm || 150;
+      const s2 = po1.ltp || 100;
+      const s3 = po2.ltp || 60;
+      const s4 = po3.ltp || 30;
+      const nd = s1 - s2 - s3 + s4;
+      mp = (peWing1 - nd) * lotSz; ml = nd * lotSz;
+      be = [po3.strike + nd, atm - nd];
+      nc = -nd * lotSz; margin = nd * lotSz;
+      rrRatio = ((peWing1 - nd) / nd).toFixed(2);
+      ltpParts = [
+        {{ l: 'BUY PE \u20b9'  + atm.toLocaleString('en-IN'),        v: s1, c: '#ff9090' }},
+        {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: s2, c: '#00c896' }},
+        {{ l: 'SELL PE \u20b9' + po2.strike.toLocaleString('en-IN'), v: s3, c: '#00c896' }},
+        {{ l: 'BUY PE \u20b9'  + po3.strike.toLocaleString('en-IN'), v: s4, c: '#ff9090' }}
+      ];
+      break;
+    }}
+
+    case 'batman': {{
+      const s1 = ce_atm || 150, s2 = co1.ltp || 80, s3 = co2.ltp || 40;
+      const ndPerUnit = s1 - 2 * s2 + s3;
+      const totalNd = 2 * ndPerUnit;
+      mp = 2 * (ceWing1 - ndPerUnit) * lotSz; ml = totalNd * lotSz;
+      be = [atm + ndPerUnit, co2.strike - ndPerUnit];
+      nc = -totalNd * lotSz; margin = totalNd * lotSz;
+      ltpParts = [
+        {{ l: 'BUY 2x CE \u20b9' + atm.toLocaleString('en-IN'), v: s1, c: '#00c8e0' }},
+        {{ l: 'SELL 4x CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: s2, c: '#00c896' }},
+        {{ l: 'BUY 2x CE \u20b9' + co2.strike.toLocaleString('en-IN'), v: s3, c: '#00c8e0' }}
+      ];
+      break;
+    }}
+
+    case 'double_fly': {{
+      const cNd = ce_atm - 2 * co1.ltp + (co2.ltp || 40);
+      const pNd = pe_atm - 2 * po1.ltp + (po2.ltp || 40);
+      const totalNd = cNd + pNd;
+      mp = ((ceWing1 - cNd) + (peWing1 - pNd)) * lotSz;
+      ml = totalNd * lotSz;
+      be = [atm - totalNd * 0.5, atm + totalNd * 0.5];
+      nc = -totalNd * lotSz; margin = totalNd * lotSz;
+      ltpParts = [
+        {{ l: 'CALL FLY: BUY/SELL/BUY CE', v: ce_atm || 150, c: '#00c8e0' }},
+        {{ l: 'PUT FLY:  BUY/SELL/BUY PE', v: pe_atm || 150, c: '#ff9090' }}
+      ];
+      break;
+    }}
+
+    case 'double_condor': {{
+      const cNd = ce_atm - co1.ltp - co2.ltp + (co3.ltp || 30);
+      const pNd = pe_atm - po1.ltp - po2.ltp + (po3.ltp || 30);
+      const totalNd = cNd + pNd;
+      mp = ((ceWing1 - cNd) + (peWing1 - pNd)) * lotSz;
+      ml = totalNd * lotSz;
+      be = [atm - totalNd, atm + totalNd];
+      nc = -totalNd * lotSz; margin = totalNd * lotSz;
+      ltpParts = [
+        {{ l: 'CE CONDOR \u20b9' + atm.toLocaleString('en-IN') + ' \u2192 \u20b9' + co3.strike.toLocaleString('en-IN'), v: ce_atm || 150, c: '#00c8e0' }},
+        {{ l: 'PE CONDOR \u20b9' + atm.toLocaleString('en-IN') + ' \u2192 \u20b9' + po3.strike.toLocaleString('en-IN'), v: pe_atm || 150, c: '#ff9090' }}
+      ];
+      break;
+    }}
+
+    case 'call_calendar': {{
+      const farLTP  = ce_atm || 150;
+      const nearLTP = Math.round(farLTP * 0.55);
+      const nd = farLTP - nearLTP;
+      mp = Math.round(nd * 0.80) * lotSz; ml = nd * lotSz;
+      be = [atm - Math.round(nd * 0.6), atm + Math.round(nd * 0.6)];
+      nc = -nd * lotSz; margin = nd * lotSz;
+      ltpParts = [
+        {{ l: 'SELL NEAR CE \u20b9' + atm.toLocaleString('en-IN') + ' (~est)', v: nearLTP, c: '#00c896' }},
+        {{ l: 'BUY FAR CE \u20b9'   + atm.toLocaleString('en-IN'),             v: farLTP,  c: '#00c8e0' }}
+      ];
+      break;
+    }}
+    case 'put_calendar': {{
+      const farLTP  = pe_atm || 150;
+      const nearLTP = Math.round(farLTP * 0.55);
+      const nd = farLTP - nearLTP;
+      mp = Math.round(nd * 0.80) * lotSz; ml = nd * lotSz;
+      be = [atm - Math.round(nd * 0.6), atm + Math.round(nd * 0.6)];
+      nc = -nd * lotSz; margin = nd * lotSz;
+      ltpParts = [
+        {{ l: 'SELL NEAR PE \u20b9' + atm.toLocaleString('en-IN') + ' (~est)', v: nearLTP, c: '#00c896' }},
+        {{ l: 'BUY FAR PE \u20b9'   + atm.toLocaleString('en-IN'),             v: farLTP,  c: '#ff9090' }}
+      ];
+      break;
+    }}
+    case 'diagonal_calendar': {{
+      const farLTP  = ce_atm || 150;
+      const nearLTP = Math.round((co1.ltp || 80) * 0.55);
+      const nd = farLTP - nearLTP;
+      mp = Math.round(nd * 0.70) * lotSz; ml = nd * lotSz;
+      be = [atm + Math.round(nd * 0.25), atm + Math.round(nd * 1.4)];
+      nc = -nd * lotSz; margin = nd * lotSz;
+      ltpParts = [
+        {{ l: 'SELL NEAR CE \u20b9' + co1.strike.toLocaleString('en-IN') + ' (~est)', v: nearLTP, c: '#00c896' }},
+        {{ l: 'BUY FAR CE \u20b9'   + atm.toLocaleString('en-IN'),                   v: farLTP,  c: '#00c8e0' }}
+      ];
+      break;
+    }}
+
+    default: {{
+      const p = ce_atm || 150;
+      mp = p * lotSz * 0.5; ml = p * lotSz * 0.3;
+      be = [atm]; nc = -p * 0.3 * lotSz;
+      margin = p * lotSz; rrRatio = 1.5;
+      ltpParts = [{{ l: 'ATM \u20b9' + atm.toLocaleString('en-IN'), v: p, c: '#00c8e0' }}];
+    }}
+  }}
+
+  const beStr     = be.map(v => '\u20b9' + Math.round(v).toLocaleString('en-IN')).join(' / ');
+  const mpStr     = mp === 999999 ? 'Unlimited' : '\u20b9' + Math.round(mp).toLocaleString('en-IN');
+  const mlStr     = ml === 999999 ? 'Unlimited' : '\u20b9' + Math.round(ml).toLocaleString('en-IN');
+  const ncStr     = (nc >= 0 ? '+ ' : '- ') + '\u20b9' + Math.abs(Math.round(nc)).toLocaleString('en-IN');
+  const marginStr = '\u20b9' + Math.round(margin).toLocaleString('en-IN');
+  const rrStr     = rrRatio === 0 ? '\u221e' : ('1:' + Math.abs(rrRatio));
+  const mpPct     = mp === 999999 ? '\u221e' : (ml > 0 ? (mp / ml * 100).toFixed(0) + '%' : '\u2014');
+  const ltpStr    = ltpParts.map(x =>
+    `<span style="display:inline-flex;align-items:center;gap:4px;margin-bottom:2px;">
+      <span style="font-size:8.5px;color:rgba(255,255,255,.35);">${{x.l}}</span>
+      <span style="font-family:'DM Mono',monospace;font-weight:700;color:${{x.c}};">\u20b9${{x.v.toFixed(2)}}</span>
+    </span>`
+  ).join('<br>');
+  const strikeStr = 'ATM \u20b9' + atm.toLocaleString('en-IN');
+  return {{pop,mpStr,mlStr,rrStr,beStr,ncStr,marginStr,mpPct,strikeStr,ltpStr,
+           mpRaw:mp,mlRaw:ml,ncRaw:Math.round(nc),ncPositive:nc>=0}};
+}}
+
+function renderMetrics(m, scoreBreakdown) {{
+  const pc=m.pop>=70?'#00c896':(m.pop>=55?'#4de8b8':m.pop>=45?'#6480ff':'#ff6b6b');
+  const nc=m.ncPositive?'#00c896':'#ff6b6b';
+  const sbHtml = scoreBreakdown ? `
+    <div style="background:rgba(100,128,255,.06);border-top:1px solid rgba(100,128,255,.1);padding:8px 12px;">
+      <div style="font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(100,128,255,.6);margin-bottom:6px;">PoP BREAKDOWN</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        <span style="font-size:9px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">Base <b style="color:#fff;">50%</b></span>
+        <span style="font-size:9px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">Bias <b style="color:${{scoreBreakdown.biasAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.biasAdj>=0?'+':''}}${{scoreBreakdown.biasAdj}}</b></span>
+        <span style="font-size:9px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">S/R <b style="color:${{scoreBreakdown.srAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.srAdj>=0?'+':''}}${{scoreBreakdown.srAdj}}</b></span>
+        <span style="font-size:9px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">OI <b style="color:${{scoreBreakdown.oiAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.oiAdj>=0?'+':''}}${{scoreBreakdown.oiAdj}}</b></span>
+        <span style="font-size:9px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">PCR <b style="color:${{scoreBreakdown.pcrAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.pcrAdj>=0?'+':''}}${{scoreBreakdown.pcrAdj}}</b></span>
+        <span style="font-size:9px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">Strat <b style="color:${{scoreBreakdown.stratAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.stratAdj>=0?'+':''}}${{scoreBreakdown.stratAdj}}</b></span>
+      </div>
+    </div>` : '';
+  return `<div class="metric-row metric-strike"><span class="metric-lbl">Strike Price</span>
+    <span class="metric-val" style="color:#ffd166;font-size:11px;text-align:right;">${{m.strikeStr}}</span></div>
+    <div class="metric-row" style="background:rgba(0,200,220,.04);border-bottom:1px solid rgba(0,200,220,.10);">
+      <span class="metric-lbl" style="color:rgba(0,200,220,.7);">LTP (per leg)</span>
+      <span class="metric-val" style="text-align:right;line-height:1.6;display:flex;flex-direction:column;align-items:flex-end;">${{m.ltpStr}}</span>
+    </div>
+    <div class="metric-row"><span class="metric-lbl">Prob. of Profit</span>
+    <span class="metric-val" style="color:${{pc}};font-weight:800;font-size:15px;">${{m.pop}}%</span></div>
+    <div class="metric-row"><span class="metric-lbl">Max. Profit</span>
+    <span class="metric-val" style="color:#00c896;">${{m.mpStr}} <small style="opacity:.5;">${{m.mpPct}}</small></span></div>
+    <div class="metric-row"><span class="metric-lbl">Max. Loss</span>
+    <span class="metric-val" style="color:#ff6b6b;">${{m.mlStr}}</span></div>
+    <div class="metric-row"><span class="metric-lbl">Max RR Ratio</span>
+    <span class="metric-val" style="color:#6480ff;">${{m.rrStr}}</span></div>
+    <div class="metric-row"><span class="metric-lbl">Breakevens</span>
+    <span class="metric-val" style="color:#00c8e0;font-size:11px;">${{m.beStr}}</span></div>
+    <div class="metric-row"><span class="metric-lbl">Net Credit / Debit</span>
+    <span class="metric-val" style="color:${{nc}};">${{m.ncStr}}</span></div>
+    <div class="metric-row" style="border-bottom:none;"><span class="metric-lbl">Est. Margin/Premium</span>
+    <span class="metric-val" style="color:#8aa0ff;">${{m.marginStr}}</span></div>
+    ${{sbHtml}}`;
+}}
+
+function popBadgeStyle(pop) {{
+  if(pop>=70) return 'background:rgba(0,200,150,.25);color:#00c896;border-color:rgba(0,200,150,.5);font-weight:800;';
+  if(pop>=60) return 'background:rgba(77,232,184,.2);color:#4de8b8;border-color:rgba(77,232,184,.4);';
+  if(pop>=50) return 'background:rgba(100,128,255,.2);color:#8aa0ff;border-color:rgba(100,128,255,.4);';
+  return 'background:rgba(255,107,107,.2);color:#ff6b6b;border-color:rgba(255,107,107,.4);';
+}}
+
+function initAllCards() {{
+  let topPop=0, topName='', topCat='';
+  const bullEx = smartPoP('bull_put_spread','bullish');
+  const el_b = document.getElementById('legendBiasVal');
+  if(el_b) {{ el_b.textContent=OC.bias+' ('+OC.biasConf+')'; el_b.style.color=OC.bias==='BULLISH'?'#00c896':OC.bias==='BEARISH'?'#ff6b6b':'#6480ff'; }}
+  const srPts = bullEx.srAdj;
+  const el_sr = document.getElementById('legendSRVal');
+  if(el_sr) {{ const srLabel = srPts>5?'Near Support ✓':srPts<-5?'Near Resistance ✗':'Mid Range'; el_sr.textContent=srLabel+' ('+(srPts>=0?'+':'')+srPts+')'; el_sr.style.color=srPts>=0?'#00c896':'#ff6b6b'; }}
+  const oiPts = bullEx.oiAdj;
+  const el_oi = document.getElementById('legendOIVal');
+  if(el_oi) {{ const oiLabel = OC.spot>OC.maxPeStrike?'Above PE Wall ✓':'Below PE Wall ✗'; el_oi.textContent=oiLabel+' ('+(oiPts>=0?'+':'')+oiPts+')'; el_oi.style.color=oiPts>=0?'#00c896':'#ff6b6b'; }}
+  const el_pcr = document.getElementById('legendPCRVal');
+  if(el_pcr) {{ const pcrLabel = OC.pcr>1.2?'Bullish PCR ':OC.pcr<0.8?'Bearish PCR ':'Neutral PCR '; el_pcr.textContent=pcrLabel+OC.pcr.toFixed(3); el_pcr.style.color=OC.pcr>1.2?'#00c896':OC.pcr<0.8?'#ff6b6b':'#6480ff'; }}
+  document.querySelectorAll('.sc-card').forEach(card=>{{
+    const shape=card.dataset.shape, cat=card.dataset.cat;
+    const badge=document.getElementById('pop_'+card.id);
+    try {{
+      const result = smartPoP(shape, cat);
+      const m=calcMetrics(shape, result.pop);
+      card.dataset.pop=result.pop;
+      card.dataset.scoreBreakdown=JSON.stringify(result);
+      if(badge) {{ badge.textContent=result.pop+'%'; badge.setAttribute('style', badge.getAttribute('style')||''); badge.setAttribute('style', popBadgeStyle(result.pop)); }}
+      if(result.pop>topPop) {{ topPop=result.pop; topName=card.dataset.name; topCat=cat; }}
+    }}catch(e){{card.dataset.pop=0;if(badge)badge.textContent='—%';}}
+  }});
+  const el_rec = document.getElementById('legendRecVal');
+  if(el_rec && topName) {{
+    const recCol = topCat==='bullish'?'#00c896':topCat==='bearish'?'#ff6b6b':'#6480ff';
+    el_rec.innerHTML=`<span style="color:${{recCol}};">${{topName}}</span> <span style="color:rgba(255,255,255,.4);font-size:9px;">${{topPop}}% PoP</span>`;
+  }}
+}}
+
+function sortGridByPoP(cat) {{
+  const grid=document.getElementById('sc-grid'); if(!grid)return;
+  const cards=Array.from(grid.querySelectorAll(`.sc-card[data-cat="${{cat}}"]`));
+  cards.sort((a,b)=>parseInt(b.dataset.pop||0)-parseInt(a.dataset.pop||0));
+  cards.forEach(c=>grid.appendChild(c));
+}}
+
+window.addEventListener('load',function(){{
+  initAllCards();
+  ['bullish','bearish','nondirectional'].forEach(sortGridByPoP);
+  filterStrat('bullish',document.querySelector('.sc-tab'));
+}});
+
+// ── Multi-Expiry Switcher ─────────────────────────────────────
+const ALL_EXPIRY_DATA = {all_expiry_json};
+
+window.switchExpiry = function(exp) {{
+  let d = ALL_EXPIRY_DATA[exp];
+  if (!d) {{
+    const sel = document.getElementById('expiryDropdown');
+    if (sel) {{
+      const opts = Array.from(sel.options);
+      const curIdx = opts.findIndex(o => o.value === exp);
+      for (let i = curIdx + 1; i < opts.length; i++) {{
+        const nextExp = opts[i].value;
+        if (ALL_EXPIRY_DATA[nextExp]) {{
+          sel.value = nextExp;
+          exp = nextExp;
+          d = ALL_EXPIRY_DATA[nextExp];
+          break;
+        }}
+      }}
+    }}
+    if (!d) return;
+  }}
+  // Update OC object with selected expiry's data
+  OC.spot        = d.spot;
+  OC.atm         = d.atm;
+  OC.pcr         = d.pcr;
+  OC.maxCeStrike = d.maxCeStrike;
+  OC.maxPeStrike = d.maxPeStrike;
+  OC.support     = d.support;
+  OC.resistance  = d.resistance;
+  OC.strongSup   = d.strongSup;
+  OC.strongRes   = d.strongRes;
+  OC.strikes     = d.strikes;
+  // Rebuild strike map
+  Object.keys(STRIKE_MAP).forEach(k => delete STRIKE_MAP[k]);
+  OC.strikes.forEach(s => {{ STRIKE_MAP[s.strike] = s; }});
+  // Collapse all expanded cards first
+  document.querySelectorAll('.sc-card.expanded').forEach(c => c.classList.remove('expanded'));
+  // Reset all metrics panels
+  document.querySelectorAll('.sc-metrics-live').forEach(m => {{
+    m.innerHTML = '<div class="sc-loading">&#9685; Calculating metrics...</div>';
+  }});
+  // Re-run PoP + sort
+  initAllCards();
+  ['bullish','bearish','nondirectional'].forEach(sortGridByPoP);
+  // Flash indicator
+  const sel = document.getElementById('expiryDropdown');
+  if (sel) {{
+    sel.style.borderColor = '#00c896';
+    sel.style.boxShadow = '0 0 10px rgba(0,200,150,.3)';
+    setTimeout(() => {{
+      sel.style.borderColor = 'rgba(245,197,24,.45)';
+      sel.style.boxShadow = 'none';
+    }}, 800);
+  }}
+}};
+</script>
+"""
+
+
+# =================================================================
+#  SECTION 7 -- TICKER BAR
+# =================================================================
 
 def rsi_label(rsi):
     if   rsi >= 70: return "Overbought","#ff6b6b","bearish"
@@ -1681,24 +2388,10 @@ def build_ticker_bar(tech, oc, vix_data):
   <div class="ticker-viewport"><div class="ticker-track" id="tkTrack">''' + track + '''</div></div>
 </div>'''
 
-
 # =================================================================
-#  SECTION 6 -- STRATEGIES  (unchanged from v18.4 — abbreviated here)
+#  SECTION 8 -- CSS
 # =================================================================
-# NOTE: Copy the full STRATEGIES_DATA dict, make_payoff_svg(), and
-# build_strategies_html() from v18.4 verbatim here.
-# (Omitted in this diff for brevity — they are unchanged)
 
-# Placeholder so main() can run without strategies section:
-STRATEGIES_DATA = {"bullish":[],"bearish":[],"nondirectional":[]}
-def make_payoff_svg(shape, bull_color="#00c896", bear_color="#ff6b6b"): return ""
-def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed=None, expiry_list=None):
-    return '<div class="section" id="strat"><div class="sec-title">STRATEGIES REFERENCE</div><div style="padding:20px;color:rgba(255,255,255,.4);">Copy full build_strategies_html() from v18.4 here.</div></div>'
-
-
-# =================================================================
-#  CSS  (unchanged from v18.4 — copy verbatim from original)
-# =================================================================
 CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@300;400;500&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -1737,26 +2430,32 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .refresh-countdown{display:flex;align-items:center;gap:8px;background:rgba(0,200,150,.07);
   border:1px solid rgba(0,200,150,.18);border-radius:20px;padding:4px 12px;font-family:var(--fm);font-size:11px;}
 .countdown-arc-wrap{position:relative;width:18px;height:18px;flex-shrink:0;}
+.countdown-arc-wrap svg{display:block;}
 .countdown-num{font-family:var(--fm);font-size:12px;font-weight:700;color:#00c896;min-width:20px;text-align:center;transition:color .3s;}
-.countdown-num.urgent{color:#ff6b6b;}.countdown-num.halfway{color:#ffd166;}
+.countdown-num.urgent{color:#ff6b6b;}
+.countdown-num.halfway{color:#ffd166;}
+.countdown-lbl{font-size:10px;color:rgba(255,255,255,.3);letter-spacing:.5px;}
 .refresh-ring{display:none;width:14px;height:14px;border-radius:50%;border:2px solid rgba(0,200,150,.2);border-top-color:#00c896;animation:spin 0.8s linear infinite;}
 .refresh-ring.active{display:inline-block;}
 @keyframes spin{to{transform:rotate(360deg)}}
 #refreshStatus{font-size:10px;color:rgba(255,255,255,.35);transition:color .3s;letter-spacing:.3px;}
 #refreshStatus.updated{color:#00c896;font-weight:600;}
 .hero{display:flex;align-items:stretch;background:linear-gradient(135deg,rgba(0,200,150,.055) 0%,rgba(100,128,255,.055) 100%);border-bottom:1px solid rgba(255,255,255,.07);overflow:hidden;position:relative;height:97px;}
+.hero::before{content:'';position:absolute;top:-50px;left:-50px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(0,200,150,.10),transparent 70%);pointer-events:none;}
 .h-gauges{flex-shrink:0;display:flex;align-items:center;gap:10px;padding:0 16px 0 18px;}
 .gauge-sep{width:1px;height:56px;background:rgba(255,255,255,.08);flex-shrink:0;}
 .gauge-wrap{position:relative;width:76px;height:76px;}
+.gauge-wrap svg{display:block;}
 .gauge-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
 .g-val{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;line-height:1;}
 .g-lbl{font-size:7.5px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.28);margin-top:2px;}
 .h-mid{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;padding:0 15px 0 13px;border-left:1px solid rgba(255,255,255,.05);}
-.h-eyebrow{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.22);margin-bottom:2px;}
+.h-eyebrow{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.22);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .h-signal{font-size:22px;font-weight:900;letter-spacing:1px;line-height:1.1;margin-bottom:2px;}
-.h-sub{font-size:9.5px;color:rgba(255,255,255,.32);}
+.h-sub{font-size:9.5px;color:rgba(255,255,255,.32);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .h-divider{height:1px;background:rgba(255,255,255,.05);margin:5px 0;}
 .pill-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.pill-row:last-child{margin-bottom:0;}
 .pill-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 .pill-lbl{font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.35);width:96px;flex-shrink:0;}
 .pill-track{width:120px;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;flex-shrink:0;}
@@ -1766,18 +2465,21 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .h-stat-row{display:flex;align-items:stretch;flex:1;border-bottom:1px solid rgba(255,255,255,.05);}
 .h-stat{flex:1;display:flex;flex-direction:column;justify-content:center;padding:5px 10px;text-align:center;border-right:1px solid rgba(255,255,255,.04);}
 .h-stat:last-child{border-right:none;}
-.h-stat-lbl{font-size:7.5px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.22);margin-bottom:3px;}
-.h-stat-val{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;line-height:1;}
+.h-stat-lbl{font-size:7.5px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.22);margin-bottom:3px;white-space:nowrap;}
+.h-stat-val{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;line-height:1;white-space:nowrap;}
 .h-stat-bottom{display:flex;align-items:center;justify-content:space-between;padding:4px 10px;}
 .h-bias-row{display:flex;align-items:center;gap:6px;}
-.h-chip{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:2px 9px;border-radius:20px;}
-.h-score{font-family:'DM Mono',monospace;font-size:8px;color:rgba(255,255,255,.22);}
-.h-ts{font-family:'DM Mono',monospace;font-size:8px;color:rgba(255,255,255,.18);}
+.h-chip{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:2px 9px;border-radius:20px;white-space:nowrap;}
+.h-score{font-family:'DM Mono',monospace;font-size:8px;color:rgba(255,255,255,.22);letter-spacing:.5px;}
+.h-ts{font-family:'DM Mono',monospace;font-size:8px;color:rgba(255,255,255,.18);letter-spacing:.5px;white-space:nowrap;}
 .main{display:grid;grid-template-columns:268px 1fr;min-height:0}
 .sidebar{background:rgba(8,11,20,.7);backdrop-filter:blur(12px);border-right:1px solid rgba(255,255,255,.06);position:sticky;top:57px;height:calc(100vh - 57px);overflow-y:auto;display:flex;flex-direction:column;}
 .sidebar-sticky-top{position:sticky;top:0;z-index:50;background:rgba(8,11,20,.95);backdrop-filter:blur(16px);border-bottom:1px solid rgba(100,128,255,.15);padding-bottom:4px;}
 .sidebar-scroll{flex:1;overflow-y:auto;}
-.sidebar::-webkit-scrollbar{width:3px}.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+.sidebar::-webkit-scrollbar{width:3px}
+.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+.sidebar-scroll::-webkit-scrollbar{width:3px}
+.sidebar-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
 .sb-sec{padding:16px 12px 8px}
 .sb-lbl{font-size:9px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--aurora1);margin-bottom:8px;padding:0 0 0 8px;border-left:2px solid var(--aurora1)}
 .sb-btn{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border-radius:8px;border:1px solid transparent;cursor:pointer;background:transparent;color:var(--muted);font-family:var(--fh);font-size:12px;text-align:left;transition:all .15s}
@@ -1793,7 +2495,8 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .oi-ticker-hdr{display:grid;grid-template-columns:130px repeat(5,1fr);padding:9px 18px;align-items:center;gap:6px}
 .oi-ticker-hdr-label{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
 .oi-ticker-hdr-cell{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.35);text-align:center}
-.oi-ticker-row{display:grid;grid-template-columns:130px repeat(5,1fr);padding:15px 18px;border-top:1px solid rgba(255,255,255,.04);align-items:center;gap:6px}
+.oi-ticker-row{display:grid;grid-template-columns:130px repeat(5,1fr);padding:15px 18px;border-top:1px solid rgba(255,255,255,.04);align-items:center;gap:6px;transition:background .15s}
+.oi-ticker-row:hover{background:rgba(255,255,255,.03)}
 .oi-ticker-metric{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.35)}
 .oi-ticker-cell{text-align:center}
 .kl-zone-labels{display:flex;justify-content:space-between;margin-bottom:6px;font-size:11px;font-weight:700}
@@ -1801,7 +2504,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .kl-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;line-height:1.3;white-space:nowrap}
 .kl-val{font-size:12px;font-weight:700;color:rgba(255,255,255,.7);white-space:nowrap;margin-top:2px}
 .kl-dot{width:11px;height:11px;border-radius:50%;border:2px solid var(--bg)}
-.kl-gradient-bar{position:relative;height:6px;border-radius:3px;background:linear-gradient(90deg,#00a07a 0%,#00c896 25%,#6480ff 55%,#ff6b6b 80%,#cc4040 100%)}
+.kl-gradient-bar{position:relative;height:6px;border-radius:3px;background:linear-gradient(90deg,#00a07a 0%,#00c896 25%,#6480ff 55%,#ff6b6b 80%,#cc4040 100%);box-shadow:0 0 12px rgba(0,200,150,.2)}
 .kl-price-tick{position:absolute;top:50%;transform:translate(-50%,-50%);width:3px;height:18px;background:#fff;border-radius:2px;box-shadow:0 0 12px rgba(255,255,255,.6);z-index:10}
 .kl-dist-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
 .kl-dist-box{background:rgba(255,255,255,.03);border:1px solid;border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
@@ -1813,28 +2516,56 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .s-table tr:last-child td{border-bottom:none}
 .s-table tr:hover td{background:rgba(0,200,150,.05)}
 .ticker-wrap{display:flex;align-items:center;background:rgba(4,6,12,.97);border-bottom:1px solid rgba(255,255,255,.07);height:46px;overflow:hidden;position:relative;z-index:190;box-shadow:0 2px 20px rgba(0,0,0,.5);}
-.ticker-label{flex-shrink:0;padding:0 16px;font-family:var(--fm);font-size:9px;font-weight:700;letter-spacing:3px;color:#00c896;text-transform:uppercase;border-right:1px solid rgba(0,200,150,.2);height:100%;display:flex;align-items:center;background:rgba(0,200,150,.07);}
+.ticker-label{flex-shrink:0;padding:0 16px;font-family:var(--fm);font-size:9px;font-weight:700;letter-spacing:3px;color:#00c896;text-transform:uppercase;border-right:1px solid rgba(0,200,150,.2);height:100%;display:flex;align-items:center;background:rgba(0,200,150,.07);white-space:nowrap;}
 .ticker-viewport{flex:1;overflow:hidden;height:100%}
-.ticker-track{display:flex;align-items:center;height:100%;white-space:nowrap;animation:ticker-scroll 38s linear infinite;}
+.ticker-track{display:flex;align-items:center;height:100%;white-space:nowrap;animation:ticker-scroll 38s linear infinite;will-change:transform;}
+.ticker-track:hover{animation-play-state:paused}
 @keyframes ticker-scroll{0%{transform:translateX(0)}100%{transform:translateX(-33.333%)}}
 .tk-item{display:inline-flex;align-items:center;gap:10px;padding:0 20px;height:100%;border-right:1px solid rgba(255,255,255,.04);flex-shrink:0;}
-.tk-name{font-family:var(--fm);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;border-radius:6px;white-space:nowrap;flex-shrink:0;}
-.tk-val{font-family:var(--fm);font-size:18px;font-weight:700;line-height:1;}
-.tk-sub{font-family:var(--fm);font-size:10px;color:rgba(255,255,255,.35);}
-.tk-badge{font-family:var(--fh);font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;}
-footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:rgba(6,8,15,.9);display:flex;justify-content:space-between;font-size:11px;color:var(--muted2);font-family:var(--fm)}
+.tk-name{font-family:var(--fm);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;border-radius:6px;white-space:nowrap;flex-shrink:0;background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.1);}
+.tk-val{font-family:var(--fm);font-size:18px;font-weight:700;line-height:1;white-space:nowrap;}
+.tk-sub{font-family:var(--fm);font-size:10px;color:rgba(255,255,255,.35);white-space:nowrap;}
+.tk-badge{font-family:var(--fh);font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;letter-spacing:.3px;}
+footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:rgba(6,8,15,.9);backdrop-filter:blur(12px);display:flex;justify-content:space-between;font-size:11px;color:var(--muted2);font-family:var(--fm)}
 .sc-tabs{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
 .sc-tab{padding:8px 20px;border-radius:24px;border:1px solid;cursor:pointer;font-family:var(--fh);font-size:12px;font-weight:600;transition:all .2s;display:flex;align-items:center;gap:8px;background:transparent}
+.sc-tab:hover{opacity:.85}
+.sc-cnt{font-size:10px;padding:1px 7px;border-radius:10px;color:#fff;font-weight:700}
 .sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
-.greeks-panel{margin:10px 10px 6px;padding:14px 12px;background:linear-gradient(135deg,rgba(100,128,255,.12),rgba(0,200,220,.10));border-radius:14px;border:1px solid rgba(100,128,255,.28);}
+.sc-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;position:relative;}
+.sc-card:hover{border-color:rgba(0,200,150,.3);transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,200,150,.1)}
+.sc-card.hidden{display:none}
+.sc-card.expanded .sc-detail{display:block}
+.sc-card.expanded{border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12)}
+.sc-pop-badge{position:absolute;top:8px;right:8px;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);z-index:5;letter-spacing:.5px;transition:all .3s;min-width:38px;text-align:center;}
+.sc-svg{display:flex;align-items:center;justify-content:center;padding:14px 0 6px;background:rgba(255,255,255,.02)}
+.sc-body{padding:10px 12px 12px}
+.sc-name{font-family:var(--fh);font-size:12px;font-weight:700;color:rgba(255,255,255,.9);margin-bottom:4px;line-height:1.3;padding-right:48px}
+.sc-legs{font-family:var(--fm);font-size:9px;color:rgba(0,200,220,.7);margin-bottom:8px;letter-spacing:.3px;line-height:1.4}
+.sc-tags{display:flex;flex-direction:column;gap:4px}
+.sc-tag{font-size:9px;padding:2px 8px;border-radius:6px;border:1px solid;background:rgba(0,0,0,.2);display:inline-block;width:fit-content}
+.sc-detail{display:none;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,200,150,.03)}
+.sc-desc{font-size:11px;color:rgba(255,255,255,.5);line-height:1.7;padding:12px 12px 8px;border-bottom:1px solid rgba(255,255,255,.05);}
+.sc-metrics-live{padding:0}
+.sc-loading{padding:14px 12px;font-size:11px;color:rgba(255,255,255,.3);text-align:center;font-family:'DM Mono',monospace}
+.metric-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s;}
+.metric-row:hover{background:rgba(255,255,255,.03)}
+.metric-strike{background:rgba(255,209,102,.04);border-bottom:1px solid rgba(255,209,102,.12) !important;}
+.metric-lbl{font-size:10px;color:rgba(255,255,255,.35);letter-spacing:.5px;text-transform:uppercase;font-family:'DM Mono',monospace;}
+.metric-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:600;text-align:right;}
+.greeks-panel{margin:10px 10px 6px;padding:14px 12px;background:linear-gradient(135deg,rgba(100,128,255,.12),rgba(0,200,220,.10));border-radius:14px;border:1px solid rgba(100,128,255,.28);box-shadow:0 4px 20px rgba(100,128,255,.1),inset 0 1px 0 rgba(255,255,255,.06);}
 .greeks-title{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(138,160,255,1.0);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(100,128,255,.25);display:flex;align-items:center;justify-content:space-between;}
-.greeks-expiry-tag{font-size:8.5px;color:rgba(255,255,255,.5);font-weight:400;}
+.greeks-expiry-tag{font-size:8.5px;color:rgba(255,255,255,.5);font-weight:400;letter-spacing:.5px;text-transform:none;}
 .greeks-strike-wrap{position:relative;margin-bottom:10px;}
 .greeks-strike-wrap::after{content:'▼';position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:8px;color:var(--gold);pointer-events:none;z-index:2;}
-.greeks-strike-select{width:100%;appearance:none;-webkit-appearance:none;background:linear-gradient(135deg,rgba(245,197,24,.12),rgba(200,155,10,.06));border:1px solid var(--gold-dim);border-radius:8px;color:var(--gold);font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:7px 28px 7px 10px;cursor:pointer;outline:none;}
+.greeks-strike-select{width:100%;appearance:none;-webkit-appearance:none;background:linear-gradient(135deg,rgba(245,197,24,.12),rgba(200,155,10,.06));border:1px solid var(--gold-dim);border-radius:8px;color:var(--gold);font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:7px 28px 7px 10px;cursor:pointer;outline:none;letter-spacing:.5px;transition:border-color .2s,background .2s,box-shadow .2s;}
+.greeks-strike-select:hover{border-color:rgba(245,197,24,.75);background:linear-gradient(135deg,rgba(245,197,24,.18),rgba(200,155,10,.10));box-shadow:0 0 10px rgba(245,197,24,.18);}
+.greeks-strike-select:focus{border-color:var(--gold);box-shadow:0 0 0 2px rgba(245,197,24,.25);}
+.greeks-strike-select option{background:#0e1225;color:var(--gold);font-weight:700;}
 .greek-name{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.92);}
 .greek-sub{font-size:8px;color:rgba(255,255,255,.55);margin-top:1px;}
 .greeks-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06);}
+.greeks-row:last-child{border-bottom:none;}
 .greeks-atm-badge{display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(100,128,255,.1);border:1px solid rgba(100,128,255,.25);border-radius:8px;padding:5px 8px;margin-bottom:10px;font-family:'DM Mono',monospace;font-size:11px;flex-wrap:wrap;}
 .greeks-atm-strike{font-weight:700;color:#8aa0ff;}
 .iv-bar-wrap{display:flex;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06);}
@@ -1847,19 +2578,37 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .greeks-tbl{border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;}
 .greeks-tbl-head{display:grid;grid-template-columns:90px repeat(4,1fr);background:rgba(255,255,255,.04);padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);gap:4px;}
 .greeks-tbl-head-label{font-size:8.5px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:center;}
-.greeks-tbl-row{display:grid;grid-template-columns:90px repeat(4,1fr);padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.04);align-items:center;gap:4px;}
+.greeks-tbl-row{display:grid;grid-template-columns:90px repeat(4,1fr);padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.04);align-items:center;gap:4px;transition:background .15s;}
 .greeks-tbl-row:last-child{border-bottom:none;}
+.greeks-tbl-row:hover{background:rgba(255,255,255,.03);}
 .greeks-tbl-strike{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:rgba(255,255,255,.8);}
 .greeks-tbl-cell{font-family:'DM Mono',monospace;font-size:11px;font-weight:600;text-align:center;color:rgba(255,255,255,.65);}
+/* Hidden refresh iframe — zero footprint */
 #silentRefreshFrame{position:fixed;width:0;height:0;border:none;visibility:hidden;pointer-events:none;opacity:0;}
-@media(max-width:1024px){.main{grid-template-columns:1fr}.hero{height:auto;flex-wrap:wrap;}.h-stats{min-width:100%;}}
-@media(max-width:640px){header{padding:12px 16px}.section{padding:18px 16px}.kl-dist-row{grid-template-columns:1fr}}
+@media(max-width:1024px){
+  .main{grid-template-columns:1fr}.sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid rgba(255,255,255,.06)}
+  .hero{height:auto;flex-wrap:wrap;}.h-gauges{padding:12px 18px;}.h-stats{min-width:100%;border-left:none;border-top:1px solid rgba(255,255,255,.07);}
+  .strikes-wrap{grid-template-columns:1fr}
+  .greeks-table-wrap{grid-template-columns:1fr}
+  .sc-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+}
+@media(max-width:640px){
+  header{padding:12px 16px}.section{padding:18px 16px}
+  .kl-dist-row{grid-template-columns:1fr}footer{flex-direction:column;gap:6px}
+  .logo-wrap{min-width:160px;}.refresh-countdown{display:none;}
+  .sc-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+}
 """
+
+# =================================================================
+#  SECTION 9 -- ANIMATED JS  (v18.3 — SILENT BACKGROUND REFRESH)
+# =================================================================
 
 ANIMATED_JS = """
 <script>
+// ── Logo rotator ────────────────────────────────────────────────
 (function() {
-  const NAMES = ['NIFTYCRAFT','Nifty Option Strategy Builder','OI Signal Dashboard','Options Analytics Hub'];
+  const NAMES = ['NIFTYCRAFT','Nifty Option Strategy Builder','OI Signal Dashboard','Options Analytics Hub','PCR & Max Pain Tracker'];
   const wrap = document.getElementById('logoWrap');
   if (!wrap) return;
   NAMES.forEach((name, i) => {
@@ -1878,18 +2627,135 @@ ANIMATED_JS = """
     slides[cur].classList.add('active');
   }, 4000);
 })();
+
+// ── Silent Background Refresh Engine (v18.3) ───────────────────
 (function() {
   const TOTAL_SECS = 30;
   const R = 7, C = 2 * Math.PI * R;
+
   function setCountdownUI(secs) {
     const numEl = document.getElementById('cdNum');
     const arcEl = document.getElementById('cdArc');
-    if (numEl) { numEl.textContent = secs; numEl.className = 'countdown-num' + (secs <= 5 ? ' urgent' : secs <= 15 ? ' halfway' : ''); }
-    if (arcEl) { arcEl.style.strokeDashoffset = (C * (1 - secs / TOTAL_SECS)).toFixed(2); arcEl.style.stroke = secs <= 5 ? '#ff6b6b' : secs <= 15 ? '#ffd166' : '#00c896'; }
+    if (numEl) {
+      numEl.textContent = secs;
+      numEl.className = 'countdown-num' +
+        (secs <= 5 ? ' urgent' : secs <= 15 ? ' halfway' : '');
+    }
+    if (arcEl) {
+      arcEl.style.strokeDashoffset = (C * (1 - secs / TOTAL_SECS)).toFixed(2);
+      arcEl.style.stroke = secs <= 5 ? '#ff6b6b' : secs <= 15 ? '#ffd166' : '#00c896';
+    }
   }
+
+  function showSpinner(on) {
+    const ring = document.getElementById('refreshRing');
+    if (ring) ring.classList.toggle('active', on);
+  }
+
+  function flashUpdated() {
+    const txt = document.getElementById('refreshStatus');
+    if (!txt) return;
+    txt.textContent = 'Updated \u2713';
+    txt.classList.add('updated');
+    setTimeout(() => { txt.textContent = ''; txt.classList.remove('updated'); }, 2500);
+  }
+
+  const PATCH_IDS = [
+    'heroWidget','oi','kl','strikes','greeksTable','greeksPanel','tkTrack','lastUpdatedTs'
+  ];
+
+  function microDiff(newDoc) {
+    let changed = false;
+    PATCH_IDS.forEach(function(id) {
+      const curEl = document.getElementById(id);
+      const newEl = newDoc.getElementById(id);
+      if (!curEl || !newEl) return;
+      if (curEl.innerHTML !== newEl.innerHTML) {
+        const content = document.querySelector('.content');
+        const scrollTop = content ? content.scrollTop : 0;
+        curEl.innerHTML = newEl.innerHTML;
+        if (content) content.scrollTop = scrollTop;
+        changed = true;
+      }
+    });
+    return changed;
+  }
+
+  let iframe = document.getElementById('silentRefreshFrame');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.id = 'silentRefreshFrame';
+    iframe.style.cssText = 'position:fixed;width:0;height:0;border:none;' +
+                            'visibility:hidden;pointer-events:none;opacity:0;' +
+                            'top:-9999px;left:-9999px;';
+    document.body.appendChild(iframe);
+  }
+
+  let _lastTimestamp  = null;
+  let _refreshing     = false;
+
+  function doSilentRefresh() {
+    if (_refreshing) return;
+    _refreshing = true;
+    showSpinner(true);
+    iframe.src = 'index.html?_=' + Date.now();
+  }
+
+  iframe.addEventListener('load', function() {
+    if (!iframe.src || iframe.src === 'about:blank') {
+      _refreshing = false; showSpinner(false); return;
+    }
+    try {
+      const newDoc = iframe.contentDocument || iframe.contentWindow.document;
+      if (!newDoc || !newDoc.body) throw new Error('empty doc');
+      const newTsEl = newDoc.getElementById('lastUpdatedTs');
+      const newTs   = newTsEl ? newTsEl.textContent.trim() : '';
+      if (_lastTimestamp !== null && newTs === _lastTimestamp) {
+        showSpinner(false); _refreshing = false; return;
+      }
+      _lastTimestamp = newTs;
+      const changed = microDiff(newDoc);
+      showSpinner(false); _refreshing = false;
+      if (changed) {
+        flashUpdated();
+        setTimeout(function() {
+          try {
+            if (typeof initAllCards === 'function') {
+              initAllCards();
+              ['bullish','bearish','nondirectional'].forEach(function(c) {
+                if (typeof sortGridByPoP === 'function') sortGridByPoP(c);
+              });
+            }
+            if (typeof greeksUpdateStrike === 'function') {
+              var sel = document.getElementById('greeksStrikeSelect');
+              if (sel) greeksUpdateStrike(sel.value);
+            }
+          } catch(e) {}
+        }, 60);
+      }
+    } catch(e) {
+      showSpinner(false); _refreshing = false;
+    }
+    setTimeout(function() { try { iframe.src = 'about:blank'; } catch(e) {} }, 500);
+  });
+
   let remaining = TOTAL_SECS;
   setCountdownUI(remaining);
-  setInterval(function() { remaining -= 1; if (remaining <= 0) remaining = TOTAL_SECS; setCountdownUI(remaining); }, 1000);
+
+  setInterval(function() {
+    remaining -= 1;
+    if (remaining <= 0) {
+      remaining = TOTAL_SECS;
+      setCountdownUI(remaining);
+      doSilentRefresh();
+    } else {
+      setCountdownUI(remaining);
+    }
+  }, 1000);
+
+  window.addEventListener('load', function() {
+    setTimeout(doSilentRefresh, 2000);
+  });
 })();
 </script>
 """
@@ -1902,10 +2768,10 @@ def build_greeks_script_html(oc_analysis):
     atm      = int(oc_analysis.get("atm_strike", 0))
     if not all_rows:
         return ""
-    parts = []
+    strikes_json_parts = []
     for row in all_rows:
         s = int(row["strike"])
-        parts.append(
+        strikes_json_parts.append(
             f'"{s}":{{'
             + f'"ce_ltp":{round(float(row["ce_ltp"]),2)},'
             + f'"pe_ltp":{round(float(row["pe_ltp"]),2)},'
@@ -1918,60 +2784,103 @@ def build_greeks_script_html(oc_analysis):
             + f'"ce_vega":{round(float(row["ce_vega"]),4)},'
             + f'"pe_vega":{round(float(row["pe_vega"]),4)}'
             + f'}}')
-    strikes_json = "{" + ",".join(parts) + "}"
+    strikes_json = "{" + ",".join(strikes_json_parts) + "}"
     return f"""<script>
 (function() {{
   var _gData = {strikes_json};
   var _atm   = {atm};
-  function _initGreeks() {{ var sel = document.getElementById('greeksStrikeSelect'); if (sel) {{ greeksUpdateStrike(sel.value); }} }}
+  function _initGreeks() {{
+    var sel = document.getElementById('greeksStrikeSelect');
+    if (sel) {{ greeksUpdateStrike(sel.value); }}
+  }}
   window.greeksUpdateStrike = function(strike) {{
     var key = String(parseInt(strike, 10));
-    var d = _gData[key];
-    if (!d) {{ var keys=Object.keys(_gData).map(Number); var nearest=keys.reduce((a,b)=>Math.abs(b-parseInt(strike))<Math.abs(a-parseInt(strike))?b:a,keys[0]); d=_gData[String(nearest)]; }}
+    var d   = _gData[key];
+    if (!d) {{
+      var keys = Object.keys(_gData).map(Number);
+      var nearest = keys.reduce((a,b) => Math.abs(b-parseInt(strike))<Math.abs(a-parseInt(strike))?b:a, keys[0]);
+      d = _gData[String(nearest)];
+    }}
     if (!d) return;
-    var sel=parseInt(strike,10); var dist=Math.round(Math.abs(sel-_atm)/50);
-    var lbl=sel===_atm?'ATM':(sel>_atm?'CE+'+dist:'PE-'+dist);
-    var e1=document.getElementById('greeksStrikeTypeLabel'); if(e1) e1.textContent=lbl;
-    var e2=document.getElementById('greeksStrikeLabel'); if(e2) e2.innerHTML='&#8377;'+sel.toLocaleString('en-IN');
-    var e3=document.getElementById('greeksCeLtp'); if(e3) e3.innerHTML='CE &#8377;'+(d.ce_ltp||0).toFixed(1);
-    var e4=document.getElementById('greeksPeLtp'); if(e4) e4.innerHTML='PE &#8377;'+(d.pe_ltp||0).toFixed(1);
-    var ceCol='#00c896',peCol='#ff6b6b';
-    var cePct=Math.min(100,Math.abs(d.ce_delta)*100).toFixed(0); var pePct=Math.min(100,Math.abs(d.pe_delta)*100).toFixed(0);
-    var dw=document.getElementById('greeksDeltaWrap');
-    if(dw) dw.innerHTML='<div style="display:flex;align-items:center;gap:5px;"><div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;"><div style="width:'+cePct+'%;height:100%;background:'+ceCol+';border-radius:2px;"></div></div><span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:'+ceCol+';">'+(d.ce_delta>=0?'+':'')+d.ce_delta.toFixed(3)+'</span></div><div style="display:flex;align-items:center;gap:5px;margin-top:3px;"><div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;"><div style="width:'+pePct+'%;height:100%;background:'+peCol+';border-radius:2px;"></div></div><span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:'+peCol+';">'+(d.pe_delta>=0?'+':'')+d.pe_delta.toFixed(3)+'</span></div>';
-    var ice=document.getElementById('greeksIvCe'); if(ice) ice.textContent=(d.ce_iv||0).toFixed(1)+'%';
-    var ipe=document.getElementById('greeksIvPe'); if(ipe) ipe.textContent=(d.pe_iv||0).toFixed(1)+'%';
+    var sel  = parseInt(strike, 10);
+    var dist = Math.round(Math.abs(sel - _atm) / 50);
+    var lbl  = sel === _atm ? 'ATM' : (sel > _atm ? 'CE+' + dist : 'PE-' + dist);
+    var e1 = document.getElementById('greeksStrikeTypeLabel'); if(e1) e1.textContent = lbl;
+    var e2 = document.getElementById('greeksStrikeLabel'); if(e2) e2.innerHTML = '&#8377;' + sel.toLocaleString('en-IN');
+    var e3 = document.getElementById('greeksCeLtp'); if(e3) e3.innerHTML = 'CE &#8377;' + (d.ce_ltp||0).toFixed(1);
+    var e4 = document.getElementById('greeksPeLtp'); if(e4) e4.innerHTML = 'PE &#8377;' + (d.pe_ltp||0).toFixed(1);
+    var ceCol='#00c896', peCol='#ff6b6b';
+    var cePct=Math.min(100,Math.abs(d.ce_delta)*100).toFixed(0);
+    var pePct=Math.min(100,Math.abs(d.pe_delta)*100).toFixed(0);
+    var dw = document.getElementById('greeksDeltaWrap');
+    if(dw) dw.innerHTML =
+      '<div style="display:flex;align-items:center;gap:5px;">' +
+        '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">' +
+          '<div style="width:'+cePct+'%;height:100%;background:'+ceCol+';border-radius:2px;"></div></div>' +
+        '<span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:'+ceCol+';">' +
+             (d.ce_delta>=0?'+':'')+d.ce_delta.toFixed(3)+'</span></div>' +
+      '<div style="display:flex;align-items:center;gap:5px;margin-top:3px;">' +
+        '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">' +
+          '<div style="width:'+pePct+'%;height:100%;background:'+peCol+';border-radius:2px;"></div></div>' +
+        '<span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:'+peCol+';">' +
+             (d.pe_delta>=0?'+':'')+d.pe_delta.toFixed(3)+'</span></div>';
+    var ice = document.getElementById('greeksIvCe'); if(ice) ice.textContent = (d.ce_iv||0).toFixed(1)+'%';
+    var ipe = document.getElementById('greeksIvPe'); if(ipe) ipe.textContent = (d.pe_iv||0).toFixed(1)+'%';
+    var skew=((d.pe_iv||0)-(d.ce_iv||0)).toFixed(1);
+    var skewEl=document.getElementById('greeksSkewLbl');
+    if(skewEl) {{ skewEl.textContent = parseFloat(skew)>0?'PE Skew +'+skew:'CE Skew '+skew; skewEl.style.color = parseFloat(skew)>1.5?'#ff6b6b':(parseFloat(skew)<-1.5?'#00c896':'#6480ff'); }}
+    function tfmt(t){{ return Math.abs(t)>=0.01?'&#8377;'+Math.abs(t).toFixed(2):t.toFixed(4); }}
+    var tc = document.getElementById('greeksThetaCe'); if(tc) tc.innerHTML = tfmt(d.ce_theta||0);
+    var tp = document.getElementById('greeksThetaPe'); if(tp) tp.innerHTML = tfmt(d.pe_theta||0);
+    function vfmt(v){{ return Math.abs(v)>=0.0001?v.toFixed(4):'&mdash;'; }}
+    var vc = document.getElementById('greeksVegaCe'); if(vc) vc.innerHTML = vfmt(d.ce_vega||0);
+    var vp = document.getElementById('greeksVegaPe'); if(vp) vp.innerHTML = vfmt(d.pe_vega||0);
+    var ivAvg=((d.ce_iv||0)+(d.pe_iv||0))/2;
+    var ivCol=ivAvg>25?'#ff6b6b':(ivAvg>18?'#ffd166':'#00c896');
+    var ivReg=ivAvg>25?'High IV \u00b7 Buy Premium':(ivAvg>15?'Normal IV \u00b7 Balanced':'Low IV \u00b7 Sell Premium');
+    var ivPct=Math.min(100,Math.max(0,(ivAvg/60)*100)).toFixed(1);
+    var barEl=document.getElementById('greeksIvBar');
+    if(barEl) {{barEl.style.width=ivPct+'%'; barEl.style.background=ivCol; barEl.style.boxShadow='0 0 6px '+ivCol+'88';}}
+    var avgEl=document.getElementById('greeksIvAvg');
+    if(avgEl) {{avgEl.textContent=ivAvg.toFixed(1)+'%'; avgEl.style.color=ivCol;}}
+    var regEl=document.getElementById('greeksIvRegime');
+    if(regEl) {{regEl.textContent=ivReg; regEl.style.color=ivCol;}}
   }};
-  if (document.readyState === 'loading') {{ document.addEventListener('DOMContentLoaded', _initGreeks); }} else {{ setTimeout(_initGreeks, 80); }}
+  if (document.readyState === 'loading') {{
+    document.addEventListener('DOMContentLoaded', _initGreeks);
+  }} else {{
+    setTimeout(_initGreeks, 80);
+  }}
 }})();
 </script>"""
 
 
 # =================================================================
-#  SECTION 10 -- HTML ASSEMBLER  (v19 — includes srRec section)
+#  SECTION 10 -- HTML ASSEMBLER
 # =================================================================
 
 def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, expiry_list=None):
-    oi_html      = build_oi_html(oc)               if oc   else ""
-    sr_rec_html  = build_smart_sr_recommendation_html(oc, tech) if oc else ""   # ← NEW
-    kl_html      = build_key_levels_html(tech, oc) if tech else ""
-    strat_html   = build_strategies_html(oc, tech, md, multi_expiry_analyzed=multi_expiry_analyzed, expiry_list=expiry_list)
-    strikes_html = build_strikes_html(oc)
-    ticker_html  = build_ticker_bar(tech, oc, vix_data)
-    gauge_html   = build_dual_gauge_hero(oc, tech, md, ts)
-    greeks_sb    = build_greeks_sidebar_html(oc)
-    greeks_scr   = build_greeks_script_html(oc)
-    greeks_tbl   = build_greeks_table_html(oc)
+    oi_html        = build_oi_html(oc)               if oc   else ""
+    kl_html        = build_key_levels_html(tech, oc) if tech else ""
+    strat_html     = build_strategies_html(oc, tech, md, multi_expiry_analyzed=multi_expiry_analyzed, expiry_list=expiry_list)
+    strikes_html   = build_strikes_html(oc)
+    ticker_html    = build_ticker_bar(tech, oc, vix_data)
+    gauge_html     = build_dual_gauge_hero(oc, tech, md, ts)
+    greeks_sidebar = build_greeks_sidebar_html(oc)
+    greeks_script  = build_greeks_script_html(oc)
+    greeks_table   = build_greeks_table_html(oc)
 
-    C  = 2 * 3.14159 * 7
-    cp = tech["price"] if tech else 0
+    C = 2 * 3.14159 * 7
+    cp    = tech["price"] if tech else 0
+    bias  = md["bias"]; conf = md["confidence"]
+    bull  = md["bull"]; bear  = md["bear"]; diff = md["diff"]
 
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Nifty 50 Options Dashboard v19</title>
+<title>Nifty 50 Options Dashboard v18.4</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>{CSS}</style>
@@ -1996,7 +2905,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
         </svg>
       </div>
       <span class="countdown-num" id="cdNum">30</span>
-      <span style="font-size:10px;color:rgba(255,255,255,.3);">s</span>
+      <span class="countdown-lbl" id="cdLbl">s</span>
       <div class="refresh-ring" id="refreshRing"></div>
       <span id="refreshStatus"></span>
     </div>
@@ -2007,7 +2916,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
 <div class="main">
   <aside class="sidebar">
     <div class="sidebar-sticky-top">
-      <div id="greeksPanel">{greeks_sb}</div>
+      <div id="greeksPanel">{greeks_sidebar}</div>
     </div>
     <div class="sidebar-scroll">
     <div class="sb-sec">
@@ -2017,17 +2926,10 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
       <button class="sb-btn"        onclick="go('kl',this)">Key Levels</button>
     </div>
     <div class="sb-sec">
-      <div class="sb-lbl" style="color:#f5c518;border-left-color:#f5c518;">&#9889; SMART RECOMMENDER</div>
-      <button class="sb-btn" onclick="go('srRec',this)"
-        style="color:#f5c518;border-color:rgba(245,197,24,.2);background:rgba(245,197,24,.05);">
-        &#128205; Enter S&amp;R &rarr; Best Trade
-      </button>
-    </div>
-    <div class="sb-sec">
       <div class="sb-lbl">STRATEGIES</div>
-      <button class="sb-btn" onclick="go('strat',this)">&#9650; Bullish</button>
-      <button class="sb-btn" onclick="go('strat',this)">&#9660; Bearish</button>
-      <button class="sb-btn" onclick="go('strat',this)">&#8596; Non-Directional</button>
+      <button class="sb-btn" onclick="go('strat',this);filterStrat('bullish',null)">&#9650; Bullish <span class="sb-badge" style="color:var(--bull);">9</span></button>
+      <button class="sb-btn" onclick="go('strat',this);filterStrat('bearish',null)">&#9660; Bearish <span class="sb-badge" style="color:var(--bear);">9</span></button>
+      <button class="sb-btn" onclick="go('strat',this);filterStrat('nondirectional',null)">&#8596; Non-Directional <span class="sb-badge" style="color:var(--neut);">20</span></button>
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">OPTION CHAIN</div>
@@ -2037,7 +2939,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
   </aside>
   <main class="content">
     <div id="oi">{oi_html}</div>
-    {greeks_tbl}
+    {greeks_table}
     <div id="kl">{kl_html}</div>
     {strat_html}
     <div id="strikes">{strikes_html}</div>
@@ -2100,7 +3002,7 @@ document.addEventListener("click",function(e){{
   }}
 }});
 </script>
-{greeks_scr}
+{greeks_script}
 {ANIMATED_JS}
 </body>
 </html>"""
