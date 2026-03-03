@@ -2994,10 +2994,8 @@ function filterStrat(cat,btn){{
     {{t.style.borderColor=col;t.style.color=col;t.style.background=col+"20";}}
   }});}}
 }}
-// ── Strategy Modal Popup ────────────────────────────────────────
-(function() {
-  // Create overlay once
-  const overlay = document.createElement('div');
+(function() {{
+  var overlay = document.createElement('div');
   overlay.className = 'sc-modal-overlay';
   overlay.innerHTML =
     '<div class="sc-modal" id="scModal">' +
@@ -3007,40 +3005,37 @@ function filterStrat(cat,btn){{
     '</div>';
   document.body.appendChild(overlay);
 
-  function closeModal() {
+  function closeModal() {{
     overlay.classList.remove('open');
     document.body.style.overflow = '';
-  }
+  }}
   document.getElementById('scModalClose').addEventListener('click', closeModal);
-  overlay.addEventListener('click', function(e) { if (e.target === overlay) closeModal(); });
-  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+  overlay.addEventListener('click', function(e) {{ if (e.target === overlay) closeModal(); }});
+  document.addEventListener('keydown', function(e) {{ if (e.key === 'Escape') closeModal(); }});
 
-  function openModal(card) {
-    const shape  = card.dataset.shape;
-    const cat    = card.dataset.cat;
-    const name   = card.dataset.name;
-    const legs   = card.dataset.legs;
-    const risk   = card.dataset.risk;
-    const reward = card.dataset.reward;
+  function openModal(card) {{
+    var shape  = card.dataset.shape;
+    var cat    = card.dataset.cat;
+    var name   = card.dataset.name;
+    var legs   = card.dataset.legs;
+    var risk   = card.dataset.risk;
+    var reward = card.dataset.reward;
+    var svgEl  = card.querySelector('.sc-svg');
+    var svgHtml = svgEl ? svgEl.innerHTML : '';
+    var descEl = card.querySelector('.sc-desc');
+    var desc   = descEl ? descEl.textContent.trim() : '';
+    var col = cat === 'bullish' ? '#00c896' : cat === 'bearish' ? '#ff6b6b' : '#6480ff';
+    var arrow = cat === 'bullish' ? '\u25b2' : cat === 'bearish' ? '\u25bc' : '\u25c6';
+    var rc  = (risk === 'Limited' || risk === 'Low') ? '#00c896' : (risk === 'Unlimited' || risk === 'High') ? '#ff6b6b' : '#6480ff';
+    var rwc = reward === 'Unlimited' ? '#00c896' : '#6480ff';
 
-    // SVG payoff from card
-    const svgEl  = card.querySelector('.sc-svg');
-    const svgHtml = svgEl ? svgEl.innerHTML : '';
-
-    // Category color
-    const col = cat === 'bullish' ? '#00c896' : cat === 'bearish' ? '#ff6b6b' : '#6480ff';
-    const arrow = cat === 'bullish' ? '▲' : cat === 'bearish' ? '▼' : '◆';
-    const rc  = (risk === 'Limited' || risk === 'Low') ? '#00c896' : (risk === 'Unlimited' || risk === 'High') ? '#ff6b6b' : '#6480ff';
-    const rwc = reward === 'Unlimited' ? '#00c896' : '#6480ff';
-
-    // Build header
     document.getElementById('scModalHeader').innerHTML =
       '<div style="display:flex;align-items:center;gap:14px;">' +
         '<div style="flex-shrink:0;">' + svgHtml + '</div>' +
         '<div style="flex:1;min-width:0;">' +
           '<div style="font-size:9px;font-weight:700;letter-spacing:2px;color:' + col + ';text-transform:uppercase;margin-bottom:3px;">' + arrow + ' ' + cat.toUpperCase() + '</div>' +
           '<div style="font-size:20px;font-weight:800;color:rgba(255,255,255,.95);margin-bottom:6px;">' + name + '</div>' +
-          '<div style="font-family:'DM Mono',monospace;font-size:9.5px;color:rgba(0,200,220,.75);margin-bottom:8px;">' + legs + '</div>' +
+          '<div style="font-family:\'DM Mono\',monospace;font-size:9.5px;color:rgba(0,200,220,.75);margin-bottom:8px;">' + legs + '</div>' +
           '<div style="display:flex;gap:7px;">' +
             '<span style="font-size:9px;padding:2px 9px;border-radius:6px;border:1px solid ' + rc + '40;color:' + rc + ';">Risk: ' + risk + '</span>' +
             '<span style="font-size:9px;padding:2px 9px;border-radius:6px;border:1px solid ' + rwc + '40;color:' + rwc + ';">Reward: ' + reward + '</span>' +
@@ -3048,65 +3043,46 @@ function filterStrat(cat,btn){{
         '</div>' +
         '<div style="flex-shrink:0;text-align:center;">' +
           '<div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;margin-bottom:3px;">POP</div>' +
-          '<div id="scModalPop" style="font-family:'DM Mono',monospace;font-size:30px;font-weight:800;color:#6480ff;">—</div>' +
+          '<div id="scModalPop" style="font-family:\'DM Mono\',monospace;font-size:30px;font-weight:800;color:#6480ff;">\u2014</div>' +
         '</div>' +
       '</div>';
 
-    // Build body: description + live metrics
-    const descEl = card.querySelector('.sc-desc');
-    const desc   = descEl ? descEl.textContent.trim() : '';
-
-    const bodyEl = document.getElementById('scModalBody');
+    var bodyEl = document.getElementById('scModalBody');
     bodyEl.innerHTML =
       '<div style="padding:14px 18px;font-size:12px;color:rgba(255,255,255,.5);' +
-        'line-height:1.75;border-bottom:1px solid rgba(255,255,255,.06);' +
-        'border-left:3px solid ' + col + '60;margin:0 18px 0;border-radius:0 0 0 4px;">' + desc + '</div>' +
-      '<div id="scModalMetrics" style="padding:0;">' +
-        '<div class="sc-loading" style="padding:20px;text-align:center;font-size:12px;' +
-          'color:rgba(255,255,255,.3);font-family:'DM Mono',monospace;">&#9685; Calculating metrics...</div>' +
-      '</div>';
+        'line-height:1.75;border-left:3px solid ' + col + '60;margin:0 18px 12px;">' + desc + '</div>' +
+      '<div id="scModalMetrics"><div class="sc-loading" style="padding:20px;text-align:center;' +
+        'font-size:12px;color:rgba(255,255,255,.3);">\u29d5 Calculating...</div></div>';
 
-    // Calculate metrics
-    try {
-      const scoreResult = smartPoP(shape, cat);
-      const m = calcMetrics(shape, scoreResult.pop);
-
-      // Update PoP badge
-      const popEl = document.getElementById('scModalPop');
-      if (popEl) {
-        const pc = m.pop >= 70 ? '#00c896' : m.pop >= 55 ? '#4de8b8' : m.pop >= 45 ? '#6480ff' : '#ff6b6b';
+    try {{
+      var scoreResult = smartPoP(shape, cat);
+      var m = calcMetrics(shape, scoreResult.pop);
+      var popEl = document.getElementById('scModalPop');
+      if (popEl) {{
+        var pc = m.pop >= 70 ? '#00c896' : m.pop >= 55 ? '#4de8b8' : m.pop >= 45 ? '#6480ff' : '#ff6b6b';
         popEl.textContent = m.pop + '%';
         popEl.style.color = pc;
-      }
-
-      // Update card badge too
-      const badge = document.getElementById('pop_' + card.id);
-      if (badge) {
-        badge.textContent = m.pop + '%';
-        badge.setAttribute('style', popBadgeStyle(m.pop));
-      }
-
+      }}
+      var badge = document.getElementById('pop_' + card.id);
+      if (badge) {{ badge.textContent = m.pop + '%'; badge.setAttribute('style', popBadgeStyle(m.pop)); }}
       document.getElementById('scModalMetrics').innerHTML = renderMetrics(m, scoreResult);
-    } catch(err) {
+    }} catch(err) {{
       document.getElementById('scModalMetrics').innerHTML =
         '<div class="sc-loading" style="padding:16px;text-align:center;color:#ff6b6b;">Could not calculate metrics.</div>';
-    }
-
+    }}
     overlay.classList.add('open');
     document.body.style.overflow = 'hidden';
-
-    // Scroll modal to top
-    const modal = document.getElementById('scModal');
+    var modal = document.getElementById('scModal');
     if (modal) modal.scrollTop = 0;
-  }
+  }}
 
-  document.addEventListener('click', function(e) {
-    const card = e.target.closest('.sc-card');
-    if (card && !e.target.closest('.sc-modal-overlay')) {
-      openModal(card);
-    }
-  });
-})();
+  document.addEventListener('click', function(e) {{
+    if (e.target === overlay) {{ closeModal(); return; }}
+    var card = e.target.closest('.sc-card');
+    if (card && !e.target.closest('#scModal')) {{ openModal(card); }}
+  }});
+}})();
+
 </script>
 {greeks_script}
 {ANIMATED_JS}
