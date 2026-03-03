@@ -284,9 +284,13 @@ class NSEOptionChain:
                 adjusted = get_prev_trading_day(candidate)
             else:
                 adjusted = candidate
-            exp_str = adjusted.strftime("%d-%b-%Y")
-            if exp_str not in expiry_list:
-                expiry_list.append(exp_str)
+            # PAST EXPIRY FIX: skip if adjusted date is already past.
+            # Happens when today IS Tuesday AND a holiday — the pullback
+            # to prev trading day lands on yesterday (already expired).
+            if adjusted >= today:
+                exp_str = adjusted.strftime("%d-%b-%Y")
+                if exp_str not in expiry_list:
+                    expiry_list.append(exp_str)
             # Move to next Tuesday
             candidate += timedelta(days=7)
             attempts += 1
