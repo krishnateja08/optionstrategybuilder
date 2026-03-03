@@ -1672,74 +1672,54 @@ function srcBanner(sup,res){{
     'PCR: <span style="color:'+pcrC+';font-weight:700;">'+SRC.pcr.toFixed(3)+' ('+pcrL+')</span>';
 }}
 
-window.srcCalculate=function(){
+window.srcCalculate=function(){{
   var rawSup=parseFloat(document.getElementById('srcSupport').value);
   var rawRes=parseFloat(document.getElementById('srcResistance').value);
   var empty=document.getElementById('srcEmpty');
   var results=document.getElementById('srcResults');
-
   var sup=Math.min(rawSup,rawRes);
   var res=Math.max(rawSup,rawRes);
-
-  if(!sup||!res||isNaN(sup)||isNaN(res)||sup===res){
-    if(empty){empty.style.display='block';
-      empty.innerHTML='<span style="color:#ffd166;">⚠ Enter two different S/R values.</span>';}
-    if(results)results.style.display='none';
-    return;
-  }
-
-  // ── Sync live data from OC object ──────────────────────────────
-  if(typeof OC!=='undefined'){
-    SRC.spot        = OC.spot;
-    SRC.atm         = OC.atm;
-    SRC.pcr         = OC.pcr;
-    SRC.maxCeStrike = OC.maxCeStrike;
-    SRC.maxPeStrike = OC.maxPeStrike;
-    SRC.bias        = OC.bias;
-    SRC.biasConf    = OC.biasConf;
-    SRC.strikes     = OC.strikes;
+  if(!sup||!res||isNaN(sup)||isNaN(res)||sup===res){{
+    if(empty){{empty.style.display='block';
+      empty.innerHTML='<span style="color:#ffd166;">\u26a0 Enter two different S/R values.</span>';}}
+    if(results)results.style.display='none'; return;
+  }}
+  if(typeof OC!=='undefined'){{
+    SRC.spot=OC.spot; SRC.atm=OC.atm; SRC.pcr=OC.pcr;
+    SRC.maxCeStrike=OC.maxCeStrike; SRC.maxPeStrike=OC.maxPeStrike;
+    SRC.bias=OC.bias; SRC.biasConf=OC.biasConf;
+    SRC.strikes=OC.strikes;
     var sd=document.getElementById('srcSpotDisplay');
     var ad=document.getElementById('srcAtmDisplay');
-    if(sd) sd.textContent=SRC.spot.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
-    if(ad) ad.textContent=SRC.atm.toLocaleString('en-IN');
-  }
-
-  // ── Fallback: build synthetic strikes from ATM if array empty ──
-  if(!SRC.strikes || SRC.strikes.length===0){
-    console.warn('srcCalc: strikes empty, building synthetic from ATM='+SRC.atm);
+    if(sd)sd.textContent=SRC.spot.toLocaleString('en-IN',{{minimumFractionDigits:2,maximumFractionDigits:2}});
+    if(ad)ad.textContent=SRC.atm.toLocaleString('en-IN');
+  }}
+  if(!SRC.strikes||SRC.strikes.length===0){{
     var synth=[];
-    for(var i=-10;i<=10;i++){
+    for(var i=-10;i<=10;i++){{
       var sk=SRC.atm+(i*50);
-      var dist=Math.abs(i);
-      var ltp=Math.max(5,Math.round(220-dist*20));
-      synth.push({strike:sk,ce_ltp:ltp,pe_ltp:ltp,ce_iv:15,pe_iv:15,ce_oi:1000,pe_oi:1000});
-    }
+      var ltp=Math.max(5,Math.round(220-Math.abs(i)*20));
+      synth.push({{strike:sk,ce_ltp:ltp,pe_ltp:ltp,ce_iv:15,pe_iv:15,ce_oi:1000,pe_oi:1000}});
+    }}
     SRC.strikes=synth;
-  }
-
-  // ── Render ─────────────────────────────────────────────────────
+  }}
   var banner=document.getElementById('srcContextBanner');
   var cards=document.getElementById('srcStratCards');
-  if(banner) banner.innerHTML=srcBanner(sup,res);
-  if(cards){
+  if(banner)banner.innerHTML=srcBanner(sup,res);
+  if(cards){{
     var strats=srcBuildStrats(sup,res);
-    if(strats && strats.length>0){
-      cards.innerHTML=strats.map(function(s,i){return srcCard(s,i);}).join('');
-    } else {
-      cards.innerHTML='<div style="color:#ff6b6b;padding:12px;">Could not build strategies — check console.</div>';
-    }
-  }
-  if(empty)   empty.style.display='none';
-  if(results) results.style.display='block';
-};
-window.addEventListener('load',function(){
-  // Delay longer to ensure OC is populated after initAllCards runs
-  setTimeout(function(){
-    if(typeof OC!=='undefined' && OC.atm && OC.atm>0){
-      srcCalculate();
-    }
-  }, 1200);
-});
+    cards.innerHTML=strats.length>0
+      ? strats.map(function(s,i){{return srcCard(s,i);}}).join('')
+      : '<div style="color:#ff6b6b;padding:12px;">Could not build strategies.</div>';
+  }}
+  if(empty)empty.style.display='none';
+  if(results)results.style.display='block';
+}};
+window.addEventListener('load',function(){{
+  setTimeout(function(){{
+    if(typeof OC!=='undefined'&&OC.atm&&OC.atm>0)srcCalculate();
+  }},1200);
+}});
 </script>
 <!-- ═══ END S/R STRATEGY CALCULATOR ═══ -->
 """
