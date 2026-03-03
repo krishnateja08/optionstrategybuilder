@@ -1396,6 +1396,316 @@ STRATEGIES_DATA = {
 }
 
 
+# PATCHED: S/R CALCULATOR ADDED
+
+# =================================================================
+#  SECTION 5D -- S/R STRATEGY CALCULATOR (patched)
+# =================================================================
+
+def build_sr_calculator_html(oc_analysis, tech=None, md=None):
+    spot       = round(oc_analysis["underlying"], 2)   if oc_analysis else 0
+    atm        = oc_analysis["atm_strike"]              if oc_analysis else 0
+    pcr        = round(oc_analysis["pcr_oi"], 3)        if oc_analysis else 1.0
+    max_ce_s   = oc_analysis["max_ce_strike"]           if oc_analysis else atm + 200
+    max_pe_s   = oc_analysis["max_pe_strike"]           if oc_analysis else atm - 200
+    expiry     = oc_analysis["expiry"]                  if oc_analysis else "N/A"
+    bias       = md["bias"]         if md else "SIDEWAYS"
+    conf       = md["confidence"]   if md else "MEDIUM"
+    bull_sc    = md["bull"]         if md else 4
+    bear_sc    = md["bear"]         if md else 4
+    support    = round(tech["support"],    2) if tech else spot - 200
+    resistance = round(tech["resistance"], 2) if tech else spot + 200
+    strikes_json = json.dumps(oc_analysis.get("strikes_data", [])) if oc_analysis else "[]"
+
+    return f"""
+<!-- ═══ S/R STRATEGY CALCULATOR (patched) ═══ -->
+<div class="section" id="srCalc">
+  <div class="sec-title" style="color:#ffd166;border-color:rgba(255,209,102,.18);">
+    &#9775; S/R STRATEGY CALCULATOR
+    <span class="sec-sub">Manual S/R &middot; Best legs auto-selected &middot; Live data</span>
+  </div>
+
+  <!-- Inputs -->
+  <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:20px;
+       background:rgba(255,209,102,.05);border:1px solid rgba(255,209,102,.15);
+       border-radius:14px;padding:16px 18px;">
+
+    <div style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:130px;">
+      <label style="font-size:9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;
+                    color:rgba(0,200,150,.8);">&#9660; SUPPORT</label>
+      <input id="srcSupport" type="number" step="25" value="{support:.0f}"
+        style="background:rgba(0,200,150,.08);border:1px solid rgba(0,200,150,.35);border-radius:8px;
+               color:#00c896;font-family:'DM Mono',monospace;font-size:15px;font-weight:700;
+               padding:9px 12px;outline:none;width:100%;"
+        oninput="srcDebounce()"/>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:130px;">
+      <label style="font-size:9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;
+                    color:rgba(255,107,107,.8);">&#9650; RESISTANCE</label>
+      <input id="srcResistance" type="number" step="25" value="{resistance:.0f}"
+        style="background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.35);border-radius:8px;
+               color:#ff6b6b;font-family:'DM Mono',monospace;font-size:15px;font-weight:700;
+               padding:9px 12px;outline:none;width:100%;"
+        oninput="srcDebounce()"/>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:5px;min-width:140px;">
+      <label style="font-size:9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;
+                    color:rgba(255,255,255,.35);">&#9670; NIFTY SPOT</label>
+      <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);
+                  border-radius:8px;color:rgba(255,255,255,.8);font-family:'DM Mono',monospace;
+                  font-size:15px;font-weight:700;padding:9px 12px;">
+        &#8377;<span id="srcSpotDisplay">{spot:.2f}</span>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:5px;min-width:120px;">
+      <label style="font-size:9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;
+                    color:rgba(255,255,255,.35);">ATM STRIKE</label>
+      <div style="background:rgba(100,128,255,.08);border:1px solid rgba(100,128,255,.25);
+                  border-radius:8px;color:#8aa0ff;font-family:'DM Mono',monospace;
+                  font-size:15px;font-weight:700;padding:9px 12px;">
+        &#8377;<span id="srcAtmDisplay">{atm:,}</span>
+      </div>
+    </div>
+
+    <button onclick="srcCalculate()"
+      style="padding:10px 22px;border-radius:10px;border:1px solid rgba(255,209,102,.5);
+             background:rgba(255,209,102,.12);color:#ffd166;font-family:'DM Mono',monospace;
+             font-size:12px;font-weight:700;cursor:pointer;letter-spacing:1px;align-self:flex-end;">
+      &#9654; CALCULATE
+    </button>
+  </div>
+
+  <!-- Results -->
+  <div id="srcResults" style="display:none;">
+    <div id="srcContextBanner" style="margin-bottom:16px;padding:11px 16px;border-radius:10px;
+         border:1px solid rgba(255,209,102,.2);background:rgba(255,209,102,.05);
+         font-size:11px;color:rgba(255,255,255,.5);line-height:1.8;"></div>
+    <div id="srcStratCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;"></div>
+  </div>
+
+  <div id="srcEmpty" style="text-align:center;padding:28px 0;font-size:12px;color:rgba(255,255,255,.25);">
+    Enter Support &amp; Resistance levels and press <b style="color:#ffd166;">CALCULATE</b>.
+  </div>
+</div>
+
+<script>
+var SRC = {{
+  spot:{spot}, atm:{atm}, pcr:{pcr}, lotSize:65,
+  maxCeStrike:{max_ce_s}, maxPeStrike:{max_pe_s},
+  bias:"{bias}", biasConf:"{conf}",
+  bullScore:{bull_sc}, bearScore:{bear_sc},
+  strikes:{strikes_json}
+}};
+
+var _srcTimer=null;
+function srcDebounce(){{ clearTimeout(_srcTimer); _srcTimer=setTimeout(srcCalculate,600); }}
+
+function srcSnap(target,type){{
+  if(!SRC.strikes||!SRC.strikes.length) return {{strike:target,ltp:0,iv:15}};
+  var b=SRC.strikes.reduce(function(a,s){{return Math.abs(s.strike-target)<Math.abs(a.strike-target)?s:a}},SRC.strikes[0]);
+  return {{strike:b.strike, ltp:type==='ce'?b.ce_ltp:b.pe_ltp, iv:type==='ce'?b.ce_iv:b.pe_iv}};
+}}
+
+function srcPoP(cat,sup,res){{
+  var spot=SRC.spot, pcr=SRC.pcr, range=Math.max(res-sup,50);
+  var cm=SRC.biasConf==='HIGH'?1.25:SRC.biasConf==='LOW'?0.6:1.0;
+  var ba=0;
+  if(cat==='bullish')     ba=SRC.bias==='BULLISH'?15:SRC.bias==='BEARISH'?-15:0;
+  else if(cat==='bearish')ba=SRC.bias==='BEARISH'?15:SRC.bias==='BULLISH'?-15:0;
+  else                     ba=SRC.bias==='SIDEWAYS'?8:-3;
+  ba*=cm;
+  var sa=0,ds=spot-sup,dr=res-spot;
+  if(cat==='bullish'){{
+    if(ds>=0&&ds<=range*.25)sa=12; else if(ds>=0&&ds<=range*.5)sa=6;
+    else if(dr>=0&&dr<=range*.2)sa=-12; else if(spot>res)sa=-8; else sa=2;
+  }}else if(cat==='bearish'){{
+    if(dr>=0&&dr<=range*.25)sa=12; else if(dr>=0&&dr<=range*.5)sa=6;
+    else if(ds>=0&&ds<=range*.2)sa=-12; else if(spot<sup)sa=-8; else sa=2;
+  }}else{{
+    var d=Math.abs(spot-(sup+res)/2)/(range/2);
+    sa=d<0.3?12:d<0.6?6:-6;
+  }}
+  sa*=cm;
+  var oa=0,dp=spot-SRC.maxPeStrike,dc=SRC.maxCeStrike-spot;
+  if(cat==='bullish'){{
+    oa+=(dp>0&&dp<150)?8:dp>150?4:-8;
+    oa+=dc>200?5:dc<100?-7:0;
+  }}else if(cat==='bearish'){{
+    oa+=(dc>0&&dc<150)?8:dc>150?4:-8;
+    oa+=dp>200?5:dp<100?-7:0;
+  }}else oa=(dp>0&&dc>0)?8:-5;
+  var pa=0;
+  if(cat==='bullish')     pa=pcr>1.5?8:pcr>1.2?6:pcr>1?3:pcr<0.7?-8:pcr<0.9?-4:0;
+  else if(cat==='bearish')pa=pcr<0.5?8:pcr<0.7?6:pcr<0.9?3:pcr>1.3?-8:pcr>1.1?-4:0;
+  else                     pa=(pcr>=0.85&&pcr<=1.15)?6:(pcr>=0.7&&pcr<=1.3)?3:-4;
+  return{{pop:Math.min(95,Math.max(5,Math.round(50+ba+sa+oa+pa))),
+          biasAdj:Math.round(ba),srAdj:Math.round(sa),oiAdj:Math.round(oa),pcrAdj:Math.round(pa)}};
+}}
+
+function srcBuildStrats(sup,res){{
+  var spot=SRC.spot,atm=SRC.atm,lot=SRC.lotSize;
+  var sCe=srcSnap(Math.round((res-25)/50)*50,'ce');
+  var bCe=srcSnap(Math.round((res+50)/50)*50,'ce');
+  var sPe=srcSnap(Math.round((sup+25)/50)*50,'pe');
+  var bPe=srcSnap(Math.round((sup-50)/50)*50,'pe');
+
+  // 1. Short Iron Condor
+  var nc1=sCe.ltp+sPe.ltp-bCe.ltp-bPe.ltp, w1=Math.max(bCe.strike-sCe.strike,50);
+  var p1=srcPoP('nondirectional',sup,res); p1.pop=Math.min(95,p1.pop+6);
+  var s1={{name:'Short Iron Condor',cat:'nondirectional',
+    legs:[{{a:'SELL CE',s:sCe.strike,l:sCe.ltp,c:'#00c8e0'}},
+          {{a:'BUY CE', s:bCe.strike,l:bCe.ltp,c:'#4de8b8'}},
+          {{a:'SELL PE',s:sPe.strike,l:sPe.ltp,c:'#ff9090'}},
+          {{a:'BUY PE', s:bPe.strike,l:bPe.ltp,c:'#ff6b6b'}}],
+    nc:nc1, mp:Math.max(nc1,0)*lot, ml:Math.max(w1-nc1,0)*lot,
+    be:[sPe.strike-nc1,sCe.strike+nc1], margin:w1*lot*2, pop:p1,
+    note:'Sell at S/R walls · Profit if Nifty stays between support & resistance'}};
+
+  // 2. Bull Put Spread
+  var nc2=sPe.ltp-bPe.ltp, w2=Math.max(sPe.strike-bPe.strike,50);
+  var p2=srcPoP('bullish',sup,res);
+  var s2={{name:'Bull Put Spread',cat:'bullish',
+    legs:[{{a:'SELL PE',s:sPe.strike,l:sPe.ltp,c:'#ff9090'}},
+          {{a:'BUY PE', s:bPe.strike,l:bPe.ltp,c:'#ff6b6b'}}],
+    nc:nc2, mp:Math.max(nc2,0)*lot, ml:Math.max(w2-nc2,0)*lot,
+    be:[sPe.strike-nc2], margin:w2*lot, pop:p2,
+    note:'SELL PE at support level · Max profit if Nifty stays above support'}};
+
+  // 3. Bear Call Spread
+  var nc3=sCe.ltp-bCe.ltp, w3=Math.max(bCe.strike-sCe.strike,50);
+  var p3=srcPoP('bearish',sup,res);
+  var s3={{name:'Bear Call Spread',cat:'bearish',
+    legs:[{{a:'SELL CE',s:sCe.strike,l:sCe.ltp,c:'#00c8e0'}},
+          {{a:'BUY CE', s:bCe.strike,l:bCe.ltp,c:'#4de8b8'}}],
+    nc:nc3, mp:Math.max(nc3,0)*lot, ml:Math.max(w3-nc3,0)*lot,
+    be:[sCe.strike+nc3], margin:w3*lot, pop:p3,
+    note:'SELL CE at resistance level · Max profit if Nifty stays below resistance'}};
+
+  // 4. Short Strangle
+  var nc4=sCe.ltp+sPe.ltp;
+  var p4=srcPoP('nondirectional',sup,res);
+  var s4={{name:'Short Strangle',cat:'nondirectional',
+    legs:[{{a:'SELL CE',s:sCe.strike,l:sCe.ltp,c:'#00c8e0'}},
+          {{a:'SELL PE',s:sPe.strike,l:sPe.ltp,c:'#ff9090'}}],
+    nc:nc4, mp:nc4*lot, ml:999999,
+    be:[sPe.strike-nc4,sCe.strike+nc4],
+    margin:Math.round(0.155*spot*lot), pop:p4,
+    note:'Sell premium at both walls · Higher reward, unlimited risk'}};
+
+  return [s1,s2,s3,s4].sort(function(a,b){{return b.pop.pop-a.pop.pop;}});
+}}
+
+function srcBadge(lbl,val,fc){{
+  var col=fc||(val>=0?'#00c896':'#ff6b6b');
+  var txt=fc?val:(val>=0?'+':'')+val;
+  return '<span style="font-size:9px;background:rgba(0,0,0,.25);padding:2px 7px;border-radius:6px;color:rgba(255,255,255,.4);">'+lbl+' <b style="color:'+col+';">'+txt+'</b></span>';
+}}
+function srcRow(lbl,val,col){{
+  return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);">'+
+    '<span style="font-size:10px;color:rgba(255,255,255,.35);letter-spacing:.5px;text-transform:uppercase;font-family:\'DM Mono\',monospace;">'+lbl+'</span>'+
+    '<span style="font-family:\'DM Mono\',monospace;font-size:12px;font-weight:600;color:'+col+';">'+val+'</span></div>';
+}}
+
+function srcCard(s,rank){{
+  var pop=s.pop.pop,lot=SRC.lotSize;
+  var pc=pop>=70?'#00c896':pop>=55?'#4de8b8':pop>=45?'#6480ff':'#ff6b6b';
+  var pb=pop>=70?'rgba(0,200,150,.18)':pop>=55?'rgba(77,232,184,.15)':pop>=45?'rgba(100,128,255,.18)':'rgba(255,107,107,.18)';
+  var cc=s.cat==='bullish'?'#00c896':s.cat==='bearish'?'#ff6b6b':'#6480ff';
+  var nc=s.nc>=0;
+  var mpS=s.mp===999999?'Unlimited':'\u20b9'+Math.round(s.mp).toLocaleString('en-IN');
+  var mlS=s.ml===999999?'Unlimited':'\u20b9'+Math.round(s.ml).toLocaleString('en-IN');
+  var ncS=(nc?'+ ':'- ')+'\u20b9'+Math.abs(Math.round(s.nc*lot)).toLocaleString('en-IN');
+  var mrS='\u20b9'+Math.round(s.margin).toLocaleString('en-IN');
+  var beS=s.be.map(function(v){{return '\u20b9'+Math.round(v).toLocaleString('en-IN');}}).join(' / ');
+  var rr=s.ml>0&&s.ml!==999999?(s.mp/s.ml).toFixed(2):'\u221e';
+  var mpP=s.ml>0&&s.ml!==999999?(s.mp/s.ml*100).toFixed(0)+'%':'\u221e';
+  var best=rank===0?'<span style="font-size:9px;background:rgba(255,209,102,.2);color:#ffd166;border:1px solid rgba(255,209,102,.4);padding:2px 8px;border-radius:6px;font-weight:700;">\u2605 BEST FIT</span>':'';
+  var legsH=s.legs.map(function(l){{
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);">'+
+      '<span style="font-size:9.5px;color:rgba(255,255,255,.4);font-family:\'DM Mono\',monospace;">'+l.a+' \u20b9'+l.s.toLocaleString('en-IN')+'</span>'+
+      '<span style="font-family:\'DM Mono\',monospace;font-size:12px;font-weight:700;color:'+l.c+';">\u20b9'+(l.l||0).toFixed(2)+'</span></div>';
+  }}).join('');
+  var pd=s.pop;
+  var bkd='<div style="background:rgba(0,0,0,.2);border-top:1px solid rgba(255,255,255,.05);padding:8px 12px;">'+
+    '<div style="font-size:8px;letter-spacing:1.5px;color:rgba(255,255,255,.3);text-transform:uppercase;margin-bottom:5px;">PoP BREAKDOWN</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:5px;">'+
+    srcBadge('Base',50,'#fff')+srcBadge('Bias',pd.biasAdj)+srcBadge('S/R',pd.srAdj)+
+    srcBadge('OI',pd.oiAdj)+srcBadge('PCR',pd.pcrAdj)+'</div></div>';
+  return '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;">'+
+    '<div style="padding:12px 14px 10px;border-bottom:1px solid rgba(255,255,255,.06);">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">'+
+    '<span style="font-size:13px;font-weight:700;color:rgba(255,255,255,.9);">'+s.name+'</span>'+
+    '<span style="font-family:\'DM Mono\',monospace;font-size:13px;font-weight:800;color:'+pc+';background:'+pb+';padding:3px 10px;border-radius:20px;">'+pop+'%</span></div>'+
+    '<div style="display:flex;align-items:center;gap:8px;">'+best+
+    '<span style="font-size:9px;color:'+cc+';font-weight:700;text-transform:uppercase;padding:2px 8px;border:1px solid '+cc+'40;border-radius:6px;">'+s.cat+'</span></div>'+
+    '<div style="font-size:9.5px;color:rgba(255,255,255,.35);margin-top:6px;line-height:1.5;">'+s.note+'</div></div>'+
+    '<div style="padding:10px 14px 6px;">'+
+    '<div style="font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(0,200,220,.6);margin-bottom:6px;">LTP PER LEG</div>'+
+    legsH+'</div>'+
+    '<div style="padding:6px 14px;">'+
+    srcRow('Prob. of Profit',pop+'%',pc)+
+    srcRow('Max. Profit',mpS+' <small style="opacity:.45;">'+mpP+'</small>','#00c896')+
+    srcRow('Max. Loss',mlS,'#ff6b6b')+
+    srcRow('RR Ratio','1:'+rr,'#6480ff')+
+    srcRow('Breakevens',beS,'#00c8e0')+
+    srcRow('Net Credit/Debit',ncS,nc?'#00c896':'#ff6b6b')+
+    srcRow('Est. Margin',mrS,'#8aa0ff')+
+    '</div>'+bkd+'</div>';
+}}
+
+function srcBanner(sup,res){{
+  var spot=SRC.spot,range=res-sup;
+  var ds=spot-sup,dr=res-spot;
+  var pos=spot<sup?'Below Support':spot>res?'Above Resistance':ds<range*.3?'Near Support':dr<range*.3?'Near Resistance':'Mid Range';
+  var pc=pos.includes('Support')?'#00c896':pos.includes('Resistance')?'#ff6b6b':'#6480ff';
+  var pcrL=SRC.pcr>1.2?'Bullish':SRC.pcr<0.8?'Bearish':'Neutral';
+  var pcrC=SRC.pcr>1.2?'#00c896':SRC.pcr<0.8?'#ff6b6b':'#6480ff';
+  var bc=SRC.bias==='BULLISH'?'#00c896':SRC.bias==='BEARISH'?'#ff6b6b':'#6480ff';
+  return '<b style="color:rgba(255,255,255,.6);">Market Context</b> &nbsp;|&nbsp; '+
+    'Spot <span style="color:#ffd166;font-weight:700;">\u20b9'+SRC.spot.toLocaleString('en-IN')+'</span> &nbsp;'+
+    'Position: <span style="color:'+pc+';font-weight:700;">'+pos+'</span> &nbsp;'+
+    'Range: <span style="color:#6480ff;font-weight:700;">'+Math.round(range)+' pts</span> &nbsp;'+
+    'Bias: <span style="color:'+bc+';font-weight:700;">'+SRC.bias+'</span> &nbsp;'+
+    'PCR: <span style="color:'+pcrC+';font-weight:700;">'+SRC.pcr.toFixed(3)+' ('+pcrL+')</span>';
+}}
+
+window.srcCalculate=function(){{
+  var sup=parseFloat(document.getElementById('srcSupport').value);
+  var res=parseFloat(document.getElementById('srcResistance').value);
+  var empty=document.getElementById('srcEmpty');
+  var results=document.getElementById('srcResults');
+  if(!sup||!res||isNaN(sup)||isNaN(res)||sup>=res){{
+    if(empty){{empty.style.display='block';empty.innerHTML='\u26a0 Support must be less than Resistance.';}}
+    if(results)results.style.display='none'; return;
+  }}
+  // Sync live data from strategies OC object if available
+  if(typeof OC!=='undefined'){{
+    SRC.spot=OC.spot; SRC.atm=OC.atm; SRC.pcr=OC.pcr;
+    SRC.maxCeStrike=OC.maxCeStrike; SRC.maxPeStrike=OC.maxPeStrike;
+    SRC.bias=OC.bias; SRC.biasConf=OC.biasConf;
+    SRC.strikes=OC.strikes;
+    var sd=document.getElementById('srcSpotDisplay');
+    var ad=document.getElementById('srcAtmDisplay');
+    if(sd)sd.textContent=SRC.spot.toLocaleString('en-IN',{{minimumFractionDigits:2,maximumFractionDigits:2}});
+    if(ad)ad.textContent=SRC.atm.toLocaleString('en-IN');
+  }}
+  document.getElementById('srcContextBanner').innerHTML=srcBanner(sup,res);
+  var strats=srcBuildStrats(sup,res);
+  document.getElementById('srcStratCards').innerHTML=strats.map(function(s,i){{return srcCard(s,i);}}).join('');
+  if(empty)empty.style.display='none';
+  if(results)results.style.display='block';
+}};
+window.addEventListener('load',function(){{
+  setTimeout(function(){{if(typeof OC!=='undefined'&&OC.strikes&&OC.strikes.length)srcCalculate();}},400);
+}});
+</script>
+<!-- ═══ END S/R STRATEGY CALCULATOR ═══ -->
+"""
+
+
 def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed=None, expiry_list=None):
     spot       = oc_analysis["underlying"]   if oc_analysis else 23000
     atm        = oc_analysis["atm_strike"]   if oc_analysis else 23000
@@ -2862,6 +3172,7 @@ def build_greeks_script_html(oc_analysis):
 def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, expiry_list=None):
     oi_html        = build_oi_html(oc)               if oc   else ""
     kl_html        = build_key_levels_html(tech, oc) if tech else ""
+    sr_calc_html   = build_sr_calculator_html(oc, tech, md)
     strat_html     = build_strategies_html(oc, tech, md, multi_expiry_analyzed=multi_expiry_analyzed, expiry_list=expiry_list)
     strikes_html   = build_strikes_html(oc)
     ticker_html    = build_ticker_bar(tech, oc, vix_data)
@@ -2933,6 +3244,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">OPTION CHAIN</div>
+      <button class="sb-btn" onclick="go('srCalc',this)">&#9775; S/R Calculator</button>
       <button class="sb-btn" onclick="go('strikes',this)">Top 5 Strikes</button>
     </div>
     </div>
@@ -2942,6 +3254,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
     {greeks_table}
     <div id="kl">{kl_html}</div>
     {strat_html}
+    <div id="srCalc">{sr_calc_html}</div>
     <div id="strikes">{strikes_html}</div>
     <div class="section">
       <div style="background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.18);
