@@ -49,9 +49,10 @@ jobs:
           echo "=== HTML preview (first 5 lines) ==="
           head -5 docs/index.html
 
-      # FIX 1: Removed enablement: true — crashes if Pages already enabled in repo settings
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v4
+        with:
+          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -62,12 +63,6 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-
-    # FIX 2: deploy job needs its own permissions for actions/deploy-pages@v4
-    permissions:
-      pages: write
-      id-token: write
-
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
