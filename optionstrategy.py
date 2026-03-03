@@ -1574,56 +1574,245 @@ function srcPoP(cat,sup,res){{
 }}
 
 function srcBuildStrats(sup,res){{
-  var spot=SRC.spot,atm=SRC.atm,lot=SRC.lotSize;
-  var sCe=srcSnap(Math.round((res-25)/50)*50,'ce');
-  var bCe=srcSnap(Math.round((res+50)/50)*50,'ce');
-  var sPe=srcSnap(Math.round((sup+25)/50)*50,'pe');
-  var bPe=srcSnap(Math.round((sup-50)/50)*50,'pe');
+  var spot=SRC.spot, atm=SRC.atm, lot=SRC.lotSize;
+  var range=Math.max(res-sup,50);
 
-  // 1. Short Iron Condor
-  var nc1=sCe.ltp+sPe.ltp-bCe.ltp-bPe.ltp, w1=Math.max(bCe.strike-sCe.strike,50);
-  var p1=srcPoP('nondirectional',sup,res); p1.pop=Math.min(95,p1.pop+6);
-  var s1={{name:'Short Iron Condor',cat:'nondirectional',
-    legs:[{{a:'SELL CE',s:sCe.strike,l:sCe.ltp,c:'#00c8e0'}},
-          {{a:'BUY CE', s:bCe.strike,l:bCe.ltp,c:'#4de8b8'}},
-          {{a:'SELL PE',s:sPe.strike,l:sPe.ltp,c:'#ff9090'}},
-          {{a:'BUY PE', s:bPe.strike,l:bPe.ltp,c:'#ff6b6b'}}],
-    nc:nc1, mp:Math.max(nc1,0)*lot, ml:Math.max(w1-nc1,0)*lot,
-    be:[sPe.strike-nc1,sCe.strike+nc1], margin:w1*lot*2, pop:p1,
-    note:'Sell at S/R walls · Profit if Nifty stays between support & resistance'}};
+  // ── Snap all required strikes from live option chain ──────────────
+  // CE side: nearest to resistance (sell), one step above (buy hedge), two steps above (wider hedge)
+  var sCe  = srcSnap(Math.round((res-25)/50)*50,  'ce');
+  var bCe  = srcSnap(Math.round((res+50)/50)*50,  'ce');
+  var bCe2 = srcSnap(Math.round((res+100)/50)*50, 'ce');
+  // PE side: nearest to support (sell), one step below (buy hedge), two steps below (wider hedge)
+  var sPe  = srcSnap(Math.round((sup+25)/50)*50,  'pe');
+  var bPe  = srcSnap(Math.round((sup-50)/50)*50,  'pe');
+  var bPe2 = srcSnap(Math.round((sup-100)/50)*50, 'pe');
+  // ATM legs
+  var atmCe = srcSnap(atm, 'ce');
+  var atmPe = srcSnap(atm, 'pe');
 
-  // 2. Bull Put Spread
-  var nc2=sPe.ltp-bPe.ltp, w2=Math.max(sPe.strike-bPe.strike,50);
-  var p2=srcPoP('bullish',sup,res);
-  var s2={{name:'Bull Put Spread',cat:'bullish',
-    legs:[{{a:'SELL PE',s:sPe.strike,l:sPe.ltp,c:'#ff9090'}},
-          {{a:'BUY PE', s:bPe.strike,l:bPe.ltp,c:'#ff6b6b'}}],
-    nc:nc2, mp:Math.max(nc2,0)*lot, ml:Math.max(w2-nc2,0)*lot,
-    be:[sPe.strike-nc2], margin:w2*lot, pop:p2,
-    note:'SELL PE at support level · Max profit if Nifty stays above support'}};
+  // ── Helper: breakeven proximity score (no hardcoded values) ──────
+  // Measures how close each breakeven is to sup or res as a fraction of range.
+  // Closer to a wall = higher bonus. Dead centre = penalty.
+  function beProximityScore(beArr) {{
+    var score = 0;
+    beArr.forEach(function(be) {{
+      var dSup    = Math.abs(be - sup);
+      var dRes    = Math.abs(be - res);
+      var nearest = Math.min(dSup, dRes);
+      var frac    = nearest / range;           // 0 = on the wall, 0.5 = dead centre
+      if      (frac <= 0.10) score += 25;     // hugging the wall — best
+      else if (frac <= 0.20) score += 18;
+      else if (frac <= 0.35) score += 10;
+      else if (frac <= 0.50) score += 2;
+      else                   score -= 15;     // past the mid-point — penalty
+    }});
+    return score;
+  }}
 
-  // 3. Bear Call Spread
-  var nc3=sCe.ltp-bCe.ltp, w3=Math.max(bCe.strike-sCe.strike,50);
-  var p3=srcPoP('bearish',sup,res);
-  var s3={{name:'Bear Call Spread',cat:'bearish',
-    legs:[{{a:'SELL CE',s:sCe.strike,l:sCe.ltp,c:'#00c8e0'}},
-          {{a:'BUY CE', s:bCe.strike,l:bCe.ltp,c:'#4de8b8'}}],
-    nc:nc3, mp:Math.max(nc3,0)*lot, ml:Math.max(w3-nc3,0)*lot,
-    be:[sCe.strike+nc3], margin:w3*lot, pop:p3,
-    note:'SELL CE at resistance level · Max profit if Nifty stays below resistance'}};
+  // ── Helper: RR bonus (reward-to-risk relative to range, no hardcoding) ──
+  function rrBonus(mp, ml) {{
+    if (ml <= 0 || ml === 999999) return 0;
+    var rr = mp / ml;
+    if      (rr >= 2.0) return 15;
+    else if (rr >= 1.0) return 8;
+    else if (rr >= 0.5) return 3;
+    return 0;
+  }}
 
-  // 4. Short Strangle
-  var nc4=sCe.ltp+sPe.ltp;
-  var p4=srcPoP('nondirectional',sup,res);
-  var s4={{name:'Short Strangle',cat:'nondirectional',
-    legs:[{{a:'SELL CE',s:sCe.strike,l:sCe.ltp,c:'#00c8e0'}},
-          {{a:'SELL PE',s:sPe.strike,l:sPe.ltp,c:'#ff9090'}}],
-    nc:nc4, mp:nc4*lot, ml:999999,
-    be:[sPe.strike-nc4,sCe.strike+nc4],
-    margin:Math.round(0.155*spot*lot), pop:p4,
-    note:'Sell premium at both walls · Higher reward, unlimited risk'}};
+  // ── Helper: WHY explanation built from live numbers ───────────────
+  function buildWhy(beArr, mp, ml, nc, cat, name) {{
+    var parts = [];
+    // Breakeven proximity
+    beArr.forEach(function(be) {{
+      var dSup = Math.abs(be - sup);
+      var dRes = Math.abs(be - res);
+      if (dSup <= dRes) {{
+        parts.push('Breakeven \u20b9'+Math.round(be).toLocaleString('en-IN')+
+          ' is '+Math.round(dSup)+' pts from your Support \u20b9'+sup.toLocaleString('en-IN'));
+      }} else {{
+        parts.push('Breakeven \u20b9'+Math.round(be).toLocaleString('en-IN')+
+          ' is '+Math.round(dRes)+' pts from your Resistance \u20b9'+res.toLocaleString('en-IN'));
+      }}
+    }});
+    // RR
+    if (ml > 0 && ml !== 999999) {{
+      var rr = (mp/ml).toFixed(2);
+      parts.push('RR '+rr+':1 — '+(parseFloat(rr)>=1?'reward exceeds risk':'risk exceeds reward'));
+    }}
+    // Credit / Debit
+    parts.push(nc >= 0 ? 'Net credit — premium collected upfront' : 'Net debit — pay to enter');
+    // Bias alignment
+    if (cat==='bullish'  && SRC.bias==='BULLISH')  parts.push('Aligns with current BULLISH market bias');
+    if (cat==='bearish'  && SRC.bias==='BEARISH')  parts.push('Aligns with current BEARISH market bias');
+    if (cat==='nondirectional' && SRC.bias==='SIDEWAYS') parts.push('Aligns with SIDEWAYS market bias');
+    return parts.join(' &nbsp;&bull;&nbsp; ');
+  }}
 
-  return [s1,s2,s3,s4].sort(function(a,b){{return b.pop.pop-a.pop.pop;}});
+  // ── Build 8 candidate strategies ─────────────────────────────────
+  var pool = [];
+
+  // 1. Bull Put Spread — sell PE at support, buy PE below
+  (function() {{
+    var nc  = sPe.ltp - bPe.ltp;
+    var w   = Math.max(sPe.strike - bPe.strike, 50);
+    var mp  = Math.max(nc, 0) * lot;
+    var ml  = Math.max(w - nc, 0) * lot;
+    var be  = [sPe.strike - nc];
+    var pop = srcPoP('bullish', sup, res);
+    var sc  = pop.pop + beProximityScore(be) + rrBonus(mp, ml) + (nc>=0?6:0);
+    pool.push({{
+      name:'Bull Put Spread', cat:'bullish', score:sc,
+      legs:[{{a:'SELL PE',s:sPe.strike,l:sPe.ltp,c:'#ff9090'}},
+            {{a:'BUY PE', s:bPe.strike,l:bPe.ltp,c:'#ff6b6b'}}],
+      nc:nc, mp:mp, ml:ml, be:be, margin:w*lot, pop:pop,
+      note:'Sell PE near support · Profit while Nifty stays above support',
+      why:buildWhy(be,mp,ml,nc,'bullish','Bull Put Spread')
+    }});
+  }})();
+
+  // 2. Bear Call Spread — sell CE at resistance, buy CE above
+  (function() {{
+    var nc  = sCe.ltp - bCe.ltp;
+    var w   = Math.max(bCe.strike - sCe.strike, 50);
+    var mp  = Math.max(nc, 0) * lot;
+    var ml  = Math.max(w - nc, 0) * lot;
+    var be  = [sCe.strike + nc];
+    var pop = srcPoP('bearish', sup, res);
+    var sc  = pop.pop + beProximityScore(be) + rrBonus(mp, ml) + (nc>=0?6:0);
+    pool.push({{
+      name:'Bear Call Spread', cat:'bearish', score:sc,
+      legs:[{{a:'SELL CE',s:sCe.strike,l:sCe.ltp,c:'#00c8e0'}},
+            {{a:'BUY CE', s:bCe.strike,l:bCe.ltp,c:'#4de8b8'}}],
+      nc:nc, mp:mp, ml:ml, be:be, margin:w*lot, pop:pop,
+      note:'Sell CE near resistance · Profit while Nifty stays below resistance',
+      why:buildWhy(be,mp,ml,nc,'bearish','Bear Call Spread')
+    }});
+  }})();
+
+  // 3. Short Iron Condor — sell both walls, buy wings outside
+  (function() {{
+    var nc  = sCe.ltp + sPe.ltp - bCe.ltp - bPe.ltp;
+    var w   = Math.max(bCe.strike - sCe.strike, 50);
+    var mp  = Math.max(nc, 0) * lot;
+    var ml  = Math.max(w - nc, 0) * lot;
+    var be  = [sPe.strike - nc, sCe.strike + nc];
+    var pop = srcPoP('nondirectional', sup, res);
+    pop.pop = Math.min(95, pop.pop + 6);
+    var sc  = pop.pop + beProximityScore(be) + rrBonus(mp, ml) + (nc>=0?8:0);
+    pool.push({{
+      name:'Short Iron Condor', cat:'nondirectional', score:sc,
+      legs:[{{a:'SELL CE',s:sCe.strike,l:sCe.ltp,c:'#00c8e0'}},
+            {{a:'BUY CE', s:bCe.strike,l:bCe.ltp,c:'#4de8b8'}},
+            {{a:'SELL PE',s:sPe.strike,l:sPe.ltp,c:'#ff9090'}},
+            {{a:'BUY PE', s:bPe.strike,l:bPe.ltp,c:'#ff6b6b'}}],
+      nc:nc, mp:mp, ml:ml, be:be, margin:w*lot*2, pop:pop,
+      note:'Sell both S/R walls · Profit if Nifty stays inside the range',
+      why:buildWhy(be,mp,ml,nc,'nondirectional','Short Iron Condor')
+    }});
+  }})();
+
+  // 4. Short Strangle — sell CE at resistance, sell PE at support (naked)
+  (function() {{
+    var nc  = sCe.ltp + sPe.ltp;
+    var mp  = nc * lot;
+    var be  = [sPe.strike - nc, sCe.strike + nc];
+    var pop = srcPoP('nondirectional', sup, res);
+    var sc  = pop.pop + beProximityScore(be) + (nc>=0?4:0);
+    pool.push({{
+      name:'Short Strangle', cat:'nondirectional', score:sc,
+      legs:[{{a:'SELL CE',s:sCe.strike,l:sCe.ltp,c:'#00c8e0'}},
+            {{a:'SELL PE',s:sPe.strike,l:sPe.ltp,c:'#ff9090'}}],
+      nc:nc, mp:mp, ml:999999,
+      be:be, margin:Math.round(0.155*spot*lot), pop:pop,
+      note:'Sell premium at both walls · Higher credit, unlimited risk',
+      why:buildWhy(be,mp,999999,nc,'nondirectional','Short Strangle')
+    }});
+  }})();
+
+  // 5. Bull Call Spread — buy ATM CE, sell CE at resistance
+  (function() {{
+    var nc  = atmCe.ltp - sCe.ltp;   // debit
+    var w   = Math.max(sCe.strike - atm, 50);
+    var mp  = Math.max(w - Math.abs(nc), 0) * lot;
+    var ml  = Math.abs(Math.min(nc, 0)) * lot;
+    var be  = [atm + Math.abs(nc)];
+    var pop = srcPoP('bullish', sup, res);
+    var sc  = pop.pop + beProximityScore(be) + rrBonus(mp, ml);
+    pool.push({{
+      name:'Bull Call Spread', cat:'bullish', score:sc,
+      legs:[{{a:'BUY CE', s:atm,        l:atmCe.ltp,c:'#00c8e0'}},
+            {{a:'SELL CE',s:sCe.strike, l:sCe.ltp,  c:'#4de8b8'}}],
+      nc:nc, mp:mp, ml:ml, be:be, margin:Math.abs(nc)*lot, pop:pop,
+      note:'Buy lower CE, sell CE at resistance · Capped profit at resistance',
+      why:buildWhy(be,mp,ml,nc,'bullish','Bull Call Spread')
+    }});
+  }})();
+
+  // 6. Bear Put Spread — buy ATM PE, sell PE at support
+  (function() {{
+    var nc  = atmPe.ltp - sPe.ltp;   // debit
+    var w   = Math.max(atm - sPe.strike, 50);
+    var mp  = Math.max(w - Math.abs(nc), 0) * lot;
+    var ml  = Math.abs(Math.min(nc, 0)) * lot;
+    var be  = [atm - Math.abs(nc)];
+    var pop = srcPoP('bearish', sup, res);
+    var sc  = pop.pop + beProximityScore(be) + rrBonus(mp, ml);
+    pool.push({{
+      name:'Bear Put Spread', cat:'bearish', score:sc,
+      legs:[{{a:'BUY PE', s:atm,       l:atmPe.ltp,c:'#ff9090'}},
+            {{a:'SELL PE',s:sPe.strike,l:sPe.ltp,  c:'#ff6b6b'}}],
+      nc:nc, mp:mp, ml:ml, be:be, margin:Math.abs(nc)*lot, pop:pop,
+      note:'Buy higher PE, sell PE at support · Capped profit at support',
+      why:buildWhy(be,mp,ml,nc,'bearish','Bear Put Spread')
+    }});
+  }})();
+
+  // 7. Short Iron Butterfly — sell ATM CE+PE, buy wings at S and R
+  (function() {{
+    var nc  = atmCe.ltp + atmPe.ltp - sCe.ltp - sPe.ltp;
+    var w   = Math.max(sCe.strike - atm, atm - sPe.strike, 50);
+    var mp  = Math.max(nc, 0) * lot;
+    var ml  = Math.max(w - nc, 0) * lot;
+    var be  = [atm - nc, atm + nc];
+    var pop = srcPoP('nondirectional', sup, res);
+    var sc  = pop.pop + beProximityScore(be) + rrBonus(mp, ml) + (nc>=0?6:0);
+    pool.push({{
+      name:'Short Iron Butterfly', cat:'nondirectional', score:sc,
+      legs:[{{a:'SELL CE',s:atm,        l:atmCe.ltp,c:'#00c8e0'}},
+            {{a:'SELL PE',s:atm,        l:atmPe.ltp,c:'#ff9090'}},
+            {{a:'BUY CE', s:sCe.strike, l:sCe.ltp,  c:'#4de8b8'}},
+            {{a:'BUY PE', s:sPe.strike, l:sPe.ltp,  c:'#ff6b6b'}}],
+      nc:nc, mp:mp, ml:ml, be:be, margin:w*lot*2, pop:pop,
+      note:'Sell ATM straddle, hedge at S/R · High credit, tight breakevens',
+      why:buildWhy(be,mp,ml,nc,'nondirectional','Short Iron Butterfly')
+    }});
+  }})();
+
+  // 8. Wide Iron Condor — wider wings for better credit
+  (function() {{
+    var nc  = sCe.ltp + sPe.ltp - bCe2.ltp - bPe2.ltp;
+    var w   = Math.max(bCe2.strike - sCe.strike, 50);
+    var mp  = Math.max(nc, 0) * lot;
+    var ml  = Math.max(w - nc, 0) * lot;
+    var be  = [sPe.strike - nc, sCe.strike + nc];
+    var pop = srcPoP('nondirectional', sup, res);
+    pop.pop = Math.min(95, pop.pop + 4);
+    var sc  = pop.pop + beProximityScore(be) + rrBonus(mp, ml) + (nc>=0?6:0);
+    pool.push({{
+      name:'Wide Iron Condor', cat:'nondirectional', score:sc,
+      legs:[{{a:'SELL CE',s:sCe.strike,  l:sCe.ltp,  c:'#00c8e0'}},
+            {{a:'BUY CE', s:bCe2.strike, l:bCe2.ltp, c:'#4de8b8'}},
+            {{a:'SELL PE',s:sPe.strike,  l:sPe.ltp,  c:'#ff9090'}},
+            {{a:'BUY PE', s:bPe2.strike, l:bPe2.ltp, c:'#ff6b6b'}}],
+      nc:nc, mp:mp, ml:ml, be:be, margin:w*lot*2, pop:pop,
+      note:'Wider wings for more credit · Better RR than standard condor',
+      why:buildWhy(be,mp,ml,nc,'nondirectional','Wide Iron Condor')
+    }});
+  }})();
+
+  // ── Sort by smart score descending, return top 3 ─────────────────
+  pool.sort(function(a,b){{ return b.score - a.score; }});
+  return pool.slice(0,3);
 }}
 
 function srcBadge(lbl,val,fc){{
@@ -1638,50 +1827,87 @@ function srcRow(lbl,val,col){{
 }}
 
 function srcCard(s,rank){{
-  var pop=s.pop.pop,lot=SRC.lotSize;
+  var pop=s.pop.pop, lot=SRC.lotSize;
   var pc=pop>=70?'#00c896':pop>=55?'#4de8b8':pop>=45?'#6480ff':'#ff6b6b';
   var pb=pop>=70?'rgba(0,200,150,.18)':pop>=55?'rgba(77,232,184,.15)':pop>=45?'rgba(100,128,255,.18)':'rgba(255,107,107,.18)';
   var cc=s.cat==='bullish'?'#00c896':s.cat==='bearish'?'#ff6b6b':'#6480ff';
-  var nc=s.nc>=0;
+  var isCredit=s.nc>=0;
   var mpS=s.mp===999999?'Unlimited':'\u20b9'+Math.round(s.mp).toLocaleString('en-IN');
   var mlS=s.ml===999999?'Unlimited':'\u20b9'+Math.round(s.ml).toLocaleString('en-IN');
-  var ncS=(nc?'+ ':'- ')+'\u20b9'+Math.abs(Math.round(s.nc*lot)).toLocaleString('en-IN');
+  var ncS=(isCredit?'+ ':'- ')+'\u20b9'+Math.abs(Math.round(s.nc*lot)).toLocaleString('en-IN');
   var mrS='\u20b9'+Math.round(s.margin).toLocaleString('en-IN');
   var beS=s.be.map(function(v){{return '\u20b9'+Math.round(v).toLocaleString('en-IN');}}).join(' / ');
   var rr=s.ml>0&&s.ml!==999999?(s.mp/s.ml).toFixed(2):'\u221e';
   var mpP=s.ml>0&&s.ml!==999999?(s.mp/s.ml*100).toFixed(0)+'%':'\u221e';
-  var best=rank===0?'<span style="font-size:9px;background:rgba(255,209,102,.2);color:#ffd166;border:1px solid rgba(255,209,102,.4);padding:2px 8px;border-radius:6px;font-weight:700;">\u2605 BEST FIT</span>':'';
+
+  // Rank badges
+  var rankBadge='';
+  if(rank===0) rankBadge='<span style="font-size:9px;background:rgba(255,209,102,.2);color:#ffd166;border:1px solid rgba(255,209,102,.4);padding:2px 8px;border-radius:6px;font-weight:700;">\u2605 BEST FIT</span>';
+  else if(rank===1) rankBadge='<span style="font-size:9px;background:rgba(100,128,255,.15);color:#8aa0ff;border:1px solid rgba(100,128,255,.35);padding:2px 8px;border-radius:6px;font-weight:700;">\u25c6 2nd BEST</span>';
+  else rankBadge='<span style="font-size:9px;background:rgba(0,200,150,.1);color:#4de8b8;border:1px solid rgba(0,200,150,.25);padding:2px 8px;border-radius:6px;font-weight:700;">\u25cf 3rd</span>';
+
+  // Strike price label — ATM tag if ATM leg present, else show sell-leg strikes
+  var atmStrikeLbl = 'ATM \u20b9' + SRC.atm.toLocaleString('en-IN');
+
+  // LTP per leg rows
   var legsH=s.legs.map(function(l){{
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);">'+
       '<span style="font-size:9.5px;color:rgba(255,255,255,.4);font-family:\'DM Mono\',monospace;">'+l.a+' \u20b9'+l.s.toLocaleString('en-IN')+'</span>'+
       '<span style="font-family:\'DM Mono\',monospace;font-size:12px;font-weight:700;color:'+l.c+';">\u20b9'+(l.l||0).toFixed(2)+'</span></div>';
   }}).join('');
+
+  // PoP breakdown
   var pd=s.pop;
   var bkd='<div style="background:rgba(0,0,0,.2);border-top:1px solid rgba(255,255,255,.05);padding:8px 12px;">'+
     '<div style="font-size:8px;letter-spacing:1.5px;color:rgba(255,255,255,.3);text-transform:uppercase;margin-bottom:5px;">PoP BREAKDOWN</div>'+
     '<div style="display:flex;flex-wrap:wrap;gap:5px;">'+
     srcBadge('Base',50,'#fff')+srcBadge('Bias',pd.biasAdj)+srcBadge('S/R',pd.srAdj)+
     srcBadge('OI',pd.oiAdj)+srcBadge('PCR',pd.pcrAdj)+'</div></div>';
+
+  // WHY THIS STRATEGY box — built dynamically from live numbers
+  var whyBox='<div style="margin:0 14px 10px;padding:9px 12px;background:rgba(255,209,102,.05);'+
+    'border:1px solid rgba(255,209,102,.18);border-radius:8px;">'+
+    '<div style="font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,209,102,.6);'+
+    'font-weight:700;margin-bottom:5px;">\u26a1 WHY THIS STRATEGY</div>'+
+    '<div style="font-size:10px;color:rgba(255,255,255,.55);line-height:1.7;">'+(s.why||s.note)+'</div></div>';
+
   return '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;">'+
+    // Header: name + PoP badge
     '<div style="padding:12px 14px 10px;border-bottom:1px solid rgba(255,255,255,.06);">'+
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">'+
     '<span style="font-size:13px;font-weight:700;color:rgba(255,255,255,.9);">'+s.name+'</span>'+
-    '<span style="font-family:\'DM Mono\',monospace;font-size:13px;font-weight:800;color:'+pc+';background:'+pb+';padding:3px 10px;border-radius:20px;">'+pop+'%</span></div>'+
-    '<div style="display:flex;align-items:center;gap:8px;">'+best+
-    '<span style="font-size:9px;color:'+cc+';font-weight:700;text-transform:uppercase;padding:2px 8px;border:1px solid '+cc+'40;border-radius:6px;">'+s.cat+'</span></div>'+
-    '<div style="font-size:9.5px;color:rgba(255,255,255,.35);margin-top:6px;line-height:1.5;">'+s.note+'</div></div>'+
-    '<div style="padding:10px 14px 6px;">'+
-    '<div style="font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(0,200,220,.6);margin-bottom:6px;">LTP PER LEG</div>'+
+    '<span style="font-family:\'DM Mono\',monospace;font-size:13px;font-weight:800;color:'+pc+
+      ';background:'+pb+';padding:3px 10px;border-radius:20px;">'+pop+'%</span></div>'+
+    // Rank + category badges
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'+rankBadge+
+    '<span style="font-size:9px;color:'+cc+';font-weight:700;text-transform:uppercase;'+
+      'padding:2px 8px;border:1px solid '+cc+'40;border-radius:6px;">'+s.cat+'</span></div>'+
+    // Short description
+    '<div style="font-size:9.5px;color:rgba(255,255,255,.3);margin-top:6px;line-height:1.5;">'+s.note+'</div></div>'+
+    // Strike price row
+    '<div style="padding:8px 14px 4px;border-bottom:1px solid rgba(255,255,255,.04);">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;">'+
+    '<span style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:.8px;text-transform:uppercase;'+
+      'font-family:\'DM Mono\',monospace;">Strike Price</span>'+
+    '<span style="font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;color:#ffd166;">'+atmStrikeLbl+'</span></div></div>'+
+    // LTP per leg
+    '<div style="padding:8px 14px 4px;">'+
+    '<div style="font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(0,200,220,.6);margin-bottom:4px;">LTP PER LEG</div>'+
     legsH+'</div>'+
-    '<div style="padding:6px 14px;">'+
+    // Metrics
+    '<div style="padding:4px 14px;">'+
     srcRow('Prob. of Profit',pop+'%',pc)+
     srcRow('Max. Profit',mpS+' <small style="opacity:.45;">'+mpP+'</small>','#00c896')+
     srcRow('Max. Loss',mlS,'#ff6b6b')+
-    srcRow('RR Ratio','1:'+rr,'#6480ff')+
+    srcRow('Max RR Ratio','1:'+rr,'#6480ff')+
     srcRow('Breakevens',beS,'#00c8e0')+
-    srcRow('Net Credit/Debit',ncS,nc?'#00c896':'#ff6b6b')+
-    srcRow('Est. Margin',mrS,'#8aa0ff')+
-    '</div>'+bkd+'</div>';
+    srcRow('Net Credit / Debit',ncS,isCredit?'#00c896':'#ff6b6b')+
+    srcRow('Est. Margin/Premium',mrS,'#8aa0ff')+
+    '</div>'+
+    // WHY box
+    whyBox+
+    // PoP breakdown
+    bkd+'</div>';
 }}
 
 function srcBanner(sup,res){{
