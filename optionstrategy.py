@@ -3062,7 +3062,7 @@ def main():
     # Fetch all 7 expiries for dropdown
     print("\n  Fetching next 7 expiries for dropdown...")
     time.sleep(1.5)   # small gap so NSE doesn't block
-    multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=10)
+    multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=15)
     print(f"  Expiry dropdown will show: {expiry_list}")
 
     # Pre-analyze all expiry data
