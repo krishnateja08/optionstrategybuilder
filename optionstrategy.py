@@ -1441,11 +1441,14 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
         first_with_data = True
         for exp in expiry_list:
             has_data = exp in (all_expiry_js or {})
-            if not has_data:
-                continue
-            sel = "selected" if first_with_data else ""
-            expiry_opts_html += f'<option value="{exp}" {sel}>{exp}</option>\n'
-            first_with_data = False
+            sel = "selected" if (has_data and first_with_data) else ""
+            if has_data and first_with_data:
+                first_with_data = False
+            # Show all expiries; disable ones with no data
+            if has_data:
+                expiry_opts_html += f'<option value="{exp}" {sel}>{exp}</option>\n'
+            else:
+                expiry_opts_html += f'<option value="{exp}" disabled style="color:rgba(255,255,255,0.3);">{exp} (no data)</option>\n'
     else:
         expiry_opts_html = f'<option value="">{oc_analysis["expiry"] if oc_analysis else "N/A"}</option>'
     
@@ -3059,7 +3062,7 @@ def main():
     # Fetch all 7 expiries for dropdown
     print("\n  Fetching next 7 expiries for dropdown...")
     time.sleep(1.5)   # small gap so NSE doesn't block
-    multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=7)
+    multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=10)
     print(f"  Expiry dropdown will show: {expiry_list}")
 
     # Pre-analyze all expiry data
