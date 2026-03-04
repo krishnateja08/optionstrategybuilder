@@ -236,53 +236,73 @@ class NSEOptionChain:
         return None
 
     def fetch_multiple_expiries(self, session, headers, n=7):
-        """Use the NSE expiry list fetched in fetch() — mirrors NSE dropdown exactly."""
+        """Generate next n weekly expiry dates (Tuesdays) with holiday adjustment,
+           then fetch option chain for each. No extra NSE API call needed."""
 
-        # ── Step 1: Reuse cached list from fetch(), or re-fetch ────
-        expiry_list = self._cached_expiry_list[:] if self._cached_expiry_list else []
+        # ── Step 1: Generate next n Tuesday expiry dates ──────────
+        expiry_list = []
+        today = today_ist()
+        wd = today.weekday()  # Mon=0 … Sun=6
 
-        if not expiry_list:
-            print("  WARNING: No cached expiry list, re-fetching from NSE...")
-            try:
-                url = f"https://www.nseindia.com/api/option-chain-v3?type=Indices&symbol={self.symbol}"
-                resp = session.get(url, headers=headers, impersonate="chrome", timeout=20)
-                if resp.status_code == 200:
-                    all_exp = resp.json().get("records", {}).get("expiryDates", [])
-                    today = today_ist()
-                    for exp_str in all_exp:
-                        try:
-                            exp_dt = datetime.strptime(exp_str, "%d-%b-%Y").date()
-                            if exp_dt >= today:
-                                expiry_list.append(exp_str)
-                        except Exception:
-                            continue
-                    print(f"  Re-fetched expiry list ({len(expiry_list)}): {expiry_list}")
-            except Exception as e:
-                print(f"  WARNING re-fetch: {e}")
+        # Find this week's Tuesday
+        if wd <= 1:
+            days_to_tue = 1 - wd
+        else:
+            days_to_tue = 8 - wd
+        base_tuesday = today + timedelta(days=days_to_tue)
 
-        # ── Step 2: Limit to n ─────────────────────────────────────
-        expiry_list = expiry_list[:n]
-        print(f"  Fetching option chain for {len(expiry_list)} expiries: {expiry_list}")
+        # Generate n Tuesdays from today forward
+        candidate = base_tuesday
+        attempts = 0
+        while len(expiry_list) < n and attempts < 30:
+            # Apply holiday adjustment
+            if is_nse_holiday(candidate):
+                adjusted = get_prev_trading_day(candidate)
+            else:
+                adjusted = candidate
+            exp_str = adjusted.strftime("%d-%b-%Y")
+            if exp_str not in expiry_list:
+                expiry_list.append(exp_str)
+            # Move to next Tuesday
+            candidate += timedelta(days=7)
+            attempts += 1
 
-        # ── Step 3: Fetch option chain for each expiry ────────────
+        print(f"  Generated expiry list: {expiry_list}")
+
+        # ── Step 2: Fetch option chain for each expiry ─────────────
         results = {}
         for exp in expiry_list:
-            print(f"    Fetching: {exp}")
+            print(f"    Fetching expiry: {exp}")
             data = self._fetch_for_expiry(session, headers, exp)
             if data:
                 results[exp] = data
                 print(f"      OK: {exp}")
             else:
-                print(f"      SKIP: {exp} (not available on NSE)")
+                print(f"      SKIP: {exp} not found on NSE (may be monthly/not listed yet)")
             time.sleep(0.8)
 
-        print(f"  Got data for {len(results)}/{len(expiry_list)} expiries")
+        print(f"  Successfully fetched {len(results)} of {len(expiry_list)} expiries")
         return results, expiry_list
 
     def fetch(self):
         session, headers = self._make_session()
 
-        # ── Step 1: Get ALL available expiries from NSE first ─────
+        # ── Step 1: compute holiday-adjusted expiry ───────────────
+        expiry = self._current_or_next_tuesday_ist()
+
+        # ── Step 2: try to fetch with computed expiry ─────────────
+        result = self._fetch_for_expiry(session, headers, expiry)
+
+        # ── Step 3: fallback — ask NSE for actual expiry list ─────
+        if result is None:
+            print(f"  Computed expiry {expiry} not found on NSE. Trying API fallback...")
+            real_expiry = self._fetch_available_expiries(session, headers)
+            if real_expiry and real_expiry != expiry:
+                result = self._fetch_for_expiry(session, headers, real_expiry)
+
+        if result is None:
+            print("  ERROR: Option chain fetch failed for all expiries.")
+        # Also capture full expiry list for dropdown
         self._cached_expiry_list = []
         try:
             url = f"https://www.nseindia.com/api/option-chain-v3?type=Indices&symbol={self.symbol}"
@@ -295,22 +315,13 @@ class NSEOptionChain:
                         exp_dt = datetime.strptime(exp_str, "%d-%b-%Y").date()
                         if exp_dt >= today:
                             self._cached_expiry_list.append(exp_str)
+                            if len(self._cached_expiry_list) >= 7:
+                                break
                     except Exception:
                         continue
-                print(f"  NSE expiry list ({len(self._cached_expiry_list)}): {self._cached_expiry_list}")
+                print(f"  Expiry list fetched: {self._cached_expiry_list}")
         except Exception as e:
             print(f"  WARNING expiry list: {e}")
-
-        # ── Step 2: Pick nearest expiry from NSE list ─────────────
-        expiry = self._cached_expiry_list[0] if self._cached_expiry_list else self._current_or_next_tuesday_ist()
-        print(f"  Using expiry: {expiry}")
-
-        # ── Step 3: Fetch option chain for nearest expiry ─────────
-        result = self._fetch_for_expiry(session, headers, expiry)
-
-        if result is None:
-            print("  ERROR: Option chain fetch failed.")
-
         return result, session, headers
 
 
