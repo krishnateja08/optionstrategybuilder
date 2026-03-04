@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v18.5 · Smart Dynamic PoP Engine + Holiday-Aware Expiry
+Aurora Borealis Theme · v18.4 · Smart Dynamic PoP Engine + Holiday-Aware Expiry
 - PoP now reflects: Market Bias + Support/Resistance + Max CE/PE OI walls + PCR
 - lotSize fixed to 65
 - Strategies ranked by smart PoP — highest PoP = best trade right now
@@ -140,7 +140,7 @@ class NSEOptionChain:
             days_ahead = (8 - wd)       # e.g. Wed(2): 8-2=6 days → next Tue
             target_tuesday = today + timedelta(days=days_ahead)
 
-        # -- Holiday adjustment --
+        # ── Holiday adjustment ────────────────────────────────────
         if is_nse_holiday(target_tuesday):
             reason = NSE_HOLIDAYS_2026.get(
                 target_tuesday.strftime("%d-%b-%Y"), "Holiday/Weekend"
@@ -153,30 +153,6 @@ class NSEOptionChain:
             expiry_date = adjusted
         else:
             expiry_date = target_tuesday
-
-        # -- PAST EXPIRY CHECK --
-        # Edge case: today IS Tuesday AND it is a holiday.
-        # get_prev_trading_day() pulls back to same week Mon/Fri
-        # but that date is already past (expiry already closed).
-        # Fix: if expiry_date < today, jump to next Tuesday.
-        if expiry_date < today:
-            print(
-                f"  [Expiry Passed] {expiry_date.strftime('%d-%b-%Y')} is already past. "
-                f"Jumping to next weekly expiry."
-            )
-            next_tuesday = target_tuesday + timedelta(days=7)
-            if is_nse_holiday(next_tuesday):
-                reason2 = NSE_HOLIDAYS_2026.get(
-                    next_tuesday.strftime("%d-%b-%Y"), "Holiday/Weekend"
-                )
-                next_adjusted = get_prev_trading_day(next_tuesday)
-                print(
-                    f"  [Holiday on Next] {next_tuesday.strftime('%d-%b-%Y')} is '{reason2}'. "
-                    f"Next expiry moved to {next_adjusted.strftime('%d-%b-%Y')}"
-                )
-                expiry_date = next_adjusted
-            else:
-                expiry_date = next_tuesday
 
         result = expiry_date.strftime("%d-%b-%Y")
         print(f"  Computed expiry (IST, holiday-adjusted): {result}")
@@ -259,7 +235,7 @@ class NSEOptionChain:
                 time.sleep(2)
         return None
 
-    def fetch_multiple_expiries(self, session, headers, n=8):
+    def fetch_multiple_expiries(self, session, headers, n=7):
         """Generate next n weekly expiry dates (Tuesdays) with holiday adjustment,
            then fetch option chain for each. No extra NSE API call needed."""
 
@@ -284,13 +260,9 @@ class NSEOptionChain:
                 adjusted = get_prev_trading_day(candidate)
             else:
                 adjusted = candidate
-            # PAST EXPIRY FIX: skip if adjusted date is already past.
-            # Happens when today IS Tuesday AND a holiday — the pullback
-            # to prev trading day lands on yesterday (already expired).
-            if adjusted >= today:
-                exp_str = adjusted.strftime("%d-%b-%Y")
-                if exp_str not in expiry_list:
-                    expiry_list.append(exp_str)
+            exp_str = adjusted.strftime("%d-%b-%Y")
+            if exp_str not in expiry_list:
+                expiry_list.append(exp_str)
             # Move to next Tuesday
             candidate += timedelta(days=7)
             attempts += 1
@@ -1424,573 +1396,6 @@ STRATEGIES_DATA = {
 }
 
 
-# PATCHED: S/R CALCULATOR ADDED
-
-# =================================================================
-#  SECTION 5D -- S/R STRATEGY CALCULATOR (patched)
-# =================================================================
-
-def build_sr_calculator_html(oc_analysis, tech=None, md=None):
-    spot       = round(oc_analysis["underlying"], 2)   if oc_analysis else 0
-    atm        = oc_analysis["atm_strike"]              if oc_analysis else 0
-    pcr        = round(oc_analysis["pcr_oi"], 3)        if oc_analysis else 1.0
-    max_ce_s   = oc_analysis["max_ce_strike"]           if oc_analysis else atm + 200
-    max_pe_s   = oc_analysis["max_pe_strike"]           if oc_analysis else atm - 200
-    expiry     = oc_analysis["expiry"]                  if oc_analysis else "N/A"
-    bias       = md["bias"]         if md else "SIDEWAYS"
-    conf       = md["confidence"]   if md else "MEDIUM"
-    bull_sc    = md["bull"]         if md else 4
-    bear_sc    = md["bear"]         if md else 4
-    support    = round(tech["support"],    2) if tech else spot - 200
-    resistance = round(tech["resistance"], 2) if tech else spot + 200
-    strikes_json = json.dumps(oc_analysis.get("strikes_data", [])) if oc_analysis else "[]"
-
-    return f"""
-<!-- ═══ S/R STRATEGY CALCULATOR (patched) ═══ -->
-<div class="section" id="srCalc">
-  <div class="sec-title" style="color:#ffd166;border-color:rgba(255,209,102,.18);">
-    &#9775; S/R STRATEGY CALCULATOR
-    <span class="sec-sub">Manual S/R &middot; Best legs auto-selected &middot; Live data</span>
-  </div>
-
-  <!-- Inputs -->
-  <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:20px;
-       background:rgba(255,209,102,.05);border:1px solid rgba(255,209,102,.15);
-       border-radius:14px;padding:16px 18px;">
-
-    <div style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:130px;">
-      <label style="font-size:9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;
-                    color:rgba(0,200,150,.8);">&#9660; SUPPORT</label>
-      <input id="srcSupport" type="number" step="25" value=""
-        placeholder="e.g. 24750"
-        style="background:rgba(0,200,150,.08);border:1px solid rgba(0,200,150,.35);border-radius:8px;
-               color:#00c896;font-family:'DM Mono',monospace;font-size:15px;font-weight:700;
-               padding:9px 12px;outline:none;width:100%;"
-        oninput="srcDebounce()"/>
-    </div>
-
-    <div style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:130px;">
-      <label style="font-size:9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;
-                    color:rgba(255,107,107,.8);">&#9650; RESISTANCE</label>
-      <input id="srcResistance" type="number" step="25" value=""
-        placeholder="e.g. 25000"
-        style="background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.35);border-radius:8px;
-               color:#ff6b6b;font-family:'DM Mono',monospace;font-size:15px;font-weight:700;
-               padding:9px 12px;outline:none;width:100%;"
-        oninput="srcDebounce()"/>
-    </div>
-
-    <div style="display:flex;flex-direction:column;gap:5px;min-width:140px;">
-      <label style="font-size:9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;
-                    color:rgba(255,255,255,.35);">&#9670; NIFTY SPOT</label>
-      <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);
-                  border-radius:8px;color:rgba(255,255,255,.8);font-family:'DM Mono',monospace;
-                  font-size:15px;font-weight:700;padding:9px 12px;">
-        &#8377;<span id="srcSpotDisplay">{spot:.2f}</span>
-      </div>
-    </div>
-
-    <div style="display:flex;flex-direction:column;gap:5px;min-width:120px;">
-      <label style="font-size:9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;
-                    color:rgba(255,255,255,.35);">ATM STRIKE</label>
-      <div style="background:rgba(100,128,255,.08);border:1px solid rgba(100,128,255,.25);
-                  border-radius:8px;color:#8aa0ff;font-family:'DM Mono',monospace;
-                  font-size:15px;font-weight:700;padding:9px 12px;">
-        &#8377;<span id="srcAtmDisplay">{atm:,}</span>
-      </div>
-    </div>
-
-    <button onclick="srcCalculate()"
-      style="padding:10px 22px;border-radius:10px;border:1px solid rgba(255,209,102,.5);
-             background:rgba(255,209,102,.12);color:#ffd166;font-family:'DM Mono',monospace;
-             font-size:12px;font-weight:700;cursor:pointer;letter-spacing:1px;align-self:flex-end;">
-      &#9654; CALCULATE
-    </button>
-  </div>
-
-  <!-- Results -->
-  <div id="srcResults" style="display:none;">
-    <div id="srcContextBanner" style="margin-bottom:16px;padding:11px 16px;border-radius:10px;
-         border:1px solid rgba(255,209,102,.2);background:rgba(255,209,102,.05);
-         font-size:11px;color:rgba(255,255,255,.5);line-height:1.8;"></div>
-    <div id="srcStratCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;"></div>
-  </div>
-
-  <div id="srcEmpty" style="text-align:center;padding:28px 0;font-size:12px;color:rgba(255,255,255,.25);">
-    Enter Support &amp; Resistance levels and press <b style="color:#ffd166;">CALCULATE</b>.
-  </div>
-</div>
-
-<script>
-var SRC = {{
-  spot:{spot}, atm:{atm}, pcr:{pcr}, lotSize:65,
-  maxCeStrike:{max_ce_s}, maxPeStrike:{max_pe_s},
-  bias:"{bias}", biasConf:"{conf}",
-  bullScore:{bull_sc}, bearScore:{bear_sc},
-  strikes:{strikes_json}
-}};
-
-var _srcTimer=null;
-function srcDebounce(){{ clearTimeout(_srcTimer); _srcTimer=setTimeout(srcCalculate,600); }}
-
-// ── FIXED srcSnap: index-aware, always returns non-zero LTP ─────────
-function srcSnap(target, type) {{
-  if (!SRC.strikes || !SRC.strikes.length) {{
-    var est = Math.max(5, Math.round(120 * Math.exp(-Math.abs(target - SRC.atm) * 0.003)));
-    return {{strike:target, ltp:est, iv:15, idx:-1, _sorted:[]}};
-  }}
-  var sorted = SRC.strikes.slice().sort(function(a,b){{ return a.strike - b.strike; }});
-  var bi = 0;
-  for (var i = 1; i < sorted.length; i++) {{
-    if (Math.abs(sorted[i].strike - target) < Math.abs(sorted[bi].strike - target)) bi = i;
-  }}
-  var b   = sorted[bi];
-  var ltp = type === 'ce' ? b.ce_ltp : b.pe_ltp;
-  if (!ltp || ltp <= 0) ltp = Math.max(2, Math.round(120 * Math.exp(-Math.abs(b.strike - SRC.atm) * 0.003)));
-  return {{strike:b.strike, ltp:ltp, iv:(type==='ce'?b.ce_iv:b.pe_iv)||15, idx:bi, _sorted:sorted}};
-}}
-
-// ── srcNextStrike: step ±N positions from a snapped strike in the chain ──
-function srcNextStrike(ref, offset, type) {{
-  var sorted = ref._sorted;
-  if (!sorted || !sorted.length) return ref;
-  var ni  = Math.max(0, Math.min(sorted.length - 1, ref.idx + offset));
-  // If we've hit an edge, mirror inward so buy ≠ sell
-  if (ni === ref.idx) ni = Math.max(0, Math.min(sorted.length - 1, ref.idx - offset));
-  var b   = sorted[ni];
-  var ltp = type === 'ce' ? b.ce_ltp : b.pe_ltp;
-  if (!ltp || ltp <= 0) ltp = Math.max(2, Math.round(120 * Math.exp(-Math.abs(b.strike - SRC.atm) * 0.003)));
-  return {{strike:b.strike, ltp:ltp, iv:(type==='ce'?b.ce_iv:b.pe_iv)||15, idx:ni, _sorted:sorted}};
-}}
-
-function srcPoP(cat,sup,res){{
-  var spot=SRC.spot, pcr=SRC.pcr, range=Math.max(res-sup,50);
-  var cm=SRC.biasConf==='HIGH'?1.25:SRC.biasConf==='LOW'?0.6:1.0;
-  var ba=0;
-  if(cat==='bullish')     ba=SRC.bias==='BULLISH'?15:SRC.bias==='BEARISH'?-15:0;
-  else if(cat==='bearish')ba=SRC.bias==='BEARISH'?15:SRC.bias==='BULLISH'?-15:0;
-  else                     ba=SRC.bias==='SIDEWAYS'?8:-3;
-  ba*=cm;
-  var sa=0,ds=spot-sup,dr=res-spot;
-  if(cat==='bullish'){{
-    if(ds>=0&&ds<=range*.25)sa=12; else if(ds>=0&&ds<=range*.5)sa=6;
-    else if(dr>=0&&dr<=range*.2)sa=-12; else if(spot>res)sa=-8; else sa=2;
-  }}else if(cat==='bearish'){{
-    if(dr>=0&&dr<=range*.25)sa=12; else if(dr>=0&&dr<=range*.5)sa=6;
-    else if(ds>=0&&ds<=range*.2)sa=-12; else if(spot<sup)sa=-8; else sa=2;
-  }}else{{
-    var d=Math.abs(spot-(sup+res)/2)/(range/2);
-    sa=d<0.3?12:d<0.6?6:-6;
-  }}
-  sa*=cm;
-  var oa=0,dp=spot-SRC.maxPeStrike,dc=SRC.maxCeStrike-spot;
-  if(cat==='bullish'){{
-    oa+=(dp>0&&dp<150)?8:dp>150?4:-8;
-    oa+=dc>200?5:dc<100?-7:0;
-  }}else if(cat==='bearish'){{
-    oa+=(dc>0&&dc<150)?8:dc>150?4:-8;
-    oa+=dp>200?5:dp<100?-7:0;
-  }}else oa=(dp>0&&dc>0)?8:-5;
-  var pa=0;
-  if(cat==='bullish')     pa=pcr>1.5?8:pcr>1.2?6:pcr>1?3:pcr<0.7?-8:pcr<0.9?-4:0;
-  else if(cat==='bearish')pa=pcr<0.5?8:pcr<0.7?6:pcr<0.9?3:pcr>1.3?-8:pcr>1.1?-4:0;
-  else                     pa=(pcr>=0.85&&pcr<=1.15)?6:(pcr>=0.7&&pcr<=1.3)?3:-4;
-  return{{pop:Math.min(95,Math.max(5,Math.round(50+ba+sa+oa+pa))),
-          biasAdj:Math.round(ba),srAdj:Math.round(sa),oiAdj:Math.round(oa),pcrAdj:Math.round(pa)}};
-}}
-
-function srcBuildStrats(sup,res){{
-  var spot=SRC.spot, atm=SRC.atm, lot=SRC.lotSize;
-  var range=Math.max(res-sup,50);
-
-  // ── FIXED: snap to nearest available chain strike, then step by index ──
-  // This works correctly even when S/R is far outside the chain range.
-  var sCe  = srcSnap(res, 'ce');                    // sell CE: nearest to resistance
-  var bCe  = srcNextStrike(sCe,  +1, 'ce');         // buy CE:  1 step above sCe (inside chain)
-  var bCe2 = srcNextStrike(sCe,  +2, 'ce');         // buy CE2: 2 steps above sCe
-  var sPe  = srcSnap(sup, 'pe');                    // sell PE: nearest to support
-  var bPe  = srcNextStrike(sPe,  -1, 'pe');         // buy PE:  1 step below sPe (inside chain)
-  var bPe2 = srcNextStrike(sPe,  -2, 'pe');         // buy PE2: 2 steps below sPe
-  var atmCe = srcSnap(atm, 'ce');
-  var atmPe = srcSnap(atm, 'pe');
-
-  // ── Helper: breakeven proximity score ────────────────────────────
-  function beProximityScore(beArr) {{
-    var score = 0;
-    beArr.forEach(function(be) {{
-      var dSup    = Math.abs(be - sup);
-      var dRes    = Math.abs(be - res);
-      var nearest = Math.min(dSup, dRes);
-      var frac    = nearest / range;
-      if      (frac <= 0.10) score += 25;
-      else if (frac <= 0.20) score += 18;
-      else if (frac <= 0.35) score += 10;
-      else if (frac <= 0.50) score += 2;
-      else                   score -= 15;
-    }});
-    return score;
-  }}
-
-  // ── Helper: RR bonus ─────────────────────────────────────────────
-  function rrBonus(mp, ml) {{
-    if (ml <= 0 || ml === 999999) return 0;
-    var rr = mp / ml;
-    if      (rr >= 2.0) return 15;
-    else if (rr >= 1.0) return 8;
-    else if (rr >= 0.5) return 3;
-    return 0;
-  }}
-
-  // ── Helper: WHY explanation ───────────────────────────────────────
-  function buildWhy(beArr, mp, ml, nc, cat, name) {{
-    var parts = [];
-    beArr.forEach(function(be) {{
-      var dSup = Math.abs(be - sup);
-      var dRes = Math.abs(be - res);
-      if (dSup <= dRes) {{
-        parts.push('Breakeven \u20b9'+Math.round(be).toLocaleString('en-IN')+
-          ' is '+Math.round(dSup)+' pts from your Support \u20b9'+Math.round(sup).toLocaleString('en-IN'));
-      }} else {{
-        parts.push('Breakeven \u20b9'+Math.round(be).toLocaleString('en-IN')+
-          ' is '+Math.round(dRes)+' pts from your Resistance \u20b9'+Math.round(res).toLocaleString('en-IN'));
-      }}
-    }});
-    if (ml > 0 && ml !== 999999) {{
-      var rr = (mp/ml).toFixed(2);
-      parts.push('RR '+rr+':1 \u2014 '+(parseFloat(rr)>=1?'reward exceeds risk':'risk exceeds reward'));
-    }}
-    parts.push(nc >= 0 ? 'Net credit \u2014 premium collected upfront' : 'Net debit \u2014 pay to enter');
-    if (cat==='bullish'        && SRC.bias==='BULLISH')  parts.push('Aligns with BULLISH market bias');
-    if (cat==='bearish'        && SRC.bias==='BEARISH')  parts.push('Aligns with BEARISH market bias');
-    if (cat==='nondirectional' && SRC.bias==='SIDEWAYS') parts.push('Aligns with SIDEWAYS market bias');
-    return parts.join(' &nbsp;&bull;&nbsp; ');
-  }}
-
-  // ── Build 8 candidate strategies ─────────────────────────────────
-  var pool = [];
-
-  // 1. Bull Put Spread
-  try{{(function(){{
-    var nc=sPe.ltp-bPe.ltp, w=Math.max(Math.abs(sPe.strike-bPe.strike),50);
-    var mp=Math.max(nc,0)*lot, ml=Math.max(w-nc,0)*lot, be=[sPe.strike-nc];
-    var pop=srcPoP('bullish',sup,res), sc=pop.pop+beProximityScore(be)+rrBonus(mp,ml)+(nc>=0?6:0);
-    if(!isNaN(sc)&&isFinite(sc)) pool.push({{name:'Bull Put Spread',cat:'bullish',score:sc,
-      legs:[{{a:'SELL PE',s:sPe.strike,l:sPe.ltp,c:'#ff9090'}},{{a:'BUY PE',s:bPe.strike,l:bPe.ltp,c:'#ff6b6b'}}],
-      nc:nc,mp:mp,ml:ml,be:be,margin:w*lot,pop:pop,
-      note:'Sell PE at \u20b9'+sPe.strike.toLocaleString('en-IN')+' \u00b7 Profit while Nifty stays above support',
-      why:buildWhy(be,mp,ml,nc,'bullish','Bull Put Spread')}});
-  }})();}}catch(e){{console.warn('BPS:',e);}}
-
-  // 2. Bear Call Spread
-  try{{(function(){{
-    var nc=sCe.ltp-bCe.ltp, w=Math.max(Math.abs(bCe.strike-sCe.strike),50);
-    var mp=Math.max(nc,0)*lot, ml=Math.max(w-nc,0)*lot, be=[sCe.strike+nc];
-    var pop=srcPoP('bearish',sup,res), sc=pop.pop+beProximityScore(be)+rrBonus(mp,ml)+(nc>=0?6:0);
-    if(!isNaN(sc)&&isFinite(sc)) pool.push({{name:'Bear Call Spread',cat:'bearish',score:sc,
-      legs:[{{a:'SELL CE',s:sCe.strike,l:sCe.ltp,c:'#00c8e0'}},{{a:'BUY CE',s:bCe.strike,l:bCe.ltp,c:'#4de8b8'}}],
-      nc:nc,mp:mp,ml:ml,be:be,margin:w*lot,pop:pop,
-      note:'Sell CE at \u20b9'+sCe.strike.toLocaleString('en-IN')+' \u00b7 Profit while Nifty stays below resistance',
-      why:buildWhy(be,mp,ml,nc,'bearish','Bear Call Spread')}});
-  }})();}}catch(e){{console.warn('BCS:',e);}}
-
-  // 3. Short Iron Condor
-  try{{(function(){{
-    var nc=sCe.ltp+sPe.ltp-bCe.ltp-bPe.ltp, w=Math.max(Math.abs(bCe.strike-sCe.strike),50);
-    var mp=Math.max(nc,0)*lot, ml=Math.max(w-nc,0)*lot, be=[sPe.strike-nc,sCe.strike+nc];
-    var pop=srcPoP('nondirectional',sup,res); pop.pop=Math.min(95,pop.pop+6);
-    var sc=pop.pop+beProximityScore(be)+rrBonus(mp,ml)+(nc>=0?8:0);
-    if(!isNaN(sc)&&isFinite(sc)) pool.push({{name:'Short Iron Condor',cat:'nondirectional',score:sc,
-      legs:[{{a:'SELL CE',s:sCe.strike,l:sCe.ltp,c:'#00c8e0'}},{{a:'BUY CE',s:bCe.strike,l:bCe.ltp,c:'#4de8b8'}},
-            {{a:'SELL PE',s:sPe.strike,l:sPe.ltp,c:'#ff9090'}},{{a:'BUY PE',s:bPe.strike,l:bPe.ltp,c:'#ff6b6b'}}],
-      nc:nc,mp:mp,ml:ml,be:be,margin:w*lot*2,pop:pop,
-      note:'Sell CE \u20b9'+sCe.strike.toLocaleString('en-IN')+' + PE \u20b9'+sPe.strike.toLocaleString('en-IN')+' \u00b7 Profit if Nifty stays in range',
-      why:buildWhy(be,mp,ml,nc,'nondirectional','Short Iron Condor')}});
-  }})();}}catch(e){{console.warn('SIC:',e);}}
-
-  // 4. Short Strangle
-  try{{(function(){{
-    var nc=sCe.ltp+sPe.ltp, mp=nc*lot, be=[sPe.strike-nc,sCe.strike+nc];
-    var pop=srcPoP('nondirectional',sup,res), sc=pop.pop+beProximityScore(be)+(nc>=0?4:0);
-    if(!isNaN(sc)&&isFinite(sc)) pool.push({{name:'Short Strangle',cat:'nondirectional',score:sc,
-      legs:[{{a:'SELL CE',s:sCe.strike,l:sCe.ltp,c:'#00c8e0'}},{{a:'SELL PE',s:sPe.strike,l:sPe.ltp,c:'#ff9090'}}],
-      nc:nc,mp:mp,ml:999999,be:be,margin:Math.round(0.155*spot*lot),pop:pop,
-      note:'Sell CE \u20b9'+sCe.strike.toLocaleString('en-IN')+' + PE \u20b9'+sPe.strike.toLocaleString('en-IN')+' \u00b7 Collect premium both sides',
-      why:buildWhy(be,mp,999999,nc,'nondirectional','Short Strangle')}});
-  }})();}}catch(e){{console.warn('SS:',e);}}
-
-  // 5. Bull Call Spread
-  try{{(function(){{
-    var nc=atmCe.ltp-sCe.ltp, w=Math.max(Math.abs(sCe.strike-atm),50);
-    var mp=Math.max(w-Math.abs(nc),0)*lot, ml=Math.abs(Math.min(nc,0))*lot, be=[atm+Math.abs(nc)];
-    var pop=srcPoP('bullish',sup,res), sc=pop.pop+beProximityScore(be)+rrBonus(mp,ml);
-    if(!isNaN(sc)&&isFinite(sc)) pool.push({{name:'Bull Call Spread',cat:'bullish',score:sc,
-      legs:[{{a:'BUY CE',s:atm,l:atmCe.ltp,c:'#00c8e0'}},{{a:'SELL CE',s:sCe.strike,l:sCe.ltp,c:'#4de8b8'}}],
-      nc:nc,mp:mp,ml:ml,be:be,margin:Math.abs(nc)*lot,pop:pop,
-      note:'Buy ATM CE \u20b9'+atm.toLocaleString('en-IN')+', sell CE at resistance \u20b9'+sCe.strike.toLocaleString('en-IN'),
-      why:buildWhy(be,mp,ml,nc,'bullish','Bull Call Spread')}});
-  }})();}}catch(e){{console.warn('BCS2:',e);}}
-
-  // 6. Bear Put Spread
-  try{{(function(){{
-    var nc=atmPe.ltp-sPe.ltp, w=Math.max(Math.abs(atm-sPe.strike),50);
-    var mp=Math.max(w-Math.abs(nc),0)*lot, ml=Math.abs(Math.min(nc,0))*lot, be=[atm-Math.abs(nc)];
-    var pop=srcPoP('bearish',sup,res), sc=pop.pop+beProximityScore(be)+rrBonus(mp,ml);
-    if(!isNaN(sc)&&isFinite(sc)) pool.push({{name:'Bear Put Spread',cat:'bearish',score:sc,
-      legs:[{{a:'BUY PE',s:atm,l:atmPe.ltp,c:'#ff9090'}},{{a:'SELL PE',s:sPe.strike,l:sPe.ltp,c:'#ff6b6b'}}],
-      nc:nc,mp:mp,ml:ml,be:be,margin:Math.abs(nc)*lot,pop:pop,
-      note:'Buy ATM PE \u20b9'+atm.toLocaleString('en-IN')+', sell PE at support \u20b9'+sPe.strike.toLocaleString('en-IN'),
-      why:buildWhy(be,mp,ml,nc,'bearish','Bear Put Spread')}});
-  }})();}}catch(e){{console.warn('BPS2:',e);}}
-
-  // 7. Short Iron Butterfly
-  try{{(function(){{
-    var nc=atmCe.ltp+atmPe.ltp-sCe.ltp-sPe.ltp, w=Math.max(sCe.strike-atm,atm-sPe.strike,50);
-    var mp=Math.max(nc,0)*lot, ml=Math.max(w-nc,0)*lot, be=[atm-nc,atm+nc];
-    var pop=srcPoP('nondirectional',sup,res), sc=pop.pop+beProximityScore(be)+rrBonus(mp,ml)+(nc>=0?6:0);
-    if(!isNaN(sc)&&isFinite(sc)) pool.push({{name:'Short Iron Butterfly',cat:'nondirectional',score:sc,
-      legs:[{{a:'SELL CE',s:atm,l:atmCe.ltp,c:'#00c8e0'}},{{a:'SELL PE',s:atm,l:atmPe.ltp,c:'#ff9090'}},
-            {{a:'BUY CE',s:sCe.strike,l:sCe.ltp,c:'#4de8b8'}},{{a:'BUY PE',s:sPe.strike,l:sPe.ltp,c:'#ff6b6b'}}],
-      nc:nc,mp:mp,ml:ml,be:be,margin:w*lot*2,pop:pop,
-      note:'Sell ATM straddle \u20b9'+atm.toLocaleString('en-IN')+', hedge at S/R walls',
-      why:buildWhy(be,mp,ml,nc,'nondirectional','Short Iron Butterfly')}});
-  }})();}}catch(e){{console.warn('SIB:',e);}}
-
-  // 8. Wide Iron Condor
-  try{{(function(){{
-    var nc=sCe.ltp+sPe.ltp-bCe2.ltp-bPe2.ltp, w=Math.max(Math.abs(bCe2.strike-sCe.strike),50);
-    var mp=Math.max(nc,0)*lot, ml=Math.max(w-nc,0)*lot, be=[sPe.strike-nc,sCe.strike+nc];
-    var pop=srcPoP('nondirectional',sup,res); pop.pop=Math.min(95,pop.pop+4);
-    var sc=pop.pop+beProximityScore(be)+rrBonus(mp,ml)+(nc>=0?6:0);
-    if(!isNaN(sc)&&isFinite(sc)) pool.push({{name:'Wide Iron Condor',cat:'nondirectional',score:sc,
-      legs:[{{a:'SELL CE',s:sCe.strike,l:sCe.ltp,c:'#00c8e0'}},{{a:'BUY CE',s:bCe2.strike,l:bCe2.ltp,c:'#4de8b8'}},
-            {{a:'SELL PE',s:sPe.strike,l:sPe.ltp,c:'#ff9090'}},{{a:'BUY PE',s:bPe2.strike,l:bPe2.ltp,c:'#ff6b6b'}}],
-      nc:nc,mp:mp,ml:ml,be:be,margin:w*lot*2,pop:pop,
-      note:'Wider wings at CE \u20b9'+bCe2.strike.toLocaleString('en-IN')+' / PE \u20b9'+bPe2.strike.toLocaleString('en-IN')+' \u00b7 Better RR',
-      why:buildWhy(be,mp,ml,nc,'nondirectional','Wide Iron Condor')}});
-  }})();}}catch(e){{console.warn('WIC:',e);}}
-
-  // ── Guaranteed fallback so something ALWAYS renders ───────────────
-  if (pool.length === 0) {{
-    var fbNc = (sCe.ltp||20) + (sPe.ltp||20);
-    var fbPop = srcPoP('nondirectional', sup, res);
-    pool.push({{name:'Short Strangle',cat:'nondirectional',score:50,
-      legs:[{{a:'SELL CE',s:sCe.strike,l:sCe.ltp||20,c:'#00c8e0'}},{{a:'SELL PE',s:sPe.strike,l:sPe.ltp||20,c:'#ff9090'}}],
-      nc:fbNc,mp:fbNc*lot,ml:999999,be:[sPe.strike-fbNc,sCe.strike+fbNc],
-      margin:Math.round(0.155*(SRC.spot||24000)*lot),pop:fbPop,
-      note:'Sell CE \u20b9'+sCe.strike.toLocaleString('en-IN')+' + PE \u20b9'+sPe.strike.toLocaleString('en-IN'),
-      why:'Fallback: premium collected at both S/R walls.'}});
-  }}
-
-  // ── Sort and return top 3 ─────────────────────────────────────────
-  pool.sort(function(a,b){{ return b.score - a.score; }});
-  return pool.slice(0,3);
-}}
-
-function srcBadge(lbl,val,fc){{
-  var col=fc||(val>=0?'#00c896':'#ff6b6b');
-  var txt=fc?val:(val>=0?'+':'')+val;
-  return '<span style="font-size:9px;background:rgba(0,0,0,.25);padding:2px 7px;border-radius:6px;color:rgba(255,255,255,.4);">'+lbl+' <b style="color:'+col+';">'+txt+'</b></span>';
-}}
-function srcRow(lbl,val,col){{
-  return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);">'+
-    '<span style="font-size:10px;color:rgba(255,255,255,.35);letter-spacing:.5px;text-transform:uppercase;font-family:\'DM Mono\',monospace;">'+lbl+'</span>'+
-    '<span style="font-family:\'DM Mono\',monospace;font-size:12px;font-weight:600;color:'+col+';">'+val+'</span></div>';
-}}
-
-function srcCard(s,rank){{
-  var pop=s.pop.pop, lot=SRC.lotSize;
-  var pc=pop>=70?'#00c896':pop>=55?'#4de8b8':pop>=45?'#6480ff':'#ff6b6b';
-  var pb=pop>=70?'rgba(0,200,150,.18)':pop>=55?'rgba(77,232,184,.15)':pop>=45?'rgba(100,128,255,.18)':'rgba(255,107,107,.18)';
-  var cc=s.cat==='bullish'?'#00c896':s.cat==='bearish'?'#ff6b6b':'#6480ff';
-  var isCredit=s.nc>=0;
-  var mpS=s.mp===999999?'Unlimited':'\u20b9'+Math.round(s.mp).toLocaleString('en-IN');
-  var mlS=s.ml===999999?'Unlimited':'\u20b9'+Math.round(s.ml).toLocaleString('en-IN');
-  var ncS=(isCredit?'+ ':'- ')+'\u20b9'+Math.abs(Math.round(s.nc*lot)).toLocaleString('en-IN');
-  var mrS='\u20b9'+Math.round(s.margin).toLocaleString('en-IN');
-  var beS=s.be.map(function(v){{return '\u20b9'+Math.round(v).toLocaleString('en-IN');}}).join(' / ');
-  var rr=s.ml>0&&s.ml!==999999?(s.mp/s.ml).toFixed(2):'\u221e';
-  var mpP=s.ml>0&&s.ml!==999999?(s.mp/s.ml*100).toFixed(0)+'%':'\u221e';
-
-  // Rank badges
-  var rankBadge='';
-  if(rank===0) rankBadge='<span style="font-size:9px;background:rgba(255,209,102,.2);color:#ffd166;border:1px solid rgba(255,209,102,.4);padding:2px 8px;border-radius:6px;font-weight:700;">\u2605 BEST FIT</span>';
-  else if(rank===1) rankBadge='<span style="font-size:9px;background:rgba(100,128,255,.15);color:#8aa0ff;border:1px solid rgba(100,128,255,.35);padding:2px 8px;border-radius:6px;font-weight:700;">\u25c6 2nd BEST</span>';
-  else rankBadge='<span style="font-size:9px;background:rgba(0,200,150,.1);color:#4de8b8;border:1px solid rgba(0,200,150,.25);padding:2px 8px;border-radius:6px;font-weight:700;">\u25cf 3rd</span>';
-
-  // Strike price label — ATM tag if ATM leg present, else show sell-leg strikes
-  var atmStrikeLbl = 'ATM \u20b9' + SRC.atm.toLocaleString('en-IN');
-
-  // LTP per leg rows
-  var legsH=s.legs.map(function(l){{
-    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);">'+
-      '<span style="font-size:9.5px;color:rgba(255,255,255,.4);font-family:\'DM Mono\',monospace;">'+l.a+' \u20b9'+l.s.toLocaleString('en-IN')+'</span>'+
-      '<span style="font-family:\'DM Mono\',monospace;font-size:12px;font-weight:700;color:'+l.c+';">\u20b9'+(l.l||0).toFixed(2)+'</span></div>';
-  }}).join('');
-
-  // PoP breakdown
-  var pd=s.pop;
-  var bkd='<div style="background:rgba(0,0,0,.2);border-top:1px solid rgba(255,255,255,.05);padding:8px 12px;">'+
-    '<div style="font-size:8px;letter-spacing:1.5px;color:rgba(255,255,255,.3);text-transform:uppercase;margin-bottom:5px;">PoP BREAKDOWN</div>'+
-    '<div style="display:flex;flex-wrap:wrap;gap:5px;">'+
-    srcBadge('Base',50,'#fff')+srcBadge('Bias',pd.biasAdj)+srcBadge('S/R',pd.srAdj)+
-    srcBadge('OI',pd.oiAdj)+srcBadge('PCR',pd.pcrAdj)+'</div></div>';
-
-  // WHY THIS STRATEGY box — built dynamically from live numbers
-  var whyBox='<div style="margin:0 14px 10px;padding:9px 12px;background:rgba(255,209,102,.05);'+
-    'border:1px solid rgba(255,209,102,.18);border-radius:8px;">'+
-    '<div style="font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,209,102,.6);'+
-    'font-weight:700;margin-bottom:5px;">\u26a1 WHY THIS STRATEGY</div>'+
-    '<div style="font-size:10px;color:rgba(255,255,255,.55);line-height:1.7;">'+(s.why||s.note)+'</div></div>';
-
-  return '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;">'+
-    // Header: name + PoP badge
-    '<div style="padding:12px 14px 10px;border-bottom:1px solid rgba(255,255,255,.06);">'+
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">'+
-    '<span style="font-size:13px;font-weight:700;color:rgba(255,255,255,.9);">'+s.name+'</span>'+
-    '<span style="font-family:\'DM Mono\',monospace;font-size:13px;font-weight:800;color:'+pc+
-      ';background:'+pb+';padding:3px 10px;border-radius:20px;">'+pop+'%</span></div>'+
-    // Rank + category badges
-    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'+rankBadge+
-    '<span style="font-size:9px;color:'+cc+';font-weight:700;text-transform:uppercase;'+
-      'padding:2px 8px;border:1px solid '+cc+'40;border-radius:6px;">'+s.cat+'</span></div>'+
-    // Short description
-    '<div style="font-size:9.5px;color:rgba(255,255,255,.3);margin-top:6px;line-height:1.5;">'+s.note+'</div></div>'+
-    // Strike price row
-    '<div style="padding:8px 14px 4px;border-bottom:1px solid rgba(255,255,255,.04);">'+
-    '<div style="display:flex;justify-content:space-between;align-items:center;">'+
-    '<span style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:.8px;text-transform:uppercase;'+
-      'font-family:\'DM Mono\',monospace;">Strike Price</span>'+
-    '<span style="font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;color:#ffd166;">'+atmStrikeLbl+'</span></div></div>'+
-    // LTP per leg
-    '<div style="padding:8px 14px 4px;">'+
-    '<div style="font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(0,200,220,.6);margin-bottom:4px;">LTP PER LEG</div>'+
-    legsH+'</div>'+
-    // Metrics
-    '<div style="padding:4px 14px;">'+
-    srcRow('Prob. of Profit',pop+'%',pc)+
-    srcRow('Max. Profit',mpS+' <small style="opacity:.45;">'+mpP+'</small>','#00c896')+
-    srcRow('Max. Loss',mlS,'#ff6b6b')+
-    srcRow('Max RR Ratio','1:'+rr,'#6480ff')+
-    srcRow('Breakevens',beS,'#00c8e0')+
-    srcRow('Net Credit / Debit',ncS,isCredit?'#00c896':'#ff6b6b')+
-    srcRow('Est. Margin/Premium',mrS,'#8aa0ff')+
-    '</div>'+
-    // WHY box
-    whyBox+
-    // PoP breakdown
-    bkd+'</div>';
-}}
-
-function srcBanner(sup,res){{
-  var spot=SRC.spot,range=res-sup;
-  var ds=spot-sup,dr=res-spot;
-  var pos=spot<sup?'Below Support':spot>res?'Above Resistance':ds<range*.3?'Near Support':dr<range*.3?'Near Resistance':'Mid Range';
-  var pc=pos.includes('Support')?'#00c896':pos.includes('Resistance')?'#ff6b6b':'#6480ff';
-  var pcrL=SRC.pcr>1.2?'Bullish':SRC.pcr<0.8?'Bearish':'Neutral';
-  var pcrC=SRC.pcr>1.2?'#00c896':SRC.pcr<0.8?'#ff6b6b':'#6480ff';
-  var bc=SRC.bias==='BULLISH'?'#00c896':SRC.bias==='BEARISH'?'#ff6b6b':'#6480ff';
-  return '<b style="color:rgba(255,255,255,.6);">Market Context</b> &nbsp;|&nbsp; '+
-    'Spot <span style="color:#ffd166;font-weight:700;">\u20b9'+SRC.spot.toLocaleString('en-IN')+'</span> &nbsp;'+
-    'Position: <span style="color:'+pc+';font-weight:700;">'+pos+'</span> &nbsp;'+
-    'Range: <span style="color:#6480ff;font-weight:700;">'+Math.round(range)+' pts</span> &nbsp;'+
-    'Bias: <span style="color:'+bc+';font-weight:700;">'+SRC.bias+'</span> &nbsp;'+
-    'PCR: <span style="color:'+pcrC+';font-weight:700;">'+SRC.pcr.toFixed(3)+' ('+pcrL+')</span>';
-}}
-
-window.srcCalculate=function(){{
-  var empty=document.getElementById('srcEmpty');
-  var results=document.getElementById('srcResults');
-  try{{
-    var rawSup=parseFloat(document.getElementById('srcSupport').value);
-    var rawRes=parseFloat(document.getElementById('srcResistance').value);
-    var sup=Math.min(rawSup,rawRes);
-    var res=Math.max(rawSup,rawRes);
-    if(!sup||!res||isNaN(sup)||isNaN(res)||sup===res){{
-      if(empty){{empty.style.display='block';
-        empty.innerHTML='<span style="color:#ffd166;">\u26a0 Enter two different S/R values.</span>';}}
-      if(results)results.style.display='none'; return;
-    }}
-    // ── Always sync from OC global (defined in strategies block above) ─
-    (function(){{
-      try {{
-        if (typeof OC !== 'undefined') {{
-          if (OC.spot)        SRC.spot        = OC.spot;
-          if (OC.atm)         SRC.atm         = OC.atm;
-          if (OC.pcr)         SRC.pcr         = OC.pcr;
-          if (OC.maxCeStrike) SRC.maxCeStrike = OC.maxCeStrike;
-          if (OC.maxPeStrike) SRC.maxPeStrike = OC.maxPeStrike;
-          if (OC.bias)        SRC.bias        = OC.bias;
-          if (OC.biasConf)    SRC.biasConf    = OC.biasConf;
-          if (OC.strikes && OC.strikes.length > 0) SRC.strikes = OC.strikes;
-          var sd=document.getElementById('srcSpotDisplay');
-          var ad=document.getElementById('srcAtmDisplay');
-          if(sd) sd.textContent=(SRC.spot||0).toLocaleString('en-IN',{{minimumFractionDigits:2,maximumFractionDigits:2}});
-          if(ad) ad.textContent=(SRC.atm||0).toLocaleString('en-IN');
-        }}
-      }} catch(e) {{ console.warn('OC sync:',e); }}
-    }})();
-    // ── Realistic synthetic strikes if no live OC data ───────────────
-    if(!SRC.strikes||SRC.strikes.length===0){{
-      var centreAtm=SRC.atm||Math.round(((sup+res)/2)/50)*50;
-      var synth=[];
-      for(var i=-12;i<=12;i++){{
-        var sk=centreAtm+(i*50);
-        var ltp=Math.max(2,Math.round(120*Math.exp(-Math.abs(i)*0.35)));
-        synth.push({{strike:sk,ce_ltp:ltp,pe_ltp:ltp,ce_iv:15,pe_iv:15,ce_oi:1000,pe_oi:1000}});
-      }}
-      SRC.strikes=synth; SRC.atm=centreAtm;
-    }}
-    var banner=document.getElementById('srcContextBanner');
-    var cards=document.getElementById('srcStratCards');
-    if(banner)banner.innerHTML=srcBanner(sup,res);
-    if(cards){{
-      var strats=srcBuildStrats(sup,res);
-      if(strats.length>0){{
-        var html='';
-        strats.forEach(function(s,i){{
-          try{{html+=srcCard(s,i);}}
-          catch(cardErr){{
-            console.error('srcCard error for '+s.name+':',cardErr);
-          }}
-        }});
-        cards.innerHTML=html||'<div style="color:#ff6b6b;padding:12px;">Strategy rendering failed — check console.</div>';
-      }}else{{
-        cards.innerHTML='<div style="color:#ff6b6b;padding:12px;">Could not build strategies for this S/R range.</div>';
-      }}
-    }}
-    if(empty)empty.style.display='none';
-    if(results)results.style.display='block';
-  }}catch(err){{
-    console.error('srcCalculate error:',err);
-    if(empty){{
-      empty.style.display='block';
-      empty.innerHTML='<div style="color:#ff6b6b;padding:12px 0;">'
-        +'<b>\u26a0 Calculator error:</b> '+err.message
-        +'<br><small style="opacity:.6;">Open browser DevTools console (F12) for full details.</small></div>';
-    }}
-    if(results)results.style.display='none';
-  }}
-}};
-// Auto-calculate on load intentionally removed — user must press CALCULATE.
-// ── Sync Spot/ATM display from OC on page load ───────────────────────
-document.addEventListener('DOMContentLoaded',function(){{
-  try{{
-    if(typeof OC!=='undefined'){{
-      if(OC.spot) SRC.spot=OC.spot; if(OC.atm) SRC.atm=OC.atm;
-      if(OC.pcr)  SRC.pcr=OC.pcr;
-      if(OC.strikes&&OC.strikes.length>0) SRC.strikes=OC.strikes;
-      var sd=document.getElementById('srcSpotDisplay');
-      var ad=document.getElementById('srcAtmDisplay');
-      if(sd) sd.textContent=(SRC.spot||0).toLocaleString('en-IN',{{minimumFractionDigits:2,maximumFractionDigits:2}});
-      if(ad) ad.textContent=(SRC.atm||0).toLocaleString('en-IN');
-    }}
-  }}catch(e){{}}
-}});
-</script>
-<!-- ═══ END S/R STRATEGY CALCULATOR ═══ -->
-"""
-
-
 def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed=None, expiry_list=None):
     spot       = oc_analysis["underlying"]   if oc_analysis else 23000
     atm        = oc_analysis["atm_strike"]   if oc_analysis else 23000
@@ -2002,38 +1407,34 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
 
     # Build multi-expiry data for dropdown
     all_expiry_js = {}
-    if expiry_list:
+    if multi_expiry_analyzed and expiry_list:
         for exp in expiry_list:
-            oc_e = (multi_expiry_analyzed or {}).get(exp)
-            # Use primary expiry data as fallback for weeks not yet fetched
-            fallback_oc = oc_e or oc_analysis
-            if not fallback_oc:
+            oc_e = multi_expiry_analyzed.get(exp)
+            if not oc_e:
                 continue
             all_expiry_js[exp] = {
-                "spot":        round(fallback_oc["underlying"], 2),
-                "atm":         fallback_oc["atm_strike"],
-                "pcr":         round(fallback_oc["pcr_oi"], 3),
-                "maxCeStrike": fallback_oc["max_ce_strike"],
-                "maxPeStrike": fallback_oc["max_pe_strike"],
+                "spot":        round(oc_e["underlying"], 2),
+                "atm":         oc_e["atm_strike"],
+                "pcr":         round(oc_e["pcr_oi"], 3),
+                "maxCeStrike": oc_e["max_ce_strike"],
+                "maxPeStrike": oc_e["max_pe_strike"],
                 "support":     round(tech["support"], 2) if tech else spot - 150,
                 "resistance":  round(tech["resistance"], 2) if tech else spot + 150,
                 "strongSup":   round(tech["strong_sup"], 2) if tech else spot - 300,
                 "strongRes":   round(tech["strong_res"], 2) if tech else spot + 300,
-                "strikes":     fallback_oc.get("strikes_data", []),
+                "strikes":     oc_e.get("strikes_data", []),
             }
     all_expiry_json = json.dumps(all_expiry_js)
     expiry_opts_html = ""
     if expiry_list:
-        first_selected = True
+        first_with_data = True
         for exp in expiry_list:
             has_data = exp in (all_expiry_js or {})
-            # Show ALL expiries — disable ones with no data (rare edge case)
-            disabled = "" if has_data else "disabled style=\'color:rgba(255,255,255,.3);\'"
-            sel = "selected" if (has_data and first_selected) else ""
-            if has_data and first_selected:
-                first_selected = False
-            label = exp if has_data else f"{exp} (loading...)"
-            expiry_opts_html += f'<option value="{exp}" {sel} {disabled}>{label}</option>\n'
+            if not has_data:
+                continue
+            sel = "selected" if first_with_data else ""
+            expiry_opts_html += f'<option value="{exp}" {sel}>{exp}</option>\n'
+            first_with_data = False
     else:
         expiry_opts_html = f'<option value="">{oc_analysis["expiry"] if oc_analysis else "N/A"}</option>'
     
@@ -3416,12 +2817,12 @@ def build_greeks_script_html(oc_analysis):
       '<div style="display:flex;align-items:center;gap:5px;">' +
         '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">' +
           '<div style="width:'+cePct+'%;height:100%;background:'+ceCol+';border-radius:2px;"></div></div>' +
-        '<span style="font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;color:'+ceCol+';">' +
+        '<span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:'+ceCol+';">' +
              (d.ce_delta>=0?'+':'')+d.ce_delta.toFixed(3)+'</span></div>' +
       '<div style="display:flex;align-items:center;gap:5px;margin-top:3px;">' +
         '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">' +
           '<div style="width:'+pePct+'%;height:100%;background:'+peCol+';border-radius:2px;"></div></div>' +
-        '<span style="font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;color:'+peCol+';">' +
+        '<span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:'+peCol+';">' +
              (d.pe_delta>=0?'+':'')+d.pe_delta.toFixed(3)+'</span></div>';
     var ice = document.getElementById('greeksIvCe'); if(ice) ice.textContent = (d.ce_iv||0).toFixed(1)+'%';
     var ipe = document.getElementById('greeksIvPe'); if(ipe) ipe.textContent = (d.pe_iv||0).toFixed(1)+'%';
@@ -3461,7 +2862,6 @@ def build_greeks_script_html(oc_analysis):
 def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, expiry_list=None):
     oi_html        = build_oi_html(oc)               if oc   else ""
     kl_html        = build_key_levels_html(tech, oc) if tech else ""
-    sr_calc_html   = build_sr_calculator_html(oc, tech, md)
     strat_html     = build_strategies_html(oc, tech, md, multi_expiry_analyzed=multi_expiry_analyzed, expiry_list=expiry_list)
     strikes_html   = build_strikes_html(oc)
     ticker_html    = build_ticker_bar(tech, oc, vix_data)
@@ -3480,7 +2880,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Nifty 50 Options Dashboard v18.5</title>
+<title>Nifty 50 Options Dashboard v18.4</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>{CSS}</style>
@@ -3533,7 +2933,6 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">OPTION CHAIN</div>
-      <button class="sb-btn" onclick="go('srCalc',this)">&#9775; S/R Calculator</button>
       <button class="sb-btn" onclick="go('strikes',this)">Top 5 Strikes</button>
     </div>
     </div>
@@ -3543,7 +2942,6 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
     {greeks_table}
     <div id="kl">{kl_html}</div>
     {strat_html}
-    {sr_calc_html}
     <div id="strikes">{strikes_html}</div>
     <div class="section">
       <div style="background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.18);
@@ -3617,7 +3015,7 @@ document.addEventListener("click",function(e){{
 def main():
     ts = ist_timestamp_str()
     print("=" * 65)
-    print("  NIFTY 50 OPTIONS DASHBOARD — v18.5 · 8-Week Expiry Dropdown")
+    print("  NIFTY 50 OPTIONS DASHBOARD — v18.4 · Holiday-Aware Expiry")
     print(f"  {ts}")
     print(f"  IST Date: {today_ist()}  IST Weekday: {ist_weekday()}")
     print("=" * 65)
@@ -3650,7 +3048,7 @@ def main():
     # Fetch all 7 expiries for dropdown
     print("\n  Fetching next 7 expiries for dropdown...")
     time.sleep(1.5)   # small gap so NSE doesn't block
-    multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=8)
+    multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=7)
     print(f"  Expiry dropdown will show: {expiry_list}")
 
     # Pre-analyze all expiry data
