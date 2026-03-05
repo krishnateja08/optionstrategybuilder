@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v18.6 · Smart Dynamic PoP Engine + Intraday P&L Simulator
+Aurora Borealis Theme · v18.7 · Smart Dynamic PoP Engine + Intraday P&L Simulator
 - PoP now reflects: Market Bias + Support/Resistance + Max CE/PE OI walls + PCR
 - lotSize fixed to 65
 - Strategies ranked by smart PoP — highest PoP = best trade right now
@@ -2321,14 +2321,18 @@ function buildIntradaySim(m) {{
     const pnl    = calcPnl(mv);
     const col    = pnl > 100 ? '#00c896' : pnl > 0 ? '#4de8b8' : pnl > -200 ? '#ffd166' : '#ff6b6b';
     const mvcol  = mv > 0 ? '#00c896' : mv < 0 ? '#ff6b6b' : '#6480ff';
-    const mvbg   = mv > 0 ? 'rgba(0,200,150,.10)' : mv < 0 ? 'rgba(255,107,107,.10)' : 'rgba(100,128,255,.10)';
+    const mvbg   = mv > 0 ? 'rgba(0,200,150,.12)' : mv < 0 ? 'rgba(255,107,107,.12)' : 'rgba(100,128,255,.12)';
     const mvlbl  = mv > 0 ? '+' + mv : mv === 0 ? 'Flat' : String(mv);
     const pctmp  = maxP ? ((pnl / maxP) * 100).toFixed(0) + '%' : '—';
-    tRows += `<tr>
-      <td><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:${{mvbg}};color:${{mvcol}};">${{mvlbl}}${{mv!==0?' pts':''}}</span></td>
-      <td style="color:rgba(255,255,255,.4);font-size:10px;">\u20b9${{(OC.spot+mv).toLocaleString('en-IN')}}</td>
-      <td style="color:${{col}};font-family:'DM Mono',monospace;font-weight:700;">${{pnl>=0?'+':''}}\u20b9${{Math.abs(pnl).toLocaleString('en-IN')}}</td>
-      <td style="font-size:9px;color:rgba(255,255,255,.3);">${{pctmp}}</td>
+    const isFlat = mv === 0;
+    const rowBg  = isFlat ? 'background:rgba(245,197,24,.05);' : '';
+    tRows += `<tr style="${{rowBg}}">
+      <td style="padding:5px 6px;white-space:nowrap;">
+        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:${{mvbg}};color:${{mvcol}};white-space:nowrap;display:inline-block;">${{mvlbl}}${{mv!==0?'p':''}}</span>
+      </td>
+      <td style="padding:5px 6px;color:rgba(255,255,255,.4);font-family:'DM Mono',monospace;font-size:10px;white-space:nowrap;text-align:right;">${{(OC.spot+mv).toLocaleString('en-IN')}}</td>
+      <td style="padding:5px 6px;font-family:'DM Mono',monospace;font-weight:700;font-size:11px;color:${{col}};white-space:nowrap;text-align:right;">${{pnl>=0?'+':''}}\u20b9${{Math.abs(pnl).toLocaleString('en-IN')}}</td>
+      <td style="padding:5px 6px;font-size:9.5px;font-weight:600;color:${{col}};text-align:center;white-space:nowrap;opacity:.75;">${{pctmp}}</td>
     </tr>`;
   }});
 
@@ -2355,13 +2359,13 @@ function buildIntradaySim(m) {{
       <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">📅 TODAY'S P&amp;L SCENARIOS</div>
       <div style="font-size:8.5px;color:rgba(255,255,255,.25);">Delta×move + Theta · 1 day</div>
     </div>
-    <div style="padding:0 12px 10px;overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;">
-        <thead><tr style="background:rgba(255,255,255,.04);">
-          <th style="padding:6px 8px;font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:left;border-bottom:1px solid rgba(255,255,255,.06);">Move</th>
-          <th style="padding:6px 8px;font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:center;border-bottom:1px solid rgba(255,255,255,.06);">Spot</th>
-          <th style="padding:6px 8px;font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:center;border-bottom:1px solid rgba(255,255,255,.06);">Est. P&amp;L</th>
-          <th style="padding:6px 8px;font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:center;border-bottom:1px solid rgba(255,255,255,.06);">vs Max</th>
+    <div style="padding:0 10px 10px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="background:rgba(255,255,255,.05);">
+          <th style="padding:5px 6px;font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:left;border-bottom:1px solid rgba(255,255,255,.07);">MOVE</th>
+          <th style="padding:5px 6px;font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:right;border-bottom:1px solid rgba(255,255,255,.07);">SPOT</th>
+          <th style="padding:5px 6px;font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:right;border-bottom:1px solid rgba(255,255,255,.07);">TODAY P&amp;L</th>
+          <th style="padding:5px 6px;font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:center;border-bottom:1px solid rgba(255,255,255,.07);">vs MAX</th>
         </tr></thead>
         <tbody>${{tRows}}</tbody>
       </table>
@@ -3247,7 +3251,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
   </main>
 </div>
 <footer>
-  <span>NiftyCraft &middot; v18.6 &middot; Holiday-Aware Expiry + Intraday P&amp;L Simulator</span>
+  <span>NiftyCraft &middot; v18.7 &middot; Holiday-Aware Expiry + Intraday P&amp;L Simulator</span>
   <span>S/R + OI Walls + Bias + PCR &middot; Educational Only &middot; &copy; 2025</span>
 </footer>
 </div>
