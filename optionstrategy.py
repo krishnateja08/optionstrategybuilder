@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v18.8 · Smart Dynamic PoP Engine + Intraday P&L Simulator
+Aurora Borealis Theme · v18.9 · Smart Dynamic PoP Engine + Intraday P&L Simulator
 - PoP now reflects: Market Bias + Support/Resistance + Max CE/PE OI walls + PCR
 - lotSize fixed to 65
 - Strategies ranked by smart PoP — highest PoP = best trade right now
@@ -2381,28 +2381,50 @@ function buildIntradaySim(m) {{
       <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">🔬 NET GREEKS (per lot)</div>
       <div style="font-size:8px;color:rgba(255,255,255,.25);letter-spacing:.5px;">expiry-day basis</div>
     </div>
-    <!-- Greeks: 3 cards stacked in a clean grid -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:0 10px 10px;">
-      <!-- Delta -->
-      <div style="background:rgba(0,200,150,.07);border:1px solid rgba(0,200,150,.2);border-radius:10px;padding:10px 8px;text-align:center;">
-        <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(0,200,150,.7);margin-bottom:6px;">Δ DELTA</div>
-        <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${{nd>=0?'#00c896':'#ff6b6b'}};line-height:1.2;word-break:break-all;">${{ndStr}}</div>
-        <div style="font-size:8px;color:rgba(255,255,255,.3);margin-top:5px;line-height:1.4;">per 1pt<br>move</div>
+    <!-- Greeks: rows layout -->
+    <div style="padding:0 10px 10px;display:flex;flex-direction:column;gap:6px;">
+
+      <!-- Delta row -->
+      <div style="display:flex;align-items:center;background:rgba(0,200,150,.07);border:1px solid rgba(0,200,150,.18);border-radius:10px;padding:10px 14px;">
+        <div style="width:28px;height:28px;border-radius:8px;background:rgba(0,200,150,.15);border:1px solid rgba(0,200,150,.3);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#00c896;flex-shrink:0;">Δ</div>
+        <div style="margin-left:12px;flex:1;">
+          <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(0,200,150,.7);">DELTA</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.3);margin-top:1px;">₹ change per 1pt Nifty move</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:${{nd>=0?'#00c896':'#ff6b6b'}};line-height:1;">${{ndStr}}</div>
+          <div style="font-size:8px;color:rgba(255,255,255,.25);margin-top:2px;">per point</div>
+        </div>
       </div>
-      <!-- Theta -->
-      <div style="background:rgba(255,107,107,.07);border:1px solid rgba(255,107,107,.2);border-radius:10px;padding:10px 8px;text-align:center;">
-        <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,150,150,.7);margin-bottom:6px;">Θ THETA</div>
-        <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${{ntCol}};line-height:1.2;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt))}}</div>
-        <div style="font-size:8px;color:rgba(255,255,255,.3);margin-top:5px;line-height:1.4;">per day<br>decay</div>
+
+      <!-- Theta row -->
+      <div style="display:flex;align-items:center;background:rgba(255,107,107,.07);border:1px solid rgba(255,107,107,.18);border-radius:10px;padding:10px 14px;">
+        <div style="width:28px;height:28px;border-radius:8px;background:rgba(255,107,107,.15);border:1px solid rgba(255,107,107,.3);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#ff9090;flex-shrink:0;">Θ</div>
+        <div style="margin-left:12px;flex:1;">
+          <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,150,150,.7);">THETA</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.3);margin-top:1px;">Time decay cost per day</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:${{ntCol}};line-height:1;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt))}}</div>
+          <div style="font-size:8px;color:rgba(255,255,255,.25);margin-top:2px;">per day</div>
+        </div>
       </div>
-      <!-- Vega -->
-      <div style="background:rgba(138,160,255,.07);border:1px solid rgba(138,160,255,.2);border-radius:10px;padding:10px 8px;text-align:center;">
-        <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(138,160,255,.7);margin-bottom:6px;">ν VEGA</div>
-        <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:#8aa0ff;line-height:1.2;word-break:break-all;">${{nvStr}}</div>
-        <div style="font-size:8px;color:rgba(255,255,255,.3);margin-top:5px;line-height:1.4;">per 1%<br>IV change</div>
+
+      <!-- Vega row -->
+      <div style="display:flex;align-items:center;background:rgba(138,160,255,.07);border:1px solid rgba(138,160,255,.18);border-radius:10px;padding:10px 14px;">
+        <div style="width:28px;height:28px;border-radius:8px;background:rgba(138,160,255,.15);border:1px solid rgba(138,160,255,.3);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#8aa0ff;flex-shrink:0;">ν</div>
+        <div style="margin-left:12px;flex:1;">
+          <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(138,160,255,.7);">VEGA</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.3);margin-top:1px;">₹ change per 1% IV move</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:#8aa0ff;line-height:1;">${{nvStr}}</div>
+          <div style="font-size:8px;color:rgba(255,255,255,.25);margin-top:2px;">per 1% IV</div>
+        </div>
       </div>
+
     </div>
-    <div style="height:1px;background:rgba(255,255,255,.05);margin:0 10px 0;"></div>
+    <div style="height:1px;background:rgba(255,255,255,.05);margin:0 10px 4px;"></div>
     <div style="padding:10px 10px 6px;">
       <div style="font-size:8px;color:rgba(255,255,255,.25);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">TODAY'S P&amp;L IF MARKET IS FLAT</div>
       <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:12px 10px;background:rgba(0,0,0,.25);border-radius:10px;border:1px solid rgba(255,255,255,.06);">
@@ -3257,7 +3279,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
   </main>
 </div>
 <footer>
-  <span>NiftyCraft &middot; v18.8 &middot; Holiday-Aware Expiry + Intraday P&amp;L Simulator</span>
+  <span>NiftyCraft &middot; v18.9 &middot; Holiday-Aware Expiry + Intraday P&amp;L Simulator</span>
   <span>S/R + OI Walls + Bias + PCR &middot; Educational Only &middot; &copy; 2025</span>
 </footer>
 </div>
