@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v19.0 · Smart Dynamic PoP Engine + Intraday P&L Simulator
+Aurora Borealis Theme · v19.1 · Smart Dynamic PoP Engine + Intraday P&L Simulator
 - PoP now reflects: Market Bias + Support/Resistance + Max CE/PE OI walls + PCR
 - lotSize fixed to 65
 - Strategies ranked by smart PoP — highest PoP = best trade right now
@@ -2312,9 +2312,9 @@ function buildIntradaySim(m) {{
   const flatCol  = flatPnl >= 0 ? '#00c896' : '#ff6b6b';
   const ntCol    = nt >= 0 ? '#00c896' : '#ff6b6b';
   const ntSign   = nt >= 0 ? '+' : '';
-  const ndStr    = (nd >= 0 ? '+' : '') + '\u20b9' + Math.abs(nd).toFixed(2) + '/pt';
+  const ndStr    = (nd >= 0 ? '+' : '') + '\u20b9' + Math.abs(nd).toFixed(2);
   const ntStr    = ntSign + '\u20b9' + Math.abs(Math.round(nt));
-  const nvStr    = (nv >= 0 ? '+' : '') + '\u20b9' + Math.abs(nv).toFixed(2) + '/1%IV';
+  const nvStr    = (nv >= 0 ? '+' : '') + '\u20b9' + Math.abs(nv).toFixed(2);
 
   let tRows = '';
   moves.forEach(mv => {{
@@ -2379,7 +2379,7 @@ function buildIntradaySim(m) {{
   <div id="${{simId}}_c2" style="display:none;">
     <div style="padding:9px 12px 8px;display:flex;align-items:center;justify-content:space-between;">
       <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">🔬 NET GREEKS (per lot)</div>
-      <div style="font-size:8px;color:rgba(255,255,255,.25);letter-spacing:.5px;">expiry-day basis</div>
+      <div style="font-size:8px;color:rgba(255,255,255,.25);letter-spacing:.5px;">values per lot · today</div>
     </div>
     <!-- Greeks: compact single-line rows -->
     <div style="padding:0 10px 10px;display:flex;flex-direction:column;gap:5px;">
@@ -3270,7 +3270,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
   </main>
 </div>
 <footer>
-  <span>NiftyCraft &middot; v19.0 &middot; Holiday-Aware Expiry + Intraday P&amp;L Simulator</span>
+  <span>NiftyCraft &middot; v19.1 &middot; Holiday-Aware Expiry + Intraday P&amp;L Simulator</span>
   <span>S/R + OI Walls + Bias + PCR &middot; Educational Only &middot; &copy; 2025</span>
 </footer>
 </div>
