@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v18.5 · Smart Dynamic PoP Engine + Intraday P&L Simulator
+Aurora Borealis Theme · v18.6 · Smart Dynamic PoP Engine + Intraday P&L Simulator
 - PoP now reflects: Market Bias + Support/Resistance + Max CE/PE OI walls + PCR
 - lotSize fixed to 65
 - Strategies ranked by smart PoP — highest PoP = best trade right now
@@ -2338,7 +2338,7 @@ function buildIntradaySim(m) {{
   const simId = 'sim_' + Math.random().toString(36).slice(2,7);
 
   return `
-<div style="border-top:2px solid rgba(255,209,102,.22);background:linear-gradient(135deg,rgba(245,197,24,.04),rgba(200,155,10,.02));">
+<div style="border-top:2px solid rgba(255,209,102,.22);background:linear-gradient(135deg,rgba(245,197,24,.04),rgba(200,155,10,.02));" onclick="event.stopPropagation()">
   <!-- Sub-tabs -->
   <div style="display:flex;border-bottom:1px solid rgba(255,255,255,.06);">
     <button class="sim-tab active" id="${{simId}}_t1"
@@ -2425,7 +2425,7 @@ function buildIntradaySim(m) {{
       </div>
       <input type="range" id="${{simId}}_sl" min="${{slMin}}" max="${{slMax}}" value="${{OC.spot}}" step="25"
         style="width:100%;height:4px;border-radius:2px;outline:none;border:none;-webkit-appearance:none;cursor:pointer;background:linear-gradient(90deg,#f5c518 50%,rgba(255,255,255,.1) 50%);"
-        oninput="simSlide('${{simId}}', this.value, ${{slMin}}, ${{slMax}}, ${{nd}}, ${{nt}}, ${{maxL===null?'null':maxL}}, ${{maxP===null?'null':maxP}})">
+        onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" oninput="simSlide('${{simId}}', this.value, ${{slMin}}, ${{slMax}}, ${{nd}}, ${{nt}}, ${{maxL===null?'null':maxL}}, ${{maxP===null?'null':maxP}})">
     </div>
     <div id="${{simId}}_sr" style="padding:4px 12px 14px;text-align:center;">
       <div style="background:rgba(0,0,0,.3);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,.07);">
@@ -3247,7 +3247,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
   </main>
 </div>
 <footer>
-  <span>NiftyCraft &middot; v18.5 &middot; Holiday-Aware Expiry + Intraday P&amp;L Simulator</span>
+  <span>NiftyCraft &middot; v18.6 &middot; Holiday-Aware Expiry + Intraday P&amp;L Simulator</span>
   <span>S/R + OI Walls + Bias + PCR &middot; Educational Only &middot; &copy; 2025</span>
 </footer>
 </div>
