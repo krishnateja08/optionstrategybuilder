@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v18.7 · Smart Dynamic PoP Engine + Intraday P&L Simulator
+Aurora Borealis Theme · v18.8 · Smart Dynamic PoP Engine + Intraday P&L Simulator
 - PoP now reflects: Market Bias + Support/Resistance + Max CE/PE OI walls + PCR
 - lotSize fixed to 65
 - Strategies ranked by smart PoP — highest PoP = best trade right now
@@ -2377,37 +2377,43 @@ function buildIntradaySim(m) {{
 
   <!-- TAB 2: Greeks Breakdown -->
   <div id="${{simId}}_c2" style="display:none;">
-    <div style="padding:9px 12px 6px;">
+    <div style="padding:9px 12px 8px;display:flex;align-items:center;justify-content:space-between;">
       <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">🔬 NET GREEKS (per lot)</div>
+      <div style="font-size:8px;color:rgba(255,255,255,.25);letter-spacing:.5px;">expiry-day basis</div>
     </div>
-    <div style="display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,.05);">
-      <div style="flex:1;text-align:center;padding:12px 6px;border-right:1px solid rgba(255,255,255,.05);">
-        <div style="font-size:8px;color:rgba(255,255,255,.28);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;">Δ DELTA</div>
-        <div style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:${{nd>=0?'#00c896':'#ff6b6b'}};">${{ndStr}}</div>
-        <div style="font-size:8.5px;color:rgba(255,255,255,.3);margin-top:3px;">per 1pt move</div>
+    <!-- Greeks: 3 cards stacked in a clean grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:0 10px 10px;">
+      <!-- Delta -->
+      <div style="background:rgba(0,200,150,.07);border:1px solid rgba(0,200,150,.2);border-radius:10px;padding:10px 8px;text-align:center;">
+        <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(0,200,150,.7);margin-bottom:6px;">Δ DELTA</div>
+        <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${{nd>=0?'#00c896':'#ff6b6b'}};line-height:1.2;word-break:break-all;">${{ndStr}}</div>
+        <div style="font-size:8px;color:rgba(255,255,255,.3);margin-top:5px;line-height:1.4;">per 1pt<br>move</div>
       </div>
-      <div style="flex:1;text-align:center;padding:12px 6px;border-right:1px solid rgba(255,255,255,.05);">
-        <div style="font-size:8px;color:rgba(255,255,255,.28);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;">Θ THETA</div>
-        <div style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:${{ntCol}};">${{ntSign}}\u20b9${{Math.abs(Math.round(nt))}}</div>
-        <div style="font-size:8.5px;color:rgba(255,255,255,.3);margin-top:3px;">per day</div>
+      <!-- Theta -->
+      <div style="background:rgba(255,107,107,.07);border:1px solid rgba(255,107,107,.2);border-radius:10px;padding:10px 8px;text-align:center;">
+        <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,150,150,.7);margin-bottom:6px;">Θ THETA</div>
+        <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:${{ntCol}};line-height:1.2;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt))}}</div>
+        <div style="font-size:8px;color:rgba(255,255,255,.3);margin-top:5px;line-height:1.4;">per day<br>decay</div>
       </div>
-      <div style="flex:1;text-align:center;padding:12px 6px;">
-        <div style="font-size:8px;color:rgba(255,255,255,.28);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;">ν VEGA</div>
-        <div style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:#8aa0ff;">${{nvStr}}</div>
-        <div style="font-size:8.5px;color:rgba(255,255,255,.3);margin-top:3px;">per 1% IV Δ</div>
+      <!-- Vega -->
+      <div style="background:rgba(138,160,255,.07);border:1px solid rgba(138,160,255,.2);border-radius:10px;padding:10px 8px;text-align:center;">
+        <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(138,160,255,.7);margin-bottom:6px;">ν VEGA</div>
+        <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:#8aa0ff;line-height:1.2;word-break:break-all;">${{nvStr}}</div>
+        <div style="font-size:8px;color:rgba(255,255,255,.3);margin-top:5px;line-height:1.4;">per 1%<br>IV change</div>
       </div>
     </div>
-    <div style="padding:12px;">
-      <div style="font-size:8.5px;color:rgba(255,255,255,.25);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">TODAY'S P&amp;L IF MARKET IS FLAT</div>
-      <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;background:rgba(0,0,0,.25);border-radius:10px;border:1px solid rgba(255,255,255,.06);">
+    <div style="height:1px;background:rgba(255,255,255,.05);margin:0 10px 0;"></div>
+    <div style="padding:10px 10px 6px;">
+      <div style="font-size:8px;color:rgba(255,255,255,.25);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">TODAY'S P&amp;L IF MARKET IS FLAT</div>
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:12px 10px;background:rgba(0,0,0,.25);border-radius:10px;border:1px solid rgba(255,255,255,.06);">
         <div style="text-align:center;">
-          <div style="font-size:8px;color:rgba(255,255,255,.3);margin-bottom:4px;">THETA DRAG</div>
-          <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:700;color:${{ntCol}};">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
+          <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;">THETA DRAG</div>
+          <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:${{ntCol}};line-height:1;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
         </div>
-        <div style="font-size:20px;color:rgba(255,255,255,.2);">=</div>
+        <div style="font-size:16px;color:rgba(255,255,255,.15);text-align:center;">=</div>
         <div style="text-align:center;">
-          <div style="font-size:8px;color:rgba(255,255,255,.3);margin-bottom:4px;">TODAY P&amp;L (FLAT)</div>
-          <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:700;color:${{flatCol}};">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
+          <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;">FLAT P&amp;L TODAY</div>
+          <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:${{flatCol}};line-height:1;">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
         </div>
       </div>
       <div style="margin-top:10px;font-size:9.5px;color:rgba(255,255,255,.35);line-height:1.7;">
@@ -3251,7 +3257,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
   </main>
 </div>
 <footer>
-  <span>NiftyCraft &middot; v18.7 &middot; Holiday-Aware Expiry + Intraday P&amp;L Simulator</span>
+  <span>NiftyCraft &middot; v18.8 &middot; Holiday-Aware Expiry + Intraday P&amp;L Simulator</span>
   <span>S/R + OI Walls + Bias + PCR &middot; Educational Only &middot; &copy; 2025</span>
 </footer>
 </div>
