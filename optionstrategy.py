@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v18.4 · Smart Dynamic PoP Engine + Holiday-Aware Expiry
+Aurora Borealis Theme · v18.5 · Smart Dynamic PoP Engine + Intraday P&L Simulator
 - PoP now reflects: Market Bias + Support/Resistance + Max CE/PE OI walls + PCR
 - lotSize fixed to 65
 - Strategies ranked by smart PoP — highest PoP = best trade right now
@@ -11,6 +11,8 @@ Aurora Borealis Theme · v18.4 · Smart Dynamic PoP Engine + Holiday-Aware Expir
                Works on both file:// and http:// protocols using hidden iframe trick
 - FIXED v18.4: Holiday-aware expiry — if Tuesday is NSE holiday, expiry moves to
                previous trading day (Monday, then Friday if Monday also holiday)
+- NEW v18.5: Intraday P&L Simulator — per-strategy Today P&L (Delta+Theta+Vega)
+             3-tab panel: Scenarios Table · Greeks Breakdown · Live Slider
 
 pip install curl_cffi pandas numpy yfinance pytz scipy
 """
@@ -567,6 +569,17 @@ def analyze_option_chain(oc_data, vix=18.0):
                                 underlying=oc_data["underlying"],
                                 expiry_str=oc_data["expiry"],
                                 vix=vix)
+
+    # Merge BS-computed greeks into strikes_data so JS STRIKE_MAP has delta/theta/vega
+    _g_by_strike = {g["strike"]: g for g in greeks["all_strikes"]}
+    for _sd in strikes_data:
+        _g = _g_by_strike.get(_sd["strike"], {})
+        _sd["ce_delta"] = round(_g.get("ce_delta", 0.50),  4)
+        _sd["pe_delta"] = round(_g.get("pe_delta", -0.50), 4)
+        _sd["ce_theta"] = round(_g.get("ce_theta", 0.0),   4)
+        _sd["pe_theta"] = round(_g.get("pe_theta", 0.0),   4)
+        _sd["ce_vega"]  = round(_g.get("ce_vega",  0.0),   4)
+        _sd["pe_vega"]  = round(_g.get("pe_vega",  0.0),   4)
 
     return {
         "expiry":          oc_data["expiry"],
@@ -1662,6 +1675,17 @@ function getOTM(type,offset) {{
   return {{strike:row.strike||t,ltp:type==='ce'?row.ce_ltp:row.pe_ltp,iv:type==='ce'?row.ce_iv:row.pe_iv}};
 }}
 
+function getGreeks(type, strike) {{
+  // Returns {{delta, theta, vega}} for a given strike and option type (ce/pe)
+  // Uses STRIKE_MAP which now includes BS-computed greeks from Python
+  const row = STRIKE_MAP[strike] || OC.strikes.reduce(
+    (b, s) => Math.abs(s.strike - strike) < Math.abs(b.strike - strike) ? s : b,
+    OC.strikes[0] || {{strike: OC.atm, ce_delta:0.5, pe_delta:-0.5, ce_theta:-0.1, pe_theta:-0.1, ce_vega:0.05, pe_vega:0.05}}
+  );
+  if (type === 'ce') return {{ delta: row.ce_delta||0.5,  theta: row.ce_theta||0, vega: row.ce_vega||0  }};
+  else               return {{ delta: row.pe_delta||-0.5, theta: row.pe_theta||0, vega: row.pe_vega||0 }};
+}}
+
 function calcMetrics(shape, smartPop) {{
   const spot   = OC.spot, atm = OC.atm;
   const lotSz  = OC.lotSize;
@@ -1673,9 +1697,21 @@ function calcMetrics(shape, smartPop) {{
   const ceWing1 = co1.strike - atm;
   const peWing1 = atm - po1.strike;
 
+  // Greeks helpers
+  const gCeAtm = getGreeks('ce', atm);
+  const gPeAtm = getGreeks('pe', atm);
+  const gCo1   = getGreeks('ce', co1.strike);
+  const gCo2   = getGreeks('ce', co2.strike);
+  const gCo3   = getGreeks('ce', co3.strike);
+  const gPo1   = getGreeks('pe', po1.strike);
+  const gPo2   = getGreeks('pe', po2.strike);
+  const gPo3   = getGreeks('pe', po3.strike);
+
   let pop = smartPop || 50;
   let mp = 0, ml = 0, be = [], nc = 0, margin = 0, rrRatio = 0;
   let ltpParts = [];
+  // Net greeks for intraday simulator (per lot)
+  let netDelta = 0, netTheta = 0, netVega = 0;
 
   switch (shape) {{
 
@@ -1684,6 +1720,7 @@ function calcMetrics(shape, smartPop) {{
       mp = 999999; ml = p * lotSz; be = [atm + p];
       nc = -p * lotSz; margin = p * lotSz;
       ltpParts = [{{ l: 'BUY CE \u20b9' + atm.toLocaleString('en-IN'), v: p, c: '#00c8e0' }}];
+      netDelta = gCeAtm.delta * lotSz; netTheta = gCeAtm.theta * lotSz; netVega = gCeAtm.vega * lotSz;
       break;
     }}
     case 'long_put': {{
@@ -1691,6 +1728,7 @@ function calcMetrics(shape, smartPop) {{
       mp = 999999; ml = p * lotSz; be = [atm - p];
       nc = -p * lotSz; margin = p * lotSz;
       ltpParts = [{{ l: 'BUY PE \u20b9' + atm.toLocaleString('en-IN'), v: p, c: '#ff9090' }}];
+      netDelta = gPeAtm.delta * lotSz; netTheta = gPeAtm.theta * lotSz; netVega = gPeAtm.vega * lotSz;
       break;
     }}
     case 'short_put': {{
@@ -1699,6 +1737,7 @@ function calcMetrics(shape, smartPop) {{
       nc = p * lotSz; margin = atm * lotSz * 0.15;
       rrRatio = ((atm - p) / p).toFixed(2);
       ltpParts = [{{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: p, c: '#ff9090' }}];
+      netDelta = -gPeAtm.delta * lotSz; netTheta = -gPeAtm.theta * lotSz; netVega = -gPeAtm.vega * lotSz;
       break;
     }}
     case 'short_call': {{
@@ -1706,6 +1745,7 @@ function calcMetrics(shape, smartPop) {{
       mp = p * lotSz; ml = 999999; be = [atm + p];
       nc = p * lotSz; margin = atm * lotSz * 0.15;
       ltpParts = [{{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: p, c: '#00c8e0' }}];
+      netDelta = -gCeAtm.delta * lotSz; netTheta = -gCeAtm.theta * lotSz; netVega = -gCeAtm.vega * lotSz;
       break;
     }}
 
@@ -1719,6 +1759,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY CE \u20b9' + atm.toLocaleString('en-IN'), v: bp, c: '#00c8e0' }},
         {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: sp, c: '#00c896' }}
       ];
+      netDelta=(gCeAtm.delta - gCo1.delta)*lotSz; netTheta=(gCeAtm.theta - gCo1.theta)*lotSz; netVega=(gCeAtm.vega - gCo1.vega)*lotSz;
       break;
     }}
     case 'bull_put_spread': {{
@@ -1731,6 +1772,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: sp, c: '#00c896' }},
         {{ l: 'BUY PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: bp, c: '#ff9090' }}
       ];
+      netDelta=(-gPeAtm.delta + gPo1.delta)*lotSz; netTheta=(-gPeAtm.theta + gPo1.theta)*lotSz; netVega=(-gPeAtm.vega + gPo1.vega)*lotSz;
       break;
     }}
     case 'bear_call_spread': {{
@@ -1743,6 +1785,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: sp, c: '#00c896' }},
         {{ l: 'BUY CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: bp, c: '#00c8e0' }}
       ];
+      netDelta=(-gCeAtm.delta + gCo1.delta)*lotSz; netTheta=(-gCeAtm.theta + gCo1.theta)*lotSz; netVega=(-gCeAtm.vega + gCo1.vega)*lotSz;
       break;
     }}
     case 'bear_put_spread': {{
@@ -1755,6 +1798,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY PE \u20b9' + atm.toLocaleString('en-IN'), v: bp, c: '#ff9090' }},
         {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: sp, c: '#00c896' }}
       ];
+      netDelta=(gPeAtm.delta - gPo1.delta)*lotSz; netTheta=(gPeAtm.theta - gPo1.theta)*lotSz; netVega=(gPeAtm.vega - gPo1.vega)*lotSz;
       break;
     }}
 
@@ -1766,6 +1810,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'BUY PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
       ];
+      netDelta=(gCeAtm.delta + gPeAtm.delta)*lotSz; netTheta=(gCeAtm.theta + gPeAtm.theta)*lotSz; netVega=(gCeAtm.vega + gPeAtm.vega)*lotSz;
       break;
     }}
     case 'short_straddle': {{
@@ -1776,6 +1821,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
       ];
+      netDelta=-(gCeAtm.delta + gPeAtm.delta)*lotSz; netTheta=-(gCeAtm.theta + gPeAtm.theta)*lotSz; netVega=-(gCeAtm.vega + gPeAtm.vega)*lotSz;
       break;
     }}
     case 'long_strangle': {{
@@ -1787,6 +1833,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'BUY PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
       ];
+      netDelta=(gCo1.delta + gPo1.delta)*lotSz; netTheta=(gCo1.theta + gPo1.theta)*lotSz; netVega=(gCo1.vega + gPo1.vega)*lotSz;
       break;
     }}
     case 'short_strangle': {{
@@ -1798,6 +1845,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
       ];
+      netDelta=-(gCo1.delta + gPo1.delta)*lotSz; netTheta=-(gCo1.theta + gPo1.theta)*lotSz; netVega=-(gCo1.vega + gPo1.vega)*lotSz;
       break;
     }}
 
@@ -1815,6 +1863,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: wc, c: '#00c8e0' }},
         {{ l: 'BUY PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: wp, c: '#ff9090' }}
       ];
+      netDelta=-(gCeAtm.delta+gPeAtm.delta-gCo1.delta-gPo1.delta)*lotSz; netTheta=-(gCeAtm.theta+gPeAtm.theta-gCo1.theta-gPo1.theta)*lotSz; netVega=-(gCeAtm.vega+gPeAtm.vega-gCo1.vega-gPo1.vega)*lotSz;
       break;
     }}
     case 'long_iron_fly': {{
@@ -1831,6 +1880,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: wc, c: '#00c8e0' }},
         {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: wp, c: '#ff9090' }}
       ];
+      netDelta=(gCeAtm.delta+gPeAtm.delta-gCo1.delta-gPo1.delta)*lotSz; netTheta=(gCeAtm.theta+gPeAtm.theta-gCo1.theta-gPo1.theta)*lotSz; netVega=(gCeAtm.vega+gPeAtm.vega-gCo1.vega-gPo1.vega)*lotSz;
       break;
     }}
     case 'short_iron_condor': {{
@@ -1847,6 +1897,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: sp, c: '#ff9090' }},
         {{ l: 'BUY PE \u20b9' + po2.strike.toLocaleString('en-IN'), v: bp, c: '#ff9090' }}
       ];
+      netDelta=-(gCo1.delta+gPo1.delta-gCo2.delta-gPo2.delta)*lotSz; netTheta=-(gCo1.theta+gPo1.theta-gCo2.theta-gPo2.theta)*lotSz; netVega=-(gCo1.vega+gPo1.vega-gCo2.vega-gPo2.vega)*lotSz;
       break;
     }}
     case 'long_iron_condor': {{
@@ -1863,6 +1914,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: sp, c: '#ff9090' }},
         {{ l: 'BUY PE \u20b9' + po2.strike.toLocaleString('en-IN'), v: bp, c: '#ff9090' }}
       ];
+      netDelta=(gCo1.delta+gPo1.delta-gCo2.delta-gPo2.delta)*lotSz; netTheta=(gCo1.theta+gPo1.theta-gCo2.theta-gPo2.theta)*lotSz; netVega=(gCo1.vega+gPo1.vega-gCo2.vega-gPo2.vega)*lotSz;
       break;
     }}
 
@@ -1879,6 +1931,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL 2x CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: mid, c: '#00c896' }},
         {{ l: 'BUY CE \u20b9' + co2.strike.toLocaleString('en-IN'), v: hp, c: '#00c8e0' }}
       ];
+      netDelta=(gCeAtm.delta - 2*gCo1.delta + gCo2.delta)*lotSz; netTheta=(gCeAtm.theta - 2*gCo1.theta + gCo2.theta)*lotSz; netVega=(gCeAtm.vega - 2*gCo1.vega + gCo2.vega)*lotSz;
       break;
     }}
     case 'put_butterfly':
@@ -1894,6 +1947,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL 2x PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: mid, c: '#00c896' }},
         {{ l: 'BUY PE \u20b9' + po2.strike.toLocaleString('en-IN'), v: lp, c: '#ff9090' }}
       ];
+      netDelta=(gPeAtm.delta - 2*gPo1.delta + gPo2.delta)*lotSz; netTheta=(gPeAtm.theta - 2*gPo1.theta + gPo2.theta)*lotSz; netVega=(gPeAtm.vega - 2*gPo1.vega + gPo2.vega)*lotSz;
       break;
     }}
 
@@ -1906,6 +1960,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: sp, c: '#00c896' }},
         {{ l: 'BUY 2x CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: bp, c: '#00c8e0' }}
       ];
+      netDelta=(-gCeAtm.delta + 2*gCo1.delta)*lotSz; netTheta=(-gCeAtm.theta + 2*gCo1.theta)*lotSz; netVega=(-gCeAtm.vega + 2*gCo1.vega)*lotSz;
       break;
     }}
     case 'put_ratio_back': {{
@@ -1917,6 +1972,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: sp, c: '#00c896' }},
         {{ l: 'BUY 2x PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: bp, c: '#ff9090' }}
       ];
+      netDelta=(-gPeAtm.delta + 2*gPo1.delta)*lotSz; netTheta=(-gPeAtm.theta + 2*gPo1.theta)*lotSz; netVega=(-gPeAtm.vega + 2*gPo1.vega)*lotSz;
       break;
     }}
 
@@ -1933,6 +1989,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY CE \u20b9' + atm.toLocaleString('en-IN'), v: bp, c: '#00c8e0' }},
         {{ l: 'SELL 2x CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: sp, c: '#00c896' }}
       ];
+      netDelta=(gCeAtm.delta - 2*gCo1.delta)*lotSz; netTheta=(gCeAtm.theta - 2*gCo1.theta)*lotSz; netVega=(gCeAtm.vega - 2*gCo1.vega)*lotSz;
       break;
     }}
     case 'put_ratio_spread': {{
@@ -1948,6 +2005,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY PE \u20b9' + atm.toLocaleString('en-IN'), v: bp, c: '#ff9090' }},
         {{ l: 'SELL 2x PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: sp, c: '#00c896' }}
       ];
+      netDelta=(gPeAtm.delta - 2*gPo1.delta)*lotSz; netTheta=(gPeAtm.theta - 2*gPo1.theta)*lotSz; netVega=(gPeAtm.vega - 2*gPo1.vega)*lotSz;
       break;
     }}
 
@@ -1960,6 +2018,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
       ];
+      netDelta=(gCeAtm.delta - gPeAtm.delta)*lotSz; netTheta=(gCeAtm.theta - gPeAtm.theta)*lotSz; netVega=(gCeAtm.vega - gPeAtm.vega)*lotSz;
       break;
     }}
     case 'short_synthetic': {{
@@ -1971,6 +2030,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'BUY PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
       ];
+      netDelta=(-gCeAtm.delta + gPeAtm.delta)*lotSz; netTheta=(-gCeAtm.theta + gPeAtm.theta)*lotSz; netVega=(-gCeAtm.vega + gPeAtm.vega)*lotSz;
       break;
     }}
 
@@ -1984,6 +2044,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: bp, c: '#ff9090' }},
         {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: sc, c: '#00c8e0' }}
       ];
+      netDelta=(gPo1.delta - gCo1.delta)*lotSz; netTheta=(gPo1.theta - gCo1.theta)*lotSz; netVega=(gPo1.vega - gCo1.vega)*lotSz;
       break;
     }}
     case 'range_forward': {{
@@ -1996,6 +2057,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: bc, c: '#00c8e0' }},
         {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: sp, c: '#ff9090' }}
       ];
+      netDelta=(gCo1.delta - gPo1.delta)*lotSz; netTheta=(gCo1.theta - gPo1.theta)*lotSz; netVega=(gCo1.vega - gPo1.vega)*lotSz;
       break;
     }}
 
@@ -2010,6 +2072,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: cs, c: '#00c8e0' }},
         {{ l: 'BUY CE \u20b9' + co2.strike.toLocaleString('en-IN'), v: cb, c: '#00c8e0' }}
       ];
+      netDelta=(-gPo1.delta - gCo1.delta + gCo2.delta)*lotSz; netTheta=(-gPo1.theta - gCo1.theta + gCo2.theta)*lotSz; netVega=(-gPo1.vega - gCo1.vega + gCo2.vega)*lotSz;
       break;
     }}
     case 'reverse_jade': {{
@@ -2023,6 +2086,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: ps, c: '#ff9090' }},
         {{ l: 'BUY PE \u20b9' + po2.strike.toLocaleString('en-IN'), v: pb, c: '#ff9090' }}
       ];
+      netDelta=(-gCo1.delta - gPo1.delta + gPo2.delta)*lotSz; netTheta=(-gCo1.theta - gPo1.theta + gPo2.theta)*lotSz; netVega=(-gCo1.vega - gPo1.vega + gPo2.vega)*lotSz;
       break;
     }}
 
@@ -2042,6 +2106,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL CE \u20b9' + co2.strike.toLocaleString('en-IN'), v: s3, c: '#00c896' }},
         {{ l: 'BUY CE \u20b9'  + co3.strike.toLocaleString('en-IN'), v: s4, c: '#00c8e0' }}
       ];
+      netDelta=(gCeAtm.delta - gCo1.delta - gCo2.delta + gCo3.delta)*lotSz; netTheta=(gCeAtm.theta - gCo1.theta - gCo2.theta + gCo3.theta)*lotSz; netVega=(gCeAtm.vega - gCo1.vega - gCo2.vega + gCo3.vega)*lotSz;
       break;
     }}
     case 'bear_condor': {{
@@ -2060,6 +2125,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL PE \u20b9' + po2.strike.toLocaleString('en-IN'), v: s3, c: '#00c896' }},
         {{ l: 'BUY PE \u20b9'  + po3.strike.toLocaleString('en-IN'), v: s4, c: '#ff9090' }}
       ];
+      netDelta=(gPeAtm.delta - gPo1.delta - gPo2.delta + gPo3.delta)*lotSz; netTheta=(gPeAtm.theta - gPo1.theta - gPo2.theta + gPo3.theta)*lotSz; netVega=(gPeAtm.vega - gPo1.vega - gPo2.vega + gPo3.vega)*lotSz;
       break;
     }}
 
@@ -2075,6 +2141,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL 4x CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: s2, c: '#00c896' }},
         {{ l: 'BUY 2x CE \u20b9' + co2.strike.toLocaleString('en-IN'), v: s3, c: '#00c8e0' }}
       ];
+      netDelta=2*(gCeAtm.delta - 2*gCo1.delta + gCo2.delta)*lotSz; netTheta=2*(gCeAtm.theta - 2*gCo1.theta + gCo2.theta)*lotSz; netVega=2*(gCeAtm.vega - 2*gCo1.vega + gCo2.vega)*lotSz;
       break;
     }}
 
@@ -2090,6 +2157,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'CALL FLY: BUY/SELL/BUY CE', v: ce_atm || 150, c: '#00c8e0' }},
         {{ l: 'PUT FLY:  BUY/SELL/BUY PE', v: pe_atm || 150, c: '#ff9090' }}
       ];
+      netDelta=((gCeAtm.delta-2*gCo1.delta+gCo2.delta)+(gPeAtm.delta-2*gPo1.delta+gPo2.delta))*lotSz; netTheta=((gCeAtm.theta-2*gCo1.theta+gCo2.theta)+(gPeAtm.theta-2*gPo1.theta+gPo2.theta))*lotSz; netVega=((gCeAtm.vega-2*gCo1.vega+gCo2.vega)+(gPeAtm.vega-2*gPo1.vega+gPo2.vega))*lotSz;
       break;
     }}
 
@@ -2105,6 +2173,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'CE CONDOR \u20b9' + atm.toLocaleString('en-IN') + ' \u2192 \u20b9' + co3.strike.toLocaleString('en-IN'), v: ce_atm || 150, c: '#00c8e0' }},
         {{ l: 'PE CONDOR \u20b9' + atm.toLocaleString('en-IN') + ' \u2192 \u20b9' + po3.strike.toLocaleString('en-IN'), v: pe_atm || 150, c: '#ff9090' }}
       ];
+      netDelta=((gCeAtm.delta-gCo1.delta-gCo2.delta+gCo3.delta)+(gPeAtm.delta-gPo1.delta-gPo2.delta+gPo3.delta))*lotSz; netTheta=((gCeAtm.theta-gCo1.theta-gCo2.theta+gCo3.theta)+(gPeAtm.theta-gPo1.theta-gPo2.theta+gPo3.theta))*lotSz; netVega=((gCeAtm.vega-gCo1.vega-gCo2.vega+gCo3.vega)+(gPeAtm.vega-gPo1.vega-gPo2.vega+gPo3.vega))*lotSz;
       break;
     }}
 
@@ -2119,6 +2188,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL NEAR CE \u20b9' + atm.toLocaleString('en-IN') + ' (~est)', v: nearLTP, c: '#00c896' }},
         {{ l: 'BUY FAR CE \u20b9'   + atm.toLocaleString('en-IN'),             v: farLTP,  c: '#00c8e0' }}
       ];
+      netDelta=gCeAtm.delta*0.1*lotSz; netTheta=Math.abs(gCeAtm.theta)*0.45*lotSz; netVega=gCeAtm.vega*0.3*lotSz;
       break;
     }}
     case 'put_calendar': {{
@@ -2132,6 +2202,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL NEAR PE \u20b9' + atm.toLocaleString('en-IN') + ' (~est)', v: nearLTP, c: '#00c896' }},
         {{ l: 'BUY FAR PE \u20b9'   + atm.toLocaleString('en-IN'),             v: farLTP,  c: '#ff9090' }}
       ];
+      netDelta=gPeAtm.delta*0.1*lotSz; netTheta=Math.abs(gPeAtm.theta)*0.45*lotSz; netVega=gPeAtm.vega*0.3*lotSz;
       break;
     }}
     case 'diagonal_calendar': {{
@@ -2145,6 +2216,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL NEAR CE \u20b9' + co1.strike.toLocaleString('en-IN') + ' (~est)', v: nearLTP, c: '#00c896' }},
         {{ l: 'BUY FAR CE \u20b9'   + atm.toLocaleString('en-IN'),                   v: farLTP,  c: '#00c8e0' }}
       ];
+      netDelta=(gCeAtm.delta - gCo1.delta*0.5)*0.1*lotSz; netTheta=Math.abs(gCeAtm.theta)*0.35*lotSz; netVega=(gCeAtm.vega-gCo1.vega*0.5)*0.3*lotSz;
       break;
     }}
 
@@ -2172,7 +2244,11 @@ function calcMetrics(shape, smartPop) {{
   ).join('<br>');
   const strikeStr = 'ATM \u20b9' + atm.toLocaleString('en-IN');
   return {{pop,mpStr,mlStr,rrStr,beStr,ncStr,marginStr,mpPct,strikeStr,ltpStr,
-           mpRaw:mp,mlRaw:ml,ncRaw:Math.round(nc),ncPositive:nc>=0}};
+           mpRaw:mp,mlRaw:ml,ncRaw:Math.round(nc),ncPositive:nc>=0,
+           netDelta:Math.round(netDelta*100)/100,
+           netTheta:Math.round(netTheta*100)/100,
+           netVega:Math.round(netVega*100)/100,
+           mlRawVal:ml}};
 }}
 
 function renderMetrics(m, scoreBreakdown) {{
@@ -2210,7 +2286,208 @@ function renderMetrics(m, scoreBreakdown) {{
     <span class="metric-val" style="color:${{nc}};">${{m.ncStr}}</span></div>
     <div class="metric-row" style="border-bottom:none;"><span class="metric-lbl">Est. Margin/Premium</span>
     <span class="metric-val" style="color:#8aa0ff;">${{m.marginStr}}</span></div>
-    ${{sbHtml}}`;
+    ${{sbHtml}}
+    ${{buildIntradaySim(m)}}`;
+}}
+
+// ── Intraday P&L Simulator ───────────────────────────────────────────────────
+function buildIntradaySim(m) {{
+  const lotSz   = OC.lotSize;
+  const maxL    = m.mlRawVal === 999999 ? null : m.mlRawVal;
+  const maxP    = m.mpRaw    === 999999 ? null : m.mpRaw;
+  const nd      = m.netDelta;   // ₹ per 1 point Nifty move
+  const nt      = m.netTheta;   // ₹ per day (negative = decay cost)
+  const nv      = m.netVega;    // ₹ per 1% IV change
+
+  const moves = [-300,-200,-150,-100,-50,0,50,100,150,200,300];
+
+  function calcPnl(movePts) {{
+    let pnl = nd * movePts + nt;
+    if (maxL !== null) pnl = Math.max(-maxL, pnl);
+    if (maxP !== null) pnl = Math.min(maxP * 0.9, pnl);
+    return Math.round(pnl);
+  }}
+
+  const flatPnl  = calcPnl(0);
+  const flatCol  = flatPnl >= 0 ? '#00c896' : '#ff6b6b';
+  const ntCol    = nt >= 0 ? '#00c896' : '#ff6b6b';
+  const ntSign   = nt >= 0 ? '+' : '';
+  const ndStr    = (nd >= 0 ? '+' : '') + '\u20b9' + Math.abs(nd).toFixed(2) + '/pt';
+  const ntStr    = ntSign + '\u20b9' + Math.abs(Math.round(nt));
+  const nvStr    = (nv >= 0 ? '+' : '') + '\u20b9' + Math.abs(nv).toFixed(2) + '/1%IV';
+
+  let tRows = '';
+  moves.forEach(mv => {{
+    const pnl    = calcPnl(mv);
+    const col    = pnl > 100 ? '#00c896' : pnl > 0 ? '#4de8b8' : pnl > -200 ? '#ffd166' : '#ff6b6b';
+    const mvcol  = mv > 0 ? '#00c896' : mv < 0 ? '#ff6b6b' : '#6480ff';
+    const mvbg   = mv > 0 ? 'rgba(0,200,150,.10)' : mv < 0 ? 'rgba(255,107,107,.10)' : 'rgba(100,128,255,.10)';
+    const mvlbl  = mv > 0 ? '+' + mv : mv === 0 ? 'Flat' : String(mv);
+    const pctmp  = maxP ? ((pnl / maxP) * 100).toFixed(0) + '%' : '—';
+    tRows += `<tr>
+      <td><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:${{mvbg}};color:${{mvcol}};">${{mvlbl}}${{mv!==0?' pts':''}}</span></td>
+      <td style="color:rgba(255,255,255,.4);font-size:10px;">\u20b9${{(OC.spot+mv).toLocaleString('en-IN')}}</td>
+      <td style="color:${{col}};font-family:'DM Mono',monospace;font-weight:700;">${{pnl>=0?'+':''}}\u20b9${{Math.abs(pnl).toLocaleString('en-IN')}}</td>
+      <td style="font-size:9px;color:rgba(255,255,255,.3);">${{pctmp}}</td>
+    </tr>`;
+  }});
+
+  // Slider range: spot ± 400 in steps of 25
+  const slMin = Math.round((OC.spot - 400) / 25) * 25;
+  const slMax = Math.round((OC.spot + 400) / 25) * 25;
+  const simId = 'sim_' + Math.random().toString(36).slice(2,7);
+
+  return `
+<div style="border-top:2px solid rgba(255,209,102,.22);background:linear-gradient(135deg,rgba(245,197,24,.04),rgba(200,155,10,.02));">
+  <!-- Sub-tabs -->
+  <div style="display:flex;border-bottom:1px solid rgba(255,255,255,.06);">
+    <button class="sim-tab active" id="${{simId}}_t1"
+      onclick="simTab('${{simId}}','t1')" style="flex:1;padding:8px 4px;font-family:'DM Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid #f5c518;color:#f5c518;background:rgba(245,197,24,.07);transition:all .2s;">📊 SCENARIOS</button>
+    <button class="sim-tab" id="${{simId}}_t2"
+      onclick="simTab('${{simId}}','t2')" style="flex:1;padding:8px 4px;font-family:'DM Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:rgba(255,255,255,.3);background:transparent;transition:all .2s;">🔬 GREEKS</button>
+    <button class="sim-tab" id="${{simId}}_t3"
+      onclick="simTab('${{simId}}','t3')" style="flex:1;padding:8px 4px;font-family:'DM Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:rgba(255,255,255,.3);background:transparent;transition:all .2s;">🎚 SLIDER</button>
+  </div>
+
+  <!-- TAB 1: Scenarios -->
+  <div id="${{simId}}_c1">
+    <div style="padding:9px 12px 6px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">📅 TODAY'S P&amp;L SCENARIOS</div>
+      <div style="font-size:8.5px;color:rgba(255,255,255,.25);">Delta×move + Theta · 1 day</div>
+    </div>
+    <div style="padding:0 12px 10px;overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;">
+        <thead><tr style="background:rgba(255,255,255,.04);">
+          <th style="padding:6px 8px;font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:left;border-bottom:1px solid rgba(255,255,255,.06);">Move</th>
+          <th style="padding:6px 8px;font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:center;border-bottom:1px solid rgba(255,255,255,.06);">Spot</th>
+          <th style="padding:6px 8px;font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:center;border-bottom:1px solid rgba(255,255,255,.06);">Est. P&amp;L</th>
+          <th style="padding:6px 8px;font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:center;border-bottom:1px solid rgba(255,255,255,.06);">vs Max</th>
+        </tr></thead>
+        <tbody>${{tRows}}</tbody>
+      </table>
+    </div>
+    <div style="margin:0 12px 12px;padding:8px 10px;background:rgba(255,107,107,.06);border:1px solid rgba(255,107,107,.15);border-radius:8px;font-size:9.5px;color:rgba(255,150,150,.7);line-height:1.6;">
+      ⏱ P&amp;L = <b>Delta×move</b> + <b>Theta (1 day)</b>. Actual exit P&amp;L may differ due to IV changes. Max profit of ${{m.mpStr}} is achievable at expiry only.
+    </div>
+  </div>
+
+  <!-- TAB 2: Greeks Breakdown -->
+  <div id="${{simId}}_c2" style="display:none;">
+    <div style="padding:9px 12px 6px;">
+      <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">🔬 NET GREEKS (per lot)</div>
+    </div>
+    <div style="display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,.05);">
+      <div style="flex:1;text-align:center;padding:12px 6px;border-right:1px solid rgba(255,255,255,.05);">
+        <div style="font-size:8px;color:rgba(255,255,255,.28);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;">Δ DELTA</div>
+        <div style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:${{nd>=0?'#00c896':'#ff6b6b'}};">${{ndStr}}</div>
+        <div style="font-size:8.5px;color:rgba(255,255,255,.3);margin-top:3px;">per 1pt move</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:12px 6px;border-right:1px solid rgba(255,255,255,.05);">
+        <div style="font-size:8px;color:rgba(255,255,255,.28);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;">Θ THETA</div>
+        <div style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:${{ntCol}};">${{ntSign}}\u20b9${{Math.abs(Math.round(nt))}}</div>
+        <div style="font-size:8.5px;color:rgba(255,255,255,.3);margin-top:3px;">per day</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:12px 6px;">
+        <div style="font-size:8px;color:rgba(255,255,255,.28);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;">ν VEGA</div>
+        <div style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:#8aa0ff;">${{nvStr}}</div>
+        <div style="font-size:8.5px;color:rgba(255,255,255,.3);margin-top:3px;">per 1% IV Δ</div>
+      </div>
+    </div>
+    <div style="padding:12px;">
+      <div style="font-size:8.5px;color:rgba(255,255,255,.25);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">TODAY'S P&amp;L IF MARKET IS FLAT</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;background:rgba(0,0,0,.25);border-radius:10px;border:1px solid rgba(255,255,255,.06);">
+        <div style="text-align:center;">
+          <div style="font-size:8px;color:rgba(255,255,255,.3);margin-bottom:4px;">THETA DRAG</div>
+          <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:700;color:${{ntCol}};">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
+        </div>
+        <div style="font-size:20px;color:rgba(255,255,255,.2);">=</div>
+        <div style="text-align:center;">
+          <div style="font-size:8px;color:rgba(255,255,255,.3);margin-bottom:4px;">TODAY P&amp;L (FLAT)</div>
+          <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:700;color:${{flatCol}};">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;font-size:9.5px;color:rgba(255,255,255,.35);line-height:1.7;">
+        ${{nt < 0 ? '🔴 <b style="color:rgba(255,150,150,.8);">Theta negative</b> — you pay \u20b9' + Math.abs(Math.round(nt)).toLocaleString("en-IN") + '/day for holding. Need Nifty to move <b style="color:#ffd166;">' + Math.ceil(Math.abs(nt)/Math.abs(nd||1)) + ' pts</b> just to break even today.' : '🟢 <b style="color:rgba(0,200,150,.8);">Theta positive</b> — you earn \u20b9' + Math.abs(Math.round(nt)).toLocaleString("en-IN") + '/day time decay. Premium selling strategy benefits from flat market.'}}
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: Live Slider -->
+  <div id="${{simId}}_c3" style="display:none;">
+    <div style="padding:9px 12px 4px;">
+      <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">🎚 LIVE SCENARIO SLIDER</div>
+    </div>
+    <div style="padding:6px 12px 10px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:9px;">
+        <span style="color:rgba(255,255,255,.3);">\u20b9${{slMin.toLocaleString('en-IN')}}</span>
+        <span id="${{simId}}_slv" style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#f5c518;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.3);border-radius:5px;padding:1px 8px;">Spot: \u20b9${{OC.spot.toLocaleString('en-IN')}}</span>
+        <span style="color:rgba(255,255,255,.3);">\u20b9${{slMax.toLocaleString('en-IN')}}</span>
+      </div>
+      <input type="range" id="${{simId}}_sl" min="${{slMin}}" max="${{slMax}}" value="${{OC.spot}}" step="25"
+        style="width:100%;height:4px;border-radius:2px;outline:none;border:none;-webkit-appearance:none;cursor:pointer;background:linear-gradient(90deg,#f5c518 50%,rgba(255,255,255,.1) 50%);"
+        oninput="simSlide('${{simId}}', this.value, ${{slMin}}, ${{slMax}}, ${{nd}}, ${{nt}}, ${{maxL===null?'null':maxL}}, ${{maxP===null?'null':maxP}})">
+    </div>
+    <div id="${{simId}}_sr" style="padding:4px 12px 14px;text-align:center;">
+      <div style="background:rgba(0,0,0,.3);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,.07);">
+        <div style="font-size:8.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.25);margin-bottom:6px;">ESTIMATED EXIT P&amp;L TODAY</div>
+        <div id="${{simId}}_spnl" style="font-family:'DM Mono',monospace;font-size:30px;font-weight:700;color:${{ntCol}};">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
+        <div id="${{simId}}_snote" style="font-size:9.5px;color:rgba(255,255,255,.3);margin-top:4px;">Flat market — theta drag only</div>
+        <div style="display:flex;gap:12px;justify-content:center;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);">
+          <div style="text-align:center;">
+            <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Delta P&amp;L</div>
+            <div id="${{simId}}_sdelta" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#00c896;">\u20b90</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Theta Cost</div>
+            <div style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:${{ntCol}};">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">% of Max</div>
+            <div id="${{simId}}_spct" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#ffd166;">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>`;
+}}
+
+function simTab(simId, tab) {{
+  ['t1','t2','t3'].forEach(t => {{
+    const btn = document.getElementById(simId + '_' + t);
+    const con = document.getElementById(simId + '_c' + t.slice(1));
+    if (!btn || !con) return;
+    const isActive = t === tab;
+    con.style.display = isActive ? 'block' : 'none';
+    btn.style.borderBottomColor = isActive ? '#f5c518' : 'transparent';
+    btn.style.color = isActive ? '#f5c518' : 'rgba(255,255,255,.3)';
+    btn.style.background = isActive ? 'rgba(245,197,24,.07)' : 'transparent';
+  }});
+}}
+
+function simSlide(simId, val, slMin, slMax, nd, nt, maxL, maxP) {{
+  const spot = parseInt(val);
+  const move = spot - OC.spot;
+  const pct  = ((val - slMin) / (slMax - slMin) * 100);
+  const sl   = document.getElementById(simId + '_sl');
+  if (sl) sl.style.background = `linear-gradient(90deg,#f5c518 ${{pct}}%,rgba(255,255,255,.1) ${{pct}}%)`;
+  const slv = document.getElementById(simId + '_slv');
+  if (slv) slv.textContent = 'Spot: \u20b9' + spot.toLocaleString('en-IN');
+  let pnl = nd * move + nt;
+  if (maxL !== null) pnl = Math.max(-maxL, pnl);
+  if (maxP !== null) pnl = Math.min(maxP * 0.9, pnl);
+  pnl = Math.round(pnl);
+  const col = pnl > 100 ? '#00c896' : pnl > 0 ? '#4de8b8' : pnl > -200 ? '#ffd166' : '#ff6b6b';
+  const pEl = document.getElementById(simId + '_spnl');
+  if (pEl) {{ pEl.textContent = (pnl>=0?'+':'') + '\u20b9' + Math.abs(pnl).toLocaleString('en-IN'); pEl.style.color = col; }}
+  const nEl = document.getElementById(simId + '_snote');
+  if (nEl) nEl.textContent = move > 0 ? `Nifty up ${{move}} pts` : move < 0 ? `Nifty down ${{Math.abs(move)}} pts` : 'Flat market — theta drag only';
+  const deltaPnl = Math.round(nd * move);
+  const dEl = document.getElementById(simId + '_sdelta');
+  if (dEl) {{ dEl.textContent = (deltaPnl>=0?'+':'') + '\u20b9' + Math.abs(deltaPnl).toLocaleString('en-IN'); dEl.style.color = deltaPnl >= 0 ? '#00c896' : '#ff6b6b'; }}
+  const pctEl = document.getElementById(simId + '_spct');
+  if (pctEl) {{ const pPct = maxP ? ((pnl / maxP) * 100).toFixed(1) + '%' : '—'; pctEl.textContent = pPct; pctEl.style.color = pnl >= 0 ? '#00c896' : '#ff9090'; }}
 }}
 
 function popBadgeStyle(pop) {{
@@ -2970,7 +3247,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
   </main>
 </div>
 <footer>
-  <span>NiftyCraft &middot; v18.4 &middot; Holiday-Aware Expiry + Silent Background Refresh</span>
+  <span>NiftyCraft &middot; v18.5 &middot; Holiday-Aware Expiry + Intraday P&amp;L Simulator</span>
   <span>S/R + OI Walls + Bias + PCR &middot; Educational Only &middot; &copy; 2025</span>
 </footer>
 </div>
