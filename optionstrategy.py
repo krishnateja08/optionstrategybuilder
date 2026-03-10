@@ -3264,8 +3264,8 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
     </div>
     <div id="mainPanelOI">
       <div id="oi">{oi_html}</div>
-      {greeks_table}
       <div id="kl">{kl_html}</div>
+      {greeks_table}
       <div id="strikes">{strikes_html}</div>
       <div class="section">
         <div style="background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.18);
