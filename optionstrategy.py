@@ -2731,7 +2731,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   background:rgba(6,8,15,.85);backdrop-filter:blur(16px);
   border-bottom:1px solid rgba(255,255,255,.07);position:sticky;top:0;z-index:200;
   box-shadow:0 1px 0 rgba(0,200,150,.1)}
-.logo-wrap{position:relative;height:28px;overflow:hidden;min-width:280px;}
+.logo-wrap{position:relative;height:42px;overflow:hidden;min-width:400px;}
 .logo-slide{position:absolute;top:0;left:0;width:100%;font-family:var(--fh);font-size:29px;font-weight:700;
   background:linear-gradient(90deg,#00c896,#6480ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;
   filter:drop-shadow(0 0 12px rgba(0,200,150,.3));opacity:0;transform:translateY(20px);
@@ -2909,7 +2909,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 @media(max-width:640px){
   header{padding:12px 16px}.section{padding:18px 16px}
   .kl-dist-row{grid-template-columns:1fr}footer{flex-direction:column;gap:6px}
-  .logo-wrap{min-width:160px;}.refresh-countdown{display:none;}
+  .logo-wrap{min-width:220px;}.refresh-countdown{display:none;}
   .sc-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
 }
 """
