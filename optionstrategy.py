@@ -1487,6 +1487,7 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
                 f'data-name="{s["name"]}" data-legs="{s["legs"]}" '
                 f'data-risk="{s["risk"]}" data-reward="{s["reward"]}" '
                 f'data-margin-mult="{s.get("margin_mult",1.0)}" data-lot-size="{s.get("lot_size",65)}" id="{cid}">'
+                f'<div class="sc-summary">'
                 f'<div class="sc-pop-badge" id="pop_{cid}">—%</div>'
                 f'<div class="sc-svg">{svg}</div>'
                 f'<div class="sc-body">'
@@ -1495,7 +1496,7 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
                 f'<div class="sc-tags">'
                 f'<span class="sc-tag" style="color:{rc};border-color:{rc}40;">Risk: {s["risk"]}</span>'
                 f'<span class="sc-tag" style="color:{rwc};border-color:{rwc}40;">Reward: {s["reward"]}</span>'
-                f'</div></div>'
+                f'</div></div></div>'
                 f'<div class="sc-detail" id="detail_{cid}">'
                 f'<div class="sc-desc">{s["desc"]}</div>'
                 f'<div class="sc-metrics-live" id="metrics_{cid}">'
@@ -2359,7 +2360,7 @@ function buildIntradaySim(m) {{
       <div style="font-size:12.3px;color:rgba(255,255,255,.25);">Delta×move + Theta · 1 day</div>
     </div>
     <div style="padding:0 10px 10px;">
-      <table style="width:100%;border-collapse:collapse;">
+      <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
         <thead><tr style="background:rgba(255,255,255,.05);">
           <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:left;border-bottom:1px solid rgba(255,255,255,.07);">MOVE</th>
           <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:right;border-bottom:1px solid rgba(255,255,255,.07);">SPOT</th>
@@ -2853,8 +2854,8 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .sc-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;position:relative;}
 .sc-card:hover{border-color:rgba(0,200,150,.3);transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,200,150,.1)}.sc-card.expanded:hover{transform:none;}
 .sc-card.hidden{display:none}
-.sc-card.expanded .sc-detail{display:block;flex:1;border-top:none;border-left:1px solid rgba(0,200,150,.15);min-width:0;}
-.sc-card.expanded{border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12);grid-column:1 / -1;flex-direction:row;align-items:stretch;max-width:680px;}
+.sc-card.expanded .sc-detail{display:block;flex:1;border-top:none;border-left:1px solid rgba(0,200,150,.15);min-width:280px;overflow-x:hidden;}
+.sc-card.expanded{border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12);grid-column:1 / -1;flex-direction:row;align-items:stretch;max-width:560px;}
 .sc-pop-badge{position:absolute;top:8px;right:8px;font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);z-index:5;letter-spacing:.5px;transition:all .3s;min-width:38px;text-align:center;}
 .sc-svg{display:flex;align-items:center;justify-content:center;padding:14px 0 6px;background:rgba(255,255,255,.02)}
 .sc-body{padding:10px 12px 12px}
