@@ -2854,8 +2854,10 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .sc-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;position:relative;}
 .sc-card:hover{border-color:rgba(0,200,150,.3);transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,200,150,.1)}.sc-card.expanded:hover{transform:none;}
 .sc-card.hidden{display:none}
-.sc-card.expanded .sc-detail{display:block;flex:1;border-top:none;border-left:1px solid rgba(0,200,150,.15);min-width:280px;overflow-x:hidden;}
-.sc-card.expanded{border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12);grid-column:1 / -1;flex-direction:row;align-items:stretch;max-width:560px;}
+.sc-summary{display:flex;flex-direction:column;}
+.sc-card.expanded .sc-summary{flex-shrink:0;width:185px;border-right:1px solid rgba(0,200,150,.15);}
+.sc-card.expanded .sc-detail{display:block;flex:1;border-top:none;min-width:280px;overflow:visible;}
+.sc-card.expanded{border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12);grid-column:1 / -1;flex-direction:row;align-items:stretch;}
 .sc-pop-badge{position:absolute;top:8px;right:8px;font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);z-index:5;letter-spacing:.5px;transition:all .3s;min-width:38px;text-align:center;}
 .sc-svg{display:flex;align-items:center;justify-content:center;padding:14px 0 6px;background:rgba(255,255,255,.02)}
 .sc-body{padding:10px 12px 12px}
@@ -3212,7 +3214,9 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
     <div class="live-dot"></div>
     <span>NSE Options Dashboard</span>
     <span style="color:rgba(255,255,255,.15);">|</span>
-    <span>{ts}</span>
+    <span style="color:rgba(255,255,255,.45);">Last report generated:&nbsp;<span style="color:#00c896;font-weight:600;">{ts}</span></span>
+    <span style="color:rgba(255,255,255,.15);">|</span>
+    <span style="color:rgba(255,255,255,.45);">IST&nbsp;<span id="liveClock" style="font-family:'DM Mono',monospace;color:#ffd166;font-weight:700;letter-spacing:1px;">--:--:--</span></span>
     <span style="color:rgba(255,255,255,.15);">|</span>
     <div class="refresh-countdown">
       <div class="countdown-arc-wrap">
@@ -3299,6 +3303,21 @@ function go(id,btn){{
   if(btn){{document.querySelectorAll(".sb-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");}}
 }}
 
+
+function updateISTClock() {{
+  const el = document.getElementById('liveClock');
+  if (!el) return;
+  const now = new Date();
+  // Convert to IST (UTC+5:30)
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const ist = new Date(now.getTime() + (now.getTimezoneOffset() * 60 * 1000) + istOffset);
+  const hh = String(ist.getHours()).padStart(2,'0');
+  const mm = String(ist.getMinutes()).padStart(2,'0');
+  const ss = String(ist.getSeconds()).padStart(2,'0');
+  el.textContent = hh + ':' + mm + ':' + ss;
+}}
+updateISTClock();
+setInterval(updateISTClock, 1000);
 function switchMainTab(tab) {{
   document.getElementById('mainPanelOI').style.display    = tab === 'oi'    ? '' : 'none';
   document.getElementById('mainPanelStrat').style.display = tab === 'strat' ? '' : 'none';
