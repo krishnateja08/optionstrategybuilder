@@ -2355,9 +2355,8 @@ function buildIntradaySim(m) {{
     <div style="padding:0 10px 10px;">
       <table style="width:100%;border-collapse:collapse;">
         <thead><tr style="background:rgba(255,255,255,.05);">
-          <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);text-align:left;border-bottom:1px solid rgba(255,255,255,.07);">MOVE</th>
-          <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);text-align:right;border-bottom:1px solid rgba(255,255,255,.07);">SPOT</th>
-          <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);text-align:right;border-bottom:1px solid rgba(255,255,255,.07);">TODAY P&amp;L</th>
+          <th style="padding:5px 8px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);text-align:left;border-bottom:1px solid rgba(255,255,255,.07);">MOVE</th>
+          <th style="padding:5px 8px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);text-align:right;border-bottom:1px solid rgba(255,255,255,.07);">TODAY P&amp;L</th>
           <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);text-align:center;border-bottom:1px solid rgba(255,255,255,.07);">vs MAX</th>
         </tr></thead>
         <tbody>${{tRows}}</tbody>
@@ -2848,6 +2847,10 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .sc-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;position:relative;}
 .sc-card:hover{border-color:rgba(0,200,150,.3);transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,200,150,.1)}
 .sc-card.hidden{display:none}
+.sc-card.expanded{grid-column:1 / -1 !important;flex-direction:row !important;align-items:flex-start;border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12);}
+.sc-card.expanded .sc-detail{display:block;flex:0 0 380px;width:380px;border-top:none;border-left:1px solid rgba(0,200,150,.15);overflow-y:auto;max-height:480px;}
+.sc-card.expanded .sc-summary{flex:1;min-width:180px;}
+.sc-card.expanded:hover{transform:none;}
 .sc-card.expanded .sc-detail{display:block}
 .sc-card.expanded{border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12)}
 .sc-pop-badge{position:absolute;top:8px;right:8px;font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);z-index:5;letter-spacing:.5px;transition:all .3s;min-width:38px;text-align:center;}
