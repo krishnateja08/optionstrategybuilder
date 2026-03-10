@@ -1047,7 +1047,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     pcr_col = "#00c896" if pcr > 1.2 else ("#ff6b6b" if pcr < 0.7 else "#6480ff")
     b_col = _cls_color(md.get("bias_cls", "neutral"))
     b_bg = _cls_bg(md.get("bias_cls", "neutral")); b_bdr = _cls_bdr(md.get("bias_cls", "neutral"))
-    C = 194.8
+    C = 263.9
     def clamp(v, lo=10, hi=97): return max(lo, min(hi, v))
     bull_offset = C * (1 - clamp(bull_pct) / 100); bear_offset = C * (1 - clamp(bear_pct) / 100)
     oi_bar_w = clamp(bull_pct); bear_bar_w = clamp(bear_pct)
@@ -1058,11 +1058,11 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 <div class="hero" id="heroWidget">
   <div class="h-gauges">
     <div class="gauge-wrap">
-      <svg width="76" height="76" viewBox="0 0 76 76">
-        <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="6"/>
-        <circle cx="38" cy="38" r="31" fill="none" stroke="url(#bull-g)" stroke-width="6"
+      <svg width="100" height="100" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="7"/>
+        <circle cx="50" cy="50" r="42" fill="none" stroke="url(#bull-g)" stroke-width="7"
           stroke-linecap="round" stroke-dasharray="{C}" stroke-dashoffset="{bull_offset:.1f}"
-          style="transform:rotate(-90deg);transform-origin:38px 38px;transition:stroke-dashoffset 1s ease;"/>
+          style="transform:rotate(-90deg);transform-origin:50px 50px;transition:stroke-dashoffset 1s ease;"/>
         <defs><linearGradient id="bull-g" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stop-color="#00c896"/><stop offset="100%" stop-color="#4de8b8"/>
         </linearGradient></defs>
@@ -1074,11 +1074,11 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     </div>
     <div class="gauge-sep"></div>
     <div class="gauge-wrap">
-      <svg width="76" height="76" viewBox="0 0 76 76">
-        <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="6"/>
-        <circle cx="38" cy="38" r="31" fill="none" stroke="url(#bear-g)" stroke-width="6"
+      <svg width="100" height="100" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="7"/>
+        <circle cx="50" cy="50" r="42" fill="none" stroke="url(#bear-g)" stroke-width="7"
           stroke-linecap="round" stroke-dasharray="{C}" stroke-dashoffset="{bear_offset:.1f}"
-          style="transform:rotate(-90deg);transform-origin:38px 38px;transition:stroke-dashoffset 1s ease;"/>
+          style="transform:rotate(-90deg);transform-origin:50px 50px;transition:stroke-dashoffset 1s ease;"/>
         <defs><linearGradient id="bear-g" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stop-color="#ff6b6b"/><stop offset="100%" stop-color="#ff9090"/>
         </linearGradient></defs>
@@ -2754,11 +2754,11 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 @keyframes spin{to{transform:rotate(360deg)}}
 #refreshStatus{font-size:14.5px;color:rgba(255,255,255,.35);transition:color .3s;letter-spacing:.3px;}
 #refreshStatus.updated{color:#00c896;font-weight:600;}
-.hero{display:flex;align-items:stretch;background:linear-gradient(135deg,rgba(0,200,150,.055) 0%,rgba(100,128,255,.055) 100%);border-bottom:1px solid rgba(255,255,255,.07);overflow:hidden;position:relative;height:97px;}
+.hero{display:flex;align-items:stretch;background:linear-gradient(135deg,rgba(0,200,150,.055) 0%,rgba(100,128,255,.055) 100%);border-bottom:1px solid rgba(255,255,255,.07);overflow:hidden;position:relative;height:130px;}
 .hero::before{content:'';position:absolute;top:-50px;left:-50px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(0,200,150,.10),transparent 70%);pointer-events:none;}
 .h-gauges{flex-shrink:0;display:flex;align-items:center;gap:10px;padding:0 16px 0 18px;}
 .gauge-sep{width:1px;height:56px;background:rgba(255,255,255,.08);flex-shrink:0;}
-.gauge-wrap{position:relative;width:76px;height:76px;}
+.gauge-wrap{position:relative;width:100px;height:100px;}
 .gauge-wrap svg{display:block;}
 .gauge-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
 .g-val{font-family:'DM Mono',monospace;font-size:18.8px;font-weight:700;line-height:1;}
