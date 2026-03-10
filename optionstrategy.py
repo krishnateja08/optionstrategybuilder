@@ -3300,12 +3300,12 @@ function go(id,btn){{
   if(btn){{document.querySelectorAll(".sb-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");}}
 }}
 
-function switchMainTab(tab) {
+function switchMainTab(tab) {{
   document.getElementById('mainPanelOI').style.display    = tab === 'oi'    ? '' : 'none';
   document.getElementById('mainPanelStrat').style.display = tab === 'strat' ? '' : 'none';
   document.getElementById('mainTabOI').classList.toggle('active',    tab === 'oi');
   document.getElementById('mainTabStrat').classList.toggle('active', tab === 'strat');
-}
+}}
 function filterStrat(cat,btn){{
   document.querySelectorAll(".sc-card").forEach(c=>{{c.classList.toggle("hidden",c.dataset.cat!==cat);}});
   const colors={{bullish:"#00c896",bearish:"#ff6b6b",nondirectional:"#6480ff"}};
