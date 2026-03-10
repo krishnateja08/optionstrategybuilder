@@ -2840,6 +2840,12 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .tk-val{font-family:var(--fm);font-size:26.1px;font-weight:700;line-height:1;white-space:nowrap;}
 .tk-sub{font-family:var(--fm);font-size:14.5px;color:rgba(255,255,255,.35);white-space:nowrap;}
 .tk-badge{font-family:var(--fh);font-size:14.5px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;letter-spacing:.3px;}
+
+/* ── Main Tab Bar ─────────────────────────────────────── */
+.main-tabs{display:flex;gap:8px;padding:16px 28px 0;border-bottom:1px solid rgba(255,255,255,.07);background:rgba(4,6,12,.6);position:sticky;top:0;z-index:100;}
+.main-tab{padding:10px 22px;font-family:var(--fh);font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border:none;border-bottom:3px solid transparent;background:transparent;color:rgba(255,255,255,.35);cursor:pointer;transition:all .2s;border-radius:6px 6px 0 0;}
+.main-tab:hover{color:rgba(255,255,255,.7);background:rgba(255,255,255,.04);}
+.main-tab.active{color:#00c896;border-bottom:3px solid #00c896;background:rgba(0,200,150,.07);}
 footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:rgba(6,8,15,.9);backdrop-filter:blur(12px);display:flex;justify-content:space-between;font-size:15.9px;color:var(--muted2);font-family:var(--fm)}
 .sc-tabs{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
 .sc-tab{padding:8px 20px;border-radius:24px;border:1px solid;cursor:pointer;font-family:var(--fh);font-size:17.4px;font-weight:600;transition:all .2s;display:flex;align-items:center;gap:8px;background:transparent}
@@ -3252,20 +3258,28 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
     </div>
   </aside>
   <main class="content">
-    <div id="oi">{oi_html}</div>
-    {greeks_table}
-    <div id="kl">{kl_html}</div>
-    {strat_html}
-    <div id="strikes">{strikes_html}</div>
-    <div class="section">
-      <div style="background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.18);
-                  border-left:3px solid #6480ff;border-radius:12px;padding:16px 18px;
-                  font-size:18.8px;color:rgba(255,255,255,.5);line-height:1.8;">
-        <strong style="color:rgba(255,255,255,.7);">DISCLAIMER</strong><br>
-        This dashboard is for EDUCATIONAL purposes only &mdash; NOT financial advice.<br>
-        Smart PoP uses S/R levels, OI walls, market bias and PCR &mdash; not a guaranteed signal.<br>
-        Always use stop losses. Consult a SEBI-registered investment advisor before trading.
+    <div class="main-tabs">
+      <button class="main-tab active" id="mainTabOI" onclick="switchMainTab('oi')">&#128202; OI Dashboard</button>
+      <button class="main-tab" id="mainTabStrat" onclick="switchMainTab('strat')">&#128203; Option Strategies Reference</button>
+    </div>
+    <div id="mainPanelOI">
+      <div id="oi">{oi_html}</div>
+      {greeks_table}
+      <div id="kl">{kl_html}</div>
+      <div id="strikes">{strikes_html}</div>
+      <div class="section">
+        <div style="background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.18);
+                    border-left:3px solid #6480ff;border-radius:12px;padding:16px 18px;
+                    font-size:18.8px;color:rgba(255,255,255,.5);line-height:1.8;">
+          <strong style="color:rgba(255,255,255,.7);">DISCLAIMER</strong><br>
+          This dashboard is for EDUCATIONAL purposes only &mdash; NOT financial advice.<br>
+          Smart PoP uses S/R levels, OI walls, market bias and PCR &mdash; not a guaranteed signal.<br>
+          Always use stop losses. Consult a SEBI-registered investment advisor before trading.
+        </div>
       </div>
+    </div>
+    <div id="mainPanelStrat" style="display:none;">
+      {strat_html}
     </div>
   </main>
 </div>
@@ -3285,6 +3299,13 @@ function go(id,btn){{
   if(el)el.scrollIntoView({{behavior:"smooth",block:"start"}});
   if(btn){{document.querySelectorAll(".sb-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");}}
 }}
+
+function switchMainTab(tab) {
+  document.getElementById('mainPanelOI').style.display    = tab === 'oi'    ? '' : 'none';
+  document.getElementById('mainPanelStrat').style.display = tab === 'strat' ? '' : 'none';
+  document.getElementById('mainTabOI').classList.toggle('active',    tab === 'oi');
+  document.getElementById('mainTabStrat').classList.toggle('active', tab === 'strat');
+}
 function filterStrat(cat,btn){{
   document.querySelectorAll(".sc-card").forEach(c=>{{c.classList.toggle("hidden",c.dataset.cat!==cat);}});
   const colors={{bullish:"#00c896",bearish:"#ff6b6b",nondirectional:"#6480ff"}};
