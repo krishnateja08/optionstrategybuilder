@@ -774,14 +774,14 @@ def _delta_bar_html(delta_val, is_ce=True):
         f'<div style="display:flex;align-items:center;gap:5px;">'
         f'<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">'
         f'<div style="width:{pct:.0f}%;height:100%;background:{col};border-radius:2px;"></div></div>'
-        f'<span style="font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;color:{col};">'
+        f'<span style="font-family:\'DM Mono\',monospace;font-size:15.9px;font-weight:700;color:{col};">'
         f'{delta_val:+.3f}</span></div>'
     )
 
 
 def build_greeks_sidebar_html(oc_analysis):
     if not oc_analysis:
-        return '<div style="padding:14px 12px;font-size:11px;color:rgba(255,255,255,.3);text-align:center;">Greeks unavailable.</div>'
+        return '<div style="padding:14px 12px;font-size:15.9px;color:rgba(255,255,255,.3);text-align:center;">Greeks unavailable.</div>'
 
     g    = oc_analysis.get("atm_greeks", {})
     atm  = oc_analysis.get("atm_strike", 0)
@@ -789,7 +789,7 @@ def build_greeks_sidebar_html(oc_analysis):
     all_rows = oc_analysis.get("all_strikes", oc_analysis.get("greeks_table", []))
 
     if not g:
-        return '<div style="padding:14px 12px;font-size:11px;color:rgba(255,255,255,.3);text-align:center;">Greeks not computed yet.</div>'
+        return '<div style="padding:14px 12px;font-size:15.9px;color:rgba(255,255,255,.3);text-align:center;">Greeks not computed yet.</div>'
 
     ce_iv    = g.get("ce_iv",    15.0)
     pe_iv    = g.get("pe_iv",    15.0)
@@ -850,12 +850,12 @@ def build_greeks_sidebar_html(oc_analysis):
     </select>
   </div>
   <div class="greeks-atm-badge" id="greeksAtmBadge">
-    <span style="font-size:8.5px;font-weight:700;color:rgba(138,160,255,.9);" id="greeksStrikeTypeLabel">ATM</span>
+    <span style="font-size:12.3px;font-weight:700;color:rgba(138,160,255,.9);" id="greeksStrikeTypeLabel">ATM</span>
     <span class="greeks-atm-strike" id="greeksStrikeLabel">&#8377;{atm:,}</span>
-    <span style="font-size:8px;color:rgba(255,255,255,.2);">|</span>
-    <span style="font-size:8.5px;color:rgba(0,200,220,.8);" id="greeksCeLtp">CE &#8377;{ce_ltp:.1f}</span>
-    <span style="font-size:8px;color:rgba(255,255,255,.25);">/</span>
-    <span style="font-size:8.5px;color:rgba(255,107,107,.8);" id="greeksPeLtp">PE &#8377;{pe_ltp:.1f}</span>
+    <span style="font-size:11.6px;color:rgba(255,255,255,.2);">|</span>
+    <span style="font-size:12.3px;color:rgba(0,200,220,.8);" id="greeksCeLtp">CE &#8377;{ce_ltp:.1f}</span>
+    <span style="font-size:11.6px;color:rgba(255,255,255,.25);">/</span>
+    <span style="font-size:12.3px;color:rgba(255,107,107,.8);" id="greeksPeLtp">PE &#8377;{pe_ltp:.1f}</span>
   </div>
   <div class="greeks-row">
     <div style="display:flex;flex-direction:column;">
@@ -874,12 +874,12 @@ def build_greeks_sidebar_html(oc_analysis):
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
       <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:8.5px;color:rgba(0,200,220,.85);">CE</span>
-        <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:#00c8e0;" id="greeksIvCe">{ce_iv:.1f}%</span>
+        <span style="font-size:12.3px;color:rgba(0,200,220,.85);">CE</span>
+        <span style="font-family:'DM Mono',monospace;font-size:18.8px;font-weight:700;color:#00c8e0;" id="greeksIvCe">{ce_iv:.1f}%</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:8.5px;color:rgba(255,144,144,.85);">PE</span>
-        <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:#ff9090;" id="greeksIvPe">{pe_iv:.1f}%</span>
+        <span style="font-size:12.3px;color:rgba(255,144,144,.85);">PE</span>
+        <span style="font-family:'DM Mono',monospace;font-size:18.8px;font-weight:700;color:#ff9090;" id="greeksIvPe">{pe_iv:.1f}%</span>
       </div>
     </div>
   </div>
@@ -890,12 +890,12 @@ def build_greeks_sidebar_html(oc_analysis):
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
       <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:8.5px;color:rgba(0,200,220,.85);">CE</span>
-        <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#ff9090;" id="greeksThetaCe">{tfmt(ce_theta)}</span>
+        <span style="font-size:12.3px;color:rgba(0,200,220,.85);">CE</span>
+        <span style="font-family:'DM Mono',monospace;font-size:15.9px;font-weight:700;color:#ff9090;" id="greeksThetaCe">{tfmt(ce_theta)}</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:8.5px;color:rgba(255,144,144,.85);">PE</span>
-        <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#ff9090;" id="greeksThetaPe">{tfmt(pe_theta)}</span>
+        <span style="font-size:12.3px;color:rgba(255,144,144,.85);">PE</span>
+        <span style="font-family:'DM Mono',monospace;font-size:15.9px;font-weight:700;color:#ff9090;" id="greeksThetaPe">{tfmt(pe_theta)}</span>
       </div>
     </div>
   </div>
@@ -906,12 +906,12 @@ def build_greeks_sidebar_html(oc_analysis):
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
       <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:8.5px;color:rgba(0,200,220,.85);">CE</span>
-        <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#8aa0ff;" id="greeksVegaCe">{vfmt(ce_vega)}</span>
+        <span style="font-size:12.3px;color:rgba(0,200,220,.85);">CE</span>
+        <span style="font-family:'DM Mono',monospace;font-size:15.9px;font-weight:700;color:#8aa0ff;" id="greeksVegaCe">{vfmt(ce_vega)}</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:8.5px;color:rgba(255,144,144,.85);">PE</span>
-        <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#8aa0ff;" id="greeksVegaPe">{vfmt(pe_vega)}</span>
+        <span style="font-size:12.3px;color:rgba(255,144,144,.85);">PE</span>
+        <span style="font-family:'DM Mono',monospace;font-size:15.9px;font-weight:700;color:#8aa0ff;" id="greeksVegaPe">{vfmt(pe_vega)}</span>
       </div>
     </div>
   </div>
@@ -923,7 +923,7 @@ def build_greeks_sidebar_html(oc_analysis):
     </div>
     <span class="iv-bar-num" id="greeksIvAvg" style="color:{iv_col};">{iv_avg:.1f}%</span>
   </div>
-  <div style="font-size:8.5px;text-align:center;margin-top:6px;font-weight:700;letter-spacing:.5px;color:{iv_col};"
+  <div style="font-size:12.3px;text-align:center;margin-top:6px;font-weight:700;letter-spacing:.5px;color:{iv_col};"
        id="greeksIvRegime">{iv_regime}</div>
 </div>
 """
@@ -941,7 +941,7 @@ def build_greeks_table_html(oc_analysis):
 
     def atm_tag_html(is_atm):
         if not is_atm: return ""
-        return '<span style="font-size:8px;background:rgba(100,128,255,.25);color:#8aa0ff;padding:1px 5px;border-radius:4px;margin-left:4px;font-weight:700;">ATM</span>'
+        return '<span style="font-size:11.6px;background:rgba(100,128,255,.25);color:#8aa0ff;padding:1px 5px;border-radius:4px;margin-left:4px;font-weight:700;">ATM</span>'
 
     def delta_iv_row(g):
         is_atm   = g["is_atm"]
@@ -988,7 +988,7 @@ def build_greeks_table_html(oc_analysis):
   </div>
   <div class="greeks-table-wrap">
     <div>
-      <div style="font-size:9.5px;font-weight:700;color:rgba(100,128,255,.75);margin-bottom:10px;letter-spacing:1.5px;text-transform:uppercase;display:flex;align-items:center;gap:8px;">
+      <div style="font-size:13.8px;font-weight:700;color:rgba(100,128,255,.75);margin-bottom:10px;letter-spacing:1.5px;text-transform:uppercase;display:flex;align-items:center;gap:8px;">
         <span style="width:3px;height:14px;background:#6480ff;border-radius:2px;display:inline-block;"></span>
         &#916; DELTA &amp; &#963; IMPLIED VOLATILITY
       </div>
@@ -1004,7 +1004,7 @@ def build_greeks_table_html(oc_analysis):
       </div>
     </div>
     <div>
-      <div style="font-size:9.5px;font-weight:700;color:rgba(255,107,107,.75);margin-bottom:10px;letter-spacing:1.5px;text-transform:uppercase;display:flex;align-items:center;gap:8px;">
+      <div style="font-size:13.8px;font-weight:700;color:rgba(255,107,107,.75);margin-bottom:10px;letter-spacing:1.5px;text-transform:uppercase;display:flex;align-items:center;gap:8px;">
         <span style="width:3px;height:14px;background:#ff6b6b;border-radius:2px;display:inline-block;"></span>
         &#920; THETA (Day Decay) &amp; &#957; VEGA
       </div>
@@ -1091,7 +1091,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
   </div>
   <div class="h-mid">
     <div class="h-eyebrow">OI NET SIGNAL · {expiry} · SPOT ₹{underlying:,.0f}</div>
-    <div class="h-signal" style="color:{dir_col};text-shadow:0 0 20px rgba({glow_rgb},.6),0 0 40px rgba({glow_rgb},.3);font-size:22px;font-weight:900;letter-spacing:1px;">{oi_dir}</div>
+    <div class="h-signal" style="color:{dir_col};text-shadow:0 0 20px rgba({glow_rgb},.6),0 0 40px rgba({glow_rgb},.3);font-size:31.9px;font-weight:900;letter-spacing:1px;">{oi_dir}</div>
     <div class="h-sub">{oi_sig} · PCR <span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
     <div class="h-divider"></div>
     <div class="pill-row">
@@ -1180,37 +1180,37 @@ def build_oi_html(oc):
   background:{dir_bg};overflow:hidden;margin-bottom:16px;">
   <div style="padding:18px 24px;min-width:200px;border-right:1px solid rgba(255,255,255,.07);
     display:flex;flex-direction:column;justify-content:center;flex-shrink:0;">
-    <div style="font-size:8.5px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:7px;">OI CHANGE DIRECTION</div>
-    <div style="font-size:21px;font-weight:700;color:{dir_col};line-height:1.1;margin-bottom:5px;">{oi_dir}</div>
-    <div style="font-size:10.5px;color:{dir_col};opacity:.7;">{oi_sig}</div>
-    <div style="margin-top:10px;font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,.3);">PCR &nbsp;<span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
+    <div style="font-size:12.3px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:7px;">OI CHANGE DIRECTION</div>
+    <div style="font-size:30.4px;font-weight:700;color:{dir_col};line-height:1.1;margin-bottom:5px;">{oi_dir}</div>
+    <div style="font-size:15.2px;color:{dir_col};opacity:.7;">{oi_sig}</div>
+    <div style="margin-top:10px;font-family:'DM Mono',monospace;font-size:14.5px;color:rgba(255,255,255,.3);">PCR &nbsp;<span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
   </div>
   <div style="display:flex;flex:1;align-items:stretch;">
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:16px 20px;border-right:1px solid rgba(255,255,255,.05);gap:5px;">
-      <div style="font-size:8.5px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.28);white-space:nowrap;">CE OI Change</div>
-      <div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:{ce_col};line-height:1;">{ce_fmt}</div>
-      <div style="font-size:10px;color:rgba(255,255,255,.3);white-space:nowrap;">{ce_label}</div>
+      <div style="font-size:12.3px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.28);white-space:nowrap;">CE OI Change</div>
+      <div style="font-family:'DM Mono',monospace;font-size:31.9px;font-weight:700;color:{ce_col};line-height:1;">{ce_fmt}</div>
+      <div style="font-size:14.5px;color:rgba(255,255,255,.3);white-space:nowrap;">{ce_label}</div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
         <div style="flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;"><div style="width:{ce_pct}%;height:100%;border-radius:3px;background:{ce_bar_col};"></div></div>
-        <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;color:{ce_bar_col};min-width:38px;text-align:right;">{ce_pct_display}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;color:{ce_bar_col};min-width:38px;text-align:right;">{ce_pct_display}</div>
       </div>
     </div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:16px 20px;border-right:1px solid rgba(255,255,255,.05);gap:5px;">
-      <div style="font-size:8.5px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.28);white-space:nowrap;">PE OI Change</div>
-      <div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:{pe_col};line-height:1;">{pe_fmt}</div>
-      <div style="font-size:10px;color:rgba(255,255,255,.3);white-space:nowrap;">{pe_label}</div>
+      <div style="font-size:12.3px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.28);white-space:nowrap;">PE OI Change</div>
+      <div style="font-family:'DM Mono',monospace;font-size:31.9px;font-weight:700;color:{pe_col};line-height:1;">{pe_fmt}</div>
+      <div style="font-size:14.5px;color:rgba(255,255,255,.3);white-space:nowrap;">{pe_label}</div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
         <div style="flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;"><div style="width:{pe_pct}%;height:100%;border-radius:3px;background:{pe_bar_col};"></div></div>
-        <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;color:{pe_bar_col};min-width:38px;text-align:right;">{pe_pct_display}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;color:{pe_bar_col};min-width:38px;text-align:right;">{pe_pct_display}</div>
       </div>
     </div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:16px 20px;gap:5px;">
-      <div style="font-size:8.5px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.28);white-space:nowrap;">Net OI Change</div>
-      <div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:{net_col};line-height:1;">{net_fmt}</div>
-      <div style="font-size:10px;color:rgba(255,255,255,.3);white-space:nowrap;">{net_label}</div>
+      <div style="font-size:12.3px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.28);white-space:nowrap;">Net OI Change</div>
+      <div style="font-family:'DM Mono',monospace;font-size:31.9px;font-weight:700;color:{net_col};line-height:1;">{net_fmt}</div>
+      <div style="font-size:14.5px;color:rgba(255,255,255,.3);white-space:nowrap;">{net_label}</div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
         <div style="flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;"><div style="width:{net_pct}%;height:100%;border-radius:3px;background:{net_bar_col};box-shadow:0 0 8px {net_bar_col}66;"></div></div>
-        <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;color:{net_bar_col};min-width:38px;text-align:right;">{net_pct_display}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;color:{net_bar_col};min-width:38px;text-align:right;">{net_pct_display}</div>
       </div>
     </div>
   </div>
@@ -1225,17 +1225,17 @@ def build_oi_html(oc):
         f'<div class="oi-ticker-hdr-cell">Max PE</div></div>'
         f'<div class="oi-ticker-row">'
         f'<div class="oi-ticker-metric">Snapshot</div>'
-        f'<div class="oi-ticker-cell" style="color:#ff6b6b;font-family:\'DM Mono\',monospace;font-weight:700;font-size:15px;">{total_ce:,}</div>'
-        f'<div class="oi-ticker-cell" style="color:#00c896;font-family:\'DM Mono\',monospace;font-weight:700;font-size:15px;">{total_pe:,}</div>'
-        f'<div class="oi-ticker-cell" style="color:{pcr_col};font-family:\'DM Mono\',monospace;font-weight:700;font-size:15px;">{pcr:.3f}</div>'
-        f'<div class="oi-ticker-cell" style="color:#ff6b6b;font-family:\'DM Mono\',monospace;font-weight:700;font-size:15px;">&#8377;{max_ce_s:,}</div>'
-        f'<div class="oi-ticker-cell" style="color:#00c896;font-family:\'DM Mono\',monospace;font-weight:700;font-size:15px;">&#8377;{max_pe_s:,}</div>'
+        f'<div class="oi-ticker-cell" style="color:#ff6b6b;font-family:\'DM Mono\',monospace;font-weight:700;font-size:21.8px;">{total_ce:,}</div>'
+        f'<div class="oi-ticker-cell" style="color:#00c896;font-family:\'DM Mono\',monospace;font-weight:700;font-size:21.8px;">{total_pe:,}</div>'
+        f'<div class="oi-ticker-cell" style="color:{pcr_col};font-family:\'DM Mono\',monospace;font-weight:700;font-size:21.8px;">{pcr:.3f}</div>'
+        f'<div class="oi-ticker-cell" style="color:#ff6b6b;font-family:\'DM Mono\',monospace;font-weight:700;font-size:21.8px;">&#8377;{max_ce_s:,}</div>'
+        f'<div class="oi-ticker-cell" style="color:#00c896;font-family:\'DM Mono\',monospace;font-weight:700;font-size:21.8px;">&#8377;{max_pe_s:,}</div>'
         f'</div>'
         f'<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-top:1px solid rgba(255,255,255,.04);flex-wrap:wrap;gap:10px;">'
         f'<div style="display:flex;align-items:center;gap:10px;">'
-        f'<span style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);">MAX PAIN</span>'
-        f'<span style="font-family:\'DM Mono\',monospace;font-size:18px;font-weight:700;color:#6480ff;">&#8377;{max_pain:,}</span>'
-        f'<span style="font-size:10px;color:rgba(100,128,255,.6);">Option writers\' target</span></div>'
+        f'<span style="font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);">MAX PAIN</span>'
+        f'<span style="font-family:\'DM Mono\',monospace;font-size:26.1px;font-weight:700;color:#6480ff;">&#8377;{max_pain:,}</span>'
+        f'<span style="font-size:14.5px;color:rgba(100,128,255,.6);">Option writers\' target</span></div>'
         f'</div></div>'
     )
 
@@ -1265,7 +1265,7 @@ def build_key_levels_html(tech, oc):
         f'<div style="position:relative;height:58px;">'
         f'<div class="kl-node" style="left:3%;bottom:0;transform:translateX(-50%);"><div class="kl-lbl" style="color:#00a07a;">Strong Sup</div><div class="kl-val" style="color:#00c896;">&#8377;{ss:,.0f}</div><div class="kl-dot" style="background:#00a07a;margin:5px auto 0;"></div></div>'
         f'<div class="kl-node" style="left:22%;bottom:0;transform:translateX(-50%);"><div class="kl-lbl" style="color:#00c896;">Support</div><div class="kl-val" style="color:#4de8b8;">&#8377;{s1:,.0f}</div><div class="kl-dot" style="background:#00c896;box-shadow:0 0 8px rgba(0,200,150,.5);margin:5px auto 0;"></div></div>'
-        f'<div style="position:absolute;left:{cp_pct}%;bottom:6px;transform:translateX(-50%);background:linear-gradient(90deg,#00c896,#6480ff);color:#fff;font-size:11px;font-weight:700;padding:3px 14px;border-radius:20px;white-space:nowrap;box-shadow:0 2px 14px rgba(0,200,150,.35);z-index:10;">NOW &#8377;{cp:,.0f}</div>'
+        f'<div style="position:absolute;left:{cp_pct}%;bottom:6px;transform:translateX(-50%);background:linear-gradient(90deg,#00c896,#6480ff);color:#fff;font-size:15.9px;font-weight:700;padding:3px 14px;border-radius:20px;white-space:nowrap;box-shadow:0 2px 14px rgba(0,200,150,.35);z-index:10;">NOW &#8377;{cp:,.0f}</div>'
         f'<div class="kl-node" style="left:75%;bottom:0;transform:translateX(-50%);"><div class="kl-lbl" style="color:#ff6b6b;">Resistance</div><div class="kl-val" style="color:#ff9090;">&#8377;{r1:,.0f}</div><div class="kl-dot" style="background:#ff6b6b;box-shadow:0 0 8px rgba(255,107,107,.5);margin:5px auto 0;"></div></div>'
         f'<div class="kl-node" style="left:95%;bottom:0;transform:translateX(-50%);"><div class="kl-lbl" style="color:#cc4040;">Strong Res</div><div class="kl-val" style="color:#ff6b6b;">&#8377;{sr:,.0f}</div><div class="kl-dot" style="background:#cc4040;margin:5px auto 0;"></div></div>'
         f'</div>'
@@ -1519,31 +1519,31 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
     border:1px solid rgba(100,128,255,.2);border-radius:14px;padding:14px 18px;
     margin-bottom:18px;display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;">
     <div style="flex:0 0 auto;">
-      <div style="font-size:9px;font-weight:700;letter-spacing:2px;color:#8aa0ff;text-transform:uppercase;margin-bottom:8px;">&#9889; SMART POP ENGINE</div>
-      <div style="font-size:10px;color:rgba(255,255,255,.45);line-height:1.8;">
+      <div style="font-size:13px;font-weight:700;letter-spacing:2px;color:#8aa0ff;text-transform:uppercase;margin-bottom:8px;">&#9889; SMART POP ENGINE</div>
+      <div style="font-size:14.5px;color:rgba(255,255,255,.45);line-height:1.8;">
         PoP = Base 50% + Bias Alignment + S/R Zone + OI Walls + PCR Weight
       </div>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;flex:1;">
       <div id="legendBias" style="background:rgba(0,0,0,.2);border-radius:8px;padding:8px 12px;min-width:130px;">
-        <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">A · BIAS</div>
-        <div id="legendBiasVal" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#8aa0ff;">—</div>
+        <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">A · BIAS</div>
+        <div id="legendBiasVal" style="font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:#8aa0ff;">—</div>
       </div>
       <div id="legendSR" style="background:rgba(0,0,0,.2);border-radius:8px;padding:8px 12px;min-width:160px;">
-        <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">B · S/R ZONE</div>
-        <div id="legendSRVal" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#ffd166;">—</div>
+        <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">B · S/R ZONE</div>
+        <div id="legendSRVal" style="font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:#ffd166;">—</div>
       </div>
       <div id="legendOI" style="background:rgba(0,0,0,.2);border-radius:8px;padding:8px 12px;min-width:160px;">
-        <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">C · OI WALLS</div>
-        <div id="legendOIVal" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#00c8e0;">—</div>
+        <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">C · OI WALLS</div>
+        <div id="legendOIVal" style="font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:#00c8e0;">—</div>
       </div>
       <div id="legendPCR" style="background:rgba(0,0,0,.2);border-radius:8px;padding:8px 12px;min-width:120px;">
-        <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">D · PCR</div>
-        <div id="legendPCRVal" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#00c896;">—</div>
+        <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">D · PCR</div>
+        <div id="legendPCRVal" style="font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:#00c896;">—</div>
       </div>
       <div id="legendRec" style="background:rgba(0,200,150,.06);border:1px solid rgba(0,200,150,.2);border-radius:8px;padding:8px 12px;min-width:180px;">
-        <div style="font-size:8px;color:rgba(0,200,150,.6);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">&#9733; TOP STRATEGY</div>
-        <div id="legendRecVal" style="font-size:11px;font-weight:700;color:#00c896;">Calculating...</div>
+        <div style="font-size:11.6px;color:rgba(0,200,150,.6);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">&#9733; TOP STRATEGY</div>
+        <div id="legendRecVal" style="font-size:15.9px;font-weight:700;color:#00c896;">Calculating...</div>
       </div>
     </div>
   </div>
@@ -1562,13 +1562,13 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
       &#8596; NON-DIRECTIONAL <span class="sc-cnt" style="background:#6480ff;">20</span>
     </button>
     <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
-      <span style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+      <span style="font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
                    color:rgba(255,209,102,.7);">&#128197; EXPIRY DATE</span>
       <select id="expiryDropdown" onchange="switchExpiry(this.value)"
         style="appearance:none;-webkit-appearance:none;
                background:linear-gradient(135deg,rgba(245,197,24,.12),rgba(200,155,10,.06));
                border:1px solid rgba(245,197,24,.45);border-radius:8px;
-               color:#ffd166;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;
+               color:#ffd166;font-family:'DM Mono',monospace;font-size:15.9px;font-weight:700;
                padding:7px 28px 7px 12px;cursor:pointer;outline:none;letter-spacing:.5px;">
         {expiry_opts_html}
       </select>
@@ -2238,7 +2238,7 @@ function calcMetrics(shape, smartPop) {{
   const mpPct     = mp === 999999 ? '\u221e' : (ml > 0 ? (mp / ml * 100).toFixed(0) + '%' : '\u2014');
   const ltpStr    = ltpParts.map(x =>
     `<span style="display:inline-flex;align-items:center;gap:4px;margin-bottom:2px;">
-      <span style="font-size:8.5px;color:rgba(255,255,255,.35);">${{x.l}}</span>
+      <span style="font-size:12.3px;color:rgba(255,255,255,.35);">${{x.l}}</span>
       <span style="font-family:'DM Mono',monospace;font-weight:700;color:${{x.c}};">\u20b9${{x.v.toFixed(2)}}</span>
     </span>`
   ).join('<br>');
@@ -2256,24 +2256,24 @@ function renderMetrics(m, scoreBreakdown) {{
   const nc=m.ncPositive?'#00c896':'#ff6b6b';
   const sbHtml = scoreBreakdown ? `
     <div style="background:rgba(100,128,255,.06);border-top:1px solid rgba(100,128,255,.1);padding:8px 12px;">
-      <div style="font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(100,128,255,.6);margin-bottom:6px;">PoP BREAKDOWN</div>
+      <div style="font-size:11.6px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(100,128,255,.6);margin-bottom:6px;">PoP BREAKDOWN</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;">
-        <span style="font-size:9px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">Base <b style="color:#fff;">50%</b></span>
-        <span style="font-size:9px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">Bias <b style="color:${{scoreBreakdown.biasAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.biasAdj>=0?'+':''}}${{scoreBreakdown.biasAdj}}</b></span>
-        <span style="font-size:9px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">S/R <b style="color:${{scoreBreakdown.srAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.srAdj>=0?'+':''}}${{scoreBreakdown.srAdj}}</b></span>
-        <span style="font-size:9px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">OI <b style="color:${{scoreBreakdown.oiAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.oiAdj>=0?'+':''}}${{scoreBreakdown.oiAdj}}</b></span>
-        <span style="font-size:9px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">PCR <b style="color:${{scoreBreakdown.pcrAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.pcrAdj>=0?'+':''}}${{scoreBreakdown.pcrAdj}}</b></span>
-        <span style="font-size:9px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">Strat <b style="color:${{scoreBreakdown.stratAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.stratAdj>=0?'+':''}}${{scoreBreakdown.stratAdj}}</b></span>
+        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">Base <b style="color:#fff;">50%</b></span>
+        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">Bias <b style="color:${{scoreBreakdown.biasAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.biasAdj>=0?'+':''}}${{scoreBreakdown.biasAdj}}</b></span>
+        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">S/R <b style="color:${{scoreBreakdown.srAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.srAdj>=0?'+':''}}${{scoreBreakdown.srAdj}}</b></span>
+        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">OI <b style="color:${{scoreBreakdown.oiAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.oiAdj>=0?'+':''}}${{scoreBreakdown.oiAdj}}</b></span>
+        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">PCR <b style="color:${{scoreBreakdown.pcrAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.pcrAdj>=0?'+':''}}${{scoreBreakdown.pcrAdj}}</b></span>
+        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">Strat <b style="color:${{scoreBreakdown.stratAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.stratAdj>=0?'+':''}}${{scoreBreakdown.stratAdj}}</b></span>
       </div>
     </div>` : '';
   return `<div class="metric-row metric-strike"><span class="metric-lbl">Strike Price</span>
-    <span class="metric-val" style="color:#ffd166;font-size:11px;text-align:right;">${{m.strikeStr}}</span></div>
+    <span class="metric-val" style="color:#ffd166;font-size:15.9px;text-align:right;">${{m.strikeStr}}</span></div>
     <div class="metric-row" style="background:rgba(0,200,220,.04);border-bottom:1px solid rgba(0,200,220,.10);">
       <span class="metric-lbl" style="color:rgba(0,200,220,.7);">LTP (per leg)</span>
       <span class="metric-val" style="text-align:right;line-height:1.6;display:flex;flex-direction:column;align-items:flex-end;">${{m.ltpStr}}</span>
     </div>
     <div class="metric-row"><span class="metric-lbl">Prob. of Profit</span>
-    <span class="metric-val" style="color:${{pc}};font-weight:800;font-size:15px;">${{m.pop}}%</span></div>
+    <span class="metric-val" style="color:${{pc}};font-weight:800;font-size:21.8px;">${{m.pop}}%</span></div>
     <div class="metric-row"><span class="metric-lbl">Max. Profit</span>
     <span class="metric-val" style="color:#00c896;">${{m.mpStr}} <small style="opacity:.5;">${{m.mpPct}}</small></span></div>
     <div class="metric-row"><span class="metric-lbl">Max. Loss</span>
@@ -2281,7 +2281,7 @@ function renderMetrics(m, scoreBreakdown) {{
     <div class="metric-row"><span class="metric-lbl">Max RR Ratio</span>
     <span class="metric-val" style="color:#6480ff;">${{m.rrStr}}</span></div>
     <div class="metric-row"><span class="metric-lbl">Breakevens</span>
-    <span class="metric-val" style="color:#00c8e0;font-size:11px;">${{m.beStr}}</span></div>
+    <span class="metric-val" style="color:#00c8e0;font-size:15.9px;">${{m.beStr}}</span></div>
     <div class="metric-row"><span class="metric-lbl">Net Credit / Debit</span>
     <span class="metric-val" style="color:${{nc}};">${{m.ncStr}}</span></div>
     <div class="metric-row" style="border-bottom:none;"><span class="metric-lbl">Est. Margin/Premium</span>
@@ -2328,11 +2328,11 @@ function buildIntradaySim(m) {{
     const rowBg  = isFlat ? 'background:rgba(245,197,24,.05);' : '';
     tRows += `<tr style="${{rowBg}}">
       <td style="padding:5px 6px;white-space:nowrap;">
-        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:${{mvbg}};color:${{mvcol}};white-space:nowrap;display:inline-block;">${{mvlbl}}${{mv!==0?'p':''}}</span>
+        <span style="font-size:14.5px;font-weight:700;padding:2px 8px;border-radius:5px;background:${{mvbg}};color:${{mvcol}};white-space:nowrap;display:inline-block;">${{mvlbl}}${{mv!==0?'p':''}}</span>
       </td>
-      <td style="padding:5px 6px;color:rgba(255,255,255,.4);font-family:'DM Mono',monospace;font-size:10px;white-space:nowrap;text-align:right;">${{(OC.spot+mv).toLocaleString('en-IN')}}</td>
-      <td style="padding:5px 6px;font-family:'DM Mono',monospace;font-weight:700;font-size:11px;color:${{col}};white-space:nowrap;text-align:right;">${{pnl>=0?'+':''}}\u20b9${{Math.abs(pnl).toLocaleString('en-IN')}}</td>
-      <td style="padding:5px 6px;font-size:9.5px;font-weight:600;color:${{col}};text-align:center;white-space:nowrap;opacity:.75;">${{pctmp}}</td>
+      <td style="padding:5px 6px;color:rgba(255,255,255,.4);font-family:'DM Mono',monospace;font-size:14.5px;white-space:nowrap;text-align:right;">${{(OC.spot+mv).toLocaleString('en-IN')}}</td>
+      <td style="padding:5px 6px;font-family:'DM Mono',monospace;font-weight:700;font-size:15.9px;color:${{col}};white-space:nowrap;text-align:right;">${{pnl>=0?'+':''}}\u20b9${{Math.abs(pnl).toLocaleString('en-IN')}}</td>
+      <td style="padding:5px 6px;font-size:13.8px;font-weight:600;color:${{col}};text-align:center;white-space:nowrap;opacity:.75;">${{pctmp}}</td>
     </tr>`;
   }});
 
@@ -2346,31 +2346,31 @@ function buildIntradaySim(m) {{
   <!-- Sub-tabs -->
   <div style="display:flex;border-bottom:1px solid rgba(255,255,255,.06);">
     <button class="sim-tab active" id="${{simId}}_t1"
-      onclick="simTab('${{simId}}','t1')" style="flex:1;padding:8px 4px;font-family:'DM Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid #f5c518;color:#f5c518;background:rgba(245,197,24,.07);transition:all .2s;">📊 SCENARIOS</button>
+      onclick="simTab('${{simId}}','t1')" style="flex:1;padding:8px 4px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid #f5c518;color:#f5c518;background:rgba(245,197,24,.07);transition:all .2s;">📊 SCENARIOS</button>
     <button class="sim-tab" id="${{simId}}_t2"
-      onclick="simTab('${{simId}}','t2')" style="flex:1;padding:8px 4px;font-family:'DM Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:rgba(255,255,255,.3);background:transparent;transition:all .2s;">🔬 GREEKS</button>
+      onclick="simTab('${{simId}}','t2')" style="flex:1;padding:8px 4px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:rgba(255,255,255,.3);background:transparent;transition:all .2s;">🔬 GREEKS</button>
     <button class="sim-tab" id="${{simId}}_t3"
-      onclick="simTab('${{simId}}','t3')" style="flex:1;padding:8px 4px;font-family:'DM Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:rgba(255,255,255,.3);background:transparent;transition:all .2s;">🎚 SLIDER</button>
+      onclick="simTab('${{simId}}','t3')" style="flex:1;padding:8px 4px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:rgba(255,255,255,.3);background:transparent;transition:all .2s;">🎚 SLIDER</button>
   </div>
 
   <!-- TAB 1: Scenarios -->
   <div id="${{simId}}_c1">
     <div style="padding:9px 12px 6px;display:flex;align-items:center;justify-content:space-between;">
-      <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">📅 TODAY'S P&amp;L SCENARIOS</div>
-      <div style="font-size:8.5px;color:rgba(255,255,255,.25);">Delta×move + Theta · 1 day</div>
+      <div style="font-size:13px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">📅 TODAY'S P&amp;L SCENARIOS</div>
+      <div style="font-size:12.3px;color:rgba(255,255,255,.25);">Delta×move + Theta · 1 day</div>
     </div>
     <div style="padding:0 10px 10px;">
       <table style="width:100%;border-collapse:collapse;">
         <thead><tr style="background:rgba(255,255,255,.05);">
-          <th style="padding:5px 6px;font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:left;border-bottom:1px solid rgba(255,255,255,.07);">MOVE</th>
-          <th style="padding:5px 6px;font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:right;border-bottom:1px solid rgba(255,255,255,.07);">SPOT</th>
-          <th style="padding:5px 6px;font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:right;border-bottom:1px solid rgba(255,255,255,.07);">TODAY P&amp;L</th>
-          <th style="padding:5px 6px;font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:center;border-bottom:1px solid rgba(255,255,255,.07);">vs MAX</th>
+          <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:left;border-bottom:1px solid rgba(255,255,255,.07);">MOVE</th>
+          <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:right;border-bottom:1px solid rgba(255,255,255,.07);">SPOT</th>
+          <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:right;border-bottom:1px solid rgba(255,255,255,.07);">TODAY P&amp;L</th>
+          <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:center;border-bottom:1px solid rgba(255,255,255,.07);">vs MAX</th>
         </tr></thead>
         <tbody>${{tRows}}</tbody>
       </table>
     </div>
-    <div style="margin:0 12px 12px;padding:8px 10px;background:rgba(255,107,107,.06);border:1px solid rgba(255,107,107,.15);border-radius:8px;font-size:9.5px;color:rgba(255,150,150,.7);line-height:1.6;">
+    <div style="margin:0 12px 12px;padding:8px 10px;background:rgba(255,107,107,.06);border:1px solid rgba(255,107,107,.15);border-radius:8px;font-size:13.8px;color:rgba(255,150,150,.7);line-height:1.6;">
       ⏱ P&amp;L = <b>Delta×move</b> + <b>Theta (1 day)</b>. Actual exit P&amp;L may differ due to IV changes. Max profit of ${{m.mpStr}} is achievable at expiry only.
     </div>
   </div>
@@ -2378,58 +2378,58 @@ function buildIntradaySim(m) {{
   <!-- TAB 2: Greeks Breakdown -->
   <div id="${{simId}}_c2" style="display:none;">
     <div style="padding:9px 12px 8px;display:flex;align-items:center;justify-content:space-between;">
-      <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">🔬 NET GREEKS (per lot)</div>
-      <div style="font-size:8px;color:rgba(255,255,255,.25);letter-spacing:.5px;">values per lot · today</div>
+      <div style="font-size:13px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">🔬 NET GREEKS (per lot)</div>
+      <div style="font-size:11.6px;color:rgba(255,255,255,.25);letter-spacing:.5px;">values per lot · today</div>
     </div>
     <!-- Greeks: compact single-line rows -->
     <div style="padding:0 10px 10px;display:flex;flex-direction:column;gap:5px;">
 
       <!-- Delta row -->
       <div style="display:flex;align-items:center;gap:10px;background:rgba(0,200,150,.07);border:1px solid rgba(0,200,150,.18);border-radius:9px;padding:8px 12px;">
-        <div style="width:24px;height:24px;border-radius:6px;background:rgba(0,200,150,.18);border:1px solid rgba(0,200,150,.3);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#00c896;flex-shrink:0;">Δ</div>
+        <div style="width:24px;height:24px;border-radius:6px;background:rgba(0,200,150,.18);border:1px solid rgba(0,200,150,.3);display:flex;align-items:center;justify-content:center;font-size:18.8px;font-weight:700;color:#00c896;flex-shrink:0;">Δ</div>
         <div style="flex:1;min-width:0;">
-          <span style="font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(0,200,150,.8);">DELTA</span>
-          <span style="font-size:8.5px;color:rgba(255,255,255,.3);margin-left:6px;white-space:nowrap;">per 1pt move</span>
+          <span style="font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(0,200,150,.8);">DELTA</span>
+          <span style="font-size:12.3px;color:rgba(255,255,255,.3);margin-left:6px;white-space:nowrap;">per 1pt move</span>
         </div>
-        <div style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:${{nd>=0?'#00c896':'#ff6b6b'}};white-space:nowrap;flex-shrink:0;">${{ndStr}}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:21.8px;font-weight:700;color:${{nd>=0?'#00c896':'#ff6b6b'}};white-space:nowrap;flex-shrink:0;">${{ndStr}}</div>
       </div>
 
       <!-- Theta row -->
       <div style="display:flex;align-items:center;gap:10px;background:rgba(255,107,107,.07);border:1px solid rgba(255,107,107,.18);border-radius:9px;padding:8px 12px;">
-        <div style="width:24px;height:24px;border-radius:6px;background:rgba(255,107,107,.18);border:1px solid rgba(255,107,107,.3);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#ff9090;flex-shrink:0;">Θ</div>
+        <div style="width:24px;height:24px;border-radius:6px;background:rgba(255,107,107,.18);border:1px solid rgba(255,107,107,.3);display:flex;align-items:center;justify-content:center;font-size:18.8px;font-weight:700;color:#ff9090;flex-shrink:0;">Θ</div>
         <div style="flex:1;min-width:0;">
-          <span style="font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,150,150,.8);">THETA</span>
-          <span style="font-size:8.5px;color:rgba(255,255,255,.3);margin-left:6px;white-space:nowrap;">decay / day</span>
+          <span style="font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,150,150,.8);">THETA</span>
+          <span style="font-size:12.3px;color:rgba(255,255,255,.3);margin-left:6px;white-space:nowrap;">decay / day</span>
         </div>
-        <div style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:${{ntCol}};white-space:nowrap;flex-shrink:0;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt))}}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:21.8px;font-weight:700;color:${{ntCol}};white-space:nowrap;flex-shrink:0;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt))}}</div>
       </div>
 
       <!-- Vega row -->
       <div style="display:flex;align-items:center;gap:10px;background:rgba(138,160,255,.07);border:1px solid rgba(138,160,255,.18);border-radius:9px;padding:8px 12px;">
-        <div style="width:24px;height:24px;border-radius:6px;background:rgba(138,160,255,.18);border:1px solid rgba(138,160,255,.3);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#8aa0ff;flex-shrink:0;">ν</div>
+        <div style="width:24px;height:24px;border-radius:6px;background:rgba(138,160,255,.18);border:1px solid rgba(138,160,255,.3);display:flex;align-items:center;justify-content:center;font-size:18.8px;font-weight:700;color:#8aa0ff;flex-shrink:0;">ν</div>
         <div style="flex:1;min-width:0;">
-          <span style="font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(138,160,255,.8);">VEGA</span>
-          <span style="font-size:8.5px;color:rgba(255,255,255,.3);margin-left:6px;white-space:nowrap;">per 1% IV</span>
+          <span style="font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(138,160,255,.8);">VEGA</span>
+          <span style="font-size:12.3px;color:rgba(255,255,255,.3);margin-left:6px;white-space:nowrap;">per 1% IV</span>
         </div>
-        <div style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:#8aa0ff;white-space:nowrap;flex-shrink:0;">${{nvStr}}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:21.8px;font-weight:700;color:#8aa0ff;white-space:nowrap;flex-shrink:0;">${{nvStr}}</div>
       </div>
 
     </div>
     <div style="height:1px;background:rgba(255,255,255,.05);margin:0 10px 4px;"></div>
     <div style="padding:10px 10px 6px;">
-      <div style="font-size:8px;color:rgba(255,255,255,.25);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">TODAY'S P&amp;L IF MARKET IS FLAT</div>
+      <div style="font-size:11.6px;color:rgba(255,255,255,.25);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">TODAY'S P&amp;L IF MARKET IS FLAT</div>
       <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:12px 10px;background:rgba(0,0,0,.25);border-radius:10px;border:1px solid rgba(255,255,255,.06);">
         <div style="text-align:center;">
-          <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;">THETA DRAG</div>
-          <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:${{ntCol}};line-height:1;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
+          <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;">THETA DRAG</div>
+          <div style="font-family:'DM Mono',monospace;font-size:26.1px;font-weight:700;color:${{ntCol}};line-height:1;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
         </div>
-        <div style="font-size:16px;color:rgba(255,255,255,.15);text-align:center;">=</div>
+        <div style="font-size:23.2px;color:rgba(255,255,255,.15);text-align:center;">=</div>
         <div style="text-align:center;">
-          <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;">FLAT P&amp;L TODAY</div>
-          <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:${{flatCol}};line-height:1;">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
+          <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;">FLAT P&amp;L TODAY</div>
+          <div style="font-family:'DM Mono',monospace;font-size:26.1px;font-weight:700;color:${{flatCol}};line-height:1;">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
         </div>
       </div>
-      <div style="margin-top:10px;font-size:9.5px;color:rgba(255,255,255,.35);line-height:1.7;">
+      <div style="margin-top:10px;font-size:13.8px;color:rgba(255,255,255,.35);line-height:1.7;">
         ${{nt < 0 ? '🔴 <b style="color:rgba(255,150,150,.8);">Theta negative</b> — you pay \u20b9' + Math.abs(Math.round(nt)).toLocaleString("en-IN") + '/day for holding. Need Nifty to move <b style="color:#ffd166;">' + Math.ceil(Math.abs(nt)/Math.abs(nd||1)) + ' pts</b> just to break even today.' : '🟢 <b style="color:rgba(0,200,150,.8);">Theta positive</b> — you earn \u20b9' + Math.abs(Math.round(nt)).toLocaleString("en-IN") + '/day time decay. Premium selling strategy benefits from flat market.'}}
       </div>
     </div>
@@ -2438,12 +2438,12 @@ function buildIntradaySim(m) {{
   <!-- TAB 3: Live Slider -->
   <div id="${{simId}}_c3" style="display:none;">
     <div style="padding:9px 12px 4px;">
-      <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">🎚 LIVE SCENARIO SLIDER</div>
+      <div style="font-size:13px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">🎚 LIVE SCENARIO SLIDER</div>
     </div>
     <div style="padding:6px 12px 10px;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:9px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px;">
         <span style="color:rgba(255,255,255,.3);">\u20b9${{slMin.toLocaleString('en-IN')}}</span>
-        <span id="${{simId}}_slv" style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;color:#f5c518;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.3);border-radius:5px;padding:1px 8px;">Spot: \u20b9${{OC.spot.toLocaleString('en-IN')}}</span>
+        <span id="${{simId}}_slv" style="font-family:'DM Mono',monospace;font-size:15.9px;font-weight:700;color:#f5c518;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.3);border-radius:5px;padding:1px 8px;">Spot: \u20b9${{OC.spot.toLocaleString('en-IN')}}</span>
         <span style="color:rgba(255,255,255,.3);">\u20b9${{slMax.toLocaleString('en-IN')}}</span>
       </div>
       <input type="range" id="${{simId}}_sl" min="${{slMin}}" max="${{slMax}}" value="${{OC.spot}}" step="25"
@@ -2452,21 +2452,21 @@ function buildIntradaySim(m) {{
     </div>
     <div id="${{simId}}_sr" style="padding:4px 12px 14px;text-align:center;">
       <div style="background:rgba(0,0,0,.3);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,.07);">
-        <div style="font-size:8.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.25);margin-bottom:6px;">ESTIMATED EXIT P&amp;L TODAY</div>
-        <div id="${{simId}}_spnl" style="font-family:'DM Mono',monospace;font-size:30px;font-weight:700;color:${{ntCol}};">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
-        <div id="${{simId}}_snote" style="font-size:9.5px;color:rgba(255,255,255,.3);margin-top:4px;">Flat market — theta drag only</div>
+        <div style="font-size:12.3px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.25);margin-bottom:6px;">ESTIMATED EXIT P&amp;L TODAY</div>
+        <div id="${{simId}}_spnl" style="font-family:'DM Mono',monospace;font-size:43.5px;font-weight:700;color:${{ntCol}};">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
+        <div id="${{simId}}_snote" style="font-size:13.8px;color:rgba(255,255,255,.3);margin-top:4px;">Flat market — theta drag only</div>
         <div style="display:flex;gap:12px;justify-content:center;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);">
           <div style="text-align:center;">
-            <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Delta P&amp;L</div>
-            <div id="${{simId}}_sdelta" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#00c896;">\u20b90</div>
+            <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Delta P&amp;L</div>
+            <div id="${{simId}}_sdelta" style="font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:#00c896;">\u20b90</div>
           </div>
           <div style="text-align:center;">
-            <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Theta Cost</div>
-            <div style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:${{ntCol}};">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
+            <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Theta Cost</div>
+            <div style="font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:${{ntCol}};">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
           </div>
           <div style="text-align:center;">
-            <div style="font-size:8px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">% of Max</div>
-            <div id="${{simId}}_spct" style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#ffd166;">—</div>
+            <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">% of Max</div>
+            <div id="${{simId}}_spct" style="font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:#ffd166;">—</div>
           </div>
         </div>
       </div>
@@ -2548,7 +2548,7 @@ function initAllCards() {{
   const el_rec = document.getElementById('legendRecVal');
   if(el_rec && topName) {{
     const recCol = topCat==='bullish'?'#00c896':topCat==='bearish'?'#ff6b6b':'#6480ff';
-    el_rec.innerHTML=`<span style="color:${{recCol}};">${{topName}}</span> <span style="color:rgba(255,255,255,.4);font-size:9px;">${{topPop}}% PoP</span>`;
+    el_rec.innerHTML=`<span style="color:${{recCol}};">${{topName}}</span> <span style="color:rgba(255,255,255,.4);font-size:13px;">${{topPop}}% PoP</span>`;
   }}
 }}
 
@@ -2719,7 +2719,7 @@ CSS = """
   --gold:#f5c518;--gold-dim:rgba(245,197,24,.45);--gold-bg:rgba(245,197,24,.10);
 }
 html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--text);font-family:var(--fh);font-size:13px;line-height:1.6;min-height:100vh}
+body{background:var(--bg);color:var(--text);font-family:var(--fh);font-size:18.8px;line-height:1.6;min-height:100vh}
 body::before{content:'';position:fixed;inset:0;
   background-image:
     radial-gradient(ellipse at 15% 0%,rgba(0,200,150,.10) 0%,transparent 50%),
@@ -2732,27 +2732,27 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   border-bottom:1px solid rgba(255,255,255,.07);position:sticky;top:0;z-index:200;
   box-shadow:0 1px 0 rgba(0,200,150,.1)}
 .logo-wrap{position:relative;height:28px;overflow:hidden;min-width:280px;}
-.logo-slide{position:absolute;top:0;left:0;width:100%;font-family:var(--fh);font-size:20px;font-weight:700;
+.logo-slide{position:absolute;top:0;left:0;width:100%;font-family:var(--fh);font-size:29px;font-weight:700;
   background:linear-gradient(90deg,#00c896,#6480ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;
   filter:drop-shadow(0 0 12px rgba(0,200,150,.3));opacity:0;transform:translateY(20px);
   transition:opacity .5s ease, transform .5s ease;white-space:nowrap;}
 .logo-slide.active{opacity:1;transform:translateY(0);}
 .logo-slide.exit{opacity:0;transform:translateY(-20px);}
-.hdr-meta{display:flex;align-items:center;gap:14px;font-size:11px;color:var(--muted);font-family:var(--fm)}
+.hdr-meta{display:flex;align-items:center;gap:14px;font-size:15.9px;color:var(--muted);font-family:var(--fm)}
 .live-dot{width:7px;height:7px;border-radius:50%;background:#00c896;box-shadow:0 0 10px #00c896;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
 .refresh-countdown{display:flex;align-items:center;gap:8px;background:rgba(0,200,150,.07);
-  border:1px solid rgba(0,200,150,.18);border-radius:20px;padding:4px 12px;font-family:var(--fm);font-size:11px;}
+  border:1px solid rgba(0,200,150,.18);border-radius:20px;padding:4px 12px;font-family:var(--fm);font-size:15.9px;}
 .countdown-arc-wrap{position:relative;width:18px;height:18px;flex-shrink:0;}
 .countdown-arc-wrap svg{display:block;}
-.countdown-num{font-family:var(--fm);font-size:12px;font-weight:700;color:#00c896;min-width:20px;text-align:center;transition:color .3s;}
+.countdown-num{font-family:var(--fm);font-size:17.4px;font-weight:700;color:#00c896;min-width:20px;text-align:center;transition:color .3s;}
 .countdown-num.urgent{color:#ff6b6b;}
 .countdown-num.halfway{color:#ffd166;}
-.countdown-lbl{font-size:10px;color:rgba(255,255,255,.3);letter-spacing:.5px;}
+.countdown-lbl{font-size:14.5px;color:rgba(255,255,255,.3);letter-spacing:.5px;}
 .refresh-ring{display:none;width:14px;height:14px;border-radius:50%;border:2px solid rgba(0,200,150,.2);border-top-color:#00c896;animation:spin 0.8s linear infinite;}
 .refresh-ring.active{display:inline-block;}
 @keyframes spin{to{transform:rotate(360deg)}}
-#refreshStatus{font-size:10px;color:rgba(255,255,255,.35);transition:color .3s;letter-spacing:.3px;}
+#refreshStatus{font-size:14.5px;color:rgba(255,255,255,.35);transition:color .3s;letter-spacing:.3px;}
 #refreshStatus.updated{color:#00c896;font-weight:600;}
 .hero{display:flex;align-items:stretch;background:linear-gradient(135deg,rgba(0,200,150,.055) 0%,rgba(100,128,255,.055) 100%);border-bottom:1px solid rgba(255,255,255,.07);overflow:hidden;position:relative;height:97px;}
 .hero::before{content:'';position:absolute;top:-50px;left:-50px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(0,200,150,.10),transparent 70%);pointer-events:none;}
@@ -2761,31 +2761,31 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .gauge-wrap{position:relative;width:76px;height:76px;}
 .gauge-wrap svg{display:block;}
 .gauge-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
-.g-val{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;line-height:1;}
-.g-lbl{font-size:7.5px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.28);margin-top:2px;}
+.g-val{font-family:'DM Mono',monospace;font-size:18.8px;font-weight:700;line-height:1;}
+.g-lbl{font-size:10.9px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.28);margin-top:2px;}
 .h-mid{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;padding:0 15px 0 13px;border-left:1px solid rgba(255,255,255,.05);}
-.h-eyebrow{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.22);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.h-signal{font-size:22px;font-weight:900;letter-spacing:1px;line-height:1.1;margin-bottom:2px;}
-.h-sub{font-size:9.5px;color:rgba(255,255,255,.32);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.h-eyebrow{font-size:11.6px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.22);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.h-signal{font-size:31.9px;font-weight:900;letter-spacing:1px;line-height:1.1;margin-bottom:2px;}
+.h-sub{font-size:13.8px;color:rgba(255,255,255,.32);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .h-divider{height:1px;background:rgba(255,255,255,.05);margin:5px 0;}
 .pill-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
 .pill-row:last-child{margin-bottom:0;}
 .pill-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
-.pill-lbl{font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.35);width:96px;flex-shrink:0;}
+.pill-lbl{font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.35);width:96px;flex-shrink:0;}
 .pill-track{width:120px;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;flex-shrink:0;}
 .pill-fill{height:100%;border-radius:3px;}
-.pill-num{font-family:'DM Mono',monospace;font-size:10px;font-weight:700;margin-left:8px;flex-shrink:0;}
+.pill-num{font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;margin-left:8px;flex-shrink:0;}
 .h-stats{flex-shrink:0;min-width:360px;display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.015);}
 .h-stat-row{display:flex;align-items:stretch;flex:1;border-bottom:1px solid rgba(255,255,255,.05);}
 .h-stat{flex:1;display:flex;flex-direction:column;justify-content:center;padding:5px 10px;text-align:center;border-right:1px solid rgba(255,255,255,.04);}
 .h-stat:last-child{border-right:none;}
-.h-stat-lbl{font-size:7.5px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.22);margin-bottom:3px;white-space:nowrap;}
-.h-stat-val{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;line-height:1;white-space:nowrap;}
+.h-stat-lbl{font-size:10.9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.22);margin-bottom:3px;white-space:nowrap;}
+.h-stat-val{font-family:'DM Mono',monospace;font-size:18.8px;font-weight:700;line-height:1;white-space:nowrap;}
 .h-stat-bottom{display:flex;align-items:center;justify-content:space-between;padding:4px 10px;}
 .h-bias-row{display:flex;align-items:center;gap:6px;}
-.h-chip{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:2px 9px;border-radius:20px;white-space:nowrap;}
-.h-score{font-family:'DM Mono',monospace;font-size:8px;color:rgba(255,255,255,.22);letter-spacing:.5px;}
-.h-ts{font-family:'DM Mono',monospace;font-size:8px;color:rgba(255,255,255,.18);letter-spacing:.5px;white-space:nowrap;}
+.h-chip{font-size:13px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:2px 9px;border-radius:20px;white-space:nowrap;}
+.h-score{font-family:'DM Mono',monospace;font-size:11.6px;color:rgba(255,255,255,.22);letter-spacing:.5px;}
+.h-ts{font-family:'DM Mono',monospace;font-size:11.6px;color:rgba(255,255,255,.18);letter-spacing:.5px;white-space:nowrap;}
 .main{display:grid;grid-template-columns:268px 1fr;min-height:0}
 .sidebar{background:rgba(8,11,20,.7);backdrop-filter:blur(12px);border-right:1px solid rgba(255,255,255,.06);position:sticky;top:57px;height:calc(100vh - 57px);overflow-y:auto;display:flex;flex-direction:column;}
 .sidebar-sticky-top{position:sticky;top:0;z-index:50;background:rgba(8,11,20,.95);backdrop-filter:blur(16px);border-bottom:1px solid rgba(100,128,255,.15);padding-bottom:4px;}
@@ -2795,108 +2795,108 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .sidebar-scroll::-webkit-scrollbar{width:3px}
 .sidebar-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
 .sb-sec{padding:16px 12px 8px}
-.sb-lbl{font-size:9px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--aurora1);margin-bottom:8px;padding:0 0 0 8px;border-left:2px solid var(--aurora1)}
-.sb-btn{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border-radius:8px;border:1px solid transparent;cursor:pointer;background:transparent;color:var(--muted);font-family:var(--fh);font-size:12px;text-align:left;transition:all .15s}
+.sb-lbl{font-size:13px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--aurora1);margin-bottom:8px;padding:0 0 0 8px;border-left:2px solid var(--aurora1)}
+.sb-btn{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border-radius:8px;border:1px solid transparent;cursor:pointer;background:transparent;color:var(--muted);font-family:var(--fh);font-size:17.4px;text-align:left;transition:all .15s}
 .sb-btn:hover{background:rgba(0,200,150,.08);color:rgba(255,255,255,.8);border-color:rgba(0,200,150,.2)}
 .sb-btn.active{background:rgba(0,200,150,.1);border-color:rgba(0,200,150,.25);color:#00c896;font-weight:600}
-.sb-badge{font-size:10px;margin-left:auto;font-weight:700}
+.sb-badge{font-size:14.5px;margin-left:auto;font-weight:700}
 .content{overflow-y:auto}
 .section{padding:26px 28px;border-bottom:1px solid rgba(255,255,255,.05);background:transparent;position:relative}
 .section:nth-child(odd){background:rgba(255,255,255,.015)}
-.sec-title{font-family:var(--fh);font-size:11px;font-weight:700;letter-spacing:2.5px;color:var(--aurora1);text-transform:uppercase;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid rgba(0,200,150,.15)}
-.sec-sub{font-size:11px;color:var(--muted2);font-weight:400;letter-spacing:.5px;text-transform:none;margin-left:auto}
+.sec-title{font-family:var(--fh);font-size:15.9px;font-weight:700;letter-spacing:2.5px;color:var(--aurora1);text-transform:uppercase;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid rgba(0,200,150,.15)}
+.sec-sub{font-size:15.9px;color:var(--muted2);font-weight:400;letter-spacing:.5px;text-transform:none;margin-left:auto}
 .oi-ticker-table{border:1px solid rgba(255,255,255,.07);border-radius:14px;overflow:hidden}
 .oi-ticker-hdr{display:grid;grid-template-columns:130px repeat(5,1fr);padding:9px 18px;align-items:center;gap:6px}
-.oi-ticker-hdr-label{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
-.oi-ticker-hdr-cell{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.35);text-align:center}
+.oi-ticker-hdr-label{font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+.oi-ticker-hdr-cell{font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.35);text-align:center}
 .oi-ticker-row{display:grid;grid-template-columns:130px repeat(5,1fr);padding:15px 18px;border-top:1px solid rgba(255,255,255,.04);align-items:center;gap:6px;transition:background .15s}
 .oi-ticker-row:hover{background:rgba(255,255,255,.03)}
-.oi-ticker-metric{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.35)}
+.oi-ticker-metric{font-size:14.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.35)}
 .oi-ticker-cell{text-align:center}
-.kl-zone-labels{display:flex;justify-content:space-between;margin-bottom:6px;font-size:11px;font-weight:700}
+.kl-zone-labels{display:flex;justify-content:space-between;margin-bottom:6px;font-size:15.9px;font-weight:700}
 .kl-node{position:absolute;text-align:center}
-.kl-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;line-height:1.3;white-space:nowrap}
-.kl-val{font-size:12px;font-weight:700;color:rgba(255,255,255,.7);white-space:nowrap;margin-top:2px}
+.kl-lbl{font-size:14.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;line-height:1.3;white-space:nowrap}
+.kl-val{font-size:17.4px;font-weight:700;color:rgba(255,255,255,.7);white-space:nowrap;margin-top:2px}
 .kl-dot{width:11px;height:11px;border-radius:50%;border:2px solid var(--bg)}
 .kl-gradient-bar{position:relative;height:6px;border-radius:3px;background:linear-gradient(90deg,#00a07a 0%,#00c896 25%,#6480ff 55%,#ff6b6b 80%,#cc4040 100%);box-shadow:0 0 12px rgba(0,200,150,.2)}
 .kl-price-tick{position:absolute;top:50%;transform:translate(-50%,-50%);width:3px;height:18px;background:#fff;border-radius:2px;box-shadow:0 0 12px rgba(255,255,255,.6);z-index:10}
 .kl-dist-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
 .kl-dist-box{background:rgba(255,255,255,.03);border:1px solid;border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
-.strikes-head{font-weight:700;margin-bottom:10px;font-size:13px}
+.strikes-head{font-weight:700;margin-bottom:10px;font-size:18.8px}
 .strikes-wrap{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 .s-table{width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden}
-.s-table th{background:linear-gradient(90deg,rgba(0,200,150,.15),rgba(100,128,255,.15));color:rgba(255,255,255,.7);padding:10px 12px;font-size:11px;font-weight:600;text-align:left;letter-spacing:.5px;border-bottom:1px solid rgba(255,255,255,.08)}
-.s-table td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px;color:rgba(255,255,255,.8);background:rgba(255,255,255,.02)}
+.s-table th{background:linear-gradient(90deg,rgba(0,200,150,.15),rgba(100,128,255,.15));color:rgba(255,255,255,.7);padding:10px 12px;font-size:15.9px;font-weight:600;text-align:left;letter-spacing:.5px;border-bottom:1px solid rgba(255,255,255,.08)}
+.s-table td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);font-size:17.4px;color:rgba(255,255,255,.8);background:rgba(255,255,255,.02)}
 .s-table tr:last-child td{border-bottom:none}
 .s-table tr:hover td{background:rgba(0,200,150,.05)}
 .ticker-wrap{display:flex;align-items:center;background:rgba(4,6,12,.97);border-bottom:1px solid rgba(255,255,255,.07);height:46px;overflow:hidden;position:relative;z-index:190;box-shadow:0 2px 20px rgba(0,0,0,.5);}
-.ticker-label{flex-shrink:0;padding:0 16px;font-family:var(--fm);font-size:9px;font-weight:700;letter-spacing:3px;color:#00c896;text-transform:uppercase;border-right:1px solid rgba(0,200,150,.2);height:100%;display:flex;align-items:center;background:rgba(0,200,150,.07);white-space:nowrap;}
+.ticker-label{flex-shrink:0;padding:0 16px;font-family:var(--fm);font-size:13px;font-weight:700;letter-spacing:3px;color:#00c896;text-transform:uppercase;border-right:1px solid rgba(0,200,150,.2);height:100%;display:flex;align-items:center;background:rgba(0,200,150,.07);white-space:nowrap;}
 .ticker-viewport{flex:1;overflow:hidden;height:100%}
 .ticker-track{display:flex;align-items:center;height:100%;white-space:nowrap;animation:ticker-scroll 38s linear infinite;will-change:transform;}
 .ticker-track:hover{animation-play-state:paused}
 @keyframes ticker-scroll{0%{transform:translateX(0)}100%{transform:translateX(-33.333%)}}
 .tk-item{display:inline-flex;align-items:center;gap:10px;padding:0 20px;height:100%;border-right:1px solid rgba(255,255,255,.04);flex-shrink:0;}
-.tk-name{font-family:var(--fm);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;border-radius:6px;white-space:nowrap;flex-shrink:0;background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.1);}
-.tk-val{font-family:var(--fm);font-size:18px;font-weight:700;line-height:1;white-space:nowrap;}
-.tk-sub{font-family:var(--fm);font-size:10px;color:rgba(255,255,255,.35);white-space:nowrap;}
-.tk-badge{font-family:var(--fh);font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;letter-spacing:.3px;}
-footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:rgba(6,8,15,.9);backdrop-filter:blur(12px);display:flex;justify-content:space-between;font-size:11px;color:var(--muted2);font-family:var(--fm)}
+.tk-name{font-family:var(--fm);font-size:14.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;border-radius:6px;white-space:nowrap;flex-shrink:0;background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.1);}
+.tk-val{font-family:var(--fm);font-size:26.1px;font-weight:700;line-height:1;white-space:nowrap;}
+.tk-sub{font-family:var(--fm);font-size:14.5px;color:rgba(255,255,255,.35);white-space:nowrap;}
+.tk-badge{font-family:var(--fh);font-size:14.5px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;letter-spacing:.3px;}
+footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:rgba(6,8,15,.9);backdrop-filter:blur(12px);display:flex;justify-content:space-between;font-size:15.9px;color:var(--muted2);font-family:var(--fm)}
 .sc-tabs{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
-.sc-tab{padding:8px 20px;border-radius:24px;border:1px solid;cursor:pointer;font-family:var(--fh);font-size:12px;font-weight:600;transition:all .2s;display:flex;align-items:center;gap:8px;background:transparent}
+.sc-tab{padding:8px 20px;border-radius:24px;border:1px solid;cursor:pointer;font-family:var(--fh);font-size:17.4px;font-weight:600;transition:all .2s;display:flex;align-items:center;gap:8px;background:transparent}
 .sc-tab:hover{opacity:.85}
-.sc-cnt{font-size:10px;padding:1px 7px;border-radius:10px;color:#fff;font-weight:700}
+.sc-cnt{font-size:14.5px;padding:1px 7px;border-radius:10px;color:#fff;font-weight:700}
 .sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
 .sc-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;position:relative;}
 .sc-card:hover{border-color:rgba(0,200,150,.3);transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,200,150,.1)}
 .sc-card.hidden{display:none}
 .sc-card.expanded .sc-detail{display:block}
 .sc-card.expanded{border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12)}
-.sc-pop-badge{position:absolute;top:8px;right:8px;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);z-index:5;letter-spacing:.5px;transition:all .3s;min-width:38px;text-align:center;}
+.sc-pop-badge{position:absolute;top:8px;right:8px;font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);z-index:5;letter-spacing:.5px;transition:all .3s;min-width:38px;text-align:center;}
 .sc-svg{display:flex;align-items:center;justify-content:center;padding:14px 0 6px;background:rgba(255,255,255,.02)}
 .sc-body{padding:10px 12px 12px}
-.sc-name{font-family:var(--fh);font-size:12px;font-weight:700;color:rgba(255,255,255,.9);margin-bottom:4px;line-height:1.3;padding-right:48px}
-.sc-legs{font-family:var(--fm);font-size:9px;color:rgba(0,200,220,.7);margin-bottom:8px;letter-spacing:.3px;line-height:1.4}
+.sc-name{font-family:var(--fh);font-size:17.4px;font-weight:700;color:rgba(255,255,255,.9);margin-bottom:4px;line-height:1.3;padding-right:48px}
+.sc-legs{font-family:var(--fm);font-size:13px;color:rgba(0,200,220,.7);margin-bottom:8px;letter-spacing:.3px;line-height:1.4}
 .sc-tags{display:flex;flex-direction:column;gap:4px}
-.sc-tag{font-size:9px;padding:2px 8px;border-radius:6px;border:1px solid;background:rgba(0,0,0,.2);display:inline-block;width:fit-content}
+.sc-tag{font-size:13px;padding:2px 8px;border-radius:6px;border:1px solid;background:rgba(0,0,0,.2);display:inline-block;width:fit-content}
 .sc-detail{display:none;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,200,150,.03)}
-.sc-desc{font-size:11px;color:rgba(255,255,255,.5);line-height:1.7;padding:12px 12px 8px;border-bottom:1px solid rgba(255,255,255,.05);}
+.sc-desc{font-size:15.9px;color:rgba(255,255,255,.5);line-height:1.7;padding:12px 12px 8px;border-bottom:1px solid rgba(255,255,255,.05);}
 .sc-metrics-live{padding:0}
-.sc-loading{padding:14px 12px;font-size:11px;color:rgba(255,255,255,.3);text-align:center;font-family:'DM Mono',monospace}
+.sc-loading{padding:14px 12px;font-size:15.9px;color:rgba(255,255,255,.3);text-align:center;font-family:'DM Mono',monospace}
 .metric-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s;}
 .metric-row:hover{background:rgba(255,255,255,.03)}
 .metric-strike{background:rgba(255,209,102,.04);border-bottom:1px solid rgba(255,209,102,.12) !important;}
-.metric-lbl{font-size:10px;color:rgba(255,255,255,.35);letter-spacing:.5px;text-transform:uppercase;font-family:'DM Mono',monospace;}
-.metric-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:600;text-align:right;}
+.metric-lbl{font-size:14.5px;color:rgba(255,255,255,.35);letter-spacing:.5px;text-transform:uppercase;font-family:'DM Mono',monospace;}
+.metric-val{font-family:'DM Mono',monospace;font-size:17.4px;font-weight:600;text-align:right;}
 .greeks-panel{margin:10px 10px 6px;padding:14px 12px;background:linear-gradient(135deg,rgba(100,128,255,.12),rgba(0,200,220,.10));border-radius:14px;border:1px solid rgba(100,128,255,.28);box-shadow:0 4px 20px rgba(100,128,255,.1),inset 0 1px 0 rgba(255,255,255,.06);}
-.greeks-title{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(138,160,255,1.0);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(100,128,255,.25);display:flex;align-items:center;justify-content:space-between;}
-.greeks-expiry-tag{font-size:8.5px;color:rgba(255,255,255,.5);font-weight:400;letter-spacing:.5px;text-transform:none;}
+.greeks-title{font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(138,160,255,1.0);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(100,128,255,.25);display:flex;align-items:center;justify-content:space-between;}
+.greeks-expiry-tag{font-size:12.3px;color:rgba(255,255,255,.5);font-weight:400;letter-spacing:.5px;text-transform:none;}
 .greeks-strike-wrap{position:relative;margin-bottom:10px;}
-.greeks-strike-wrap::after{content:'▼';position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:8px;color:var(--gold);pointer-events:none;z-index:2;}
-.greeks-strike-select{width:100%;appearance:none;-webkit-appearance:none;background:linear-gradient(135deg,rgba(245,197,24,.12),rgba(200,155,10,.06));border:1px solid var(--gold-dim);border-radius:8px;color:var(--gold);font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:7px 28px 7px 10px;cursor:pointer;outline:none;letter-spacing:.5px;transition:border-color .2s,background .2s,box-shadow .2s;}
+.greeks-strike-wrap::after{content:'▼';position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11.6px;color:var(--gold);pointer-events:none;z-index:2;}
+.greeks-strike-select{width:100%;appearance:none;-webkit-appearance:none;background:linear-gradient(135deg,rgba(245,197,24,.12),rgba(200,155,10,.06));border:1px solid var(--gold-dim);border-radius:8px;color:var(--gold);font-family:'DM Mono',monospace;font-size:15.9px;font-weight:700;padding:7px 28px 7px 10px;cursor:pointer;outline:none;letter-spacing:.5px;transition:border-color .2s,background .2s,box-shadow .2s;}
 .greeks-strike-select:hover{border-color:rgba(245,197,24,.75);background:linear-gradient(135deg,rgba(245,197,24,.18),rgba(200,155,10,.10));box-shadow:0 0 10px rgba(245,197,24,.18);}
 .greeks-strike-select:focus{border-color:var(--gold);box-shadow:0 0 0 2px rgba(245,197,24,.25);}
 .greeks-strike-select option{background:#0e1225;color:var(--gold);font-weight:700;}
-.greek-name{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.92);}
-.greek-sub{font-size:8px;color:rgba(255,255,255,.55);margin-top:1px;}
+.greek-name{font-family:'DM Mono',monospace;font-size:15.9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.92);}
+.greek-sub{font-size:11.6px;color:rgba(255,255,255,.55);margin-top:1px;}
 .greeks-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06);}
 .greeks-row:last-child{border-bottom:none;}
-.greeks-atm-badge{display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(100,128,255,.1);border:1px solid rgba(100,128,255,.25);border-radius:8px;padding:5px 8px;margin-bottom:10px;font-family:'DM Mono',monospace;font-size:11px;flex-wrap:wrap;}
+.greeks-atm-badge{display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(100,128,255,.1);border:1px solid rgba(100,128,255,.25);border-radius:8px;padding:5px 8px;margin-bottom:10px;font-family:'DM Mono',monospace;font-size:15.9px;flex-wrap:wrap;}
 .greeks-atm-strike{font-weight:700;color:#8aa0ff;}
 .iv-bar-wrap{display:flex;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06);}
-.iv-bar-label{font-size:8px;color:rgba(255,255,255,.7);letter-spacing:1px;text-transform:uppercase;font-weight:600;width:42px;flex-shrink:0;}
+.iv-bar-label{font-size:11.6px;color:rgba(255,255,255,.7);letter-spacing:1px;text-transform:uppercase;font-weight:600;width:42px;flex-shrink:0;}
 .iv-bar-track{flex:1;height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;}
 .iv-bar-fill{height:100%;border-radius:2px;transition:width .6s ease;}
-.iv-bar-num{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;min-width:38px;text-align:right;}
+.iv-bar-num{font-family:'DM Mono',monospace;font-size:15.9px;font-weight:700;min-width:38px;text-align:right;}
 .greeks-table-section{padding:22px 28px;border-bottom:1px solid rgba(255,255,255,.05);}
 .greeks-table-wrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
 .greeks-tbl{border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;}
 .greeks-tbl-head{display:grid;grid-template-columns:90px repeat(4,1fr);background:rgba(255,255,255,.04);padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);gap:4px;}
-.greeks-tbl-head-label{font-size:8.5px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:center;}
+.greeks-tbl-head-label{font-size:12.3px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:center;}
 .greeks-tbl-row{display:grid;grid-template-columns:90px repeat(4,1fr);padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.04);align-items:center;gap:4px;transition:background .15s;}
 .greeks-tbl-row:last-child{border-bottom:none;}
 .greeks-tbl-row:hover{background:rgba(255,255,255,.03);}
-.greeks-tbl-strike{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:rgba(255,255,255,.8);}
-.greeks-tbl-cell{font-family:'DM Mono',monospace;font-size:11px;font-weight:600;text-align:center;color:rgba(255,255,255,.65);}
+.greeks-tbl-strike{font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:rgba(255,255,255,.8);}
+.greeks-tbl-cell{font-family:'DM Mono',monospace;font-size:15.9px;font-weight:600;text-align:center;color:rgba(255,255,255,.65);}
 /* Hidden refresh iframe — zero footprint */
 #silentRefreshFrame{position:fixed;width:0;height:0;border:none;visibility:hidden;pointer-events:none;opacity:0;}
 @media(max-width:1024px){
@@ -3131,12 +3131,12 @@ def build_greeks_script_html(oc_analysis):
       '<div style="display:flex;align-items:center;gap:5px;">' +
         '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">' +
           '<div style="width:'+cePct+'%;height:100%;background:'+ceCol+';border-radius:2px;"></div></div>' +
-        '<span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:'+ceCol+';">' +
+        '<span style="font-family:DM Mono,monospace;font-size:15.9px;font-weight:700;color:'+ceCol+';">' +
              (d.ce_delta>=0?'+':'')+d.ce_delta.toFixed(3)+'</span></div>' +
       '<div style="display:flex;align-items:center;gap:5px;margin-top:3px;">' +
         '<div style="width:34px;height:3px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden;">' +
           '<div style="width:'+pePct+'%;height:100%;background:'+peCol+';border-radius:2px;"></div></div>' +
-        '<span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:'+peCol+';">' +
+        '<span style="font-family:DM Mono,monospace;font-size:15.9px;font-weight:700;color:'+peCol+';">' +
              (d.pe_delta>=0?'+':'')+d.pe_delta.toFixed(3)+'</span></div>';
     var ice = document.getElementById('greeksIvCe'); if(ice) ice.textContent = (d.ce_iv||0).toFixed(1)+'%';
     var ipe = document.getElementById('greeksIvPe'); if(ipe) ipe.textContent = (d.pe_iv||0).toFixed(1)+'%';
@@ -3260,7 +3260,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
     <div class="section">
       <div style="background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.18);
                   border-left:3px solid #6480ff;border-radius:12px;padding:16px 18px;
-                  font-size:13px;color:rgba(255,255,255,.5);line-height:1.8;">
+                  font-size:18.8px;color:rgba(255,255,255,.5);line-height:1.8;">
         <strong style="color:rgba(255,255,255,.7);">DISCLAIMER</strong><br>
         This dashboard is for EDUCATIONAL purposes only &mdash; NOT financial advice.<br>
         Smart PoP uses S/R levels, OI walls, market bias and PCR &mdash; not a guaranteed signal.<br>
