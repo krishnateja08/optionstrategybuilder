@@ -1480,7 +1480,6 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
                 f'data-name="{s["name"]}" data-legs="{s["legs"]}" '
                 f'data-risk="{s["risk"]}" data-reward="{s["reward"]}" '
                 f'data-margin-mult="{s.get("margin_mult",1.0)}" data-lot-size="{s.get("lot_size",65)}" id="{cid}">'
-                f'<div class="sc-summary">'
                 f'<div class="sc-pop-badge" id="pop_{cid}">—%</div>'
                 f'<div class="sc-svg">{svg}</div>'
                 f'<div class="sc-body">'
@@ -1489,7 +1488,7 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
                 f'<div class="sc-tags">'
                 f'<span class="sc-tag" style="color:{rc};border-color:{rc}40;">Risk: {s["risk"]}</span>'
                 f'<span class="sc-tag" style="color:{rwc};border-color:{rwc}40;">Reward: {s["reward"]}</span>'
-                f'</div></div></div>'
+                f'</div></div>'
                 f'<div class="sc-detail" id="detail_{cid}">'
                 f'<div class="sc-desc">{s["desc"]}</div>'
                 f'<div class="sc-metrics-live" id="metrics_{cid}">'
@@ -2326,6 +2325,7 @@ function buildIntradaySim(m) {{
       </td>
       <td style="padding:5px 6px;color:rgba(255,255,255,.75);font-family:'DM Mono',monospace;font-size:14.5px;white-space:nowrap;text-align:right;">${{(OC.spot+mv).toLocaleString('en-IN')}}</td>
       <td style="padding:5px 6px;font-family:'DM Mono',monospace;font-weight:700;font-size:15.9px;color:${{col}};white-space:nowrap;text-align:right;">${{pnl>=0?'+':''}}\u20b9${{Math.abs(pnl).toLocaleString('en-IN')}}</td>
+      <td style="padding:5px 6px;font-size:13.8px;font-weight:600;color:${{col}};text-align:center;white-space:nowrap;opacity:.75;">${{pctmp}}</td>
     </tr>`;
   }});
 
@@ -2353,11 +2353,12 @@ function buildIntradaySim(m) {{
       <div style="font-size:12.3px;color:rgba(255,255,255,.62);">Delta×move + Theta · 1 day</div>
     </div>
     <div style="padding:0 10px 10px;">
-      <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+      <table style="width:100%;border-collapse:collapse;">
         <thead><tr style="background:rgba(255,255,255,.05);">
           <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);text-align:left;border-bottom:1px solid rgba(255,255,255,.07);">MOVE</th>
           <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);text-align:right;border-bottom:1px solid rgba(255,255,255,.07);">SPOT</th>
           <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);text-align:right;border-bottom:1px solid rgba(255,255,255,.07);">TODAY P&amp;L</th>
+          <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);text-align:center;border-bottom:1px solid rgba(255,255,255,.07);">vs MAX</th>
         </tr></thead>
         <tbody>${{tRows}}</tbody>
       </table>
@@ -2439,7 +2440,7 @@ function buildIntradaySim(m) {{
         <span style="color:rgba(255,255,255,.68);">\u20b9${{slMax.toLocaleString('en-IN')}}</span>
       </div>
       <input type="range" id="${{simId}}_sl" min="${{slMin}}" max="${{slMax}}" value="${{OC.spot}}" step="25"
-        style="width:100%;max-width:100%;box-sizing:border-box;display:block;height:4px;border-radius:2px;outline:none;border:none;-webkit-appearance:none;cursor:pointer;background:linear-gradient(90deg,#f5c518 50%,rgba(255,255,255,.1) 50%);"
+        style="width:100%;height:4px;border-radius:2px;outline:none;border:none;-webkit-appearance:none;cursor:pointer;background:linear-gradient(90deg,#f5c518 50%,rgba(255,255,255,.1) 50%);"
         onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" oninput="simSlide('${{simId}}', this.value, ${{slMin}}, ${{slMax}}, ${{nd}}, ${{nt}}, ${{maxL===null?'null':maxL}}, ${{maxP===null?'null':maxP}})">
     </div>
     <div id="${{simId}}_sr" style="padding:4px 12px 14px;text-align:center;">
@@ -2688,7 +2689,7 @@ def build_ticker_bar(tech, oc, vix_data):
             f'<span class="tk-badge" style="background:rgba({rgb3},.1);color:{col};border:1px solid rgba({rgb3},.3);">{lbl}</span>'
             f'</div>'
         )
-    track = "".join(items) * 3
+    track = "".join(items) * 2
     return f'''<div class="ticker-wrap">
   <div class="ticker-label">LIVE&nbsp;&#9654;</div>
   <div class="ticker-viewport"><div class="ticker-track" id="tkTrack">''' + track + '''</div></div>
@@ -2730,7 +2731,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   transition:opacity .5s ease, transform .5s ease;white-space:nowrap;}
 .logo-slide.active{opacity:1;transform:translateY(0);}
 .logo-slide.exit{opacity:0;transform:translateY(-20px);}
-.hdr-meta{display:flex;align-items:center;gap:14px;font-size:15.9px;color:var(--muted);font-family:var(--fm);flex-wrap:wrap;}
+.hdr-meta{display:flex;align-items:center;gap:14px;font-size:15.9px;color:var(--muted);font-family:var(--fm)}
 .live-dot{width:7px;height:7px;border-radius:50%;background:#00c896;box-shadow:0 0 10px #00c896;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
 .refresh-countdown{display:flex;align-items:center;gap:8px;background:rgba(0,200,150,.07);
@@ -2826,17 +2827,17 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .ticker-viewport{flex:1;overflow:hidden;height:100%}
 .ticker-track{display:flex;align-items:center;height:100%;white-space:nowrap;animation:ticker-scroll 38s linear infinite;will-change:transform;}
 .ticker-track:hover{animation-play-state:paused}
-@keyframes ticker-scroll{0%{transform:translateX(0)}100%{transform:translateX(-33.333%)}}
+@keyframes ticker-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 .tk-item{display:inline-flex;align-items:center;gap:10px;padding:0 20px;height:100%;border-right:1px solid rgba(255,255,255,.04);flex-shrink:0;}
 .tk-name{font-family:var(--fm);font-size:14.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;border-radius:6px;white-space:nowrap;flex-shrink:0;background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.1);}
 .tk-val{font-family:var(--fm);font-size:26.1px;font-weight:700;line-height:1;white-space:nowrap;}
 .tk-sub{font-family:var(--fm);font-size:14.5px;color:rgba(255,255,255,.70);white-space:nowrap;}
 .tk-badge{font-family:var(--fh);font-size:14.5px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;letter-spacing:.3px;}
 
-/* ── Main Tab Bar ─────────────────────────────────────── */
+/* ── Main Tab Bar ─────────────────────────────────── */
 .main-tabs{display:flex;gap:8px;padding:16px 28px 0;border-bottom:1px solid rgba(255,255,255,.07);background:rgba(4,6,12,.6);position:sticky;top:0;z-index:100;}
-.main-tab{padding:10px 22px;font-family:var(--fh);font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border:none;border-bottom:3px solid transparent;background:transparent;color:rgba(255,255,255,.70);cursor:pointer;transition:all .2s;border-radius:6px 6px 0 0;}
-.main-tab:hover{color:rgba(255,255,255,.7);background:rgba(255,255,255,.04);}
+.main-tab{padding:10px 22px;font-family:var(--fh);font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border:none;border-bottom:3px solid transparent;background:transparent;color:rgba(255,255,255,.55);cursor:pointer;transition:all .2s;border-radius:6px 6px 0 0;}
+.main-tab:hover{color:rgba(255,255,255,.85);background:rgba(255,255,255,.04);}
 .main-tab.active{color:#00c896;border-bottom:3px solid #00c896;background:rgba(0,200,150,.07);}
 footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:rgba(6,8,15,.9);backdrop-filter:blur(12px);display:flex;justify-content:space-between;font-size:15.9px;color:var(--muted2);font-family:var(--fm)}
 .sc-tabs{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
@@ -2844,13 +2845,11 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .sc-tab:hover{opacity:.85}
 .sc-cnt{font-size:14.5px;padding:1px 7px;border-radius:10px;color:#fff;font-weight:700}
 .sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
-.sc-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:visible;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;position:relative;}
-.sc-card:hover{border-color:rgba(0,200,150,.3);transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,200,150,.1)}.sc-card.expanded:hover{transform:none;}
+.sc-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;position:relative;}
+.sc-card:hover{border-color:rgba(0,200,150,.3);transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,200,150,.1)}
 .sc-card.hidden{display:none}
-.sc-summary{display:flex;flex-direction:column;min-height:120px;}
-.sc-card.expanded .sc-summary{flex-shrink:0;width:185px;border-right:1px solid rgba(0,200,150,.15);}
-.sc-card.expanded .sc-detail{display:block;flex:1;border-top:none;min-width:280px;overflow:visible;}
-.sc-card.expanded{border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12);flex-direction:row;align-items:flex-start;max-width:480px;z-index:10;overflow:hidden;border-radius:14px;}
+.sc-card.expanded .sc-detail{display:block}
+.sc-card.expanded{border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12)}
 .sc-pop-badge{position:absolute;top:8px;right:8px;font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);z-index:5;letter-spacing:.5px;transition:all .3s;min-width:38px;text-align:center;}
 .sc-svg{display:flex;align-items:center;justify-content:center;padding:14px 0 6px;background:rgba(255,255,255,.02)}
 .sc-body{padding:10px 12px 12px}
@@ -2858,7 +2857,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .sc-legs{font-family:var(--fm);font-size:13px;color:rgba(0,200,220,.7);margin-bottom:8px;letter-spacing:.3px;line-height:1.4}
 .sc-tags{display:flex;flex-direction:column;gap:4px}
 .sc-tag{font-size:13px;padding:2px 8px;border-radius:6px;border:1px solid;background:rgba(0,0,0,.2);display:inline-block;width:fit-content}
-.sc-detail{display:none;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,200,150,.03);overflow:auto;max-height:600px;}
+.sc-detail{display:none;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,200,150,.03)}
 .sc-desc{font-size:15.9px;color:rgba(255,255,255,.5);line-height:1.7;padding:12px 12px 8px;border-bottom:1px solid rgba(255,255,255,.05);}
 .sc-metrics-live{padding:0}
 .sc-loading{padding:14px 12px;font-size:15.9px;color:rgba(255,255,255,.68);text-align:center;font-family:'DM Mono',monospace}
@@ -2899,7 +2898,6 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .greeks-tbl-cell{font-family:'DM Mono',monospace;font-size:15.9px;font-weight:600;text-align:center;color:rgba(255,255,255,.65);}
 /* Hidden refresh iframe — zero footprint */
 #silentRefreshFrame{position:fixed;width:0;height:0;border:none;visibility:hidden;pointer-events:none;opacity:0;}
-/* ── Tablet (≤1024px) ──────────────────────────────────────────── */
 @media(max-width:1024px){
   .main{grid-template-columns:1fr}
   .sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid rgba(255,255,255,.06)}
@@ -2912,48 +2910,28 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .main-tabs{padding:12px 16px 0;gap:6px;flex-wrap:wrap;}
   .main-tab{font-size:11px;padding:8px 14px;}
   .hdr-meta{flex-wrap:wrap;gap:8px;}
-  .h-eyebrow{white-space:normal;overflow:visible;}
-  .h-sub{white-space:normal;overflow:visible;}
-  .greeks-tbl-head,.greeks-tbl-row{grid-template-columns:70px repeat(4,1fr);}
-  .greeks-tbl-strike{font-size:13px;}
-  .greeks-tbl-cell{font-size:12px;}
-  .sc-card.expanded{flex-direction:column;max-width:100%;}
-  .sc-card.expanded .sc-detail{border-left:none;border-top:1px solid rgba(0,200,150,.15);}
 }
-/* ── Large mobile (≤768px) ─────────────────────────────────────── */
 @media(max-width:768px){
   .h-stat-row{flex-wrap:wrap;gap:8px;}
   .h-stat{min-width:calc(50% - 8px);}
   .main-tabs{overflow-x:auto;flex-wrap:nowrap;}
-  .main-tab{white-space:nowrap;font-size:11px;}
-  .oi-ticker-hdr,.oi-ticker-row{grid-template-columns:100px repeat(5,1fr);font-size:10px;}
-  .pill-track{width:80px;}
+  .main-tab{white-space:nowrap;}
   header{flex-wrap:wrap;gap:8px;padding:10px 14px;}
-  .hdr-meta{width:100%;font-size:12px;}
+  .hdr-meta{width:100%;}
   .logo-wrap{min-width:180px;}
 }
-/* ── Small mobile (≤640px) ─────────────────────────────────────── */
 @media(max-width:640px){
   header{padding:10px 12px}
   .section{padding:14px 12px}
   .kl-dist-row{grid-template-columns:1fr}
-  footer{flex-direction:column;gap:6px;padding:12px 16px;font-size:12px;}
+  footer{flex-direction:column;gap:6px}
   .logo-wrap{min-width:160px;}
   .refresh-countdown{display:none;}
   .sc-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
   .main-tab{font-size:10px;padding:6px 10px;}
   .h-gauges{padding:10px 12px;gap:8px;}
   .gauge-wrap{width:76px;height:76px;}
-  .h-signal{font-size:18px !important;}
   .hdr-meta{font-size:11px;gap:6px;}
-  .greeks-tbl-head,.greeks-tbl-row{grid-template-columns:60px repeat(4,1fr);padding:6px 8px;}
-  .greeks-tbl-strike{font-size:11px;}
-  .greeks-tbl-cell{font-size:10px;}
-  .sc-card.expanded{max-width:100%;}
-  .pill-track{width:60px;}
-  .pill-lbl{font-size:10px;}
-  .oi-ticker-hdr{display:none;}
-  .oi-ticker-row{grid-template-columns:80px repeat(5,1fr);padding:10px 10px;}
 }
 """
 
@@ -3250,9 +3228,9 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
     <div class="live-dot"></div>
     <span>NSE Options Dashboard</span>
     <span style="color:rgba(255,255,255,.15);">|</span>
-    <span style="color:rgba(255,255,255,.78);">Last report generated:&nbsp;<span style="color:#00c896;font-weight:600;">{ts}</span></span>
+    <span style="color:rgba(255,255,255,.75);">Last report generated:&nbsp;<span style="color:#00c896;font-weight:600;">{ts}</span></span>
     <span style="color:rgba(255,255,255,.15);">|</span>
-    <span style="color:rgba(255,255,255,.78);">IST&nbsp;<span id="liveClock" style="font-family:'DM Mono',monospace;color:#ffd166;font-weight:700;letter-spacing:1px;">--:--:--</span></span>
+    <span style="color:rgba(255,255,255,.75);">IST&nbsp;<span id="liveClock" style="font-family:'DM Mono',monospace;color:#ffd166;font-weight:700;letter-spacing:1px;">--:--:--</span></span>
     <span style="color:rgba(255,255,255,.15);">|</span>
     <div class="refresh-countdown">
       <div class="countdown-arc-wrap">
@@ -3309,9 +3287,8 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
       <div class="section">
         <div style="background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.18);
                     border-left:3px solid #6480ff;border-radius:12px;padding:16px 18px;
-                    font-size:18.8px;color:rgba(255,255,255,.5);line-height:1.8;">
-          <strong style="color:rgba(255,255,255,.85);">DISCLAIMER:</strong>&nbsp;
-          Educational only &mdash; NOT financial advice &middot; Smart PoP uses S/R, OI walls, bias &amp; PCR &mdash; not a guaranteed signal &middot; Use stop losses &middot; Consult a SEBI-registered advisor before trading.
+                    font-size:18.8px;color:rgba(255,255,255,.75);line-height:1.8;">
+          <strong style="color:rgba(255,255,255,.85);">DISCLAIMER:</strong>&nbsp;Educational only &mdash; NOT financial advice &middot; Smart PoP uses S/R, OI walls, bias &amp; PCR &middot; Use stop losses &middot; Consult a SEBI-registered advisor.
         </div>
       </div>
     </div>
@@ -3337,12 +3314,10 @@ function go(id,btn){{
   if(btn){{document.querySelectorAll(".sb-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");}}
 }}
 
-
 function updateISTClock() {{
   const el = document.getElementById('liveClock');
   if (!el) return;
   const now = new Date();
-  // Convert to IST (UTC+5:30)
   const istOffset = 5.5 * 60 * 60 * 1000;
   const ist = new Date(now.getTime() + (now.getTimezoneOffset() * 60 * 1000) + istOffset);
   const hh = String(ist.getHours()).padStart(2,'0');
@@ -3352,6 +3327,7 @@ function updateISTClock() {{
 }}
 updateISTClock();
 setInterval(updateISTClock, 1000);
+
 function switchMainTab(tab) {{
   document.getElementById('mainPanelOI').style.display    = tab === 'oi'    ? '' : 'none';
   document.getElementById('mainPanelStrat').style.display = tab === 'strat' ? '' : 'none';
