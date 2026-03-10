@@ -781,7 +781,7 @@ def _delta_bar_html(delta_val, is_ce=True):
 
 def build_greeks_sidebar_html(oc_analysis):
     if not oc_analysis:
-        return '<div style="padding:14px 12px;font-size:15.9px;color:rgba(255,255,255,.3);text-align:center;">Greeks unavailable.</div>'
+        return '<div style="padding:14px 12px;font-size:15.9px;color:rgba(255,255,255,.68);text-align:center;">Greeks unavailable.</div>'
 
     g    = oc_analysis.get("atm_greeks", {})
     atm  = oc_analysis.get("atm_strike", 0)
@@ -789,7 +789,7 @@ def build_greeks_sidebar_html(oc_analysis):
     all_rows = oc_analysis.get("all_strikes", oc_analysis.get("greeks_table", []))
 
     if not g:
-        return '<div style="padding:14px 12px;font-size:15.9px;color:rgba(255,255,255,.3);text-align:center;">Greeks not computed yet.</div>'
+        return '<div style="padding:14px 12px;font-size:15.9px;color:rgba(255,255,255,.68);text-align:center;">Greeks not computed yet.</div>'
 
     ce_iv    = g.get("ce_iv",    15.0)
     pe_iv    = g.get("pe_iv",    15.0)
@@ -854,7 +854,7 @@ def build_greeks_sidebar_html(oc_analysis):
     <span class="greeks-atm-strike" id="greeksStrikeLabel">&#8377;{atm:,}</span>
     <span style="font-size:11.6px;color:rgba(255,255,255,.2);">|</span>
     <span style="font-size:12.3px;color:rgba(0,200,220,.8);" id="greeksCeLtp">CE &#8377;{ce_ltp:.1f}</span>
-    <span style="font-size:11.6px;color:rgba(255,255,255,.25);">/</span>
+    <span style="font-size:11.6px;color:rgba(255,255,255,.62);">/</span>
     <span style="font-size:12.3px;color:rgba(255,107,107,.8);" id="greeksPeLtp">PE &#8377;{pe_ltp:.1f}</span>
   </div>
   <div class="greeks-row">
@@ -1180,34 +1180,34 @@ def build_oi_html(oc):
   background:{dir_bg};overflow:hidden;margin-bottom:16px;">
   <div style="padding:18px 24px;min-width:200px;border-right:1px solid rgba(255,255,255,.07);
     display:flex;flex-direction:column;justify-content:center;flex-shrink:0;">
-    <div style="font-size:12.3px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:7px;">OI CHANGE DIRECTION</div>
+    <div style="font-size:12.3px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.65);margin-bottom:7px;">OI CHANGE DIRECTION</div>
     <div style="font-size:30.4px;font-weight:700;color:{dir_col};line-height:1.1;margin-bottom:5px;">{oi_dir}</div>
     <div style="font-size:15.2px;color:{dir_col};opacity:.7;">{oi_sig}</div>
-    <div style="margin-top:10px;font-family:'DM Mono',monospace;font-size:14.5px;color:rgba(255,255,255,.3);">PCR &nbsp;<span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
+    <div style="margin-top:10px;font-family:'DM Mono',monospace;font-size:14.5px;color:rgba(255,255,255,.68);">PCR &nbsp;<span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
   </div>
   <div style="display:flex;flex:1;align-items:stretch;">
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:16px 20px;border-right:1px solid rgba(255,255,255,.05);gap:5px;">
-      <div style="font-size:12.3px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.28);white-space:nowrap;">CE OI Change</div>
+      <div style="font-size:12.3px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.65);white-space:nowrap;">CE OI Change</div>
       <div style="font-family:'DM Mono',monospace;font-size:31.9px;font-weight:700;color:{ce_col};line-height:1;">{ce_fmt}</div>
-      <div style="font-size:14.5px;color:rgba(255,255,255,.3);white-space:nowrap;">{ce_label}</div>
+      <div style="font-size:14.5px;color:rgba(255,255,255,.68);white-space:nowrap;">{ce_label}</div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
         <div style="flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;"><div style="width:{ce_pct}%;height:100%;border-radius:3px;background:{ce_bar_col};"></div></div>
         <div style="font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;color:{ce_bar_col};min-width:38px;text-align:right;">{ce_pct_display}</div>
       </div>
     </div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:16px 20px;border-right:1px solid rgba(255,255,255,.05);gap:5px;">
-      <div style="font-size:12.3px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.28);white-space:nowrap;">PE OI Change</div>
+      <div style="font-size:12.3px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.65);white-space:nowrap;">PE OI Change</div>
       <div style="font-family:'DM Mono',monospace;font-size:31.9px;font-weight:700;color:{pe_col};line-height:1;">{pe_fmt}</div>
-      <div style="font-size:14.5px;color:rgba(255,255,255,.3);white-space:nowrap;">{pe_label}</div>
+      <div style="font-size:14.5px;color:rgba(255,255,255,.68);white-space:nowrap;">{pe_label}</div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
         <div style="flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;"><div style="width:{pe_pct}%;height:100%;border-radius:3px;background:{pe_bar_col};"></div></div>
         <div style="font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;color:{pe_bar_col};min-width:38px;text-align:right;">{pe_pct_display}</div>
       </div>
     </div>
     <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:16px 20px;gap:5px;">
-      <div style="font-size:12.3px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.28);white-space:nowrap;">Net OI Change</div>
+      <div style="font-size:12.3px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.65);white-space:nowrap;">Net OI Change</div>
       <div style="font-family:'DM Mono',monospace;font-size:31.9px;font-weight:700;color:{net_col};line-height:1;">{net_fmt}</div>
-      <div style="font-size:14.5px;color:rgba(255,255,255,.3);white-space:nowrap;">{net_label}</div>
+      <div style="font-size:14.5px;color:rgba(255,255,255,.68);white-space:nowrap;">{net_label}</div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
         <div style="flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;"><div style="width:{net_pct}%;height:100%;border-radius:3px;background:{net_bar_col};box-shadow:0 0 8px {net_bar_col}66;"></div></div>
         <div style="font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;color:{net_bar_col};min-width:38px;text-align:right;">{net_pct_display}</div>
@@ -1233,7 +1233,7 @@ def build_oi_html(oc):
         f'</div>'
         f'<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-top:1px solid rgba(255,255,255,.04);flex-wrap:wrap;gap:10px;">'
         f'<div style="display:flex;align-items:center;gap:10px;">'
-        f'<span style="font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);">MAX PAIN</span>'
+        f'<span style="font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);">MAX PAIN</span>'
         f'<span style="font-family:\'DM Mono\',monospace;font-size:26.1px;font-weight:700;color:#6480ff;">&#8377;{max_pain:,}</span>'
         f'<span style="font-size:14.5px;color:rgba(100,128,255,.6);">Option writers\' target</span></div>'
         f'</div></div>'
@@ -1521,25 +1521,25 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
     margin-bottom:18px;display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;">
     <div style="flex:0 0 auto;">
       <div style="font-size:13px;font-weight:700;letter-spacing:2px;color:#8aa0ff;text-transform:uppercase;margin-bottom:8px;">&#9889; SMART POP ENGINE</div>
-      <div style="font-size:14.5px;color:rgba(255,255,255,.45);line-height:1.8;">
+      <div style="font-size:14.5px;color:rgba(255,255,255,.78);line-height:1.8;">
         PoP = Base 50% + Bias Alignment + S/R Zone + OI Walls + PCR Weight
       </div>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;flex:1;">
       <div id="legendBias" style="background:rgba(0,0,0,.2);border-radius:8px;padding:8px 12px;min-width:130px;">
-        <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">A · BIAS</div>
+        <div style="font-size:11.6px;color:rgba(255,255,255,.68);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">A · BIAS</div>
         <div id="legendBiasVal" style="font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:#8aa0ff;">—</div>
       </div>
       <div id="legendSR" style="background:rgba(0,0,0,.2);border-radius:8px;padding:8px 12px;min-width:160px;">
-        <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">B · S/R ZONE</div>
+        <div style="font-size:11.6px;color:rgba(255,255,255,.68);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">B · S/R ZONE</div>
         <div id="legendSRVal" style="font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:#ffd166;">—</div>
       </div>
       <div id="legendOI" style="background:rgba(0,0,0,.2);border-radius:8px;padding:8px 12px;min-width:160px;">
-        <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">C · OI WALLS</div>
+        <div style="font-size:11.6px;color:rgba(255,255,255,.68);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">C · OI WALLS</div>
         <div id="legendOIVal" style="font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:#00c8e0;">—</div>
       </div>
       <div id="legendPCR" style="background:rgba(0,0,0,.2);border-radius:8px;padding:8px 12px;min-width:120px;">
-        <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">D · PCR</div>
+        <div style="font-size:11.6px;color:rgba(255,255,255,.68);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">D · PCR</div>
         <div id="legendPCRVal" style="font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:#00c896;">—</div>
       </div>
       <div id="legendRec" style="background:rgba(0,200,150,.06);border:1px solid rgba(0,200,150,.2);border-radius:8px;padding:8px 12px;min-width:180px;">
@@ -2239,7 +2239,7 @@ function calcMetrics(shape, smartPop) {{
   const mpPct     = mp === 999999 ? '\u221e' : (ml > 0 ? (mp / ml * 100).toFixed(0) + '%' : '\u2014');
   const ltpStr    = ltpParts.map(x =>
     `<span style="display:inline-flex;align-items:center;gap:4px;margin-bottom:2px;">
-      <span style="font-size:12.3px;color:rgba(255,255,255,.35);">${{x.l}}</span>
+      <span style="font-size:12.3px;color:rgba(255,255,255,.70);">${{x.l}}</span>
       <span style="font-family:'DM Mono',monospace;font-weight:700;color:${{x.c}};">\u20b9${{x.v.toFixed(2)}}</span>
     </span>`
   ).join('<br>');
@@ -2331,7 +2331,7 @@ function buildIntradaySim(m) {{
       <td style="padding:5px 6px;white-space:nowrap;">
         <span style="font-size:14.5px;font-weight:700;padding:2px 8px;border-radius:5px;background:${{mvbg}};color:${{mvcol}};white-space:nowrap;display:inline-block;">${{mvlbl}}${{mv!==0?'p':''}}</span>
       </td>
-      <td style="padding:5px 6px;color:rgba(255,255,255,.4);font-family:'DM Mono',monospace;font-size:14.5px;white-space:nowrap;text-align:right;">${{(OC.spot+mv).toLocaleString('en-IN')}}</td>
+      <td style="padding:5px 6px;color:rgba(255,255,255,.75);font-family:'DM Mono',monospace;font-size:14.5px;white-space:nowrap;text-align:right;">${{(OC.spot+mv).toLocaleString('en-IN')}}</td>
       <td style="padding:5px 6px;font-family:'DM Mono',monospace;font-weight:700;font-size:15.9px;color:${{col}};white-space:nowrap;text-align:right;">${{pnl>=0?'+':''}}\u20b9${{Math.abs(pnl).toLocaleString('en-IN')}}</td>
     </tr>`;
   }});
@@ -2348,23 +2348,23 @@ function buildIntradaySim(m) {{
     <button class="sim-tab active" id="${{simId}}_t1"
       onclick="simTab('${{simId}}','t1')" style="flex:1;padding:8px 4px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid #f5c518;color:#f5c518;background:rgba(245,197,24,.07);transition:all .2s;">📊 SCENARIOS</button>
     <button class="sim-tab" id="${{simId}}_t2"
-      onclick="simTab('${{simId}}','t2')" style="flex:1;padding:8px 4px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:rgba(255,255,255,.3);background:transparent;transition:all .2s;">🔬 GREEKS</button>
+      onclick="simTab('${{simId}}','t2')" style="flex:1;padding:8px 4px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:rgba(255,255,255,.68);background:transparent;transition:all .2s;">🔬 GREEKS</button>
     <button class="sim-tab" id="${{simId}}_t3"
-      onclick="simTab('${{simId}}','t3')" style="flex:1;padding:8px 4px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:rgba(255,255,255,.3);background:transparent;transition:all .2s;">🎚 SLIDER</button>
+      onclick="simTab('${{simId}}','t3')" style="flex:1;padding:8px 4px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:rgba(255,255,255,.68);background:transparent;transition:all .2s;">🎚 SLIDER</button>
   </div>
 
   <!-- TAB 1: Scenarios -->
   <div id="${{simId}}_c1">
     <div style="padding:9px 12px 6px;display:flex;align-items:center;justify-content:space-between;">
       <div style="font-size:13px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">📅 TODAY'S P&amp;L SCENARIOS</div>
-      <div style="font-size:12.3px;color:rgba(255,255,255,.25);">Delta×move + Theta · 1 day</div>
+      <div style="font-size:12.3px;color:rgba(255,255,255,.62);">Delta×move + Theta · 1 day</div>
     </div>
     <div style="padding:0 10px 10px;">
       <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
         <thead><tr style="background:rgba(255,255,255,.05);">
-          <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:left;border-bottom:1px solid rgba(255,255,255,.07);">MOVE</th>
-          <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:right;border-bottom:1px solid rgba(255,255,255,.07);">SPOT</th>
-          <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:right;border-bottom:1px solid rgba(255,255,255,.07);">TODAY P&amp;L</th>
+          <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);text-align:left;border-bottom:1px solid rgba(255,255,255,.07);">MOVE</th>
+          <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);text-align:right;border-bottom:1px solid rgba(255,255,255,.07);">SPOT</th>
+          <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);text-align:right;border-bottom:1px solid rgba(255,255,255,.07);">TODAY P&amp;L</th>
         </tr></thead>
         <tbody>${{tRows}}</tbody>
       </table>
@@ -2378,7 +2378,7 @@ function buildIntradaySim(m) {{
   <div id="${{simId}}_c2" style="display:none;">
     <div style="padding:9px 12px 8px;display:flex;align-items:center;justify-content:space-between;">
       <div style="font-size:13px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">🔬 NET GREEKS (per lot)</div>
-      <div style="font-size:11.6px;color:rgba(255,255,255,.25);letter-spacing:.5px;">values per lot · today</div>
+      <div style="font-size:11.6px;color:rgba(255,255,255,.62);letter-spacing:.5px;">values per lot · today</div>
     </div>
     <!-- Greeks: compact single-line rows -->
     <div style="padding:0 10px 10px;display:flex;flex-direction:column;gap:5px;">
@@ -2388,7 +2388,7 @@ function buildIntradaySim(m) {{
         <div style="width:24px;height:24px;border-radius:6px;background:rgba(0,200,150,.18);border:1px solid rgba(0,200,150,.3);display:flex;align-items:center;justify-content:center;font-size:18.8px;font-weight:700;color:#00c896;flex-shrink:0;">Δ</div>
         <div style="flex:1;min-width:0;">
           <span style="font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(0,200,150,.8);">DELTA</span>
-          <span style="font-size:12.3px;color:rgba(255,255,255,.3);margin-left:6px;white-space:nowrap;">per 1pt move</span>
+          <span style="font-size:12.3px;color:rgba(255,255,255,.68);margin-left:6px;white-space:nowrap;">per 1pt move</span>
         </div>
         <div style="font-family:'DM Mono',monospace;font-size:21.8px;font-weight:700;color:${{nd>=0?'#00c896':'#ff6b6b'}};white-space:nowrap;flex-shrink:0;">${{ndStr}}</div>
       </div>
@@ -2398,7 +2398,7 @@ function buildIntradaySim(m) {{
         <div style="width:24px;height:24px;border-radius:6px;background:rgba(255,107,107,.18);border:1px solid rgba(255,107,107,.3);display:flex;align-items:center;justify-content:center;font-size:18.8px;font-weight:700;color:#ff9090;flex-shrink:0;">Θ</div>
         <div style="flex:1;min-width:0;">
           <span style="font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,150,150,.8);">THETA</span>
-          <span style="font-size:12.3px;color:rgba(255,255,255,.3);margin-left:6px;white-space:nowrap;">decay / day</span>
+          <span style="font-size:12.3px;color:rgba(255,255,255,.68);margin-left:6px;white-space:nowrap;">decay / day</span>
         </div>
         <div style="font-family:'DM Mono',monospace;font-size:21.8px;font-weight:700;color:${{ntCol}};white-space:nowrap;flex-shrink:0;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt))}}</div>
       </div>
@@ -2408,7 +2408,7 @@ function buildIntradaySim(m) {{
         <div style="width:24px;height:24px;border-radius:6px;background:rgba(138,160,255,.18);border:1px solid rgba(138,160,255,.3);display:flex;align-items:center;justify-content:center;font-size:18.8px;font-weight:700;color:#8aa0ff;flex-shrink:0;">ν</div>
         <div style="flex:1;min-width:0;">
           <span style="font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(138,160,255,.8);">VEGA</span>
-          <span style="font-size:12.3px;color:rgba(255,255,255,.3);margin-left:6px;white-space:nowrap;">per 1% IV</span>
+          <span style="font-size:12.3px;color:rgba(255,255,255,.68);margin-left:6px;white-space:nowrap;">per 1% IV</span>
         </div>
         <div style="font-family:'DM Mono',monospace;font-size:21.8px;font-weight:700;color:#8aa0ff;white-space:nowrap;flex-shrink:0;">${{nvStr}}</div>
       </div>
@@ -2416,19 +2416,19 @@ function buildIntradaySim(m) {{
     </div>
     <div style="height:1px;background:rgba(255,255,255,.05);margin:0 10px 4px;"></div>
     <div style="padding:10px 10px 6px;">
-      <div style="font-size:11.6px;color:rgba(255,255,255,.25);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">TODAY'S P&amp;L IF MARKET IS FLAT</div>
+      <div style="font-size:11.6px;color:rgba(255,255,255,.62);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">TODAY'S P&amp;L IF MARKET IS FLAT</div>
       <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:12px 10px;background:rgba(0,0,0,.25);border-radius:10px;border:1px solid rgba(255,255,255,.06);">
         <div style="text-align:center;">
-          <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;">THETA DRAG</div>
+          <div style="font-size:11.6px;color:rgba(255,255,255,.68);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;">THETA DRAG</div>
           <div style="font-family:'DM Mono',monospace;font-size:26.1px;font-weight:700;color:${{ntCol}};line-height:1;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
         </div>
         <div style="font-size:23.2px;color:rgba(255,255,255,.15);text-align:center;">=</div>
         <div style="text-align:center;">
-          <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;">FLAT P&amp;L TODAY</div>
+          <div style="font-size:11.6px;color:rgba(255,255,255,.68);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;">FLAT P&amp;L TODAY</div>
           <div style="font-family:'DM Mono',monospace;font-size:26.1px;font-weight:700;color:${{flatCol}};line-height:1;">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
         </div>
       </div>
-      <div style="margin-top:10px;font-size:13.8px;color:rgba(255,255,255,.35);line-height:1.7;">
+      <div style="margin-top:10px;font-size:13.8px;color:rgba(255,255,255,.70);line-height:1.7;">
         ${{nt < 0 ? '🔴 <b style="color:rgba(255,150,150,.8);">Theta negative</b> — you pay \u20b9' + Math.abs(Math.round(nt)).toLocaleString("en-IN") + '/day for holding. Need Nifty to move <b style="color:#ffd166;">' + Math.ceil(Math.abs(nt)/Math.abs(nd||1)) + ' pts</b> just to break even today.' : '🟢 <b style="color:rgba(0,200,150,.8);">Theta positive</b> — you earn \u20b9' + Math.abs(Math.round(nt)).toLocaleString("en-IN") + '/day time decay. Premium selling strategy benefits from flat market.'}}
       </div>
     </div>
@@ -2441,9 +2441,9 @@ function buildIntradaySim(m) {{
     </div>
     <div style="padding:6px 12px 10px;">
       <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px;">
-        <span style="color:rgba(255,255,255,.3);">\u20b9${{slMin.toLocaleString('en-IN')}}</span>
+        <span style="color:rgba(255,255,255,.68);">\u20b9${{slMin.toLocaleString('en-IN')}}</span>
         <span id="${{simId}}_slv" style="font-family:'DM Mono',monospace;font-size:15.9px;font-weight:700;color:#f5c518;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.3);border-radius:5px;padding:1px 8px;">Spot: \u20b9${{OC.spot.toLocaleString('en-IN')}}</span>
-        <span style="color:rgba(255,255,255,.3);">\u20b9${{slMax.toLocaleString('en-IN')}}</span>
+        <span style="color:rgba(255,255,255,.68);">\u20b9${{slMax.toLocaleString('en-IN')}}</span>
       </div>
       <input type="range" id="${{simId}}_sl" min="${{slMin}}" max="${{slMax}}" value="${{OC.spot}}" step="25"
         style="width:100%;max-width:100%;box-sizing:border-box;display:block;height:4px;border-radius:2px;outline:none;border:none;-webkit-appearance:none;cursor:pointer;background:linear-gradient(90deg,#f5c518 50%,rgba(255,255,255,.1) 50%);"
@@ -2451,20 +2451,20 @@ function buildIntradaySim(m) {{
     </div>
     <div id="${{simId}}_sr" style="padding:4px 12px 14px;text-align:center;">
       <div style="background:rgba(0,0,0,.3);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,.07);">
-        <div style="font-size:12.3px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.25);margin-bottom:6px;">ESTIMATED EXIT P&amp;L TODAY</div>
+        <div style="font-size:12.3px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.62);margin-bottom:6px;">ESTIMATED EXIT P&amp;L TODAY</div>
         <div id="${{simId}}_spnl" style="font-family:'DM Mono',monospace;font-size:43.5px;font-weight:700;color:${{ntCol}};">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
-        <div id="${{simId}}_snote" style="font-size:13.8px;color:rgba(255,255,255,.3);margin-top:4px;">Flat market — theta drag only</div>
+        <div id="${{simId}}_snote" style="font-size:13.8px;color:rgba(255,255,255,.68);margin-top:4px;">Flat market — theta drag only</div>
         <div style="display:flex;gap:12px;justify-content:center;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);">
           <div style="text-align:center;">
-            <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Delta P&amp;L</div>
+            <div style="font-size:11.6px;color:rgba(255,255,255,.68);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Delta P&amp;L</div>
             <div id="${{simId}}_sdelta" style="font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:#00c896;">\u20b90</div>
           </div>
           <div style="text-align:center;">
-            <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Theta Cost</div>
+            <div style="font-size:11.6px;color:rgba(255,255,255,.68);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Theta Cost</div>
             <div style="font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:${{ntCol}};">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
           </div>
           <div style="text-align:center;">
-            <div style="font-size:11.6px;color:rgba(255,255,255,.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">% of Max</div>
+            <div style="font-size:11.6px;color:rgba(255,255,255,.68);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">% of Max</div>
             <div id="${{simId}}_spct" style="font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:#ffd166;">—</div>
           </div>
         </div>
@@ -2483,7 +2483,7 @@ function simTab(simId, tab) {{
     const isActive = t === tab;
     con.style.display = isActive ? 'block' : 'none';
     btn.style.borderBottomColor = isActive ? '#f5c518' : 'transparent';
-    btn.style.color = isActive ? '#f5c518' : 'rgba(255,255,255,.3)';
+    btn.style.color = isActive ? '#f5c518' : 'rgba(255,255,255,.68)';
     btn.style.background = isActive ? 'rgba(245,197,24,.07)' : 'transparent';
   }});
 }}
@@ -2547,7 +2547,7 @@ function initAllCards() {{
   const el_rec = document.getElementById('legendRecVal');
   if(el_rec && topName) {{
     const recCol = topCat==='bullish'?'#00c896':topCat==='bearish'?'#ff6b6b':'#6480ff';
-    el_rec.innerHTML=`<span style="color:${{recCol}};">${{topName}}</span> <span style="color:rgba(255,255,255,.4);font-size:13px;">${{topPop}}% PoP</span>`;
+    el_rec.innerHTML=`<span style="color:${{recCol}};">${{topName}}</span> <span style="color:rgba(255,255,255,.75);font-size:13px;">${{topPop}}% PoP</span>`;
   }}
 }}
 
@@ -2681,7 +2681,7 @@ def build_ticker_bar(tech, oc, vix_data):
             f'<div class="tk-item">'
             f'<span class="tk-name" style="background:rgba({rgb2},.18);color:{col};border:1px solid rgba({rgb2},.35);">&#9654;&nbsp;MACD</span>'
             f'<span class="tk-val" style="color:{col};">{macd:.2f}</span>'
-            f'<span class="tk-sub" style="color:rgba(255,255,255,.4);">Sig:&nbsp;{sig2:.2f}&nbsp;Hist:&nbsp;{diff:+.2f}</span>'
+            f'<span class="tk-sub" style="color:rgba(255,255,255,.75);">Sig:&nbsp;{sig2:.2f}&nbsp;Hist:&nbsp;{diff:+.2f}</span>'
             f'<span class="tk-badge" style="background:rgba({rgb2},.1);color:{col};border:1px solid rgba({rgb2},.3);">{lbl}</span>'
             f'</div>'
         )
@@ -2713,7 +2713,7 @@ CSS = """
   --bdr:rgba(255,255,255,.07);--bdr2:rgba(255,255,255,.12);
   --aurora1:#00c896;--aurora2:#6480ff;--aurora3:#00c8e0;
   --bull:#00c896;--bear:#ff6b6b;--neut:#6480ff;
-  --text:rgba(255,255,255,.9);--muted:rgba(255,255,255,.45);--muted2:rgba(255,255,255,.28);
+  --text:rgba(255,255,255,.9);--muted:rgba(255,255,255,.75);--muted2:rgba(255,255,255,.55);
   --fh:'Sora',sans-serif;--fm:'DM Mono',monospace;
   --gold:#f5c518;--gold-dim:rgba(245,197,24,.45);--gold-bg:rgba(245,197,24,.10);
 }
@@ -2747,11 +2747,11 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .countdown-num{font-family:var(--fm);font-size:17.4px;font-weight:700;color:#00c896;min-width:20px;text-align:center;transition:color .3s;}
 .countdown-num.urgent{color:#ff6b6b;}
 .countdown-num.halfway{color:#ffd166;}
-.countdown-lbl{font-size:14.5px;color:rgba(255,255,255,.3);letter-spacing:.5px;}
+.countdown-lbl{font-size:14.5px;color:rgba(255,255,255,.68);letter-spacing:.5px;}
 .refresh-ring{display:none;width:14px;height:14px;border-radius:50%;border:2px solid rgba(0,200,150,.2);border-top-color:#00c896;animation:spin 0.8s linear infinite;}
 .refresh-ring.active{display:inline-block;}
 @keyframes spin{to{transform:rotate(360deg)}}
-#refreshStatus{font-size:14.5px;color:rgba(255,255,255,.35);transition:color .3s;letter-spacing:.3px;}
+#refreshStatus{font-size:14.5px;color:rgba(255,255,255,.70);transition:color .3s;letter-spacing:.3px;}
 #refreshStatus.updated{color:#00c896;font-weight:600;}
 .hero{display:flex;align-items:stretch;background:linear-gradient(135deg,rgba(0,200,150,.055) 0%,rgba(100,128,255,.055) 100%);border-bottom:1px solid rgba(255,255,255,.07);overflow:hidden;position:relative;height:130px;}
 .hero::before{content:'';position:absolute;top:-50px;left:-50px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(0,200,150,.10),transparent 70%);pointer-events:none;}
@@ -2761,16 +2761,16 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .gauge-wrap svg{display:block;}
 .gauge-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
 .g-val{font-family:'DM Mono',monospace;font-size:18.8px;font-weight:700;line-height:1;}
-.g-lbl{font-size:10.9px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.28);margin-top:2px;}
+.g-lbl{font-size:10.9px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.65);margin-top:2px;}
 .h-mid{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;padding:0 15px 0 13px;border-left:1px solid rgba(255,255,255,.05);}
-.h-eyebrow{font-size:11.6px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.22);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.h-eyebrow{font-size:11.6px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.60);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .h-signal{font-size:31.9px;font-weight:900;letter-spacing:1px;line-height:1.1;margin-bottom:2px;}
-.h-sub{font-size:13.8px;color:rgba(255,255,255,.32);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.h-sub{font-size:13.8px;color:rgba(255,255,255,.68);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .h-divider{height:1px;background:rgba(255,255,255,.05);margin:5px 0;}
 .pill-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
 .pill-row:last-child{margin-bottom:0;}
 .pill-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
-.pill-lbl{font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.35);width:96px;flex-shrink:0;}
+.pill-lbl{font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.70);width:96px;flex-shrink:0;}
 .pill-track{width:120px;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;flex-shrink:0;}
 .pill-fill{height:100%;border-radius:3px;}
 .pill-num{font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;margin-left:8px;flex-shrink:0;}
@@ -2778,12 +2778,12 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .h-stat-row{display:flex;align-items:stretch;flex:1;border-bottom:1px solid rgba(255,255,255,.05);}
 .h-stat{flex:1;display:flex;flex-direction:column;justify-content:center;padding:5px 10px;text-align:center;border-right:1px solid rgba(255,255,255,.04);}
 .h-stat:last-child{border-right:none;}
-.h-stat-lbl{font-size:10.9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.22);margin-bottom:3px;white-space:nowrap;}
+.h-stat-lbl{font-size:10.9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.60);margin-bottom:3px;white-space:nowrap;}
 .h-stat-val{font-family:'DM Mono',monospace;font-size:18.8px;font-weight:700;line-height:1;white-space:nowrap;}
 .h-stat-bottom{display:flex;align-items:center;justify-content:space-between;padding:4px 10px;}
 .h-bias-row{display:flex;align-items:center;gap:6px;}
 .h-chip{font-size:13px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:2px 9px;border-radius:20px;white-space:nowrap;}
-.h-score{font-family:'DM Mono',monospace;font-size:11.6px;color:rgba(255,255,255,.22);letter-spacing:.5px;}
+.h-score{font-family:'DM Mono',monospace;font-size:11.6px;color:rgba(255,255,255,.60);letter-spacing:.5px;}
 .h-ts{font-family:'DM Mono',monospace;font-size:11.6px;color:rgba(255,255,255,.18);letter-spacing:.5px;white-space:nowrap;}
 .main{display:grid;grid-template-columns:268px 1fr;min-height:0}
 .sidebar{background:rgba(8,11,20,.7);backdrop-filter:blur(12px);border-right:1px solid rgba(255,255,255,.06);position:sticky;top:57px;height:calc(100vh - 57px);overflow-y:auto;display:flex;flex-direction:column;}
@@ -2807,10 +2807,10 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .oi-ticker-table{border:1px solid rgba(255,255,255,.07);border-radius:14px;overflow:hidden}
 .oi-ticker-hdr{display:grid;grid-template-columns:130px repeat(5,1fr);padding:9px 18px;align-items:center;gap:6px}
 .oi-ticker-hdr-label{font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
-.oi-ticker-hdr-cell{font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.35);text-align:center}
+.oi-ticker-hdr-cell{font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.70);text-align:center}
 .oi-ticker-row{display:grid;grid-template-columns:130px repeat(5,1fr);padding:15px 18px;border-top:1px solid rgba(255,255,255,.04);align-items:center;gap:6px;transition:background .15s}
 .oi-ticker-row:hover{background:rgba(255,255,255,.03)}
-.oi-ticker-metric{font-size:14.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.35)}
+.oi-ticker-metric{font-size:14.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.70)}
 .oi-ticker-cell{text-align:center}
 .kl-zone-labels{display:flex;justify-content:space-between;margin-bottom:6px;font-size:15.9px;font-weight:700}
 .kl-node{position:absolute;text-align:center}
@@ -2837,12 +2837,12 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .tk-item{display:inline-flex;align-items:center;gap:10px;padding:0 20px;height:100%;border-right:1px solid rgba(255,255,255,.04);flex-shrink:0;}
 .tk-name{font-family:var(--fm);font-size:14.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;border-radius:6px;white-space:nowrap;flex-shrink:0;background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.1);}
 .tk-val{font-family:var(--fm);font-size:26.1px;font-weight:700;line-height:1;white-space:nowrap;}
-.tk-sub{font-family:var(--fm);font-size:14.5px;color:rgba(255,255,255,.35);white-space:nowrap;}
+.tk-sub{font-family:var(--fm);font-size:14.5px;color:rgba(255,255,255,.70);white-space:nowrap;}
 .tk-badge{font-family:var(--fh);font-size:14.5px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;letter-spacing:.3px;}
 
 /* ── Main Tab Bar ─────────────────────────────────────── */
 .main-tabs{display:flex;gap:8px;padding:16px 28px 0;border-bottom:1px solid rgba(255,255,255,.07);background:rgba(4,6,12,.6);position:sticky;top:0;z-index:100;}
-.main-tab{padding:10px 22px;font-family:var(--fh);font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border:none;border-bottom:3px solid transparent;background:transparent;color:rgba(255,255,255,.35);cursor:pointer;transition:all .2s;border-radius:6px 6px 0 0;}
+.main-tab{padding:10px 22px;font-family:var(--fh);font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border:none;border-bottom:3px solid transparent;background:transparent;color:rgba(255,255,255,.70);cursor:pointer;transition:all .2s;border-radius:6px 6px 0 0;}
 .main-tab:hover{color:rgba(255,255,255,.7);background:rgba(255,255,255,.04);}
 .main-tab.active{color:#00c896;border-bottom:3px solid #00c896;background:rgba(0,200,150,.07);}
 footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:rgba(6,8,15,.9);backdrop-filter:blur(12px);display:flex;justify-content:space-between;font-size:15.9px;color:var(--muted2);font-family:var(--fm)}
@@ -2868,11 +2868,11 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .sc-detail{display:none;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,200,150,.03)}
 .sc-desc{font-size:15.9px;color:rgba(255,255,255,.5);line-height:1.7;padding:12px 12px 8px;border-bottom:1px solid rgba(255,255,255,.05);}
 .sc-metrics-live{padding:0}
-.sc-loading{padding:14px 12px;font-size:15.9px;color:rgba(255,255,255,.3);text-align:center;font-family:'DM Mono',monospace}
+.sc-loading{padding:14px 12px;font-size:15.9px;color:rgba(255,255,255,.68);text-align:center;font-family:'DM Mono',monospace}
 .metric-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s;}
 .metric-row:hover{background:rgba(255,255,255,.03)}
 .metric-strike{background:rgba(255,209,102,.04);border-bottom:1px solid rgba(255,209,102,.12) !important;}
-.metric-lbl{font-size:14.5px;color:rgba(255,255,255,.35);letter-spacing:.5px;text-transform:uppercase;font-family:'DM Mono',monospace;}
+.metric-lbl{font-size:14.5px;color:rgba(255,255,255,.70);letter-spacing:.5px;text-transform:uppercase;font-family:'DM Mono',monospace;}
 .metric-val{font-family:'DM Mono',monospace;font-size:17.4px;font-weight:600;text-align:right;}
 .greeks-panel{margin:10px 10px 6px;padding:14px 12px;background:linear-gradient(135deg,rgba(100,128,255,.12),rgba(0,200,220,.10));border-radius:14px;border:1px solid rgba(100,128,255,.28);box-shadow:0 4px 20px rgba(100,128,255,.1),inset 0 1px 0 rgba(255,255,255,.06);}
 .greeks-title{font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(138,160,255,1.0);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(100,128,255,.25);display:flex;align-items:center;justify-content:space-between;}
@@ -2898,7 +2898,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .greeks-table-wrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
 .greeks-tbl{border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;}
 .greeks-tbl-head{display:grid;grid-template-columns:90px repeat(4,1fr);background:rgba(255,255,255,.04);padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);gap:4px;}
-.greeks-tbl-head-label{font-size:12.3px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:center;}
+.greeks-tbl-head-label{font-size:12.3px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);text-align:center;}
 .greeks-tbl-row{display:grid;grid-template-columns:90px repeat(4,1fr);padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.04);align-items:center;gap:4px;transition:background .15s;}
 .greeks-tbl-row:last-child{border-bottom:none;}
 .greeks-tbl-row:hover{background:rgba(255,255,255,.03);}
@@ -3214,9 +3214,9 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
     <div class="live-dot"></div>
     <span>NSE Options Dashboard</span>
     <span style="color:rgba(255,255,255,.15);">|</span>
-    <span style="color:rgba(255,255,255,.45);">Last report generated:&nbsp;<span style="color:#00c896;font-weight:600;">{ts}</span></span>
+    <span style="color:rgba(255,255,255,.78);">Last report generated:&nbsp;<span style="color:#00c896;font-weight:600;">{ts}</span></span>
     <span style="color:rgba(255,255,255,.15);">|</span>
-    <span style="color:rgba(255,255,255,.45);">IST&nbsp;<span id="liveClock" style="font-family:'DM Mono',monospace;color:#ffd166;font-weight:700;letter-spacing:1px;">--:--:--</span></span>
+    <span style="color:rgba(255,255,255,.78);">IST&nbsp;<span id="liveClock" style="font-family:'DM Mono',monospace;color:#ffd166;font-weight:700;letter-spacing:1px;">--:--:--</span></span>
     <span style="color:rgba(255,255,255,.15);">|</span>
     <div class="refresh-countdown">
       <div class="countdown-arc-wrap">
@@ -3274,10 +3274,8 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
         <div style="background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.18);
                     border-left:3px solid #6480ff;border-radius:12px;padding:16px 18px;
                     font-size:18.8px;color:rgba(255,255,255,.5);line-height:1.8;">
-          <strong style="color:rgba(255,255,255,.7);">DISCLAIMER</strong><br>
-          This dashboard is for EDUCATIONAL purposes only &mdash; NOT financial advice.<br>
-          Smart PoP uses S/R levels, OI walls, market bias and PCR &mdash; not a guaranteed signal.<br>
-          Always use stop losses. Consult a SEBI-registered investment advisor before trading.
+          <strong style="color:rgba(255,255,255,.85);">DISCLAIMER:</strong>&nbsp;
+          Educational only &mdash; NOT financial advice &middot; Smart PoP uses S/R, OI walls, bias &amp; PCR &mdash; not a guaranteed signal &middot; Use stop losses &middot; Consult a SEBI-registered advisor before trading.
         </div>
       </div>
     </div>
