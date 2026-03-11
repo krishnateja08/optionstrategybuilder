@@ -2387,7 +2387,7 @@ function buildIntradaySim(m) {{
       </thead>
       <tbody>${{tRows}}</tbody>
     </table>
-    <div style="padding:9px 12px;font-family:DM Mono,monospace;font-size:11px;color:rgba(0,200,255,.6);background:rgba(0,0,0,.25);border-top:1px solid rgba(0,160,255,.1);line-height:1.7;">
+    <div style="padding:9px 12px;font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.9);background:rgba(0,0,0,.25);border-top:1px solid rgba(0,160,255,.1);line-height:1.7;">
       © P&amp;L = <span style="color:rgba(0,220,255,.9);">Delta×move</span> + <span style="color:rgba(0,220,255,.9);">Theta (1 day)</span>. Actual exit P&amp;L may differ due to IV changes. Max profit of ${{m.mpStr}} is achievable at expiry only.
     </div>
   </div>
@@ -2403,7 +2403,7 @@ function buildIntradaySim(m) {{
         <div style="width:32px;height:32px;border-radius:6px;background:rgba(0,255,180,.15);border:1px solid rgba(0,255,180,.25);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#00ffb4;flex-shrink:0;">Δ</div>
         <div style="flex:1;min-width:0;">
           <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;color:rgba(0,255,180,.9);text-transform:uppercase;">DELTA</div>
-          <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,200,255,.7);">per 1pt move</div>
+          <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.95);">per 1pt move</div>
         </div>
         <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:${{nd>=0?'#00ffb4':'#ff4d7a'}};white-space:nowrap;">${{ndStr}}</div>
       </div>
@@ -2411,7 +2411,7 @@ function buildIntradaySim(m) {{
         <div style="width:32px;height:32px;border-radius:6px;background:rgba(255,77,122,.15);border:1px solid rgba(255,77,122,.25);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#ff4d7a;flex-shrink:0;">Θ</div>
         <div style="flex:1;min-width:0;">
           <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;color:rgba(255,77,122,.9);text-transform:uppercase;">THETA</div>
-          <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,200,255,.7);">decay / day</div>
+          <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.95);">decay / day</div>
         </div>
         <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:${{ntCol}};white-space:nowrap;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt))}}</div>
       </div>
@@ -2419,7 +2419,7 @@ function buildIntradaySim(m) {{
         <div style="width:32px;height:32px;border-radius:6px;background:rgba(168,122,255,.15);border:1px solid rgba(168,122,255,.25);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#c89aff;flex-shrink:0;">ν</div>
         <div style="flex:1;min-width:0;">
           <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;color:rgba(168,122,255,.9);text-transform:uppercase;">VEGA</div>
-          <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,200,255,.7);">per 1% IV</div>
+          <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.95);">per 1% IV</div>
         </div>
         <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#c89aff;white-space:nowrap;">${{nvStr}}</div>
       </div>
@@ -2451,9 +2451,9 @@ function buildIntradaySim(m) {{
     </div>
     <div style="padding:11px 12px;">
       <div style="display:flex;justify-content:space-between;margin-bottom:7px;font-family:DM Mono,monospace;font-size:12px;">
-        <span style="color:rgba(0,200,255,.65);">\u20b9${{slMin.toLocaleString('en-IN')}}</span>
+        <span style="color:#00c8ff;">\u20b9${{slMin.toLocaleString('en-IN')}}</span>
         <span id="${{simId}}_slv" style="font-weight:700;color:#00c8ff;background:rgba(0,200,255,.12);border:1px solid rgba(0,160,255,.35);border-radius:4px;padding:2px 10px;">Spot: \u20b9${{OC.spot.toLocaleString('en-IN')}}</span>
-        <span style="color:rgba(0,200,255,.65);">\u20b9${{slMax.toLocaleString('en-IN')}}</span>
+        <span style="color:#00c8ff;">\u20b9${{slMax.toLocaleString('en-IN')}}</span>
       </div>
       <input type="range" id="${{simId}}_sl" min="${{slMin}}" max="${{slMax}}" value="${{OC.spot}}" step="25"
         style="width:100%;height:5px;border-radius:3px;outline:none;border:none;-webkit-appearance:none;cursor:pointer;background:linear-gradient(90deg,#00c8ff 50%,rgba(0,160,255,.2) 50%);"
@@ -2463,7 +2463,7 @@ function buildIntradaySim(m) {{
       <div style="background:rgba(0,0,0,.3);border-radius:10px;padding:16px;border:1px solid rgba(0,160,255,.2);">
         <div style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(0,220,255,.85);margin-bottom:7px;">ESTIMATED EXIT P&amp;L TODAY</div>
         <div id="${{simId}}_spnl" style="font-family:DM Mono,monospace;font-size:38px;font-weight:700;color:${{ntCol}};">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
-        <div id="${{simId}}_snote" style="font-family:DM Mono,monospace;font-size:12px;color:rgba(0,200,255,.7);margin-top:5px;">Flat market — theta drag only</div>
+        <div id="${{simId}}_snote" style="font-family:DM Mono,monospace;font-size:12px;color:rgba(0,220,255,.92);margin-top:5px;">Flat market — theta drag only</div>
         <div style="display:flex;gap:12px;justify-content:center;margin-top:11px;padding-top:11px;border-top:1px solid rgba(0,160,255,.12);">
           <div style="text-align:center;">
             <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.85);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">Delta P&amp;L</div>
