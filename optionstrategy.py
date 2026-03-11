@@ -2245,42 +2245,78 @@ function calcMetrics(shape, smartPop) {{
 }}
 
 function renderMetrics(m, scoreBreakdown) {{
-  const pc=m.pop>=70?'#00c896':(m.pop>=55?'#4de8b8':m.pop>=45?'#6480ff':'#ff6b6b');
-  const nc=m.ncPositive?'#00c896':'#ff6b6b';
+  const pc=m.pop>=70?'#00e5a0':(m.pop>=55?'#4de8b8':m.pop>=45?'#6480ff':'#ff4d6a');
+  const nc=m.ncPositive?'#00e5a0':'#ff4d6a';
+  // Sample 1 Aurora Dark — PoP breakdown chips
   const sbHtml = scoreBreakdown ? `
-    <div style="background:rgba(100,128,255,.06);border-top:1px solid rgba(100,128,255,.1);padding:8px 12px;">
-      <div style="font-size:11.6px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(100,128,255,.6);margin-bottom:6px;">PoP BREAKDOWN</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;">
-        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">Base <b style="color:#fff;">50%</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">Bias <b style="color:${{scoreBreakdown.biasAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.biasAdj>=0?'+':''}}${{scoreBreakdown.biasAdj}}</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">S/R <b style="color:${{scoreBreakdown.srAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.srAdj>=0?'+':''}}${{scoreBreakdown.srAdj}}</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">OI <b style="color:${{scoreBreakdown.oiAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.oiAdj>=0?'+':''}}${{scoreBreakdown.oiAdj}}</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">PCR <b style="color:${{scoreBreakdown.pcrAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.pcrAdj>=0?'+':''}}${{scoreBreakdown.pcrAdj}}</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">Strat <b style="color:${{scoreBreakdown.stratAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.stratAdj>=0?'+':''}}${{scoreBreakdown.stratAdj}}</b></span>
+    <div style="background:rgba(0,10,25,.4);border-top:1px solid rgba(26,45,74,.8);padding:8px 12px 10px;">
+      <div style="font-size:9px;letter-spacing:1.8px;text-transform:uppercase;color:#5a7090;margin-bottom:7px;font-family:'DM Mono',monospace;">PoP BREAKDOWN</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;">
+        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:'DM Mono',monospace;">Base <b style="color:#c8d8f0;">60%</b></span>
+        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:'DM Mono',monospace;">Bias <b style="color:${{scoreBreakdown.biasAdj>=0?'#00e5a0':'#ff4d6a'}};">${{scoreBreakdown.biasAdj>=0?'+':''}}${{scoreBreakdown.biasAdj}}</b></span>
+        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:'DM Mono',monospace;">S/R <b style="color:${{scoreBreakdown.srAdj>=0?'#00e5a0':'#ff4d6a'}};">${{scoreBreakdown.srAdj>=0?'+':''}}${{scoreBreakdown.srAdj}}</b></span>
+        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:'DM Mono',monospace;">OI <b style="color:${{scoreBreakdown.oiAdj>=0?'#00e5a0':'#ff4d6a'}};">${{scoreBreakdown.oiAdj>=0?'+':''}}${{scoreBreakdown.oiAdj}}</b></span>
+        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:'DM Mono',monospace;">PCR <b style="color:${{scoreBreakdown.pcrAdj>=0?'#00e5a0':'#ff4d6a'}};">${{scoreBreakdown.pcrAdj>=0?'+':''}}${{scoreBreakdown.pcrAdj}}</b></span>
+        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:'DM Mono',monospace;">Strat <b style="color:${{scoreBreakdown.stratAdj>=0?'#00e5a0':'#ff4d6a'}};">${{scoreBreakdown.stratAdj>=0?'+':''}}${{scoreBreakdown.stratAdj}}</b></span>
       </div>
     </div>` : '';
-  return `<div class="metric-row metric-strike"><span class="metric-lbl">Strike Price</span>
-    <span class="metric-val" style="color:#ffd166;font-size:15.9px;text-align:right;">${{m.strikeStr}}</span></div>
-    <div class="metric-row" style="background:rgba(0,200,220,.04);border-bottom:1px solid rgba(0,200,220,.10);">
-      <span class="metric-lbl" style="color:rgba(0,200,220,.7);">LTP (per leg)</span>
-      <span class="metric-val" style="text-align:right;line-height:1.6;display:flex;flex-direction:column;align-items:flex-end;">${{m.ltpStr}}</span>
+  // ── Aurora Dark metric rows ──────────────────────────────────────
+  const rowStyle = 'display:flex;justify-content:space-between;align-items:center;padding:7px 12px;border-bottom:1px solid rgba(26,45,74,.6);transition:background .15s;';
+  const rowHover = 'onmouseover="this.style.background=\'rgba(255,255,255,.025)\'" onmouseout="this.style.background=\'\'"';
+  const lblStyle = 'font-family:\'DM Mono\',monospace;font-size:9px;color:#5a7090;letter-spacing:1.2px;text-transform:uppercase;';
+  const valStyle = 'font-family:\'DM Mono\',monospace;font-size:15px;font-weight:700;text-align:right;';
+  return `
+  <!-- Strike + LTP -->
+  <div style="${{rowStyle}}background:rgba(255,213,79,.04);border-bottom:1px solid rgba(255,213,79,.12);" ${{rowHover}}>
+    <span style="${{lblStyle}}color:rgba(255,213,79,.7);">Strike Price</span>
+    <span style="${{valStyle}}color:#ffd54f;font-size:13px;">${{m.strikeStr}}</span>
+  </div>
+  <div style="${{rowStyle}}background:rgba(0,200,220,.04);border-bottom:1px solid rgba(0,200,220,.10);" ${{rowHover}}>
+    <span style="${{lblStyle}}color:rgba(0,200,220,.7);">LTP (per leg)</span>
+    <span style="${{valStyle}}font-size:12px;line-height:1.7;display:flex;flex-direction:column;align-items:flex-end;">${{m.ltpStr}}</span>
+  </div>
+  <!-- Core metrics 2×2 grid -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(26,45,74,.6);">
+    <div style="padding:10px 12px;border-right:1px solid rgba(26,45,74,.6);">
+      <div style="${{lblStyle}}margin-bottom:5px;">Prob. of Profit</div>
+      <div style="${{valStyle}}color:${{pc}};font-size:22px;font-weight:800;">${{m.pop}}%</div>
     </div>
-    <div class="metric-row"><span class="metric-lbl">Prob. of Profit</span>
-    <span class="metric-val" style="color:${{pc}};font-weight:800;font-size:21.8px;">${{m.pop}}%</span></div>
-    <div class="metric-row"><span class="metric-lbl">Max. Profit</span>
-    <span class="metric-val" style="color:#00c896;">${{m.mpStr}} <small style="opacity:.5;">${{m.mpPct}}</small></span></div>
-    <div class="metric-row"><span class="metric-lbl">Max. Loss</span>
-    <span class="metric-val" style="color:#ff6b6b;">${{m.mlStr}}</span></div>
-    <div class="metric-row"><span class="metric-lbl">Max RR Ratio</span>
-    <span class="metric-val" style="color:#6480ff;">${{m.rrStr}}</span></div>
-    <div class="metric-row"><span class="metric-lbl">Breakevens</span>
-    <span class="metric-val" style="color:#00c8e0;font-size:15.9px;">${{m.beStr}}</span></div>
-    <div class="metric-row"><span class="metric-lbl">Net Credit / Debit</span>
-    <span class="metric-val" style="color:${{nc}};">${{m.ncStr}}</span></div>
-    <div class="metric-row" style="border-bottom:none;"><span class="metric-lbl">Est. Margin/Premium</span>
-    <span class="metric-val" style="color:#8aa0ff;">${{m.marginStr}}</span></div>
-    ${{sbHtml}}
-    ${{buildIntradaySim(m)}}`;
+    <div style="padding:10px 12px;">
+      <div style="${{lblStyle}}margin-bottom:5px;">Max Profit</div>
+      <div style="${{valStyle}}color:#00e5a0;font-size:17px;">${{m.mpStr}} <span style="font-size:10px;opacity:.5;">${{m.mpPct}}</span></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(26,45,74,.6);">
+    <div style="padding:10px 12px;border-right:1px solid rgba(26,45,74,.6);">
+      <div style="${{lblStyle}}margin-bottom:5px;">Max Loss</div>
+      <div style="${{valStyle}}color:#ff4d6a;font-size:17px;">${{m.mlStr}}</div>
+    </div>
+    <div style="padding:10px 12px;">
+      <div style="${{lblStyle}}margin-bottom:5px;">R/R Ratio</div>
+      <div style="${{valStyle}}color:#6480ff;font-size:17px;">${{m.rrStr}}</div>
+    </div>
+  </div>
+  <!-- Lower metrics 4-col -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid rgba(26,45,74,.6);">
+    <div style="padding:8px 10px;border-right:1px solid rgba(26,45,74,.6);">
+      <div style="${{lblStyle}}font-size:8px;margin-bottom:3px;">Breakeven</div>
+      <div style="${{valStyle}}font-size:11px;color:#c8d8f0;">${{m.beStr}}</div>
+    </div>
+    <div style="padding:8px 10px;border-right:1px solid rgba(26,45,74,.6);">
+      <div style="${{lblStyle}}font-size:8px;margin-bottom:3px;">Net CR/DR</div>
+      <div style="${{valStyle}}font-size:11px;color:${{nc}};">${{m.ncStr}}</div>
+    </div>
+    <div style="padding:8px 10px;border-right:1px solid rgba(26,45,74,.6);">
+      <div style="${{lblStyle}}font-size:8px;margin-bottom:3px;">Margin</div>
+      <div style="${{valStyle}}font-size:11px;color:#8aa0ff;">${{m.marginStr}}</div>
+    </div>
+    <div style="padding:8px 10px;">
+      <div style="${{lblStyle}}font-size:8px;margin-bottom:3px;">ATM Strike</div>
+      <div style="${{valStyle}}font-size:11px;color:#c8d8f0;">${{m.strikeStr}}</div>
+    </div>
+  </div>
+  ${{sbHtml}}
+  ${{buildIntradaySim(m)}}`;
 }}
 
 // ── Intraday P&L Simulator ───────────────────────────────────────────────────
@@ -2312,20 +2348,20 @@ function buildIntradaySim(m) {{
   let tRows = '';
   moves.forEach(mv => {{
     const pnl    = calcPnl(mv);
-    const col    = pnl > 100 ? '#00c896' : pnl > 0 ? '#4de8b8' : pnl > -200 ? '#ffd166' : '#ff6b6b';
-    const mvcol  = mv > 0 ? '#00c896' : mv < 0 ? '#ff6b6b' : '#6480ff';
-    const mvbg   = mv > 0 ? 'rgba(0,200,150,.12)' : mv < 0 ? 'rgba(255,107,107,.12)' : 'rgba(100,128,255,.12)';
+    const col    = pnl > 100 ? '#00e5a0' : pnl > 0 ? '#4de8b8' : pnl > -200 ? '#ffd54f' : '#ff4d6a';
+    const mvcol  = mv > 0 ? '#00e5a0' : mv < 0 ? '#ff4d6a' : '#6480ff';
+    const mvbg   = mv > 0 ? 'rgba(0,229,160,.12)' : mv < 0 ? 'rgba(255,77,106,.12)' : 'rgba(100,128,255,.12)';
     const mvlbl  = mv > 0 ? '+' + mv : mv === 0 ? 'Flat' : String(mv);
     const pctmp  = maxP ? ((pnl / maxP) * 100).toFixed(0) + '%' : '—';
     const isFlat = mv === 0;
-    const rowBg  = isFlat ? 'background:rgba(245,197,24,.05);' : '';
+    const rowBg  = isFlat ? 'background:rgba(100,128,255,.05);' : '';
     tRows += `<tr style="${{rowBg}}">
-      <td style="padding:5px 6px;white-space:nowrap;">
-        <span style="font-size:14.5px;font-weight:700;padding:2px 8px;border-radius:5px;background:${{mvbg}};color:${{mvcol}};white-space:nowrap;display:inline-block;">${{mvlbl}}${{mv!==0?'p':''}}</span>
+      <td style="padding:5px 10px;white-space:nowrap;">
+        <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;padding:3px 7px;border-radius:4px;background:${{mvbg}};color:${{mvcol}};white-space:nowrap;display:inline-block;min-width:52px;text-align:center;">${{mvlbl}}${{mv!==0?'p':''}}</span>
       </td>
-      <td style="padding:5px 6px;color:rgba(255,255,255,.75);font-family:'DM Mono',monospace;font-size:14.5px;white-space:nowrap;text-align:right;">${{(OC.spot+mv).toLocaleString('en-IN')}}</td>
-      <td style="padding:5px 6px;font-family:'DM Mono',monospace;font-weight:700;font-size:15.9px;color:${{col}};white-space:nowrap;text-align:right;">${{pnl>=0?'+':''}}\u20b9${{Math.abs(pnl).toLocaleString('en-IN')}}</td>
-      <td style="padding:5px 6px;font-size:13.8px;font-weight:600;color:${{col}};text-align:center;white-space:nowrap;opacity:.75;">${{pctmp}}</td>
+      <td style="padding:5px 8px;font-family:'DM Mono',monospace;font-size:11px;color:#5a7090;white-space:nowrap;text-align:left;">${{(OC.spot+mv).toLocaleString('en-IN')}}</td>
+      <td style="padding:5px 8px;font-family:'DM Mono',monospace;font-weight:700;font-size:12px;color:${{col}};white-space:nowrap;text-align:right;">${{pnl>=0?'+':''}}\u20b9${{Math.abs(pnl).toLocaleString('en-IN')}}</td>
+      <td style="padding:5px 6px;font-family:'DM Mono',monospace;font-size:10px;font-weight:600;color:${{col}};text-align:right;white-space:nowrap;opacity:.8;">${{pctmp}}</td>
     </tr>`;
   }});
 
@@ -2334,131 +2370,130 @@ function buildIntradaySim(m) {{
   const slMax = Math.round((OC.spot + 400) / 25) * 25;
   const simId = 'sim_' + Math.random().toString(36).slice(2,7);
 
+  // ── Sample 1 Aurora Dark — tab + panel styling ─────────────────
+  const tabBase   = 'flex:1;padding:9px 4px;font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:#5a7090;background:transparent;transition:all .2s;';
+  const tabActive = tabBase + 'border-bottom-color:#00e5a0;color:#00e5a0;background:rgba(0,229,160,.04);';
+  const hdrLbl    = 'font-family:\'DM Mono\',monospace;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#c8d8f0;';
+  const hdrNote   = 'font-family:\'DM Mono\',monospace;font-size:9px;color:#5a7090;background:rgba(0,0,0,.25);padding:2px 7px;border-radius:4px;';
+
   return `
-<div style="border-top:2px solid rgba(255,209,102,.22);background:linear-gradient(135deg,rgba(245,197,24,.04),rgba(200,155,10,.02));" onclick="event.stopPropagation()">
+<div style="border-top:1px solid rgba(26,45,74,.8);background:rgba(5,13,26,.5);" onclick="event.stopPropagation()">
   <!-- Sub-tabs -->
-  <div style="display:flex;border-bottom:1px solid rgba(255,255,255,.06);">
-    <button class="sim-tab active" id="${{simId}}_t1"
-      onclick="simTab('${{simId}}','t1')" style="flex:1;padding:8px 4px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid #f5c518;color:#f5c518;background:rgba(245,197,24,.07);transition:all .2s;">📊 SCENARIOS</button>
-    <button class="sim-tab" id="${{simId}}_t2"
-      onclick="simTab('${{simId}}','t2')" style="flex:1;padding:8px 4px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:rgba(255,255,255,.68);background:transparent;transition:all .2s;">🔬 GREEKS</button>
-    <button class="sim-tab" id="${{simId}}_t3"
-      onclick="simTab('${{simId}}','t3')" style="flex:1;padding:8px 4px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:rgba(255,255,255,.68);background:transparent;transition:all .2s;">🎚 SLIDER</button>
+  <div style="display:flex;border-bottom:1px solid rgba(26,45,74,.8);">
+    <button id="${{simId}}_t1" onclick="simTab('${{simId}}','t1')" style="${{tabActive}}">📊 SCENARIOS</button>
+    <button id="${{simId}}_t2" onclick="simTab('${{simId}}','t2')" style="${{tabBase}}">Δ GREEKS</button>
+    <button id="${{simId}}_t3" onclick="simTab('${{simId}}','t3')" style="${{tabBase}}">⟺ SLIDER</button>
   </div>
 
   <!-- TAB 1: Scenarios -->
   <div id="${{simId}}_c1">
-    <div style="padding:9px 12px 6px;display:flex;align-items:center;justify-content:space-between;">
-      <div style="font-size:13px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">📅 TODAY'S P&amp;L SCENARIOS</div>
-      <div style="font-size:12.3px;color:rgba(255,255,255,.62);">Delta×move + Theta · 1 day</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px 7px;border-bottom:1px solid rgba(26,45,74,.6);">
+      <div style="${{hdrLbl}}">📋 TODAY'S P&amp;L SCENARIOS</div>
+      <div style="${{hdrNote}}">Delta×move + Theta · 1 day</div>
     </div>
-    <div style="padding:0 10px 10px;">
-      <table style="width:100%;border-collapse:collapse;">
-        <thead><tr style="background:rgba(255,255,255,.05);">
-          <th style="padding:5px 8px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);text-align:left;border-bottom:1px solid rgba(255,255,255,.07);">MOVE</th>
-          <th style="padding:5px 8px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);text-align:right;border-bottom:1px solid rgba(255,255,255,.07);">TODAY P&amp;L</th>
-          <th style="padding:5px 6px;font-size:11.6px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);text-align:center;border-bottom:1px solid rgba(255,255,255,.07);">vs MAX</th>
-        </tr></thead>
-        <tbody>${{tRows}}</tbody>
-      </table>
-    </div>
-    <div style="margin:0 12px 12px;padding:8px 10px;background:rgba(255,107,107,.06);border:1px solid rgba(255,107,107,.15);border-radius:8px;font-size:13.8px;color:rgba(255,150,150,.7);line-height:1.6;">
-      ⏱ P&amp;L = <b>Delta×move</b> + <b>Theta (1 day)</b>. Actual exit P&amp;L may differ due to IV changes. Max profit of ${{m.mpStr}} is achievable at expiry only.
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="background:rgba(0,0,0,.3);">
+          <th style="padding:5px 10px;font-family:'DM Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#5a7090;text-align:left;border-bottom:1px solid rgba(26,45,74,.6);">MOVE</th>
+          <th style="padding:5px 8px;font-family:'DM Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#5a7090;text-align:left;border-bottom:1px solid rgba(26,45,74,.6);">TODAY P&amp;L</th>
+          <th style="padding:5px 8px;font-family:'DM Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#5a7090;text-align:right;border-bottom:1px solid rgba(26,45,74,.6);">VS MAX</th>
+          <th style="padding:5px 6px;border-bottom:1px solid rgba(26,45,74,.6);"></th>
+        </tr>
+      </thead>
+      <tbody>${{tRows}}</tbody>
+    </table>
+    <div style="padding:8px 12px;font-family:'DM Mono',monospace;font-size:9px;color:#5a7090;background:rgba(0,0,0,.2);border-top:1px solid rgba(26,45,74,.5);line-height:1.7;">
+      © P&amp;L = <span style="color:#c8d8f0;">Delta×move</span> + <span style="color:#c8d8f0;">Theta (1 day)</span>. Actual exit P&amp;L may differ due to IV changes. Max profit of ${{m.mpStr}} is achievable at expiry only.
     </div>
   </div>
 
   <!-- TAB 2: Greeks Breakdown -->
   <div id="${{simId}}_c2" style="display:none;">
-    <div style="padding:9px 12px 8px;display:flex;align-items:center;justify-content:space-between;">
-      <div style="font-size:13px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">🔬 NET GREEKS (per lot)</div>
-      <div style="font-size:11.6px;color:rgba(255,255,255,.62);letter-spacing:.5px;">values per lot · today</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px 7px;border-bottom:1px solid rgba(26,45,74,.6);">
+      <div style="${{hdrLbl}}">🔬 NET GREEKS (per lot)</div>
+      <div style="${{hdrNote}}">values per lot · today</div>
     </div>
-    <!-- Greeks: compact single-line rows -->
-    <div style="padding:0 10px 10px;display:flex;flex-direction:column;gap:5px;">
-
-      <!-- Delta row -->
-      <div style="display:flex;align-items:center;gap:10px;background:rgba(0,200,150,.07);border:1px solid rgba(0,200,150,.18);border-radius:9px;padding:8px 12px;">
-        <div style="width:24px;height:24px;border-radius:6px;background:rgba(0,200,150,.18);border:1px solid rgba(0,200,150,.3);display:flex;align-items:center;justify-content:center;font-size:18.8px;font-weight:700;color:#00c896;flex-shrink:0;">Δ</div>
+    <div style="padding:10px 12px;display:flex;flex-direction:column;gap:5px;">
+      <!-- Delta -->
+      <div style="display:flex;align-items:center;gap:10px;background:rgba(0,229,160,.06);border:1px solid rgba(0,229,160,.15);border-radius:8px;padding:8px 12px;">
+        <div style="width:28px;height:28px;border-radius:6px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.25);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#00e5a0;flex-shrink:0;">Δ</div>
         <div style="flex:1;min-width:0;">
-          <span style="font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(0,200,150,.8);">DELTA</span>
-          <span style="font-size:12.3px;color:rgba(255,255,255,.68);margin-left:6px;white-space:nowrap;">per 1pt move</span>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1.2px;color:rgba(0,229,160,.8);text-transform:uppercase;">DELTA</div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:#5a7090;">per 1pt move</div>
         </div>
-        <div style="font-family:'DM Mono',monospace;font-size:21.8px;font-weight:700;color:${{nd>=0?'#00c896':'#ff6b6b'}};white-space:nowrap;flex-shrink:0;">${{ndStr}}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:${{nd>=0?'#00e5a0':'#ff4d6a'}};white-space:nowrap;">${{ndStr}}</div>
       </div>
-
-      <!-- Theta row -->
-      <div style="display:flex;align-items:center;gap:10px;background:rgba(255,107,107,.07);border:1px solid rgba(255,107,107,.18);border-radius:9px;padding:8px 12px;">
-        <div style="width:24px;height:24px;border-radius:6px;background:rgba(255,107,107,.18);border:1px solid rgba(255,107,107,.3);display:flex;align-items:center;justify-content:center;font-size:18.8px;font-weight:700;color:#ff9090;flex-shrink:0;">Θ</div>
+      <!-- Theta -->
+      <div style="display:flex;align-items:center;gap:10px;background:rgba(255,77,106,.06);border:1px solid rgba(255,77,106,.15);border-radius:8px;padding:8px 12px;">
+        <div style="width:28px;height:28px;border-radius:6px;background:rgba(255,77,106,.15);border:1px solid rgba(255,77,106,.25);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#ff4d6a;flex-shrink:0;">Θ</div>
         <div style="flex:1;min-width:0;">
-          <span style="font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,150,150,.8);">THETA</span>
-          <span style="font-size:12.3px;color:rgba(255,255,255,.68);margin-left:6px;white-space:nowrap;">decay / day</span>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1.2px;color:rgba(255,77,106,.8);text-transform:uppercase;">THETA</div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:#5a7090;">decay / day</div>
         </div>
-        <div style="font-family:'DM Mono',monospace;font-size:21.8px;font-weight:700;color:${{ntCol}};white-space:nowrap;flex-shrink:0;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt))}}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:${{ntCol}};white-space:nowrap;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt))}}</div>
       </div>
-
-      <!-- Vega row -->
-      <div style="display:flex;align-items:center;gap:10px;background:rgba(138,160,255,.07);border:1px solid rgba(138,160,255,.18);border-radius:9px;padding:8px 12px;">
-        <div style="width:24px;height:24px;border-radius:6px;background:rgba(138,160,255,.18);border:1px solid rgba(138,160,255,.3);display:flex;align-items:center;justify-content:center;font-size:18.8px;font-weight:700;color:#8aa0ff;flex-shrink:0;">ν</div>
+      <!-- Vega -->
+      <div style="display:flex;align-items:center;gap:10px;background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.15);border-radius:8px;padding:8px 12px;">
+        <div style="width:28px;height:28px;border-radius:6px;background:rgba(100,128,255,.15);border:1px solid rgba(100,128,255,.25);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#6480ff;flex-shrink:0;">ν</div>
         <div style="flex:1;min-width:0;">
-          <span style="font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(138,160,255,.8);">VEGA</span>
-          <span style="font-size:12.3px;color:rgba(255,255,255,.68);margin-left:6px;white-space:nowrap;">per 1% IV</span>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1.2px;color:rgba(100,128,255,.8);text-transform:uppercase;">VEGA</div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:#5a7090;">per 1% IV</div>
         </div>
-        <div style="font-family:'DM Mono',monospace;font-size:21.8px;font-weight:700;color:#8aa0ff;white-space:nowrap;flex-shrink:0;">${{nvStr}}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:#6480ff;white-space:nowrap;">${{nvStr}}</div>
       </div>
-
     </div>
-    <div style="height:1px;background:rgba(255,255,255,.05);margin:0 10px 4px;"></div>
-    <div style="padding:10px 10px 6px;">
-      <div style="font-size:11.6px;color:rgba(255,255,255,.62);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">TODAY'S P&amp;L IF MARKET IS FLAT</div>
-      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:12px 10px;background:rgba(0,0,0,.25);border-radius:10px;border:1px solid rgba(255,255,255,.06);">
+    <div style="border-top:1px solid rgba(26,45,74,.6);margin:0 12px;"></div>
+    <div style="padding:10px 12px 10px;">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;color:#5a7090;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:8px;">TODAY'S P&amp;L IF MARKET IS FLAT</div>
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:10px;background:rgba(0,0,0,.25);border-radius:8px;border:1px solid rgba(26,45,74,.6);">
         <div style="text-align:center;">
-          <div style="font-size:11.6px;color:rgba(255,255,255,.68);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;">THETA DRAG</div>
-          <div style="font-family:'DM Mono',monospace;font-size:26.1px;font-weight:700;color:${{ntCol}};line-height:1;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">THETA DRAG</div>
+          <div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:${{ntCol}};line-height:1;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
         </div>
-        <div style="font-size:23.2px;color:rgba(255,255,255,.15);text-align:center;">=</div>
+        <div style="font-size:18px;color:rgba(255,255,255,.12);text-align:center;">=</div>
         <div style="text-align:center;">
-          <div style="font-size:11.6px;color:rgba(255,255,255,.68);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;">FLAT P&amp;L TODAY</div>
-          <div style="font-family:'DM Mono',monospace;font-size:26.1px;font-weight:700;color:${{flatCol}};line-height:1;">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">FLAT P&amp;L TODAY</div>
+          <div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:${{flatCol}};line-height:1;">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
         </div>
       </div>
-      <div style="margin-top:10px;font-size:13.8px;color:rgba(255,255,255,.70);line-height:1.7;">
-        ${{nt < 0 ? '🔴 <b style="color:rgba(255,150,150,.8);">Theta negative</b> — you pay \u20b9' + Math.abs(Math.round(nt)).toLocaleString("en-IN") + '/day for holding. Need Nifty to move <b style="color:#ffd166;">' + Math.ceil(Math.abs(nt)/Math.abs(nd||1)) + ' pts</b> just to break even today.' : '🟢 <b style="color:rgba(0,200,150,.8);">Theta positive</b> — you earn \u20b9' + Math.abs(Math.round(nt)).toLocaleString("en-IN") + '/day time decay. Premium selling strategy benefits from flat market.'}}
+      <div style="margin-top:9px;font-family:'DM Mono',monospace;font-size:11px;color:#5a7090;line-height:1.7;">
+        ${{nt < 0 ? '🔴 <span style="color:#ff4d6a;font-weight:700;">Theta negative</span> — you pay \u20b9' + Math.abs(Math.round(nt)).toLocaleString("en-IN") + '/day for holding. Need Nifty to move <span style="color:#ffd54f;font-weight:700;">' + Math.ceil(Math.abs(nt)/Math.abs(nd||1)) + ' pts</span> just to break even today.' : '🟢 <span style="color:#00e5a0;font-weight:700;">Theta positive</span> — you earn \u20b9' + Math.abs(Math.round(nt)).toLocaleString("en-IN") + '/day time decay. Premium selling strategy benefits from flat market.'}}
       </div>
     </div>
   </div>
 
   <!-- TAB 3: Live Slider -->
   <div id="${{simId}}_c3" style="display:none;">
-    <div style="padding:9px 12px 4px;">
-      <div style="font-size:13px;font-weight:700;letter-spacing:1.5px;color:rgba(255,209,102,.8);text-transform:uppercase;">🎚 LIVE SCENARIO SLIDER</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px 7px;border-bottom:1px solid rgba(26,45,74,.6);">
+      <div style="${{hdrLbl}}">⟺ LIVE SCENARIO SLIDER</div>
     </div>
-    <div style="padding:6px 12px 10px;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px;">
-        <span style="color:rgba(255,255,255,.68);">\u20b9${{slMin.toLocaleString('en-IN')}}</span>
-        <span id="${{simId}}_slv" style="font-family:'DM Mono',monospace;font-size:15.9px;font-weight:700;color:#f5c518;background:rgba(245,197,24,.12);border:1px solid rgba(245,197,24,.3);border-radius:5px;padding:1px 8px;">Spot: \u20b9${{OC.spot.toLocaleString('en-IN')}}</span>
-        <span style="color:rgba(255,255,255,.68);">\u20b9${{slMax.toLocaleString('en-IN')}}</span>
+    <div style="padding:10px 12px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-family:'DM Mono',monospace;font-size:11px;">
+        <span style="color:#5a7090;">\u20b9${{slMin.toLocaleString('en-IN')}}</span>
+        <span id="${{simId}}_slv" style="font-weight:700;color:#00e5a0;background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.25);border-radius:4px;padding:1px 8px;">Spot: \u20b9${{OC.spot.toLocaleString('en-IN')}}</span>
+        <span style="color:#5a7090;">\u20b9${{slMax.toLocaleString('en-IN')}}</span>
       </div>
       <input type="range" id="${{simId}}_sl" min="${{slMin}}" max="${{slMax}}" value="${{OC.spot}}" step="25"
-        style="width:100%;height:4px;border-radius:2px;outline:none;border:none;-webkit-appearance:none;cursor:pointer;background:linear-gradient(90deg,#f5c518 50%,rgba(255,255,255,.1) 50%);"
+        style="width:100%;height:4px;border-radius:2px;outline:none;border:none;-webkit-appearance:none;cursor:pointer;background:linear-gradient(90deg,#00e5a0 50%,rgba(26,45,74,.8) 50%);"
         onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" oninput="simSlide('${{simId}}', this.value, ${{slMin}}, ${{slMax}}, ${{nd}}, ${{nt}}, ${{maxL===null?'null':maxL}}, ${{maxP===null?'null':maxP}})">
     </div>
-    <div id="${{simId}}_sr" style="padding:4px 12px 14px;text-align:center;">
-      <div style="background:rgba(0,0,0,.3);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,.07);">
-        <div style="font-size:12.3px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.62);margin-bottom:6px;">ESTIMATED EXIT P&amp;L TODAY</div>
-        <div id="${{simId}}_spnl" style="font-family:'DM Mono',monospace;font-size:43.5px;font-weight:700;color:${{ntCol}};">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
-        <div id="${{simId}}_snote" style="font-size:13.8px;color:rgba(255,255,255,.68);margin-top:4px;">Flat market — theta drag only</div>
-        <div style="display:flex;gap:12px;justify-content:center;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);">
+    <div id="${{simId}}_sr" style="padding:4px 12px 12px;text-align:center;">
+      <div style="background:rgba(0,0,0,.3);border-radius:10px;padding:14px;border:1px solid rgba(26,45,74,.8);">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#5a7090;margin-bottom:6px;">ESTIMATED EXIT P&amp;L TODAY</div>
+        <div id="${{simId}}_spnl" style="font-family:'DM Mono',monospace;font-size:36px;font-weight:700;color:${{ntCol}};">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
+        <div id="${{simId}}_snote" style="font-family:'DM Mono',monospace;font-size:11px;color:#5a7090;margin-top:4px;">Flat market — theta drag only</div>
+        <div style="display:flex;gap:12px;justify-content:center;margin-top:10px;padding-top:10px;border-top:1px solid rgba(26,45,74,.6);">
           <div style="text-align:center;">
-            <div style="font-size:11.6px;color:rgba(255,255,255,.68);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Delta P&amp;L</div>
-            <div id="${{simId}}_sdelta" style="font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:#00c896;">\u20b90</div>
+            <div style="font-family:'DM Mono',monospace;font-size:9px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Delta P&amp;L</div>
+            <div id="${{simId}}_sdelta" style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:#00e5a0;">\u20b90</div>
           </div>
           <div style="text-align:center;">
-            <div style="font-size:11.6px;color:rgba(255,255,255,.68);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Theta Cost</div>
-            <div style="font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:${{ntCol}};">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:9px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Theta Cost</div>
+            <div style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:${{ntCol}};">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
           </div>
           <div style="text-align:center;">
-            <div style="font-size:11.6px;color:rgba(255,255,255,.68);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">% of Max</div>
-            <div id="${{simId}}_spct" style="font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:#ffd166;">—</div>
+            <div style="font-family:'DM Mono',monospace;font-size:9px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">% of Max</div>
+            <div id="${{simId}}_spct" style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:#ffd54f;">—</div>
           </div>
         </div>
       </div>
@@ -2475,9 +2510,9 @@ function simTab(simId, tab) {{
     if (!btn || !con) return;
     const isActive = t === tab;
     con.style.display = isActive ? 'block' : 'none';
-    btn.style.borderBottomColor = isActive ? '#f5c518' : 'transparent';
-    btn.style.color = isActive ? '#f5c518' : 'rgba(255,255,255,.68)';
-    btn.style.background = isActive ? 'rgba(245,197,24,.07)' : 'transparent';
+    btn.style.borderBottomColor = isActive ? '#00e5a0' : 'transparent';
+    btn.style.color = isActive ? '#00e5a0' : '#5a7090';
+    btn.style.background = isActive ? 'rgba(0,229,160,.04)' : 'transparent';
   }});
 }}
 
@@ -2486,7 +2521,7 @@ function simSlide(simId, val, slMin, slMax, nd, nt, maxL, maxP) {{
   const move = spot - OC.spot;
   const pct  = ((val - slMin) / (slMax - slMin) * 100);
   const sl   = document.getElementById(simId + '_sl');
-  if (sl) sl.style.background = `linear-gradient(90deg,#f5c518 ${{pct}}%,rgba(255,255,255,.1) ${{pct}}%)`;
+  if (sl) sl.style.background = `linear-gradient(90deg,#00e5a0 ${{pct}}%,rgba(26,45,74,.8) ${{pct}}%)`;
   const slv = document.getElementById(simId + '_slv');
   if (slv) slv.textContent = 'Spot: \u20b9' + spot.toLocaleString('en-IN');
   let pnl = nd * move + nt;
@@ -2848,7 +2883,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .sc-card:hover{border-color:rgba(0,200,150,.3);transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,200,150,.1)}
 .sc-card.hidden{display:none}
 .sc-card.expanded{grid-column:1 / -1 !important;flex-direction:row !important;align-items:flex-start;border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12);}
-.sc-card.expanded .sc-detail{display:block;flex:0 0 380px;width:380px;border-top:none;border-left:1px solid rgba(0,200,150,.15);overflow-y:auto;max-height:480px;}
+.sc-card.expanded .sc-detail{display:block;flex:0 0 400px;width:400px;border-top:none;border-left:1px solid rgba(0,229,160,.15);overflow-y:auto;max-height:480px;background:rgba(5,13,26,.8);}
 .sc-card.expanded .sc-summary{flex:1;min-width:180px;}
 .sc-card.expanded:hover{transform:none;}
 .sc-card.expanded .sc-detail{display:block}
