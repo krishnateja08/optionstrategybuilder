@@ -2847,12 +2847,15 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .sc-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;position:relative;}
 .sc-card:hover{border-color:rgba(0,200,150,.3);transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,200,150,.1)}
 .sc-card.hidden{display:none}
-.sc-card.expanded{grid-column:1 / -1 !important;flex-direction:row !important;align-items:flex-start;border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12);}
-.sc-card.expanded .sc-detail{display:block;flex:0 0 380px;width:380px;border-top:none;border-left:1px solid rgba(0,200,150,.15);overflow-y:auto;max-height:480px;}
-.sc-card.expanded .sc-summary{flex:1;min-width:180px;}
+.sc-card.expanded{grid-column:1 / -1 !important;flex-direction:column !important;align-items:stretch;border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12);}
+.sc-card.expanded .sc-summary{display:flex;flex-direction:row;align-items:flex-start;flex-wrap:wrap;gap:0;}
+.sc-card.expanded .sc-detail{display:block;width:100%;border-top:1px solid rgba(0,200,150,.15);border-left:none;overflow:visible;max-height:none;}
+.sc-card.expanded .sc-metrics-live{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0;}
 .sc-card.expanded:hover{transform:none;}
-.sc-card.expanded .sc-detail{display:block}
-.sc-card.expanded{border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12)}
+.sc-close-btn{display:none;position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:50%;border:1px solid rgba(0,200,150,.4);background:rgba(0,200,150,.12);color:#00c896;font-size:16px;line-height:1;cursor:pointer;align-items:center;justify-content:center;z-index:10;transition:all .2s;font-family:monospace;}
+.sc-close-btn:hover{background:rgba(0,200,150,.28);border-color:#00c896;}
+.sc-card.expanded .sc-close-btn{display:flex;}
+.sc-card.expanded .sc-pop-badge{display:none;}
 .sc-pop-badge{position:absolute;top:8px;right:8px;font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);z-index:5;letter-spacing:.5px;transition:all .3s;min-width:38px;text-align:center;}
 .sc-svg{display:flex;align-items:center;justify-content:center;padding:14px 0 6px;background:rgba(255,255,255,.02)}
 .sc-body{padding:10px 12px 12px}
@@ -2863,6 +2866,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .sc-detail{display:none;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,200,150,.03)}
 .sc-desc{font-size:15.9px;color:rgba(255,255,255,.5);line-height:1.7;padding:12px 12px 8px;border-bottom:1px solid rgba(255,255,255,.05);}
 .sc-metrics-live{padding:0}
+.sc-card.expanded .sc-metrics-live > *{border-right:1px solid rgba(255,255,255,.04);}
 .sc-loading{padding:14px 12px;font-size:15.9px;color:rgba(255,255,255,.68);text-align:center;font-family:'DM Mono',monospace}
 .metric-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s;}
 .metric-row:hover{background:rgba(255,255,255,.03)}
@@ -3349,12 +3353,27 @@ function filterStrat(cat,btn){{
   }});}}
 }}
 document.addEventListener("click",function(e){{
+  // Handle close button
+  if(e.target.closest('.sc-close-btn')){{
+    e.stopPropagation();
+    const card=e.target.closest(".sc-card");
+    if(card) card.classList.remove("expanded");
+    return;
+  }}
   const card=e.target.closest(".sc-card");
   if(card){{
     const was=card.classList.contains("expanded");
     document.querySelectorAll(".sc-card.expanded").forEach(c=>c.classList.remove("expanded"));
     if(!was){{
       card.classList.add("expanded");
+      // Inject close button if not already present
+      if(!card.querySelector('.sc-close-btn')){{
+        const btn=document.createElement('button');
+        btn.className='sc-close-btn';
+        btn.innerHTML='&#x2715;';
+        btn.title='Close';
+        card.appendChild(btn);
+      }}
       const mel=card.querySelector('.sc-metrics-live');
       if(mel&&mel.querySelector('.sc-loading')){{
         try{{
