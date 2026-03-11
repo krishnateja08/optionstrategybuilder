@@ -2236,7 +2236,7 @@ function calcMetrics(shape, smartPop) {{
     </span>`
   ).join('<br>');
   const strikeStr = 'ATM \u20b9' + atm.toLocaleString('en-IN');
-  return {{pop,mpStr,mlStr,rrStr,beStr,ncStr,marginStr,mpPct,strikeStr,ltpStr,
+  return {{pop,mpStr,mlStr,rrStr,beStr,ncStr,marginStr,mpPct,strikeStr,ltpStr,ltpParts,
            mpRaw:mp,mlRaw:ml,ncRaw:Math.round(nc),ncPositive:nc>=0,
            netDelta:Math.round(netDelta*100)/100,
            netTheta:Math.round(netTheta*100)/100,
@@ -2247,40 +2247,58 @@ function calcMetrics(shape, smartPop) {{
 function renderMetrics(m, scoreBreakdown) {{
   const pc=m.pop>=70?'#00c896':(m.pop>=55?'#4de8b8':m.pop>=45?'#6480ff':'#ff6b6b');
   const nc=m.ncPositive?'#00c896':'#ff6b6b';
+
+  // ── LTP legs ──
+  const ltpLegsHtml = (m.ltpParts||[]).map(x =>
+    `<div class="sc-ltp-leg">
+      <div class="sc-ltp-leg-lbl">${{x.l}}</div>
+      <div class="sc-ltp-leg-val" style="color:${{x.c}};">\u20b9${{x.v.toFixed(2)}}</div>
+    </div>`
+  ).join('');
+
+  // ── PoP breakdown ──
   const sbHtml = scoreBreakdown ? `
-    <div style="background:rgba(100,128,255,.06);border-top:1px solid rgba(100,128,255,.1);padding:8px 12px;">
-      <div style="font-size:11.6px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(100,128,255,.6);margin-bottom:6px;">PoP BREAKDOWN</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;">
-        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">Base <b style="color:#fff;">50%</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">Bias <b style="color:${{scoreBreakdown.biasAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.biasAdj>=0?'+':''}}${{scoreBreakdown.biasAdj}}</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">S/R <b style="color:${{scoreBreakdown.srAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.srAdj>=0?'+':''}}${{scoreBreakdown.srAdj}}</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">OI <b style="color:${{scoreBreakdown.oiAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.oiAdj>=0?'+':''}}${{scoreBreakdown.oiAdj}}</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">PCR <b style="color:${{scoreBreakdown.pcrAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.pcrAdj>=0?'+':''}}${{scoreBreakdown.pcrAdj}}</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">Strat <b style="color:${{scoreBreakdown.stratAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.stratAdj>=0?'+':''}}${{scoreBreakdown.stratAdj}}</b></span>
-      </div>
+    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px;padding:7px 10px;background:rgba(100,128,255,.05);border-top:1px solid rgba(100,128,255,.1);">
+      <span style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(100,128,255,.5);margin-right:2px;">PoP</span>
+      <span style="font-size:11px;background:rgba(0,0,0,.25);padding:2px 7px;border-radius:5px;color:rgba(255,255,255,.42);">Base <b style="color:#fff;">50%</b></span>
+      <span style="font-size:11px;background:rgba(0,0,0,.25);padding:2px 7px;border-radius:5px;color:rgba(255,255,255,.42);">Bias <b style="color:${{scoreBreakdown.biasAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.biasAdj>=0?'+':''}}${{scoreBreakdown.biasAdj}}</b></span>
+      <span style="font-size:11px;background:rgba(0,0,0,.25);padding:2px 7px;border-radius:5px;color:rgba(255,255,255,.42);">S/R <b style="color:${{scoreBreakdown.srAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.srAdj>=0?'+':''}}${{scoreBreakdown.srAdj}}</b></span>
+      <span style="font-size:11px;background:rgba(0,0,0,.25);padding:2px 7px;border-radius:5px;color:rgba(255,255,255,.42);">OI <b style="color:${{scoreBreakdown.oiAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.oiAdj>=0?'+':''}}${{scoreBreakdown.oiAdj}}</b></span>
+      <span style="font-size:11px;background:rgba(0,0,0,.25);padding:2px 7px;border-radius:5px;color:rgba(255,255,255,.42);">PCR <b style="color:${{scoreBreakdown.pcrAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.pcrAdj>=0?'+':''}}${{scoreBreakdown.pcrAdj}}</b></span>
+      <span style="font-size:11px;background:rgba(0,0,0,.25);padding:2px 7px;border-radius:5px;color:rgba(255,255,255,.42);">Strat <b style="color:${{scoreBreakdown.stratAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.stratAdj>=0?'+':''}}${{scoreBreakdown.stratAdj}}</b></span>
     </div>` : '';
-  return `<div class="metric-row metric-strike"><span class="metric-lbl">Strike Price</span>
-    <span class="metric-val" style="color:#ffd166;font-size:15.9px;text-align:right;">${{m.strikeStr}}</span></div>
-    <div class="metric-row" style="background:rgba(0,200,220,.04);border-bottom:1px solid rgba(0,200,220,.10);">
-      <span class="metric-lbl" style="color:rgba(0,200,220,.7);">LTP (per leg)</span>
-      <span class="metric-val" style="text-align:right;line-height:1.6;display:flex;flex-direction:column;align-items:flex-end;">${{m.ltpStr}}</span>
+
+  // ── 8 metric tiles ──
+  const tiles = [
+    {{lbl:'PoP',         val:`<span style="font-size:18px;font-weight:800;color:${{pc}};">${{m.pop}}%</span>`,           bg:'rgba(0,200,150,.07)',  bdr:'rgba(0,200,150,.22)'}},
+    {{lbl:'Max Profit',  val:`<span style="color:#00c896;">${{m.mpStr}}</span>`,  sub:m.mpPct,                            bg:'rgba(0,200,150,.05)',  bdr:'rgba(0,200,150,.15)'}},
+    {{lbl:'Max Loss',    val:`<span style="color:#ff6b6b;">${{m.mlStr}}</span>`,                                          bg:'rgba(255,107,107,.06)',bdr:'rgba(255,107,107,.2)'}},
+    {{lbl:'RR Ratio',   val:`<span style="color:#6480ff;">${{m.rrStr}}</span>`,                                           bg:'rgba(100,128,255,.06)',bdr:'rgba(100,128,255,.2)'}},
+    {{lbl:'Breakeven',  val:`<span style="color:#00c8e0;font-size:12px;">${{m.beStr}}</span>`,                            bg:'rgba(0,200,220,.04)', bdr:'rgba(0,200,220,.15)'}},
+    {{lbl:'Net Cr/Dr',  val:`<span style="color:${{nc}};font-size:12px;">${{m.ncStr}}</span>`,                            bg:'rgba(255,107,107,.04)',bdr:'rgba(255,107,107,.13)'}},
+    {{lbl:'Margin',     val:`<span style="color:#8aa0ff;font-size:12px;">${{m.marginStr}}</span>`,                        bg:'rgba(138,160,255,.05)',bdr:'rgba(138,160,255,.16)'}},
+    {{lbl:'Strike ATM', val:`<span style="color:#ffd166;font-size:12px;">${{m.strikeStr}}</span>`,                        bg:'rgba(255,209,102,.05)',bdr:'rgba(255,209,102,.16)'}}
+  ];
+  const tilesHtml = tiles.map(t =>
+    `<div class="sc-tile" style="background:${{t.bg}};border-color:${{t.bdr}};">
+      <div class="sc-tile-lbl">${{t.lbl}}</div>
+      <div class="sc-tile-val">${{t.val}}</div>
+      ${{t.sub ? `<div class="sc-tile-sub">${{t.sub}}</div>` : ''}}
+    </div>`
+  ).join('');
+
+  return `<div class="sc-exp-body">
+    <!-- LEFT 50%: LTP + tiles + PoP -->
+    <div class="sc-exp-left">
+      <div class="sc-ltp-wrap">${{ltpLegsHtml}}</div>
+      <div class="sc-tiles">${{tilesHtml}}</div>
+      ${{sbHtml}}
     </div>
-    <div class="metric-row"><span class="metric-lbl">Prob. of Profit</span>
-    <span class="metric-val" style="color:${{pc}};font-weight:800;font-size:21.8px;">${{m.pop}}%</span></div>
-    <div class="metric-row"><span class="metric-lbl">Max. Profit</span>
-    <span class="metric-val" style="color:#00c896;">${{m.mpStr}} <small style="opacity:.5;">${{m.mpPct}}</small></span></div>
-    <div class="metric-row"><span class="metric-lbl">Max. Loss</span>
-    <span class="metric-val" style="color:#ff6b6b;">${{m.mlStr}}</span></div>
-    <div class="metric-row"><span class="metric-lbl">Max RR Ratio</span>
-    <span class="metric-val" style="color:#6480ff;">${{m.rrStr}}</span></div>
-    <div class="metric-row"><span class="metric-lbl">Breakevens</span>
-    <span class="metric-val" style="color:#00c8e0;font-size:15.9px;">${{m.beStr}}</span></div>
-    <div class="metric-row"><span class="metric-lbl">Net Credit / Debit</span>
-    <span class="metric-val" style="color:${{nc}};">${{m.ncStr}}</span></div>
-    <div class="metric-row" style="border-bottom:none;"><span class="metric-lbl">Est. Margin/Premium</span>
-    <span class="metric-val" style="color:#8aa0ff;">${{m.marginStr}}</span></div>
-    ${{sbHtml}}
-    ${{buildIntradaySim(m)}}`;
+    <!-- RIGHT 50%: Scenarios/Greeks/Slider tabs -->
+    <div class="sc-exp-right">
+      ${{buildIntradaySim(m)}}
+    </div>
+  </div>`;
 }}
 
 // ── Intraday P&L Simulator ───────────────────────────────────────────────────
@@ -2847,12 +2865,32 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .sc-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;position:relative;}
 .sc-card:hover{border-color:rgba(0,200,150,.3);transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,200,150,.1)}
 .sc-card.hidden{display:none}
-.sc-card.expanded{grid-column:1 / -1 !important;flex-direction:row !important;align-items:flex-start;border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12);}
-.sc-card.expanded .sc-detail{display:block;flex:0 0 380px;width:380px;border-top:none;border-left:1px solid rgba(0,200,150,.15);overflow-y:auto;max-height:480px;}
-.sc-card.expanded .sc-summary{flex:1;min-width:180px;}
+.sc-card.expanded{grid-column:1 / -1 !important;flex-direction:column !important;border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12);}
 .sc-card.expanded:hover{transform:none;}
-.sc-card.expanded .sc-detail{display:block}
-.sc-card.expanded{border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12)}
+.sc-card.expanded .sc-summary{display:flex;flex-direction:row;align-items:flex-start;}
+.sc-card.expanded .sc-svg{width:72px;flex-shrink:0;padding:12px 8px;}
+.sc-card.expanded .sc-body{flex:1;min-width:0;}
+.sc-card.expanded .sc-detail{display:block;overflow:visible;max-height:none;border-top:none;}
+.sc-card.expanded .sc-pop-badge{display:none;}
+/* 50/50 split body */
+.sc-exp-body{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid rgba(255,255,255,.06);}
+.sc-exp-left{border-right:1px solid rgba(255,255,255,.07);}
+.sc-exp-right{}
+/* LTP legs */
+.sc-ltp-wrap{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px 10px 8px;}
+.sc-ltp-leg{background:rgba(0,200,220,.05);border:1px solid rgba(0,200,220,.14);border-radius:8px;padding:8px 10px;}
+.sc-ltp-leg-lbl{font-size:10px;color:rgba(255,255,255,.42);margin-bottom:2px;font-family:'DM Mono',monospace;}
+.sc-ltp-leg-val{font-family:'DM Mono',monospace;font-size:15px;font-weight:700;}
+/* tiles */
+.sc-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:0 10px 10px;}
+.sc-tile{border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;border:1px solid;}
+.sc-tile-lbl{font-size:9px;font-family:'DM Mono',monospace;letter-spacing:.8px;text-transform:uppercase;color:rgba(255,255,255,.42);}
+.sc-tile-val{font-family:'DM Mono',monospace;font-size:14px;font-weight:700;line-height:1.2;}
+.sc-tile-sub{font-size:9px;color:rgba(255,255,255,.28);}
+/* close button */
+.sc-close-btn{display:none;position:absolute;top:9px;right:9px;width:26px;height:26px;border-radius:50%;border:1px solid rgba(0,200,150,.4);background:rgba(0,200,150,.1);color:#00c896;font-size:13px;line-height:1;cursor:pointer;align-items:center;justify-content:center;z-index:10;transition:all .2s;font-family:monospace;}
+.sc-close-btn:hover{background:rgba(0,200,150,.28);border-color:#00c896;}
+.sc-card.expanded .sc-close-btn{display:flex;}
 .sc-pop-badge{position:absolute;top:8px;right:8px;font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);z-index:5;letter-spacing:.5px;transition:all .3s;min-width:38px;text-align:center;}
 .sc-svg{display:flex;align-items:center;justify-content:center;padding:14px 0 6px;background:rgba(255,255,255,.02)}
 .sc-body{padding:10px 12px 12px}
@@ -3349,12 +3387,25 @@ function filterStrat(cat,btn){{
   }});}}
 }}
 document.addEventListener("click",function(e){{
+  if(e.target.closest('.sc-close-btn')){{
+    e.stopPropagation();
+    const card=e.target.closest(".sc-card");
+    if(card) card.classList.remove("expanded");
+    return;
+  }}
   const card=e.target.closest(".sc-card");
   if(card){{
     const was=card.classList.contains("expanded");
     document.querySelectorAll(".sc-card.expanded").forEach(c=>c.classList.remove("expanded"));
     if(!was){{
       card.classList.add("expanded");
+      if(!card.querySelector('.sc-close-btn')){{
+        const btn=document.createElement('button');
+        btn.className='sc-close-btn';
+        btn.innerHTML='&#x2715;';
+        btn.title='Close';
+        card.appendChild(btn);
+      }}
       const mel=card.querySelector('.sc-metrics-live');
       if(mel&&mel.querySelector('.sc-loading')){{
         try{{
