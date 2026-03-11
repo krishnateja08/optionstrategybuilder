@@ -2247,72 +2247,63 @@ function calcMetrics(shape, smartPop) {{
 function renderMetrics(m, scoreBreakdown) {{
   const pc=m.pop>=70?'#00e5a0':(m.pop>=55?'#4de8b8':m.pop>=45?'#6480ff':'#ff4d6a');
   const nc=m.ncPositive?'#00e5a0':'#ff4d6a';
-  // Sample 1 Aurora Dark — PoP breakdown chips
   const sbHtml = scoreBreakdown ? `
     <div style="background:rgba(0,10,25,.4);border-top:1px solid rgba(26,45,74,.8);padding:8px 12px 10px;">
-      <div style="font-size:9px;letter-spacing:1.8px;text-transform:uppercase;color:#5a7090;margin-bottom:7px;font-family:'DM Mono',monospace;">PoP BREAKDOWN</div>
+      <div style="font-size:9px;letter-spacing:1.8px;text-transform:uppercase;color:#5a7090;margin-bottom:7px;font-family:DM Mono,monospace;">PoP BREAKDOWN</div>
       <div style="display:flex;flex-wrap:wrap;gap:5px;">
-        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:'DM Mono',monospace;">Base <b style="color:#c8d8f0;">60%</b></span>
-        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:'DM Mono',monospace;">Bias <b style="color:${{scoreBreakdown.biasAdj>=0?'#00e5a0':'#ff4d6a'}};">${{scoreBreakdown.biasAdj>=0?'+':''}}${{scoreBreakdown.biasAdj}}</b></span>
-        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:'DM Mono',monospace;">S/R <b style="color:${{scoreBreakdown.srAdj>=0?'#00e5a0':'#ff4d6a'}};">${{scoreBreakdown.srAdj>=0?'+':''}}${{scoreBreakdown.srAdj}}</b></span>
-        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:'DM Mono',monospace;">OI <b style="color:${{scoreBreakdown.oiAdj>=0?'#00e5a0':'#ff4d6a'}};">${{scoreBreakdown.oiAdj>=0?'+':''}}${{scoreBreakdown.oiAdj}}</b></span>
-        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:'DM Mono',monospace;">PCR <b style="color:${{scoreBreakdown.pcrAdj>=0?'#00e5a0':'#ff4d6a'}};">${{scoreBreakdown.pcrAdj>=0?'+':''}}${{scoreBreakdown.pcrAdj}}</b></span>
-        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:'DM Mono',monospace;">Strat <b style="color:${{scoreBreakdown.stratAdj>=0?'#00e5a0':'#ff4d6a'}};">${{scoreBreakdown.stratAdj>=0?'+':''}}${{scoreBreakdown.stratAdj}}</b></span>
+        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:DM Mono,monospace;">Base <b style="color:#c8d8f0;">60%</b></span>
+        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:DM Mono,monospace;">Bias <b style="color:${{scoreBreakdown.biasAdj>=0?'#00e5a0':'#ff4d6a'}};">${{scoreBreakdown.biasAdj>=0?'+':''}}${{scoreBreakdown.biasAdj}}</b></span>
+        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:DM Mono,monospace;">S/R <b style="color:${{scoreBreakdown.srAdj>=0?'#00e5a0':'#ff4d6a'}};">${{scoreBreakdown.srAdj>=0?'+':''}}${{scoreBreakdown.srAdj}}</b></span>
+        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:DM Mono,monospace;">OI <b style="color:${{scoreBreakdown.oiAdj>=0?'#00e5a0':'#ff4d6a'}};">${{scoreBreakdown.oiAdj>=0?'+':''}}${{scoreBreakdown.oiAdj}}</b></span>
+        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:DM Mono,monospace;">PCR <b style="color:${{scoreBreakdown.pcrAdj>=0?'#00e5a0':'#ff4d6a'}};">${{scoreBreakdown.pcrAdj>=0?'+':''}}${{scoreBreakdown.pcrAdj}}</b></span>
+        <span style="font-size:11px;background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.07);color:#5a7090;font-family:DM Mono,monospace;">Strat <b style="color:${{scoreBreakdown.stratAdj>=0?'#00e5a0':'#ff4d6a'}};">${{scoreBreakdown.stratAdj>=0?'+':''}}${{scoreBreakdown.stratAdj}}</b></span>
       </div>
     </div>` : '';
-  // ── Aurora Dark metric rows ──────────────────────────────────────
-  const rowStyle = 'display:flex;justify-content:space-between;align-items:center;padding:7px 12px;border-bottom:1px solid rgba(26,45,74,.6);transition:background .15s;';
-  const rowHover = 'onmouseover="this.style.background=\'rgba(255,255,255,.025)\'" onmouseout="this.style.background=\'\'"';
-  const lblStyle = 'font-family:\'DM Mono\',monospace;font-size:9px;color:#5a7090;letter-spacing:1.2px;text-transform:uppercase;';
-  const valStyle = 'font-family:\'DM Mono\',monospace;font-size:15px;font-weight:700;text-align:right;';
   return `
-  <!-- Strike + LTP -->
-  <div style="${{rowStyle}}background:rgba(255,213,79,.04);border-bottom:1px solid rgba(255,213,79,.12);" ${{rowHover}}>
-    <span style="${{lblStyle}}color:rgba(255,213,79,.7);">Strike Price</span>
-    <span style="${{valStyle}}color:#ffd54f;font-size:13px;">${{m.strikeStr}}</span>
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 12px;border-bottom:1px solid rgba(255,213,79,.12);background:rgba(255,213,79,.04);">
+    <span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(255,213,79,.7);letter-spacing:1.2px;text-transform:uppercase;">Strike Price</span>
+    <span style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;text-align:right;color:#ffd54f;">${{m.strikeStr}}</span>
   </div>
-  <div style="${{rowStyle}}background:rgba(0,200,220,.04);border-bottom:1px solid rgba(0,200,220,.10);" ${{rowHover}}>
-    <span style="${{lblStyle}}color:rgba(0,200,220,.7);">LTP (per leg)</span>
-    <span style="${{valStyle}}font-size:12px;line-height:1.7;display:flex;flex-direction:column;align-items:flex-end;">${{m.ltpStr}}</span>
-  </div>
-  <!-- Core metrics 2×2 grid -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(26,45,74,.6);">
-    <div style="padding:10px 12px;border-right:1px solid rgba(26,45,74,.6);">
-      <div style="${{lblStyle}}margin-bottom:5px;">Prob. of Profit</div>
-      <div style="${{valStyle}}color:${{pc}};font-size:22px;font-weight:800;">${{m.pop}}%</div>
-    </div>
-    <div style="padding:10px 12px;">
-      <div style="${{lblStyle}}margin-bottom:5px;">Max Profit</div>
-      <div style="${{valStyle}}color:#00e5a0;font-size:17px;">${{m.mpStr}} <span style="font-size:10px;opacity:.5;">${{m.mpPct}}</span></div>
-    </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 12px;border-bottom:1px solid rgba(0,200,220,.10);background:rgba(0,200,220,.04);">
+    <span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(0,200,220,.7);letter-spacing:1.2px;text-transform:uppercase;">LTP (per leg)</span>
+    <span style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;text-align:right;line-height:1.7;display:flex;flex-direction:column;align-items:flex-end;">${{m.ltpStr}}</span>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(26,45,74,.6);">
     <div style="padding:10px 12px;border-right:1px solid rgba(26,45,74,.6);">
-      <div style="${{lblStyle}}margin-bottom:5px;">Max Loss</div>
-      <div style="${{valStyle}}color:#ff4d6a;font-size:17px;">${{m.mlStr}}</div>
+      <div style="font-family:DM Mono,monospace;font-size:9px;color:#5a7090;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;">Prob. of Profit</div>
+      <div style="font-family:DM Mono,monospace;font-size:22px;font-weight:800;color:${{pc}};">${{m.pop}}%</div>
     </div>
     <div style="padding:10px 12px;">
-      <div style="${{lblStyle}}margin-bottom:5px;">R/R Ratio</div>
-      <div style="${{valStyle}}color:#6480ff;font-size:17px;">${{m.rrStr}}</div>
+      <div style="font-family:DM Mono,monospace;font-size:9px;color:#5a7090;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;">Max Profit</div>
+      <div style="font-family:DM Mono,monospace;font-size:17px;font-weight:700;color:#00e5a0;">${{m.mpStr}} <span style="font-size:10px;opacity:.5;">${{m.mpPct}}</span></div>
     </div>
   </div>
-  <!-- Lower metrics 4-col -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(26,45,74,.6);">
+    <div style="padding:10px 12px;border-right:1px solid rgba(26,45,74,.6);">
+      <div style="font-family:DM Mono,monospace;font-size:9px;color:#5a7090;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;">Max Loss</div>
+      <div style="font-family:DM Mono,monospace;font-size:17px;font-weight:700;color:#ff4d6a;">${{m.mlStr}}</div>
+    </div>
+    <div style="padding:10px 12px;">
+      <div style="font-family:DM Mono,monospace;font-size:9px;color:#5a7090;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;">R/R Ratio</div>
+      <div style="font-family:DM Mono,monospace;font-size:17px;font-weight:700;color:#6480ff;">${{m.rrStr}}</div>
+    </div>
+  </div>
   <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid rgba(26,45,74,.6);">
     <div style="padding:8px 10px;border-right:1px solid rgba(26,45,74,.6);">
-      <div style="${{lblStyle}}font-size:8px;margin-bottom:3px;">Breakeven</div>
-      <div style="${{valStyle}}font-size:11px;color:#c8d8f0;">${{m.beStr}}</div>
+      <div style="font-family:DM Mono,monospace;font-size:8px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;">Breakeven</div>
+      <div style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:#c8d8f0;">${{m.beStr}}</div>
     </div>
     <div style="padding:8px 10px;border-right:1px solid rgba(26,45,74,.6);">
-      <div style="${{lblStyle}}font-size:8px;margin-bottom:3px;">Net CR/DR</div>
-      <div style="${{valStyle}}font-size:11px;color:${{nc}};">${{m.ncStr}}</div>
+      <div style="font-family:DM Mono,monospace;font-size:8px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;">Net CR/DR</div>
+      <div style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:${{nc}};">${{m.ncStr}}</div>
     </div>
     <div style="padding:8px 10px;border-right:1px solid rgba(26,45,74,.6);">
-      <div style="${{lblStyle}}font-size:8px;margin-bottom:3px;">Margin</div>
-      <div style="${{valStyle}}font-size:11px;color:#8aa0ff;">${{m.marginStr}}</div>
+      <div style="font-family:DM Mono,monospace;font-size:8px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;">Margin</div>
+      <div style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:#8aa0ff;">${{m.marginStr}}</div>
     </div>
     <div style="padding:8px 10px;">
-      <div style="${{lblStyle}}font-size:8px;margin-bottom:3px;">ATM Strike</div>
-      <div style="${{valStyle}}font-size:11px;color:#c8d8f0;">${{m.strikeStr}}</div>
+      <div style="font-family:DM Mono,monospace;font-size:8px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;">ATM Strike</div>
+      <div style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:#c8d8f0;">${{m.strikeStr}}</div>
     </div>
   </div>
   ${{sbHtml}}
