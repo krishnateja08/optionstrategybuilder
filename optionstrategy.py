@@ -2778,7 +2778,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .h-chip{font-size:13px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:2px 9px;border-radius:20px;white-space:nowrap;}
 .h-score{font-family:'DM Mono',monospace;font-size:11.6px;color:rgba(255,255,255,.60);letter-spacing:.5px;}
 .h-ts{font-family:'DM Mono',monospace;font-size:11.6px;color:rgba(255,255,255,.18);letter-spacing:.5px;white-space:nowrap;}
-.main{display:grid;grid-template-columns:1fr;min-height:0}
+.main{display:grid;grid-template-columns:268px 1fr;min-height:0}
 .sidebar{background:rgba(8,11,20,.7);backdrop-filter:blur(12px);border-right:1px solid rgba(255,255,255,.06);position:sticky;top:57px;height:calc(100vh - 57px);overflow-y:auto;display:flex;flex-direction:column;}
 .sidebar-sticky-top{position:sticky;top:0;z-index:50;background:rgba(8,11,20,.95);backdrop-filter:blur(16px);border-bottom:1px solid rgba(100,128,255,.15);padding-bottom:4px;}
 .sidebar-scroll{flex:1;overflow-y:auto;}
@@ -3204,6 +3204,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
     strikes_html   = build_strikes_html(oc)
     ticker_html    = build_ticker_bar(tech, oc, vix_data)
     gauge_html     = build_dual_gauge_hero(oc, tech, md, ts)
+    greeks_sidebar = build_greeks_sidebar_html(oc)
     greeks_script  = build_greeks_script_html(oc)
     greeks_table   = build_greeks_table_html(oc)
 
@@ -3253,6 +3254,29 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
 {ticker_html}
 {gauge_html}
 <div class="main">
+  <aside class="sidebar">
+    <div class="sidebar-sticky-top">
+      <div id="greeksPanel">{greeks_sidebar}</div>
+    </div>
+    <div class="sidebar-scroll">
+    <div class="sb-sec">
+      <div class="sb-lbl">LIVE ANALYSIS</div>
+      <button class="sb-btn active" onclick="go('oi',this)">OI Dashboard</button>
+      <button class="sb-btn"        onclick="go('greeksTable',this)">&#9652; Option Greeks</button>
+      <button class="sb-btn"        onclick="go('kl',this)">Key Levels</button>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">STRATEGIES</div>
+      <button class="sb-btn" onclick="go('strat',this);filterStrat('bullish',null)">&#9650; Bullish <span class="sb-badge" style="color:var(--bull);">9</span></button>
+      <button class="sb-btn" onclick="go('strat',this);filterStrat('bearish',null)">&#9660; Bearish <span class="sb-badge" style="color:var(--bear);">9</span></button>
+      <button class="sb-btn" onclick="go('strat',this);filterStrat('nondirectional',null)">&#8596; Non-Directional <span class="sb-badge" style="color:var(--neut);">20</span></button>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-lbl">OPTION CHAIN</div>
+      <button class="sb-btn" onclick="go('strikes',this)">Top 5 Strikes</button>
+    </div>
+    </div>
+  </aside>
   <main class="content">
     <div class="main-tabs">
       <button class="main-tab active" id="mainTabOI" onclick="switchMainTab('oi')">&#128202; OI Dashboard</button>
