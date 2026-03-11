@@ -2361,39 +2361,33 @@ function buildIntradaySim(m) {{
   const slMax = Math.round((OC.spot + 400) / 25) * 25;
   const simId = 'sim_' + Math.random().toString(36).slice(2,7);
 
-  // ── Sample 1 Aurora Dark — tab + panel styling ─────────────────
-  const tabBase   = 'flex:1;padding:9px 4px;font-family:\'DM Mono\',monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:#5a7090;background:transparent;transition:all .2s;';
-  const tabActive = tabBase + 'border-bottom-color:#00e5a0;color:#00e5a0;background:rgba(0,229,160,.04);';
-  const hdrLbl    = 'font-family:\'DM Mono\',monospace;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#c8d8f0;';
-  const hdrNote   = 'font-family:\'DM Mono\',monospace;font-size:9px;color:#5a7090;background:rgba(0,0,0,.25);padding:2px 7px;border-radius:4px;';
-
   return `
 <div style="border-top:1px solid rgba(26,45,74,.8);background:rgba(5,13,26,.5);" onclick="event.stopPropagation()">
   <!-- Sub-tabs -->
   <div style="display:flex;border-bottom:1px solid rgba(26,45,74,.8);">
-    <button id="${{simId}}_t1" onclick="simTab('${{simId}}','t1')" style="${{tabActive}}">📊 SCENARIOS</button>
-    <button id="${{simId}}_t2" onclick="simTab('${{simId}}','t2')" style="${{tabBase}}">Δ GREEKS</button>
-    <button id="${{simId}}_t3" onclick="simTab('${{simId}}','t3')" style="${{tabBase}}">⟺ SLIDER</button>
+    <button id="${{simId}}_t1" onclick="simTab('${{simId}}','t1')" style="flex:1;padding:9px 4px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid #00e5a0;color:#00e5a0;background:rgba(0,229,160,.04);transition:all .2s;">📊 SCENARIOS</button>
+    <button id="${{simId}}_t2" onclick="simTab('${{simId}}','t2')" style="flex:1;padding:9px 4px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:#5a7090;background:transparent;transition:all .2s;">Δ GREEKS</button>
+    <button id="${{simId}}_t3" onclick="simTab('${{simId}}','t3')" style="flex:1;padding:9px 4px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:#5a7090;background:transparent;transition:all .2s;">⟺ SLIDER</button>
   </div>
 
   <!-- TAB 1: Scenarios -->
   <div id="${{simId}}_c1">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px 7px;border-bottom:1px solid rgba(26,45,74,.6);">
-      <div style="${{hdrLbl}}">📋 TODAY'S P&amp;L SCENARIOS</div>
-      <div style="${{hdrNote}}">Delta×move + Theta · 1 day</div>
+      <div style="font-family:DM Mono,monospace;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#c8d8f0;">📋 TODAY'S P&amp;L SCENARIOS</div>
+      <div style="font-family:DM Mono,monospace;font-size:9px;color:#5a7090;background:rgba(0,0,0,.25);padding:2px 7px;border-radius:4px;">Delta×move + Theta · 1 day</div>
     </div>
     <table style="width:100%;border-collapse:collapse;">
       <thead>
         <tr style="background:rgba(0,0,0,.3);">
-          <th style="padding:5px 10px;font-family:'DM Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#5a7090;text-align:left;border-bottom:1px solid rgba(26,45,74,.6);">MOVE</th>
-          <th style="padding:5px 8px;font-family:'DM Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#5a7090;text-align:left;border-bottom:1px solid rgba(26,45,74,.6);">TODAY P&amp;L</th>
-          <th style="padding:5px 8px;font-family:'DM Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#5a7090;text-align:right;border-bottom:1px solid rgba(26,45,74,.6);">VS MAX</th>
+          <th style="padding:5px 10px;font-family:DM Mono,monospace;font-size:8px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#5a7090;text-align:left;border-bottom:1px solid rgba(26,45,74,.6);">MOVE</th>
+          <th style="padding:5px 8px;font-family:DM Mono,monospace;font-size:8px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#5a7090;text-align:left;border-bottom:1px solid rgba(26,45,74,.6);">TODAY P&amp;L</th>
+          <th style="padding:5px 8px;font-family:DM Mono,monospace;font-size:8px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#5a7090;text-align:right;border-bottom:1px solid rgba(26,45,74,.6);">VS MAX</th>
           <th style="padding:5px 6px;border-bottom:1px solid rgba(26,45,74,.6);"></th>
         </tr>
       </thead>
       <tbody>${{tRows}}</tbody>
     </table>
-    <div style="padding:8px 12px;font-family:'DM Mono',monospace;font-size:9px;color:#5a7090;background:rgba(0,0,0,.2);border-top:1px solid rgba(26,45,74,.5);line-height:1.7;">
+    <div style="padding:8px 12px;font-family:DM Mono,monospace;font-size:9px;color:#5a7090;background:rgba(0,0,0,.2);border-top:1px solid rgba(26,45,74,.5);line-height:1.7;">
       © P&amp;L = <span style="color:#c8d8f0;">Delta×move</span> + <span style="color:#c8d8f0;">Theta (1 day)</span>. Actual exit P&amp;L may differ due to IV changes. Max profit of ${{m.mpStr}} is achievable at expiry only.
     </div>
   </div>
@@ -2401,53 +2395,50 @@ function buildIntradaySim(m) {{
   <!-- TAB 2: Greeks Breakdown -->
   <div id="${{simId}}_c2" style="display:none;">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px 7px;border-bottom:1px solid rgba(26,45,74,.6);">
-      <div style="${{hdrLbl}}">🔬 NET GREEKS (per lot)</div>
-      <div style="${{hdrNote}}">values per lot · today</div>
+      <div style="font-family:DM Mono,monospace;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#c8d8f0;">🔬 NET GREEKS (per lot)</div>
+      <div style="font-family:DM Mono,monospace;font-size:9px;color:#5a7090;background:rgba(0,0,0,.25);padding:2px 7px;border-radius:4px;">values per lot · today</div>
     </div>
     <div style="padding:10px 12px;display:flex;flex-direction:column;gap:5px;">
-      <!-- Delta -->
       <div style="display:flex;align-items:center;gap:10px;background:rgba(0,229,160,.06);border:1px solid rgba(0,229,160,.15);border-radius:8px;padding:8px 12px;">
         <div style="width:28px;height:28px;border-radius:6px;background:rgba(0,229,160,.15);border:1px solid rgba(0,229,160,.25);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#00e5a0;flex-shrink:0;">Δ</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1.2px;color:rgba(0,229,160,.8);text-transform:uppercase;">DELTA</div>
-          <div style="font-family:'DM Mono',monospace;font-size:10px;color:#5a7090;">per 1pt move</div>
+          <div style="font-family:DM Mono,monospace;font-size:10px;font-weight:700;letter-spacing:1.2px;color:rgba(0,229,160,.8);text-transform:uppercase;">DELTA</div>
+          <div style="font-family:DM Mono,monospace;font-size:10px;color:#5a7090;">per 1pt move</div>
         </div>
-        <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:${{nd>=0?'#00e5a0':'#ff4d6a'}};white-space:nowrap;">${{ndStr}}</div>
+        <div style="font-family:DM Mono,monospace;font-size:18px;font-weight:700;color:${{nd>=0?'#00e5a0':'#ff4d6a'}};white-space:nowrap;">${{ndStr}}</div>
       </div>
-      <!-- Theta -->
       <div style="display:flex;align-items:center;gap:10px;background:rgba(255,77,106,.06);border:1px solid rgba(255,77,106,.15);border-radius:8px;padding:8px 12px;">
         <div style="width:28px;height:28px;border-radius:6px;background:rgba(255,77,106,.15);border:1px solid rgba(255,77,106,.25);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#ff4d6a;flex-shrink:0;">Θ</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1.2px;color:rgba(255,77,106,.8);text-transform:uppercase;">THETA</div>
-          <div style="font-family:'DM Mono',monospace;font-size:10px;color:#5a7090;">decay / day</div>
+          <div style="font-family:DM Mono,monospace;font-size:10px;font-weight:700;letter-spacing:1.2px;color:rgba(255,77,106,.8);text-transform:uppercase;">THETA</div>
+          <div style="font-family:DM Mono,monospace;font-size:10px;color:#5a7090;">decay / day</div>
         </div>
-        <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:${{ntCol}};white-space:nowrap;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt))}}</div>
+        <div style="font-family:DM Mono,monospace;font-size:18px;font-weight:700;color:${{ntCol}};white-space:nowrap;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt))}}</div>
       </div>
-      <!-- Vega -->
       <div style="display:flex;align-items:center;gap:10px;background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.15);border-radius:8px;padding:8px 12px;">
         <div style="width:28px;height:28px;border-radius:6px;background:rgba(100,128,255,.15);border:1px solid rgba(100,128,255,.25);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#6480ff;flex-shrink:0;">ν</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1.2px;color:rgba(100,128,255,.8);text-transform:uppercase;">VEGA</div>
-          <div style="font-family:'DM Mono',monospace;font-size:10px;color:#5a7090;">per 1% IV</div>
+          <div style="font-family:DM Mono,monospace;font-size:10px;font-weight:700;letter-spacing:1.2px;color:rgba(100,128,255,.8);text-transform:uppercase;">VEGA</div>
+          <div style="font-family:DM Mono,monospace;font-size:10px;color:#5a7090;">per 1% IV</div>
         </div>
-        <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:#6480ff;white-space:nowrap;">${{nvStr}}</div>
+        <div style="font-family:DM Mono,monospace;font-size:18px;font-weight:700;color:#6480ff;white-space:nowrap;">${{nvStr}}</div>
       </div>
     </div>
     <div style="border-top:1px solid rgba(26,45,74,.6);margin:0 12px;"></div>
     <div style="padding:10px 12px 10px;">
-      <div style="font-family:'DM Mono',monospace;font-size:9px;color:#5a7090;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:8px;">TODAY'S P&amp;L IF MARKET IS FLAT</div>
+      <div style="font-family:DM Mono,monospace;font-size:9px;color:#5a7090;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:8px;">TODAY'S P&amp;L IF MARKET IS FLAT</div>
       <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:10px;background:rgba(0,0,0,.25);border-radius:8px;border:1px solid rgba(26,45,74,.6);">
         <div style="text-align:center;">
-          <div style="font-family:'DM Mono',monospace;font-size:9px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">THETA DRAG</div>
-          <div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:${{ntCol}};line-height:1;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
+          <div style="font-family:DM Mono,monospace;font-size:9px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">THETA DRAG</div>
+          <div style="font-family:DM Mono,monospace;font-size:22px;font-weight:700;color:${{ntCol}};line-height:1;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
         </div>
         <div style="font-size:18px;color:rgba(255,255,255,.12);text-align:center;">=</div>
         <div style="text-align:center;">
-          <div style="font-family:'DM Mono',monospace;font-size:9px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">FLAT P&amp;L TODAY</div>
-          <div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:${{flatCol}};line-height:1;">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
+          <div style="font-family:DM Mono,monospace;font-size:9px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">FLAT P&amp;L TODAY</div>
+          <div style="font-family:DM Mono,monospace;font-size:22px;font-weight:700;color:${{flatCol}};line-height:1;">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
         </div>
       </div>
-      <div style="margin-top:9px;font-family:'DM Mono',monospace;font-size:11px;color:#5a7090;line-height:1.7;">
+      <div style="margin-top:9px;font-family:DM Mono,monospace;font-size:11px;color:#5a7090;line-height:1.7;">
         ${{nt < 0 ? '🔴 <span style="color:#ff4d6a;font-weight:700;">Theta negative</span> — you pay \u20b9' + Math.abs(Math.round(nt)).toLocaleString("en-IN") + '/day for holding. Need Nifty to move <span style="color:#ffd54f;font-weight:700;">' + Math.ceil(Math.abs(nt)/Math.abs(nd||1)) + ' pts</span> just to break even today.' : '🟢 <span style="color:#00e5a0;font-weight:700;">Theta positive</span> — you earn \u20b9' + Math.abs(Math.round(nt)).toLocaleString("en-IN") + '/day time decay. Premium selling strategy benefits from flat market.'}}
       </div>
     </div>
@@ -2456,10 +2447,10 @@ function buildIntradaySim(m) {{
   <!-- TAB 3: Live Slider -->
   <div id="${{simId}}_c3" style="display:none;">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px 7px;border-bottom:1px solid rgba(26,45,74,.6);">
-      <div style="${{hdrLbl}}">⟺ LIVE SCENARIO SLIDER</div>
+      <div style="font-family:DM Mono,monospace;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#c8d8f0;">⟺ LIVE SCENARIO SLIDER</div>
     </div>
     <div style="padding:10px 12px;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-family:'DM Mono',monospace;font-size:11px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-family:DM Mono,monospace;font-size:11px;">
         <span style="color:#5a7090;">\u20b9${{slMin.toLocaleString('en-IN')}}</span>
         <span id="${{simId}}_slv" style="font-weight:700;color:#00e5a0;background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.25);border-radius:4px;padding:1px 8px;">Spot: \u20b9${{OC.spot.toLocaleString('en-IN')}}</span>
         <span style="color:#5a7090;">\u20b9${{slMax.toLocaleString('en-IN')}}</span>
@@ -2470,21 +2461,21 @@ function buildIntradaySim(m) {{
     </div>
     <div id="${{simId}}_sr" style="padding:4px 12px 12px;text-align:center;">
       <div style="background:rgba(0,0,0,.3);border-radius:10px;padding:14px;border:1px solid rgba(26,45,74,.8);">
-        <div style="font-family:'DM Mono',monospace;font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#5a7090;margin-bottom:6px;">ESTIMATED EXIT P&amp;L TODAY</div>
-        <div id="${{simId}}_spnl" style="font-family:'DM Mono',monospace;font-size:36px;font-weight:700;color:${{ntCol}};">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
-        <div id="${{simId}}_snote" style="font-family:'DM Mono',monospace;font-size:11px;color:#5a7090;margin-top:4px;">Flat market — theta drag only</div>
+        <div style="font-family:DM Mono,monospace;font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#5a7090;margin-bottom:6px;">ESTIMATED EXIT P&amp;L TODAY</div>
+        <div id="${{simId}}_spnl" style="font-family:DM Mono,monospace;font-size:36px;font-weight:700;color:${{ntCol}};">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
+        <div id="${{simId}}_snote" style="font-family:DM Mono,monospace;font-size:11px;color:#5a7090;margin-top:4px;">Flat market — theta drag only</div>
         <div style="display:flex;gap:12px;justify-content:center;margin-top:10px;padding-top:10px;border-top:1px solid rgba(26,45,74,.6);">
           <div style="text-align:center;">
-            <div style="font-family:'DM Mono',monospace;font-size:9px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Delta P&amp;L</div>
-            <div id="${{simId}}_sdelta" style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:#00e5a0;">\u20b90</div>
+            <div style="font-family:DM Mono,monospace;font-size:9px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Delta P&amp;L</div>
+            <div id="${{simId}}_sdelta" style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;color:#00e5a0;">\u20b90</div>
           </div>
           <div style="text-align:center;">
-            <div style="font-family:'DM Mono',monospace;font-size:9px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Theta Cost</div>
-            <div style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:${{ntCol}};">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
+            <div style="font-family:DM Mono,monospace;font-size:9px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Theta Cost</div>
+            <div style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;color:${{ntCol}};">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
           </div>
           <div style="text-align:center;">
-            <div style="font-family:'DM Mono',monospace;font-size:9px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">% of Max</div>
-            <div id="${{simId}}_spct" style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:#ffd54f;">—</div>
+            <div style="font-family:DM Mono,monospace;font-size:9px;color:#5a7090;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">% of Max</div>
+            <div id="${{simId}}_spct" style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;color:#ffd54f;">—</div>
           </div>
         </div>
       </div>
