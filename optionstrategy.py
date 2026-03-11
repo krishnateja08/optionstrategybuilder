@@ -2245,65 +2245,65 @@ function calcMetrics(shape, smartPop) {{
 }}
 
 function renderMetrics(m, scoreBreakdown) {{
-  const pc=m.pop>=70?'#00ffb4':(m.pop>=55?'#00c8ff':m.pop>=45?'#a87aff':'#ff4d7a');
-  const nc=m.ncPositive?'#00ffb4':'#ff4d7a';
+  const pc=m.pop>=70?'#38d888':(m.pop>=55?'#ffcc00':m.pop>=45?'#ffaa00':'#f04050');
+  const nc=m.ncPositive?'#38d888':'#f04050';
   const sbHtml = scoreBreakdown ? `
-    <div style="background:rgba(0,160,255,.04);border-top:1px solid rgba(0,160,255,.12);padding:9px 12px 11px;">
-      <div style="font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(0,220,255,.85);margin-bottom:7px;font-family:DM Mono,monospace;font-weight:700;">PoP BREAKDOWN</div>
+    <div style="background:rgba(255,185,0,.04);border-top:1px solid rgba(255,185,0,.12);padding:9px 12px 11px;">
+      <div style="font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,210,0,.85);margin-bottom:7px;font-family:DM Mono,monospace;font-weight:700;">PoP BREAKDOWN</div>
       <div style="display:flex;flex-wrap:wrap;gap:5px;">
-        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(0,160,255,.25);color:rgba(0,220,255,.85);font-family:DM Mono,monospace;">Base <b style="color:#00c8ff;">60%</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(0,160,255,.25);color:rgba(0,220,255,.85);font-family:DM Mono,monospace;">Bias <b style="color:${{scoreBreakdown.biasAdj>=0?'#00ffb4':'#ff4d7a'}};">${{scoreBreakdown.biasAdj>=0?'+':''}}${{scoreBreakdown.biasAdj}}</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(0,160,255,.25);color:rgba(0,220,255,.85);font-family:DM Mono,monospace;">S/R <b style="color:${{scoreBreakdown.srAdj>=0?'#00ffb4':'#ff4d7a'}};">${{scoreBreakdown.srAdj>=0?'+':''}}${{scoreBreakdown.srAdj}}</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(0,160,255,.25);color:rgba(0,220,255,.85);font-family:DM Mono,monospace;">OI <b style="color:${{scoreBreakdown.oiAdj>=0?'#00ffb4':'#ff4d7a'}};">${{scoreBreakdown.oiAdj>=0?'+':''}}${{scoreBreakdown.oiAdj}}</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(0,160,255,.25);color:rgba(0,220,255,.85);font-family:DM Mono,monospace;">PCR <b style="color:${{scoreBreakdown.pcrAdj>=0?'#00ffb4':'#ff4d7a'}};">${{scoreBreakdown.pcrAdj>=0?'+':''}}${{scoreBreakdown.pcrAdj}}</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(0,160,255,.25);color:rgba(0,220,255,.85);font-family:DM Mono,monospace;">Strat <b style="color:${{scoreBreakdown.stratAdj>=0?'#00ffb4':'#ff4d7a'}};">${{scoreBreakdown.stratAdj>=0?'+':''}}${{scoreBreakdown.stratAdj}}</b></span>
+        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">Base <b style="color:#ffcc00;">60%</b></span>
+        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">Bias <b style="color:${{scoreBreakdown.biasAdj>=0?'#38d888':'#f04050'}};">${{scoreBreakdown.biasAdj>=0?'+':''}}${{scoreBreakdown.biasAdj}}</b></span>
+        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">S/R <b style="color:${{scoreBreakdown.srAdj>=0?'#38d888':'#f04050'}};">${{scoreBreakdown.srAdj>=0?'+':''}}${{scoreBreakdown.srAdj}}</b></span>
+        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">OI <b style="color:${{scoreBreakdown.oiAdj>=0?'#38d888':'#f04050'}};">${{scoreBreakdown.oiAdj>=0?'+':''}}${{scoreBreakdown.oiAdj}}</b></span>
+        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">PCR <b style="color:${{scoreBreakdown.pcrAdj>=0?'#38d888':'#f04050'}};">${{scoreBreakdown.pcrAdj>=0?'+':''}}${{scoreBreakdown.pcrAdj}}</b></span>
+        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">Strat <b style="color:${{scoreBreakdown.stratAdj>=0?'#38d888':'#f04050'}};">${{scoreBreakdown.stratAdj>=0?'+':''}}${{scoreBreakdown.stratAdj}}</b></span>
       </div>
     </div>` : '';
   return `
-  <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(0,160,255,.12);background:rgba(0,160,255,.05);">
-    <span style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.85);letter-spacing:1.2px;text-transform:uppercase;font-weight:700;">Strike Price</span>
-    <span style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;text-align:right;color:#00c8ff;">${{m.strikeStr}}</span>
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,185,0,.12);background:rgba(255,185,0,.05);">
+    <span style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;font-weight:700;">Strike Price</span>
+    <span style="font-family:DM Mono,monospace;font-size:15px;font-weight:700;text-align:right;color:#ffcc00;">${{m.strikeStr}}</span>
   </div>
-  <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(0,255,180,.1);background:rgba(0,255,180,.03);">
-    <span style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,255,180,.9);letter-spacing:1.2px;text-transform:uppercase;font-weight:700;">LTP (per leg)</span>
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,185,0,.1);background:rgba(255,185,0,.03);">
+    <span style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.9);letter-spacing:1.2px;text-transform:uppercase;font-weight:700;">LTP (per leg)</span>
     <span style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;text-align:right;line-height:1.8;display:flex;flex-direction:column;align-items:flex-end;">${{m.ltpStr}}</span>
   </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(0,160,255,.1);">
-    <div style="padding:11px 12px;border-right:1px solid rgba(0,160,255,.1);">
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">Prob. of Profit</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(255,185,0,.1);">
+    <div style="padding:11px 12px;border-right:1px solid rgba(255,185,0,.1);">
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">Prob. of Profit</div>
       <div style="font-family:DM Mono,monospace;font-size:26px;font-weight:800;color:${{pc}};">${{m.pop}}%</div>
     </div>
     <div style="padding:11px 12px;">
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">Max Profit</div>
-      <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#00ffb4;">${{m.mpStr}} <span style="font-size:12px;opacity:.7;">${{m.mpPct}}</span></div>
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">Max Profit</div>
+      <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#38d888;">${{m.mpStr}} <span style="font-size:12px;opacity:.7;">${{m.mpPct}}</span></div>
     </div>
   </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(0,160,255,.1);">
-    <div style="padding:11px 12px;border-right:1px solid rgba(0,160,255,.1);">
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">Max Loss</div>
-      <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#ff4d7a;">${{m.mlStr}}</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(255,185,0,.1);">
+    <div style="padding:11px 12px;border-right:1px solid rgba(255,185,0,.1);">
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">Max Loss</div>
+      <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#f04050;">${{m.mlStr}}</div>
     </div>
     <div style="padding:11px 12px;">
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">R/R Ratio</div>
-      <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#c89aff;">${{m.rrStr}}</div>
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">R/R Ratio</div>
+      <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#ffcc00;">${{m.rrStr}}</div>
     </div>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid rgba(0,160,255,.1);">
-    <div style="padding:9px 10px;border-right:1px solid rgba(0,160,255,.08);">
-      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(0,220,255,.8);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;font-weight:700;">Breakeven</div>
-      <div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#e0f4ff;">${{m.beStr}}</div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid rgba(255,185,0,.1);">
+    <div style="padding:9px 10px;border-right:1px solid rgba(255,185,0,.08);">
+      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,205,60,.82);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;font-weight:700;">Breakeven</div>
+      <div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#fff8e0;">${{m.beStr}}</div>
     </div>
-    <div style="padding:9px 10px;border-right:1px solid rgba(0,160,255,.08);">
-      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(0,220,255,.8);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;font-weight:700;">Net CR/DR</div>
+    <div style="padding:9px 10px;border-right:1px solid rgba(255,185,0,.08);">
+      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,205,60,.82);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;font-weight:700;">Net CR/DR</div>
       <div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:${{nc}};">${{m.ncStr}}</div>
     </div>
-    <div style="padding:9px 10px;border-right:1px solid rgba(0,160,255,.08);">
-      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(0,220,255,.8);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;font-weight:700;">Margin</div>
-      <div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#e0f4ff;">${{m.marginStr}}</div>
+    <div style="padding:9px 10px;border-right:1px solid rgba(255,185,0,.08);">
+      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,205,60,.82);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;font-weight:700;">Margin</div>
+      <div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#fff8e0;">${{m.marginStr}}</div>
     </div>
     <div style="padding:9px 10px;">
-      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(0,220,255,.8);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;font-weight:700;">ATM Strike</div>
-      <div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#00c8ff;">${{m.strikeStr}}</div>
+      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,205,60,.82);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;font-weight:700;">ATM Strike</div>
+      <div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#ffcc00;">${{m.strikeStr}}</div>
     </div>
   </div>
   ${{sbHtml}}
@@ -2329,8 +2329,8 @@ function buildIntradaySim(m) {{
   }}
 
   const flatPnl  = calcPnl(0);
-  const flatCol  = flatPnl >= 0 ? '#00ffb4' : '#ff4d7a';
-  const ntCol    = nt >= 0 ? '#00ffb4' : '#ff4d7a';
+  const flatCol  = flatPnl >= 0 ? '#38d888' : '#f04050';
+  const ntCol    = nt >= 0 ? '#38d888' : '#f04050';
   const ntSign   = nt >= 0 ? '+' : '';
   const ndStr    = (nd >= 0 ? '+' : '') + '\u20b9' + Math.abs(nd).toFixed(2);
   const ntStr    = ntSign + '\u20b9' + Math.abs(Math.round(nt));
@@ -2339,18 +2339,18 @@ function buildIntradaySim(m) {{
   let tRows = '';
   moves.forEach(mv => {{
     const pnl    = calcPnl(mv);
-    const col    = pnl > 100 ? '#00ffb4' : pnl > 0 ? '#00c8ff' : pnl > -200 ? '#a87aff' : '#ff4d7a';
-    const mvcol  = mv > 0 ? '#00ffb4' : mv < 0 ? '#ff4d7a' : '#00c8ff';
-    const mvbg   = mv > 0 ? 'rgba(0,255,180,.1)' : mv < 0 ? 'rgba(255,77,122,.15)' : 'rgba(0,200,255,.12)';
+    const col    = pnl > 100 ? '#38d888' : pnl > 0 ? '#ffcc00' : pnl > -200 ? '#ffaa00' : '#f04050';
+    const mvcol  = mv > 0 ? '#38d888' : mv < 0 ? '#f04050' : '#ffcc00';
+    const mvbg   = mv > 0 ? 'rgba(56,216,136,.12)' : mv < 0 ? 'rgba(240,64,80,.18)' : 'rgba(255,185,0,.18)';
     const mvlbl  = mv > 0 ? '+' + mv : mv === 0 ? 'Flat' : String(mv);
     const pctmp  = maxP ? ((pnl / maxP) * 100).toFixed(0) + '%' : '—';
     const isFlat = mv === 0;
-    const rowBg  = isFlat ? 'background:rgba(0,160,255,.05);' : '';
+    const rowBg  = isFlat ? 'background:rgba(255,185,0,.05);' : '';
     tRows += `<tr style="${{rowBg}}">
       <td style="padding:6px 10px;white-space:nowrap;">
         <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;padding:4px 8px;border-radius:4px;background:${{mvbg}};color:${{mvcol}};white-space:nowrap;display:inline-block;min-width:56px;text-align:center;">${{mvlbl}}${{mv!==0?'p':''}}</span>
       </td>
-      <td style="padding:6px 8px;font-family:'DM Mono',monospace;font-size:13px;color:rgba(0,200,255,.85);white-space:nowrap;text-align:left;">${{(OC.spot+mv).toLocaleString('en-IN')}}</td>
+      <td style="padding:6px 8px;font-family:'DM Mono',monospace;font-size:13px;color:rgba(255,200,80,.82);white-space:nowrap;text-align:left;">${{(OC.spot+mv).toLocaleString('en-IN')}}</td>
       <td style="padding:6px 8px;font-family:'DM Mono',monospace;font-weight:700;font-size:15px;color:${{col}};white-space:nowrap;text-align:right;">${{pnl>=0?'+':''}}\u20b9${{Math.abs(pnl).toLocaleString('en-IN')}}</td>
       <td style="padding:6px 6px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${{col}};text-align:right;white-space:nowrap;">${{pctmp}}</td>
     </tr>`;
@@ -2362,120 +2362,120 @@ function buildIntradaySim(m) {{
   const simId = 'sim_' + Math.random().toString(36).slice(2,7);
 
   return `
-<div style="border-top:1px solid rgba(0,160,255,.2);background:rgba(6,14,24,.5);" onclick="event.stopPropagation()">
+<div style="border-top:1px solid rgba(255,185,0,.2);background:rgba(11,8,0,.6);" onclick="event.stopPropagation()">
   <!-- Sub-tabs -->
-  <div style="display:flex;border-bottom:1px solid rgba(0,160,255,.15);">
-    <button id="${{simId}}_t1" onclick="simTab('${{simId}}','t1')" style="flex:1;padding:10px 4px;font-family:DM Mono,monospace;font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid #00c8ff;color:#00c8ff;background:rgba(0,160,255,.07);transition:all .2s;">📊 SCENARIOS</button>
-    <button id="${{simId}}_t2" onclick="simTab('${{simId}}','t2')" style="flex:1;padding:10px 4px;font-family:DM Mono,monospace;font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:rgba(0,200,255,.6);background:transparent;transition:all .2s;">Δ GREEKS</button>
-    <button id="${{simId}}_t3" onclick="simTab('${{simId}}','t3')" style="flex:1;padding:10px 4px;font-family:DM Mono,monospace;font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:rgba(0,200,255,.6);background:transparent;transition:all .2s;">⟺ SLIDER</button>
+  <div style="display:flex;border-bottom:1px solid rgba(255,185,0,.15);">
+    <button id="${{simId}}_t1" onclick="simTab('${{simId}}','t1')" style="flex:1;padding:10px 4px;font-family:DM Mono,monospace;font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid #ffcc00;color:#ffcc00;background:rgba(255,185,0,.07);transition:all .2s;">📊 SCENARIOS</button>
+    <button id="${{simId}}_t2" onclick="simTab('${{simId}}','t2')" style="flex:1;padding:10px 4px;font-family:DM Mono,monospace;font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:rgba(255,185,0,.5);background:transparent;transition:all .2s;">Δ GREEKS</button>
+    <button id="${{simId}}_t3" onclick="simTab('${{simId}}','t3')" style="flex:1;padding:10px 4px;font-family:DM Mono,monospace;font-size:13px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;border:none;border-bottom:2px solid transparent;color:rgba(255,185,0,.5);background:transparent;transition:all .2s;">⟺ SLIDER</button>
   </div>
 
   <!-- TAB 1: Scenarios -->
   <div id="${{simId}}_c1">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px;border-bottom:1px solid rgba(0,160,255,.12);">
-      <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(0,220,255,.95);">📋 TODAY'S P&amp;L SCENARIOS</div>
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,200,255,.7);background:rgba(0,0,0,.25);padding:2px 8px;border-radius:4px;">Delta×move + Theta · 1 day</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px;border-bottom:1px solid rgba(255,185,0,.12);">
+      <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,210,0,.95);">📋 TODAY'S P&amp;L SCENARIOS</div>
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,60,.7);background:rgba(0,0,0,.25);padding:2px 8px;border-radius:4px;">Delta×move + Theta · 1 day</div>
     </div>
     <table style="width:100%;border-collapse:collapse;">
       <thead>
         <tr style="background:rgba(0,0,0,.3);">
-          <th style="padding:6px 10px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(0,220,255,.85);text-align:left;border-bottom:1px solid rgba(0,160,255,.07);">MOVE</th>
-          <th style="padding:6px 8px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(0,220,255,.85);text-align:left;border-bottom:1px solid rgba(0,160,255,.07);">TODAY P&amp;L</th>
-          <th style="padding:6px 8px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(0,220,255,.85);text-align:right;border-bottom:1px solid rgba(0,160,255,.07);">VS MAX</th>
-          <th style="padding:6px 6px;border-bottom:1px solid rgba(0,160,255,.07);"></th>
+          <th style="padding:6px 10px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,205,60,.85);text-align:left;border-bottom:1px solid rgba(255,185,0,.08);">MOVE</th>
+          <th style="padding:6px 8px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,205,60,.85);text-align:left;border-bottom:1px solid rgba(255,185,0,.08);">TODAY P&amp;L</th>
+          <th style="padding:6px 8px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,205,60,.85);text-align:right;border-bottom:1px solid rgba(255,185,0,.08);">VS MAX</th>
+          <th style="padding:6px 6px;border-bottom:1px solid rgba(255,185,0,.08);"></th>
         </tr>
       </thead>
       <tbody>${{tRows}}</tbody>
     </table>
-    <div style="padding:9px 12px;font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.9);background:rgba(0,0,0,.25);border-top:1px solid rgba(0,160,255,.1);line-height:1.7;">
-      © P&amp;L = <span style="color:rgba(0,220,255,.9);">Delta×move</span> + <span style="color:rgba(0,220,255,.9);">Theta (1 day)</span>. Actual exit P&amp;L may differ due to IV changes. Max profit of ${{m.mpStr}} is achievable at expiry only.
+    <div style="padding:9px 12px;font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,70,.75);background:rgba(0,0,0,.25);border-top:1px solid rgba(255,185,0,.1);line-height:1.7;">
+      © P&amp;L = <span style="color:rgba(255,215,0,.9);">Delta×move</span> + <span style="color:rgba(255,215,0,.9);">Theta (1 day)</span>. Actual exit P&amp;L may differ due to IV changes. Max profit of ${{m.mpStr}} is achievable at expiry only.
     </div>
   </div>
 
   <!-- TAB 2: Greeks Breakdown -->
   <div id="${{simId}}_c2" style="display:none;">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px;border-bottom:1px solid rgba(0,160,255,.12);">
-      <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(0,220,255,.95);">🔬 NET GREEKS (per lot)</div>
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,200,255,.7);background:rgba(0,0,0,.25);padding:2px 8px;border-radius:4px;">values per lot · today</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px;border-bottom:1px solid rgba(255,185,0,.12);">
+      <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,210,0,.95);">🔬 NET GREEKS (per lot)</div>
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,60,.7);background:rgba(0,0,0,.25);padding:2px 8px;border-radius:4px;">values per lot · today</div>
     </div>
     <div style="padding:10px 12px;display:flex;flex-direction:column;gap:5px;">
-      <div style="display:flex;align-items:center;gap:10px;background:rgba(0,255,180,.06);border:1px solid rgba(0,255,180,.15);border-radius:8px;padding:9px 12px;">
-        <div style="width:32px;height:32px;border-radius:6px;background:rgba(0,255,180,.15);border:1px solid rgba(0,255,180,.25);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#00ffb4;flex-shrink:0;">Δ</div>
+      <div style="display:flex;align-items:center;gap:10px;background:rgba(56,216,136,.06);border:1px solid rgba(56,216,136,.18);border-radius:8px;padding:9px 12px;">
+        <div style="width:32px;height:32px;border-radius:6px;background:rgba(56,216,136,.15);border:1px solid rgba(56,216,136,.28);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#38d888;flex-shrink:0;">Δ</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;color:rgba(0,255,180,.9);text-transform:uppercase;">DELTA</div>
-          <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.95);">per 1pt move</div>
+          <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;color:rgba(56,216,136,.9);text-transform:uppercase;">DELTA</div>
+          <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,80,.95);">per 1pt move</div>
         </div>
-        <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:${{nd>=0?'#00ffb4':'#ff4d7a'}};white-space:nowrap;">${{ndStr}}</div>
+        <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:${{nd>=0?'#38d888':'#f04050'}};white-space:nowrap;">${{ndStr}}</div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;background:rgba(255,77,122,.06);border:1px solid rgba(255,77,122,.15);border-radius:8px;padding:9px 12px;">
-        <div style="width:32px;height:32px;border-radius:6px;background:rgba(255,77,122,.15);border:1px solid rgba(255,77,122,.25);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#ff4d7a;flex-shrink:0;">Θ</div>
+      <div style="display:flex;align-items:center;gap:10px;background:rgba(240,64,80,.06);border:1px solid rgba(240,64,80,.18);border-radius:8px;padding:9px 12px;">
+        <div style="width:32px;height:32px;border-radius:6px;background:rgba(240,64,80,.15);border:1px solid rgba(240,64,80,.28);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#f04050;flex-shrink:0;">Θ</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;color:rgba(255,77,122,.9);text-transform:uppercase;">THETA</div>
-          <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.95);">decay / day</div>
+          <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;color:rgba(240,64,80,.9);text-transform:uppercase;">THETA</div>
+          <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,80,.95);">decay / day</div>
         </div>
         <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:${{ntCol}};white-space:nowrap;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt))}}</div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;background:rgba(168,122,255,.06);border:1px solid rgba(168,122,255,.15);border-radius:8px;padding:9px 12px;">
-        <div style="width:32px;height:32px;border-radius:6px;background:rgba(168,122,255,.15);border:1px solid rgba(168,122,255,.25);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#c89aff;flex-shrink:0;">ν</div>
+      <div style="display:flex;align-items:center;gap:10px;background:rgba(255,185,0,.06);border:1px solid rgba(255,185,0,.2);border-radius:8px;padding:9px 12px;">
+        <div style="width:32px;height:32px;border-radius:6px;background:rgba(255,185,0,.15);border:1px solid rgba(255,185,0,.28);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#ffcc00;flex-shrink:0;">ν</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;color:rgba(168,122,255,.9);text-transform:uppercase;">VEGA</div>
-          <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.95);">per 1% IV</div>
+          <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;color:rgba(255,204,0,.9);text-transform:uppercase;">VEGA</div>
+          <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,80,.95);">per 1% IV</div>
         </div>
-        <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#c89aff;white-space:nowrap;">${{nvStr}}</div>
+        <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#ffcc00;white-space:nowrap;">${{nvStr}}</div>
       </div>
     </div>
-    <div style="border-top:1px solid rgba(0,160,255,.12);margin:0 12px;"></div>
+    <div style="border-top:1px solid rgba(255,185,0,.12);margin:0 12px;"></div>
     <div style="padding:10px 12px 10px;">
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:8px;font-weight:700;">TODAY'S P&amp;L IF MARKET IS FLAT</div>
-      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:12px;background:rgba(0,0,0,.25);border-radius:8px;border:1px solid rgba(0,160,255,.15);">
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:8px;font-weight:700;">TODAY'S P&amp;L IF MARKET IS FLAT</div>
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:12px;background:rgba(0,0,0,.25);border-radius:8px;border:1px solid rgba(255,185,0,.15);">
         <div style="text-align:center;">
-          <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.8);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">THETA DRAG</div>
+          <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,205,60,.85);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">THETA DRAG</div>
           <div style="font-family:DM Mono,monospace;font-size:24px;font-weight:700;color:${{ntCol}};line-height:1;">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
         </div>
         <div style="font-size:20px;color:rgba(255,255,255,.2);text-align:center;">=</div>
         <div style="text-align:center;">
-          <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.8);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">FLAT P&amp;L TODAY</div>
+          <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,205,60,.85);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">FLAT P&amp;L TODAY</div>
           <div style="font-family:DM Mono,monospace;font-size:24px;font-weight:700;color:${{flatCol}};line-height:1;">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
         </div>
       </div>
-      <div style="margin-top:9px;font-family:DM Mono,monospace;font-size:12px;color:rgba(0,200,255,.75);line-height:1.7;">
-        ${{nt < 0 ? '🔴 <span style="color:#ff4d7a;font-weight:700;">Theta negative</span> — you pay \u20b9' + Math.abs(Math.round(nt)).toLocaleString("en-IN") + '/day for holding. Need Nifty to move <span style="color:#c89aff;font-weight:700;">' + Math.ceil(Math.abs(nt)/Math.abs(nd||1)) + ' pts</span> just to break even today.' : '🟢 <span style="color:#00ffb4;font-weight:700;">Theta positive</span> — you earn \u20b9' + Math.abs(Math.round(nt)).toLocaleString("en-IN") + '/day time decay. Premium selling strategy benefits from flat market.'}}
+      <div style="margin-top:9px;font-family:DM Mono,monospace;font-size:12px;color:rgba(255,200,70,.75);line-height:1.7;">
+        ${{nt < 0 ? '🔴 <span style="color:#f04050;font-weight:700;">Theta negative</span> — you pay \u20b9' + Math.abs(Math.round(nt)).toLocaleString("en-IN") + '/day for holding. Need Nifty to move <span style="color:#ffcc00;font-weight:700;">' + Math.ceil(Math.abs(nt)/Math.abs(nd||1)) + ' pts</span> just to break even today.' : '🟢 <span style="color:#38d888;font-weight:700;">Theta positive</span> — you earn \u20b9' + Math.abs(Math.round(nt)).toLocaleString("en-IN") + '/day time decay. Premium selling strategy benefits from flat market.'}}
       </div>
     </div>
   </div>
 
   <!-- TAB 3: Live Slider -->
   <div id="${{simId}}_c3" style="display:none;">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px;border-bottom:1px solid rgba(0,160,255,.12);">
-      <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(0,220,255,.95);">⟺ LIVE SCENARIO SLIDER</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px;border-bottom:1px solid rgba(255,185,0,.12);">
+      <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,210,0,.95);">⟺ LIVE SCENARIO SLIDER</div>
     </div>
     <div style="padding:11px 12px;">
       <div style="display:flex;justify-content:space-between;margin-bottom:7px;font-family:DM Mono,monospace;font-size:12px;">
-        <span style="color:#00c8ff;">\u20b9${{slMin.toLocaleString('en-IN')}}</span>
-        <span id="${{simId}}_slv" style="font-weight:700;color:#00c8ff;background:rgba(0,200,255,.12);border:1px solid rgba(0,160,255,.35);border-radius:4px;padding:2px 10px;">Spot: \u20b9${{OC.spot.toLocaleString('en-IN')}}</span>
-        <span style="color:#00c8ff;">\u20b9${{slMax.toLocaleString('en-IN')}}</span>
+        <span style="color:#ffcc00;">\u20b9${{slMin.toLocaleString('en-IN')}}</span>
+        <span id="${{simId}}_slv" style="font-weight:700;color:#ffcc00;background:rgba(255,185,0,.12);border:1px solid rgba(255,185,0,.35);border-radius:4px;padding:2px 10px;">Spot: \u20b9${{OC.spot.toLocaleString('en-IN')}}</span>
+        <span style="color:#ffcc00;">\u20b9${{slMax.toLocaleString('en-IN')}}</span>
       </div>
       <input type="range" id="${{simId}}_sl" min="${{slMin}}" max="${{slMax}}" value="${{OC.spot}}" step="25"
-        style="width:100%;height:5px;border-radius:3px;outline:none;border:none;-webkit-appearance:none;cursor:pointer;background:linear-gradient(90deg,#00c8ff 50%,rgba(0,160,255,.2) 50%);"
+        style="width:100%;height:5px;border-radius:3px;outline:none;border:none;-webkit-appearance:none;cursor:pointer;background:linear-gradient(90deg,#ffcc00 50%,rgba(255,185,0,.2) 50%);"
         onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" oninput="simSlide('${{simId}}', this.value, ${{slMin}}, ${{slMax}}, ${{nd}}, ${{nt}}, ${{maxL===null?'null':maxL}}, ${{maxP===null?'null':maxP}})">
     </div>
     <div id="${{simId}}_sr" style="padding:4px 12px 14px;text-align:center;">
-      <div style="background:rgba(0,0,0,.3);border-radius:10px;padding:16px;border:1px solid rgba(0,160,255,.2);">
-        <div style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(0,220,255,.85);margin-bottom:7px;">ESTIMATED EXIT P&amp;L TODAY</div>
+      <div style="background:rgba(0,0,0,.3);border-radius:10px;padding:16px;border:1px solid rgba(255,185,0,.2);">
+        <div style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,205,60,.88);margin-bottom:7px;">ESTIMATED EXIT P&amp;L TODAY</div>
         <div id="${{simId}}_spnl" style="font-family:DM Mono,monospace;font-size:38px;font-weight:700;color:${{ntCol}};">${{flatPnl>=0?'+':''}}\u20b9${{Math.abs(flatPnl).toLocaleString('en-IN')}}</div>
-        <div id="${{simId}}_snote" style="font-family:DM Mono,monospace;font-size:12px;color:rgba(0,220,255,.92);margin-top:5px;">Flat market — theta drag only</div>
-        <div style="display:flex;gap:12px;justify-content:center;margin-top:11px;padding-top:11px;border-top:1px solid rgba(0,160,255,.12);">
+        <div id="${{simId}}_snote" style="font-family:DM Mono,monospace;font-size:12px;color:rgba(255,200,70,.92);margin-top:5px;">Flat market — theta drag only</div>
+        <div style="display:flex;gap:12px;justify-content:center;margin-top:11px;padding-top:11px;border-top:1px solid rgba(255,185,0,.12);">
           <div style="text-align:center;">
-            <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.85);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">Delta P&amp;L</div>
-            <div id="${{simId}}_sdelta" style="font-family:DM Mono,monospace;font-size:17px;font-weight:700;color:#00ffb4;">\u20b90</div>
+            <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,205,60,.88);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">Delta P&amp;L</div>
+            <div id="${{simId}}_sdelta" style="font-family:DM Mono,monospace;font-size:17px;font-weight:700;color:#38d888;">\u20b90</div>
           </div>
           <div style="text-align:center;">
-            <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.85);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">Theta Cost</div>
+            <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,205,60,.88);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">Theta Cost</div>
             <div style="font-family:DM Mono,monospace;font-size:17px;font-weight:700;color:${{ntCol}};">${{ntSign}}\u20b9${{Math.abs(Math.round(nt)).toLocaleString('en-IN')}}</div>
           </div>
           <div style="text-align:center;">
-            <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,220,255,.85);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">% of Max</div>
-            <div id="${{simId}}_spct" style="font-family:DM Mono,monospace;font-size:17px;font-weight:700;color:#c89aff;">—</div>
+            <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,205,60,.88);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">% of Max</div>
+            <div id="${{simId}}_spct" style="font-family:DM Mono,monospace;font-size:17px;font-weight:700;color:#ffcc00;">—</div>
           </div>
         </div>
       </div>
@@ -2492,9 +2492,9 @@ function simTab(simId, tab) {{
     if (!btn || !con) return;
     const isActive = t === tab;
     con.style.display = isActive ? 'block' : 'none';
-    btn.style.borderBottomColor = isActive ? '#00c8ff' : 'transparent';
-    btn.style.color = isActive ? '#00c8ff' : 'rgba(0,200,255,.6)';
-    btn.style.background = isActive ? 'rgba(0,160,255,.07)' : 'transparent';
+    btn.style.borderBottomColor = isActive ? '#ffcc00' : 'transparent';
+    btn.style.color = isActive ? '#ffcc00' : 'rgba(255,185,0,.5)';
+    btn.style.background = isActive ? 'rgba(255,185,0,.07)' : 'transparent';
   }});
 }}
 
@@ -2503,23 +2503,23 @@ function simSlide(simId, val, slMin, slMax, nd, nt, maxL, maxP) {{
   const move = spot - OC.spot;
   const pct  = ((val - slMin) / (slMax - slMin) * 100);
   const sl   = document.getElementById(simId + '_sl');
-  if (sl) sl.style.background = `linear-gradient(90deg,#00c8ff ${{pct}}%,rgba(0,160,255,.2) ${{pct}}%)`;
+  if (sl) sl.style.background = `linear-gradient(90deg,#ffcc00 ${{pct}}%,rgba(255,185,0,.2) ${{pct}}%)`;
   const slv = document.getElementById(simId + '_slv');
   if (slv) slv.textContent = 'Spot: \u20b9' + spot.toLocaleString('en-IN');
   let pnl = nd * move + nt;
   if (maxL !== null) pnl = Math.max(-maxL, pnl);
   if (maxP !== null) pnl = Math.min(maxP * 0.9, pnl);
   pnl = Math.round(pnl);
-  const col = pnl > 100 ? '#00ffb4' : pnl > 0 ? '#00c8ff' : pnl > -200 ? '#a87aff' : '#ff4d7a';
+  const col = pnl > 100 ? '#38d888' : pnl > 0 ? '#ffcc00' : pnl > -200 ? '#ffaa00' : '#f04050';
   const pEl = document.getElementById(simId + '_spnl');
   if (pEl) {{ pEl.textContent = (pnl>=0?'+':'') + '\u20b9' + Math.abs(pnl).toLocaleString('en-IN'); pEl.style.color = col; }}
   const nEl = document.getElementById(simId + '_snote');
   if (nEl) nEl.textContent = move > 0 ? `Nifty up ${{move}} pts` : move < 0 ? `Nifty down ${{Math.abs(move)}} pts` : 'Flat market — theta drag only';
   const deltaPnl = Math.round(nd * move);
   const dEl = document.getElementById(simId + '_sdelta');
-  if (dEl) {{ dEl.textContent = (deltaPnl>=0?'+':'') + '\u20b9' + Math.abs(deltaPnl).toLocaleString('en-IN'); dEl.style.color = deltaPnl >= 0 ? '#00ffb4' : '#ff4d7a'; }}
+  if (dEl) {{ dEl.textContent = (deltaPnl>=0?'+':'') + '\u20b9' + Math.abs(deltaPnl).toLocaleString('en-IN'); dEl.style.color = deltaPnl >= 0 ? '#38d888' : '#f04050'; }}
   const pctEl = document.getElementById(simId + '_spct');
-  if (pctEl) {{ const pPct = maxP ? ((pnl / maxP) * 100).toFixed(1) + '%' : '—'; pctEl.textContent = pPct; pctEl.style.color = pnl >= 0 ? '#00c8ff' : '#ff4d7a'; }}
+  if (pctEl) {{ const pPct = maxP ? ((pnl / maxP) * 100).toFixed(1) + '%' : '—'; pctEl.textContent = pPct; pctEl.style.color = pnl >= 0 ? '#ffcc00' : '#f04050'; }}
 }}
 
 function popBadgeStyle(pop) {{
