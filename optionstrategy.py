@@ -2236,7 +2236,7 @@ function calcMetrics(shape, smartPop) {{
     </span>`
   ).join('<br>');
   const strikeStr = 'ATM \u20b9' + atm.toLocaleString('en-IN');
-  return {{pop,mpStr,mlStr,rrStr,beStr,ncStr,marginStr,mpPct,strikeStr,ltpStr,ltpParts,
+  return {{pop,mpStr,mlStr,rrStr,beStr,ncStr,marginStr,mpPct,strikeStr,ltpStr,
            mpRaw:mp,mlRaw:ml,ncRaw:Math.round(nc),ncPositive:nc>=0,
            netDelta:Math.round(netDelta*100)/100,
            netTheta:Math.round(netTheta*100)/100,
@@ -2259,35 +2259,28 @@ function renderMetrics(m, scoreBreakdown) {{
         <span style="font-size:13px;background:rgba(0,0,0,.2);padding:2px 8px;border-radius:6px;color:rgba(255,255,255,.5);">Strat <b style="color:${{scoreBreakdown.stratAdj>=0?'#00c896':'#ff6b6b'}};">${{scoreBreakdown.stratAdj>=0?'+':''}}${{scoreBreakdown.stratAdj}}</b></span>
       </div>
     </div>` : '';
-  // Build LTP legs for the left panel
-  const ltpLegsHtml = (m.ltpParts || []).map(x =>
-    `<div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);">
-      <span style="font-size:12.3px;color:rgba(255,255,255,.60);letter-spacing:.3px;white-space:nowrap;">${{x.l}}</span>
-      <span style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:${{x.c}};white-space:nowrap;">\u20b9${{x.v.toFixed(2)}}</span>
-    </div>`
-  ).join('');
-
-  return `
-  <div style="display:grid;grid-template-columns:auto 1fr;border-top:1px solid rgba(255,255,255,.06);">
-    <!-- LTP LEFT BLOCK -->
-    <div style="padding:12px 16px;min-width:200px;border-right:1px solid rgba(0,200,220,.15);background:rgba(0,200,220,.03);display:flex;flex-direction:column;justify-content:center;">
-      <div style="font-size:10.5px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(0,200,220,.55);margin-bottom:8px;">LTP (PER LEG)</div>
-      ${{ltpLegsHtml || m.ltpStr}}
+  return `<div class="metric-row metric-strike"><span class="metric-lbl">Strike Price</span>
+    <span class="metric-val" style="color:#ffd166;font-size:15.9px;text-align:right;">${{m.strikeStr}}</span></div>
+    <div class="metric-row" style="background:rgba(0,200,220,.04);border-bottom:1px solid rgba(0,200,220,.10);">
+      <span class="metric-lbl" style="color:rgba(0,200,220,.7);">LTP (per leg)</span>
+      <span class="metric-val" style="text-align:right;line-height:1.6;display:flex;flex-direction:column;align-items:flex-end;">${{m.ltpStr}}</span>
     </div>
-    <!-- METRICS GRID RIGHT -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));">
-      <div class="metric-row metric-strike"><span class="metric-lbl">Strike Price</span><span class="metric-val" style="color:#ffd166;">${{m.strikeStr}}</span></div>
-      <div class="metric-row"><span class="metric-lbl">Prob. of Profit</span><span class="metric-val" style="color:${{pc}};font-weight:800;font-size:20px;">${{m.pop}}%</span></div>
-      <div class="metric-row"><span class="metric-lbl">Max. Profit</span><span class="metric-val" style="color:#00c896;">${{m.mpStr}} <small style="opacity:.5;">${{m.mpPct}}</small></span></div>
-      <div class="metric-row"><span class="metric-lbl">Max. Loss</span><span class="metric-val" style="color:#ff6b6b;">${{m.mlStr}}</span></div>
-      <div class="metric-row"><span class="metric-lbl">Max RR Ratio</span><span class="metric-val" style="color:#6480ff;">${{m.rrStr}}</span></div>
-      <div class="metric-row"><span class="metric-lbl">Breakevens</span><span class="metric-val" style="color:#00c8e0;">${{m.beStr}}</span></div>
-      <div class="metric-row"><span class="metric-lbl">Net Credit / Debit</span><span class="metric-val" style="color:${{nc}};">${{m.ncStr}}</span></div>
-      <div class="metric-row" style="border-bottom:none;"><span class="metric-lbl">Est. Margin/Premium</span><span class="metric-val" style="color:#8aa0ff;">${{m.marginStr}}</span></div>
-    </div>
-  </div>
-  ${{sbHtml}}
-  ${{buildIntradaySim(m)}}`;
+    <div class="metric-row"><span class="metric-lbl">Prob. of Profit</span>
+    <span class="metric-val" style="color:${{pc}};font-weight:800;font-size:21.8px;">${{m.pop}}%</span></div>
+    <div class="metric-row"><span class="metric-lbl">Max. Profit</span>
+    <span class="metric-val" style="color:#00c896;">${{m.mpStr}} <small style="opacity:.5;">${{m.mpPct}}</small></span></div>
+    <div class="metric-row"><span class="metric-lbl">Max. Loss</span>
+    <span class="metric-val" style="color:#ff6b6b;">${{m.mlStr}}</span></div>
+    <div class="metric-row"><span class="metric-lbl">Max RR Ratio</span>
+    <span class="metric-val" style="color:#6480ff;">${{m.rrStr}}</span></div>
+    <div class="metric-row"><span class="metric-lbl">Breakevens</span>
+    <span class="metric-val" style="color:#00c8e0;font-size:15.9px;">${{m.beStr}}</span></div>
+    <div class="metric-row"><span class="metric-lbl">Net Credit / Debit</span>
+    <span class="metric-val" style="color:${{nc}};">${{m.ncStr}}</span></div>
+    <div class="metric-row" style="border-bottom:none;"><span class="metric-lbl">Est. Margin/Premium</span>
+    <span class="metric-val" style="color:#8aa0ff;">${{m.marginStr}}</span></div>
+    ${{sbHtml}}
+    ${{buildIntradaySim(m)}}`;
 }}
 
 // ── Intraday P&L Simulator ───────────────────────────────────────────────────
@@ -2854,24 +2847,12 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .sc-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;position:relative;}
 .sc-card:hover{border-color:rgba(0,200,150,.3);transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,200,150,.1)}
 .sc-card.hidden{display:none}
-.sc-card.expanded{grid-column:1 / -1 !important;flex-direction:column !important;align-items:stretch;border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12);}
-.sc-card.expanded .sc-detail{display:block;width:100%;border-top:1px solid rgba(0,200,150,.15);border-left:none;overflow:visible;max-height:none;}
-.sc-card.expanded .sc-summary{display:flex;flex-direction:row;align-items:stretch;}
-.sc-card.expanded .sc-svg{width:160px;flex-shrink:0;padding:16px;}
-.sc-card.expanded .sc-body{flex:1;}
+.sc-card.expanded{grid-column:1 / -1 !important;flex-direction:row !important;align-items:flex-start;border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12);}
+.sc-card.expanded .sc-detail{display:block;flex:0 0 380px;width:380px;border-top:none;border-left:1px solid rgba(0,200,150,.15);overflow-y:auto;max-height:480px;}
+.sc-card.expanded .sc-summary{flex:1;min-width:180px;}
 .sc-card.expanded:hover{transform:none;}
-.sc-close-btn{display:none;position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:50%;border:1px solid rgba(0,200,150,.4);background:rgba(0,200,150,.12);color:#00c896;font-size:15px;line-height:1;cursor:pointer;align-items:center;justify-content:center;z-index:10;transition:all .2s;font-family:monospace;}
-.sc-close-btn:hover{background:rgba(0,200,150,.28);border-color:#00c896;}
-.sc-card.expanded .sc-close-btn{display:flex;}
-.sc-card.expanded .sc-pop-badge{display:none;}
-.sc-metrics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));border-top:1px solid rgba(255,255,255,.05);}
-.sc-metrics-grid .metric-row{border-right:1px solid rgba(255,255,255,.04);border-bottom:1px solid rgba(255,255,255,.04);}
-.sc-ltp-metrics{display:grid;grid-template-columns:auto 1fr;border-top:1px solid rgba(255,255,255,.05);}
-.sc-ltp-block{padding:12px 16px;border-right:1px solid rgba(0,200,220,.12);background:rgba(0,200,220,.03);display:flex;flex-direction:column;gap:8px;justify-content:center;}
-.sc-ltp-leg{display:flex;flex-direction:column;gap:1px;}
-.sc-ltp-label{font-size:11.6px;color:rgba(255,255,255,.55);letter-spacing:.5px;}
-.sc-ltp-val{font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;}
-.sc-ltp-sep{font-size:11px;color:rgba(255,255,255,.15);margin:4px 0;}
+.sc-card.expanded .sc-detail{display:block}
+.sc-card.expanded{border-color:rgba(0,200,150,.35);box-shadow:0 0 0 1px rgba(0,200,150,.2),0 12px 32px rgba(0,200,150,.12)}
 .sc-pop-badge{position:absolute;top:8px;right:8px;font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);z-index:5;letter-spacing:.5px;transition:all .3s;min-width:38px;text-align:center;}
 .sc-svg{display:flex;align-items:center;justify-content:center;padding:14px 0 6px;background:rgba(255,255,255,.02)}
 .sc-body{padding:10px 12px 12px}
@@ -3368,25 +3349,12 @@ function filterStrat(cat,btn){{
   }});}}
 }}
 document.addEventListener("click",function(e){{
-  if(e.target.closest('.sc-close-btn')){{
-    e.stopPropagation();
-    const card=e.target.closest(".sc-card");
-    if(card) card.classList.remove("expanded");
-    return;
-  }}
   const card=e.target.closest(".sc-card");
   if(card){{
     const was=card.classList.contains("expanded");
     document.querySelectorAll(".sc-card.expanded").forEach(c=>c.classList.remove("expanded"));
     if(!was){{
       card.classList.add("expanded");
-      if(!card.querySelector('.sc-close-btn')){{
-        const btn=document.createElement('button');
-        btn.className='sc-close-btn';
-        btn.innerHTML='&#x2715;';
-        btn.title='Close';
-        card.appendChild(btn);
-      }}
       const mel=card.querySelector('.sc-metrics-live');
       if(mel&&mel.querySelector('.sc-loading')){{
         try{{
