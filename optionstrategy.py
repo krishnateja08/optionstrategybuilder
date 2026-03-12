@@ -2928,6 +2928,8 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .main-tabs{padding:12px 16px 0;gap:6px;flex-wrap:wrap;}
   .main-tab{font-size:11px;padding:8px 14px;}
   .hdr-meta{flex-wrap:wrap;gap:8px;}
+  .sc-card.expanded{flex-direction:column !important;}
+  .sc-card.expanded .sc-detail{flex:none !important;width:100% !important;border-left:none;border-top:1px solid rgba(0,229,160,.15);}
 }
 @media(max-width:768px){
   .h-stat-row{flex-wrap:wrap;gap:8px;}
@@ -2937,6 +2939,16 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   header{flex-wrap:wrap;gap:8px;padding:10px 14px;}
   .hdr-meta{width:100%;}
   .logo-wrap{min-width:180px;}
+  .oi-ticker-table{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .oi-ticker-hdr,.oi-ticker-row{min-width:560px;}
+  .greeks-tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .h-mid{padding:8px 12px;}
+  .h-signal{font-size:24px;}
+  .h-eyebrow{font-size:10px;}
+  .h-sub{font-size:12px;}
+  .pill-track{width:80px;}
+  .sec-sub{margin-left:0;width:100%;}
+  .greeks-table-section{padding:16px 14px;}
 }
 @media(max-width:640px){
   header{padding:10px 12px}
@@ -2950,6 +2962,73 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .h-gauges{padding:10px 12px;gap:8px;}
   .gauge-wrap{width:76px;height:76px;}
   .hdr-meta{font-size:11px;gap:6px;}
+  .greeks-table-section{padding:14px 12px;}
+  .greeks-tbl-head,.greeks-tbl-row{grid-template-columns:70px repeat(4,1fr);padding:7px 8px;gap:2px;}
+  .greeks-tbl-head-label,.greeks-tbl-cell{font-size:11px;}
+  .greeks-tbl-strike{font-size:13px;}
+  .sec-title{font-size:13px;letter-spacing:1.5px;margin-bottom:14px;}
+  .sec-sub{font-size:11px;margin-left:0;width:100%;}
+  .h-stat-val{font-size:15px;}
+  .h-stat-lbl{font-size:9px;letter-spacing:1px;}
+  .sc-tabs{gap:6px;margin-bottom:14px;}
+  .sc-tab{padding:6px 14px;font-size:15px;}
+  .sc-name{font-size:15px;}
+  .sb-btn{font-size:15px;padding:7px 10px;}
+  .strikes-head{font-size:16px;}
+  .s-table th,.s-table td{padding:8px 10px;font-size:14px;}
+  .oi-ticker-hdr,.oi-ticker-row{min-width:520px;}
+  .metric-lbl{font-size:13px;}
+  .metric-val{font-size:15px;}
+}
+@media(max-width:480px){
+  .sc-grid{grid-template-columns:1fr 1fr;}
+  .gauge-wrap{width:62px;height:62px;}
+  .g-val{font-size:13px;}
+  .g-lbl{font-size:9px;letter-spacing:1px;}
+  .gauge-sep{display:none;}
+  .h-signal{font-size:19px;letter-spacing:.5px;}
+  .h-gauges{gap:4px;padding:8px 10px;}
+  .h-mid{padding:6px 10px;}
+  .h-sub{font-size:11px;}
+  .greeks-tbl-head,.greeks-tbl-row{grid-template-columns:56px repeat(4,1fr);padding:6px 6px;gap:2px;}
+  .greeks-tbl-head-label,.greeks-tbl-cell{font-size:10px;}
+  .greeks-tbl-strike{font-size:11px;}
+  .section{padding:12px 10px;}
+  .sec-title{font-size:12px;letter-spacing:1px;}
+  .h-stat{min-width:calc(50% - 4px);}
+  .h-stat-val{font-size:14px;}
+  .h-stat-lbl{font-size:8px;letter-spacing:.8px;}
+  .pill-lbl{width:68px;font-size:9px;letter-spacing:1px;}
+  .pill-num{font-size:12px;margin-left:4px;}
+  .pill-track{width:64px;}
+  .pill-dot{width:6px;height:6px;}
+  .sb-btn{font-size:14px;padding:6px 10px;}
+  .sb-lbl{font-size:11px;}
+  .sb-badge{font-size:12px;}
+  .main-tabs{padding:8px 10px 0;gap:4px;}
+  .main-tab{font-size:9px;padding:5px 8px;}
+  .strikes-wrap{gap:10px;}
+  .s-table th,.s-table td{padding:7px 8px;font-size:13px;}
+  footer{padding:12px 10px;font-size:13px;}
+  .sc-name{font-size:14px;padding-right:36px;}
+  .sc-legs{font-size:11px;}
+  .sc-tag{font-size:11px;}
+  .sc-pop-badge{font-size:12px;padding:2px 6px;}
+  .kl-lbl{font-size:12px;}
+  .kl-val{font-size:14px;}
+  .kl-dist-box{padding:8px 10px;font-size:14px;}
+  .greeks-panel{margin:6px 6px 4px;padding:10px 10px;}
+  .greeks-row{padding:5px 0;}
+  .greek-name{font-size:13px;}
+  .greek-sub{font-size:10px;}
+  .greeks-atm-badge{font-size:13px;padding:4px 6px;}
+  .iv-bar-label{font-size:10px;width:34px;}
+  .iv-bar-num{font-size:13px;min-width:32px;}
+  .sc-desc{font-size:13px;padding:10px 10px 6px;}
+  .metric-lbl{font-size:12px;}
+  .metric-val{font-size:14px;}
+  .oi-ticker-hdr,.oi-ticker-row{min-width:480px;}
+  .sc-card.expanded .sc-detail{width:100% !important;}
 }
 """
 
