@@ -3693,7 +3693,7 @@ document.addEventListener("click",function(e){{
           const scoreResult=smartPoP(shape,cat);
           _m=calcMetrics(shape,scoreResult.pop);
           mel.innerHTML=renderMetrics(_m, scoreResult);
-        }}catch(err){{mel.innerHTML='<div class="sc-loading">Could not calculate metrics</div>';}}
+        }}catch(err){{mel.innerHTML='<div class="sc-loading">Error: '+err.message+'</div>';}}
         // Payoff chart and day selector run separately so they never break metrics display
         if(_m){{
           try{{ drawPayoffChart(card, _m); }}catch(e){{}}
