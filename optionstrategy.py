@@ -2319,7 +2319,7 @@ function buildIntradaySim(m) {{
   const nt      = m.netTheta;   // ₹ per day (negative = decay cost)
   const nv      = m.netVega;    // ₹ per 1% IV change
 
-  const moves = [-500,-400,-300,-200,-150,-100,-50,0,50,100,150,200,300,400,500];
+  const moves = [-300,-200,-150,-100,-50,0,50,100,150,200,300];
 
   function calcPnl(movePts) {{
     let pnl = nd * movePts + nt;
