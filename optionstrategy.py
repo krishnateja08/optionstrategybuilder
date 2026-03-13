@@ -1432,6 +1432,7 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
             all_expiry_js[exp] = {
                 "spot":        round(oc_e["underlying"], 2),
                 "atm":         oc_e["atm_strike"],
+                "expiry":      exp,
                 "pcr":         round(oc_e["pcr_oi"], 3),
                 "maxCeStrike": oc_e["max_ce_strike"],
                 "maxPeStrike": oc_e["max_pe_strike"],
@@ -1579,6 +1580,7 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
 const OC={{
   spot:        {spot:.2f},
   atm:         {atm},
+  expiry:      "{expiry}",
   pcr:         {pcr:.3f},
   maxPain:     {mp},
   maxCeStrike: {max_ce_s},
@@ -2643,6 +2645,7 @@ window.switchExpiry = function(exp) {{
   // Update OC object with selected expiry's data
   OC.spot        = d.spot;
   OC.atm         = d.atm;
+  OC.expiry      = exp;
   OC.pcr         = d.pcr;
   OC.maxCeStrike = d.maxCeStrike;
   OC.maxPeStrike = d.maxPeStrike;
