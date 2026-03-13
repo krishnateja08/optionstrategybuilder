@@ -2321,10 +2321,13 @@ function buildIntradaySim(m) {{
   const nv      = m.netVega;    // ₹ per 1% IV change
   const ng      = m.netGamma;   // ₹ curvature (½·Γ·move²)
 
-  const moves = [-300,-200,-150,-100,-50,0,50,100,150,200,300];
+  const moves = [-500,-400,-300,-200,-150,-100,-50,0,50,100,150,200,300,400,500];
 
   function calcPnl(movePts) {{
-    let pnl = nd * movePts + 0.5 * ng * movePts * movePts + nt;
+    // IV estimate: index moves ~4x inverse relationship to IV
+    // e.g. -300pt drop on 23000 spot ≈ -1.3% → IV rises ~5%
+    const ivEst = -(movePts / OC.spot) * 400;
+    let pnl = nd * movePts + 0.5 * ng * movePts * movePts + nv * ivEst + nt;
     if (maxL !== null) pnl = Math.max(-maxL, pnl);
     if (maxP !== null) pnl = Math.min(maxP * 0.9, pnl);
     return Math.round(pnl);
@@ -2376,7 +2379,7 @@ function buildIntradaySim(m) {{
   <div id="${{simId}}_c1">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px;border-bottom:1px solid rgba(255,185,0,.12);">
       <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,210,0,.95);">📋 TODAY'S P&amp;L SCENARIOS</div>
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,60,.7);background:rgba(0,0,0,.25);padding:2px 8px;border-radius:4px;">Delta×move + Theta · 1 day</div>
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,60,.7);background:rgba(0,0,0,.25);padding:2px 8px;border-radius:4px;">Delta + ½Gamma + Vega(IV) + Theta</div>
     </div>
     <table style="width:100%;border-collapse:collapse;">
       <thead>
@@ -2390,7 +2393,7 @@ function buildIntradaySim(m) {{
       <tbody>${{tRows}}</tbody>
     </table>
     <div style="padding:9px 12px;font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,70,.75);background:rgba(0,0,0,.25);border-top:1px solid rgba(255,185,0,.1);line-height:1.7;">
-      © P&amp;L = <span style="color:rgba(255,215,0,.9);">Delta×move + ½Gamma×move²</span> + <span style="color:rgba(255,215,0,.9);">Theta (1 day)</span>. Actual exit P&amp;L may differ due to IV changes. Max profit of ${{m.mpStr}} is achievable at expiry only.
+      © P&amp;L = <span style="color:rgba(255,215,0,.9);">Delta×move + ½Gamma×move² + Vega×ΔIV + Theta (1 day)</span>. ΔIV estimated from move size. Actual exit P&amp;L may differ. Max profit of ${{m.mpStr}} achievable at expiry only.
     </div>
   </div>
 
