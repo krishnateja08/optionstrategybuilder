@@ -1704,7 +1704,7 @@ function calcMetrics(shape, smartPop) {{
   let mp = 0, ml = 0, be = [], nc = 0, margin = 0, rrRatio = 0;
   let ltpParts = [];
   // Net greeks for intraday simulator (per lot)
-  let netDelta = 0, netTheta = 0, netVega = 0;
+  let netDelta = 0, netTheta = 0, netVega = 0, netGamma = 0;
 
   switch (shape) {{
 
@@ -1752,7 +1752,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY CE \u20b9' + atm.toLocaleString('en-IN'), v: bp, c: '#00c8e0' }},
         {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: sp, c: '#00c896' }}
       ];
-      netDelta=(gCeAtm.delta - gCo1.delta)*lotSz; netTheta=(gCeAtm.theta - gCo1.theta)*lotSz; netVega=(gCeAtm.vega - gCo1.vega)*lotSz;
+      netDelta=(gCeAtm.delta - gCo1.delta)*lotSz; netTheta=(gCeAtm.theta - gCo1.theta)*lotSz; netVega=(gCeAtm.vega - gCo1.vega)*lotSz; netGamma=(gCeAtm.gamma - gCo1.gamma)*lotSz;
       break;
     }}
     case 'bull_put_spread': {{
@@ -1765,7 +1765,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: sp, c: '#00c896' }},
         {{ l: 'BUY PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: bp, c: '#ff9090' }}
       ];
-      netDelta=(-gPeAtm.delta + gPo1.delta)*lotSz; netTheta=(-gPeAtm.theta + gPo1.theta)*lotSz; netVega=(-gPeAtm.vega + gPo1.vega)*lotSz;
+      netDelta=(-gPeAtm.delta + gPo1.delta)*lotSz; netTheta=(-gPeAtm.theta + gPo1.theta)*lotSz; netVega=(-gPeAtm.vega + gPo1.vega)*lotSz; netGamma=(-gPeAtm.gamma + gPo1.gamma)*lotSz;
       break;
     }}
     case 'bear_call_spread': {{
@@ -1778,7 +1778,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: sp, c: '#00c896' }},
         {{ l: 'BUY CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: bp, c: '#00c8e0' }}
       ];
-      netDelta=(-gCeAtm.delta + gCo1.delta)*lotSz; netTheta=(-gCeAtm.theta + gCo1.theta)*lotSz; netVega=(-gCeAtm.vega + gCo1.vega)*lotSz;
+      netDelta=(-gCeAtm.delta + gCo1.delta)*lotSz; netTheta=(-gCeAtm.theta + gCo1.theta)*lotSz; netVega=(-gCeAtm.vega + gCo1.vega)*lotSz; netGamma=(-gCeAtm.gamma + gCo1.gamma)*lotSz;
       break;
     }}
     case 'bear_put_spread': {{
@@ -1791,7 +1791,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY PE \u20b9' + atm.toLocaleString('en-IN'), v: bp, c: '#ff9090' }},
         {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: sp, c: '#00c896' }}
       ];
-      netDelta=(gPeAtm.delta - gPo1.delta)*lotSz; netTheta=(gPeAtm.theta - gPo1.theta)*lotSz; netVega=(gPeAtm.vega - gPo1.vega)*lotSz;
+      netDelta=(gPeAtm.delta - gPo1.delta)*lotSz; netTheta=(gPeAtm.theta - gPo1.theta)*lotSz; netVega=(gPeAtm.vega - gPo1.vega)*lotSz; netGamma=(gPeAtm.gamma - gPo1.gamma)*lotSz;
       break;
     }}
 
@@ -1803,7 +1803,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'BUY PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
       ];
-      netDelta=(gCeAtm.delta + gPeAtm.delta)*lotSz; netTheta=(gCeAtm.theta + gPeAtm.theta)*lotSz; netVega=(gCeAtm.vega + gPeAtm.vega)*lotSz;
+      netDelta=(gCeAtm.delta + gPeAtm.delta)*lotSz; netTheta=(gCeAtm.theta + gPeAtm.theta)*lotSz; netVega=(gCeAtm.vega + gPeAtm.vega)*lotSz; netGamma=(gCeAtm.gamma + gPeAtm.gamma)*lotSz;
       break;
     }}
     case 'short_straddle': {{
@@ -1814,7 +1814,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
       ];
-      netDelta=-(gCeAtm.delta + gPeAtm.delta)*lotSz; netTheta=-(gCeAtm.theta + gPeAtm.theta)*lotSz; netVega=-(gCeAtm.vega + gPeAtm.vega)*lotSz;
+      netDelta=-(gCeAtm.delta + gPeAtm.delta)*lotSz; netTheta=-(gCeAtm.theta + gPeAtm.theta)*lotSz; netVega=-(gCeAtm.vega + gPeAtm.vega)*lotSz; netGamma=-(gCeAtm.gamma + gPeAtm.gamma)*lotSz;
       break;
     }}
     case 'long_strangle': {{
@@ -1826,7 +1826,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'BUY PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
       ];
-      netDelta=(gCo1.delta + gPo1.delta)*lotSz; netTheta=(gCo1.theta + gPo1.theta)*lotSz; netVega=(gCo1.vega + gPo1.vega)*lotSz;
+      netDelta=(gCo1.delta + gPo1.delta)*lotSz; netTheta=(gCo1.theta + gPo1.theta)*lotSz; netVega=(gCo1.vega + gPo1.vega)*lotSz; netGamma=(gCo1.gamma + gPo1.gamma)*lotSz;
       break;
     }}
     case 'short_strangle': {{
@@ -1838,7 +1838,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
       ];
-      netDelta=-(gCo1.delta + gPo1.delta)*lotSz; netTheta=-(gCo1.theta + gPo1.theta)*lotSz; netVega=-(gCo1.vega + gPo1.vega)*lotSz;
+      netDelta=-(gCo1.delta + gPo1.delta)*lotSz; netTheta=-(gCo1.theta + gPo1.theta)*lotSz; netVega=-(gCo1.vega + gPo1.vega)*lotSz; netGamma=-(gCo1.gamma + gPo1.gamma)*lotSz;
       break;
     }}
 
@@ -1856,7 +1856,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: wc, c: '#00c8e0' }},
         {{ l: 'BUY PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: wp, c: '#ff9090' }}
       ];
-      netDelta=-(gCeAtm.delta+gPeAtm.delta-gCo1.delta-gPo1.delta)*lotSz; netTheta=-(gCeAtm.theta+gPeAtm.theta-gCo1.theta-gPo1.theta)*lotSz; netVega=-(gCeAtm.vega+gPeAtm.vega-gCo1.vega-gPo1.vega)*lotSz;
+      netDelta=-(gCeAtm.delta+gPeAtm.delta-gCo1.delta-gPo1.delta)*lotSz; netTheta=-(gCeAtm.theta+gPeAtm.theta-gCo1.theta-gPo1.theta)*lotSz; netVega=-(gCeAtm.vega+gPeAtm.vega-gCo1.vega-gPo1.vega)*lotSz; netGamma=-(gCeAtm.gamma+gPeAtm.gamma-gCo1.gamma-gPo1.gamma)*lotSz;
       break;
     }}
     case 'long_iron_fly': {{
@@ -1873,7 +1873,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: wc, c: '#00c8e0' }},
         {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: wp, c: '#ff9090' }}
       ];
-      netDelta=(gCeAtm.delta+gPeAtm.delta-gCo1.delta-gPo1.delta)*lotSz; netTheta=(gCeAtm.theta+gPeAtm.theta-gCo1.theta-gPo1.theta)*lotSz; netVega=(gCeAtm.vega+gPeAtm.vega-gCo1.vega-gPo1.vega)*lotSz;
+      netDelta=(gCeAtm.delta+gPeAtm.delta-gCo1.delta-gPo1.delta)*lotSz; netTheta=(gCeAtm.theta+gPeAtm.theta-gCo1.theta-gPo1.theta)*lotSz; netVega=(gCeAtm.vega+gPeAtm.vega-gCo1.vega-gPo1.vega)*lotSz; netGamma=(gCeAtm.gamma+gPeAtm.gamma-gCo1.gamma-gPo1.gamma)*lotSz;
       break;
     }}
     case 'short_iron_condor': {{
@@ -1890,7 +1890,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: sp, c: '#ff9090' }},
         {{ l: 'BUY PE \u20b9' + po2.strike.toLocaleString('en-IN'), v: bp, c: '#ff9090' }}
       ];
-      netDelta=-(gCo1.delta+gPo1.delta-gCo2.delta-gPo2.delta)*lotSz; netTheta=-(gCo1.theta+gPo1.theta-gCo2.theta-gPo2.theta)*lotSz; netVega=-(gCo1.vega+gPo1.vega-gCo2.vega-gPo2.vega)*lotSz;
+      netDelta=-(gCo1.delta+gPo1.delta-gCo2.delta-gPo2.delta)*lotSz; netTheta=-(gCo1.theta+gPo1.theta-gCo2.theta-gPo2.theta)*lotSz; netVega=-(gCo1.vega+gPo1.vega-gCo2.vega-gPo2.vega)*lotSz; netGamma=-(gCo1.gamma+gPo1.gamma-gCo2.gamma-gPo2.gamma)*lotSz;
       break;
     }}
     case 'long_iron_condor': {{
@@ -1907,7 +1907,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: sp, c: '#ff9090' }},
         {{ l: 'BUY PE \u20b9' + po2.strike.toLocaleString('en-IN'), v: bp, c: '#ff9090' }}
       ];
-      netDelta=(gCo1.delta+gPo1.delta-gCo2.delta-gPo2.delta)*lotSz; netTheta=(gCo1.theta+gPo1.theta-gCo2.theta-gPo2.theta)*lotSz; netVega=(gCo1.vega+gPo1.vega-gCo2.vega-gPo2.vega)*lotSz;
+      netDelta=(gCo1.delta+gPo1.delta-gCo2.delta-gPo2.delta)*lotSz; netTheta=(gCo1.theta+gPo1.theta-gCo2.theta-gPo2.theta)*lotSz; netVega=(gCo1.vega+gPo1.vega-gCo2.vega-gPo2.vega)*lotSz; netGamma=(gCo1.gamma+gPo1.gamma-gCo2.gamma-gPo2.gamma)*lotSz;
       break;
     }}
 
@@ -1924,7 +1924,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL 2x CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: mid, c: '#00c896' }},
         {{ l: 'BUY CE \u20b9' + co2.strike.toLocaleString('en-IN'), v: hp, c: '#00c8e0' }}
       ];
-      netDelta=(gCeAtm.delta - 2*gCo1.delta + gCo2.delta)*lotSz; netTheta=(gCeAtm.theta - 2*gCo1.theta + gCo2.theta)*lotSz; netVega=(gCeAtm.vega - 2*gCo1.vega + gCo2.vega)*lotSz;
+      netDelta=(gCeAtm.delta - 2*gCo1.delta + gCo2.delta)*lotSz; netTheta=(gCeAtm.theta - 2*gCo1.theta + gCo2.theta)*lotSz; netVega=(gCeAtm.vega - 2*gCo1.vega + gCo2.vega)*lotSz; netGamma=(gCeAtm.gamma - 2*gCo1.gamma + gCo2.gamma)*lotSz;
       break;
     }}
     case 'put_butterfly':
@@ -1940,7 +1940,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL 2x PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: mid, c: '#00c896' }},
         {{ l: 'BUY PE \u20b9' + po2.strike.toLocaleString('en-IN'), v: lp, c: '#ff9090' }}
       ];
-      netDelta=(gPeAtm.delta - 2*gPo1.delta + gPo2.delta)*lotSz; netTheta=(gPeAtm.theta - 2*gPo1.theta + gPo2.theta)*lotSz; netVega=(gPeAtm.vega - 2*gPo1.vega + gPo2.vega)*lotSz;
+      netDelta=(gPeAtm.delta - 2*gPo1.delta + gPo2.delta)*lotSz; netTheta=(gPeAtm.theta - 2*gPo1.theta + gPo2.theta)*lotSz; netVega=(gPeAtm.vega - 2*gPo1.vega + gPo2.vega)*lotSz; netGamma=(gPeAtm.gamma - 2*gPo1.gamma + gPo2.gamma)*lotSz;
       break;
     }}
 
@@ -1953,7 +1953,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: sp, c: '#00c896' }},
         {{ l: 'BUY 2x CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: bp, c: '#00c8e0' }}
       ];
-      netDelta=(-gCeAtm.delta + 2*gCo1.delta)*lotSz; netTheta=(-gCeAtm.theta + 2*gCo1.theta)*lotSz; netVega=(-gCeAtm.vega + 2*gCo1.vega)*lotSz;
+      netDelta=(-gCeAtm.delta + 2*gCo1.delta)*lotSz; netTheta=(-gCeAtm.theta + 2*gCo1.theta)*lotSz; netVega=(-gCeAtm.vega + 2*gCo1.vega)*lotSz; netGamma=(-gCeAtm.gamma + 2*gCo1.gamma)*lotSz;
       break;
     }}
     case 'put_ratio_back': {{
@@ -1965,7 +1965,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: sp, c: '#00c896' }},
         {{ l: 'BUY 2x PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: bp, c: '#ff9090' }}
       ];
-      netDelta=(-gPeAtm.delta + 2*gPo1.delta)*lotSz; netTheta=(-gPeAtm.theta + 2*gPo1.theta)*lotSz; netVega=(-gPeAtm.vega + 2*gPo1.vega)*lotSz;
+      netDelta=(-gPeAtm.delta + 2*gPo1.delta)*lotSz; netTheta=(-gPeAtm.theta + 2*gPo1.theta)*lotSz; netVega=(-gPeAtm.vega + 2*gPo1.vega)*lotSz; netGamma=(-gPeAtm.gamma + 2*gPo1.gamma)*lotSz;
       break;
     }}
 
@@ -1982,7 +1982,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY CE \u20b9' + atm.toLocaleString('en-IN'), v: bp, c: '#00c8e0' }},
         {{ l: 'SELL 2x CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: sp, c: '#00c896' }}
       ];
-      netDelta=(gCeAtm.delta - 2*gCo1.delta)*lotSz; netTheta=(gCeAtm.theta - 2*gCo1.theta)*lotSz; netVega=(gCeAtm.vega - 2*gCo1.vega)*lotSz;
+      netDelta=(gCeAtm.delta - 2*gCo1.delta)*lotSz; netTheta=(gCeAtm.theta - 2*gCo1.theta)*lotSz; netVega=(gCeAtm.vega - 2*gCo1.vega)*lotSz; netGamma=(gCeAtm.gamma - 2*gCo1.gamma)*lotSz;
       break;
     }}
     case 'put_ratio_spread': {{
@@ -1998,7 +1998,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY PE \u20b9' + atm.toLocaleString('en-IN'), v: bp, c: '#ff9090' }},
         {{ l: 'SELL 2x PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: sp, c: '#00c896' }}
       ];
-      netDelta=(gPeAtm.delta - 2*gPo1.delta)*lotSz; netTheta=(gPeAtm.theta - 2*gPo1.theta)*lotSz; netVega=(gPeAtm.vega - 2*gPo1.vega)*lotSz;
+      netDelta=(gPeAtm.delta - 2*gPo1.delta)*lotSz; netTheta=(gPeAtm.theta - 2*gPo1.theta)*lotSz; netVega=(gPeAtm.vega - 2*gPo1.vega)*lotSz; netGamma=(gPeAtm.gamma - 2*gPo1.gamma)*lotSz;
       break;
     }}
 
@@ -2011,7 +2011,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'SELL PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
       ];
-      netDelta=(gCeAtm.delta - gPeAtm.delta)*lotSz; netTheta=(gCeAtm.theta - gPeAtm.theta)*lotSz; netVega=(gCeAtm.vega - gPeAtm.vega)*lotSz;
+      netDelta=(gCeAtm.delta - gPeAtm.delta)*lotSz; netTheta=(gCeAtm.theta - gPeAtm.theta)*lotSz; netVega=(gCeAtm.vega - gPeAtm.vega)*lotSz; netGamma=(gCeAtm.gamma - gPeAtm.gamma)*lotSz;
       break;
     }}
     case 'short_synthetic': {{
@@ -2023,7 +2023,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL CE \u20b9' + atm.toLocaleString('en-IN'), v: cp2, c: '#00c8e0' }},
         {{ l: 'BUY PE \u20b9' + atm.toLocaleString('en-IN'), v: pp, c: '#ff9090' }}
       ];
-      netDelta=(-gCeAtm.delta + gPeAtm.delta)*lotSz; netTheta=(-gCeAtm.theta + gPeAtm.theta)*lotSz; netVega=(-gCeAtm.vega + gPeAtm.vega)*lotSz;
+      netDelta=(-gCeAtm.delta + gPeAtm.delta)*lotSz; netTheta=(-gCeAtm.theta + gPeAtm.theta)*lotSz; netVega=(-gCeAtm.vega + gPeAtm.vega)*lotSz; netGamma=(-gCeAtm.gamma + gPeAtm.gamma)*lotSz;
       break;
     }}
 
@@ -2037,7 +2037,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: bp, c: '#ff9090' }},
         {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: sc, c: '#00c8e0' }}
       ];
-      netDelta=(gPo1.delta - gCo1.delta)*lotSz; netTheta=(gPo1.theta - gCo1.theta)*lotSz; netVega=(gPo1.vega - gCo1.vega)*lotSz;
+      netDelta=(gPo1.delta - gCo1.delta)*lotSz; netTheta=(gPo1.theta - gCo1.theta)*lotSz; netVega=(gPo1.vega - gCo1.vega)*lotSz; netGamma=(gPo1.gamma - gCo1.gamma)*lotSz;
       break;
     }}
     case 'range_forward': {{
@@ -2050,7 +2050,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'BUY CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: bc, c: '#00c8e0' }},
         {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: sp, c: '#ff9090' }}
       ];
-      netDelta=(gCo1.delta - gPo1.delta)*lotSz; netTheta=(gCo1.theta - gPo1.theta)*lotSz; netVega=(gCo1.vega - gPo1.vega)*lotSz;
+      netDelta=(gCo1.delta - gPo1.delta)*lotSz; netTheta=(gCo1.theta - gPo1.theta)*lotSz; netVega=(gCo1.vega - gPo1.vega)*lotSz; netGamma=(gCo1.gamma - gPo1.gamma)*lotSz;
       break;
     }}
 
@@ -2065,7 +2065,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: cs, c: '#00c8e0' }},
         {{ l: 'BUY CE \u20b9' + co2.strike.toLocaleString('en-IN'), v: cb, c: '#00c8e0' }}
       ];
-      netDelta=(-gPo1.delta - gCo1.delta + gCo2.delta)*lotSz; netTheta=(-gPo1.theta - gCo1.theta + gCo2.theta)*lotSz; netVega=(-gPo1.vega - gCo1.vega + gCo2.vega)*lotSz;
+      netDelta=(-gPo1.delta - gCo1.delta + gCo2.delta)*lotSz; netTheta=(-gPo1.theta - gCo1.theta + gCo2.theta)*lotSz; netVega=(-gPo1.vega - gCo1.vega + gCo2.vega)*lotSz; netGamma=(-gPo1.gamma - gCo1.gamma + gCo2.gamma)*lotSz;
       break;
     }}
     case 'reverse_jade': {{
@@ -2079,7 +2079,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL PE \u20b9' + po1.strike.toLocaleString('en-IN'), v: ps, c: '#ff9090' }},
         {{ l: 'BUY PE \u20b9' + po2.strike.toLocaleString('en-IN'), v: pb, c: '#ff9090' }}
       ];
-      netDelta=(-gCo1.delta - gPo1.delta + gPo2.delta)*lotSz; netTheta=(-gCo1.theta - gPo1.theta + gPo2.theta)*lotSz; netVega=(-gCo1.vega - gPo1.vega + gPo2.vega)*lotSz;
+      netDelta=(-gCo1.delta - gPo1.delta + gPo2.delta)*lotSz; netTheta=(-gCo1.theta - gPo1.theta + gPo2.theta)*lotSz; netVega=(-gCo1.vega - gPo1.vega + gPo2.vega)*lotSz; netGamma=(-gCo1.gamma - gPo1.gamma + gPo2.gamma)*lotSz;
       break;
     }}
 
@@ -2099,7 +2099,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL CE \u20b9' + co2.strike.toLocaleString('en-IN'), v: s3, c: '#00c896' }},
         {{ l: 'BUY CE \u20b9'  + co3.strike.toLocaleString('en-IN'), v: s4, c: '#00c8e0' }}
       ];
-      netDelta=(gCeAtm.delta - gCo1.delta - gCo2.delta + gCo3.delta)*lotSz; netTheta=(gCeAtm.theta - gCo1.theta - gCo2.theta + gCo3.theta)*lotSz; netVega=(gCeAtm.vega - gCo1.vega - gCo2.vega + gCo3.vega)*lotSz;
+      netDelta=(gCeAtm.delta - gCo1.delta - gCo2.delta + gCo3.delta)*lotSz; netTheta=(gCeAtm.theta - gCo1.theta - gCo2.theta + gCo3.theta)*lotSz; netVega=(gCeAtm.vega - gCo1.vega - gCo2.vega + gCo3.vega)*lotSz; netGamma=(gCeAtm.gamma - gCo1.gamma - gCo2.gamma + gCo3.gamma)*lotSz;
       break;
     }}
     case 'bear_condor': {{
@@ -2118,7 +2118,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL PE \u20b9' + po2.strike.toLocaleString('en-IN'), v: s3, c: '#00c896' }},
         {{ l: 'BUY PE \u20b9'  + po3.strike.toLocaleString('en-IN'), v: s4, c: '#ff9090' }}
       ];
-      netDelta=(gPeAtm.delta - gPo1.delta - gPo2.delta + gPo3.delta)*lotSz; netTheta=(gPeAtm.theta - gPo1.theta - gPo2.theta + gPo3.theta)*lotSz; netVega=(gPeAtm.vega - gPo1.vega - gPo2.vega + gPo3.vega)*lotSz;
+      netDelta=(gPeAtm.delta - gPo1.delta - gPo2.delta + gPo3.delta)*lotSz; netTheta=(gPeAtm.theta - gPo1.theta - gPo2.theta + gPo3.theta)*lotSz; netVega=(gPeAtm.vega - gPo1.vega - gPo2.vega + gPo3.vega)*lotSz; netGamma=(gPeAtm.gamma - gPo1.gamma - gPo2.gamma + gPo3.gamma)*lotSz;
       break;
     }}
 
@@ -2134,7 +2134,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL 4x CE \u20b9' + co1.strike.toLocaleString('en-IN'), v: s2, c: '#00c896' }},
         {{ l: 'BUY 2x CE \u20b9' + co2.strike.toLocaleString('en-IN'), v: s3, c: '#00c8e0' }}
       ];
-      netDelta=2*(gCeAtm.delta - 2*gCo1.delta + gCo2.delta)*lotSz; netTheta=2*(gCeAtm.theta - 2*gCo1.theta + gCo2.theta)*lotSz; netVega=2*(gCeAtm.vega - 2*gCo1.vega + gCo2.vega)*lotSz;
+      netDelta=2*(gCeAtm.delta - 2*gCo1.delta + gCo2.delta)*lotSz; netTheta=2*(gCeAtm.theta - 2*gCo1.theta + gCo2.theta)*lotSz; netVega=2*(gCeAtm.vega - 2*gCo1.vega + gCo2.vega)*lotSz; netGamma=2*(gCeAtm.gamma - 2*gCo1.gamma + gCo2.gamma)*lotSz;
       break;
     }}
 
@@ -2150,7 +2150,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'CALL FLY: BUY/SELL/BUY CE', v: ce_atm || 150, c: '#00c8e0' }},
         {{ l: 'PUT FLY:  BUY/SELL/BUY PE', v: pe_atm || 150, c: '#ff9090' }}
       ];
-      netDelta=((gCeAtm.delta-2*gCo1.delta+gCo2.delta)+(gPeAtm.delta-2*gPo1.delta+gPo2.delta))*lotSz; netTheta=((gCeAtm.theta-2*gCo1.theta+gCo2.theta)+(gPeAtm.theta-2*gPo1.theta+gPo2.theta))*lotSz; netVega=((gCeAtm.vega-2*gCo1.vega+gCo2.vega)+(gPeAtm.vega-2*gPo1.vega+gPo2.vega))*lotSz;
+      netDelta=((gCeAtm.delta-2*gCo1.delta+gCo2.delta)+(gPeAtm.delta-2*gPo1.delta+gPo2.delta))*lotSz; netTheta=((gCeAtm.theta-2*gCo1.theta+gCo2.theta)+(gPeAtm.theta-2*gPo1.theta+gPo2.theta))*lotSz; netVega=((gCeAtm.vega-2*gCo1.vega+gCo2.vega)+(gPeAtm.vega-2*gPo1.vega+gPo2.vega))*lotSz; netGamma=((gCeAtm.gamma-2*gCo1.gamma+gCo2.gamma)+(gPeAtm.gamma-2*gPo1.gamma+gPo2.gamma))*lotSz;
       break;
     }}
 
@@ -2166,7 +2166,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'CE CONDOR \u20b9' + atm.toLocaleString('en-IN') + ' \u2192 \u20b9' + co3.strike.toLocaleString('en-IN'), v: ce_atm || 150, c: '#00c8e0' }},
         {{ l: 'PE CONDOR \u20b9' + atm.toLocaleString('en-IN') + ' \u2192 \u20b9' + po3.strike.toLocaleString('en-IN'), v: pe_atm || 150, c: '#ff9090' }}
       ];
-      netDelta=((gCeAtm.delta-gCo1.delta-gCo2.delta+gCo3.delta)+(gPeAtm.delta-gPo1.delta-gPo2.delta+gPo3.delta))*lotSz; netTheta=((gCeAtm.theta-gCo1.theta-gCo2.theta+gCo3.theta)+(gPeAtm.theta-gPo1.theta-gPo2.theta+gPo3.theta))*lotSz; netVega=((gCeAtm.vega-gCo1.vega-gCo2.vega+gCo3.vega)+(gPeAtm.vega-gPo1.vega-gPo2.vega+gPo3.vega))*lotSz;
+      netDelta=((gCeAtm.delta-gCo1.delta-gCo2.delta+gCo3.delta)+(gPeAtm.delta-gPo1.delta-gPo2.delta+gPo3.delta))*lotSz; netTheta=((gCeAtm.theta-gCo1.theta-gCo2.theta+gCo3.theta)+(gPeAtm.theta-gPo1.theta-gPo2.theta+gPo3.theta))*lotSz; netVega=((gCeAtm.vega-gCo1.vega-gCo2.vega+gCo3.vega)+(gPeAtm.vega-gPo1.vega-gPo2.vega+gPo3.vega))*lotSz; netGamma=((gCeAtm.gamma-gCo1.gamma-gCo2.gamma+gCo3.gamma)+(gPeAtm.gamma-gPo1.gamma-gPo2.gamma+gPo3.gamma))*lotSz;
       break;
     }}
 
@@ -2181,7 +2181,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL NEAR CE \u20b9' + atm.toLocaleString('en-IN') + ' (~est)', v: nearLTP, c: '#00c896' }},
         {{ l: 'BUY FAR CE \u20b9'   + atm.toLocaleString('en-IN'),             v: farLTP,  c: '#00c8e0' }}
       ];
-      netDelta=gCeAtm.delta*0.1*lotSz; netTheta=Math.abs(gCeAtm.theta)*0.45*lotSz; netVega=gCeAtm.vega*0.3*lotSz;
+      netDelta=gCeAtm.delta*0.1*lotSz; netTheta=Math.abs(gCeAtm.theta)*0.45*lotSz; netVega=gCeAtm.vega*0.3*lotSz; netGamma=gCeAtm.gamma*0.1*lotSz;
       break;
     }}
     case 'put_calendar': {{
@@ -2195,7 +2195,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL NEAR PE \u20b9' + atm.toLocaleString('en-IN') + ' (~est)', v: nearLTP, c: '#00c896' }},
         {{ l: 'BUY FAR PE \u20b9'   + atm.toLocaleString('en-IN'),             v: farLTP,  c: '#ff9090' }}
       ];
-      netDelta=gPeAtm.delta*0.1*lotSz; netTheta=Math.abs(gPeAtm.theta)*0.45*lotSz; netVega=gPeAtm.vega*0.3*lotSz;
+      netDelta=gPeAtm.delta*0.1*lotSz; netTheta=Math.abs(gPeAtm.theta)*0.45*lotSz; netVega=gPeAtm.vega*0.3*lotSz; netGamma=gPeAtm.gamma*0.1*lotSz;
       break;
     }}
     case 'diagonal_calendar': {{
@@ -2209,7 +2209,7 @@ function calcMetrics(shape, smartPop) {{
         {{ l: 'SELL NEAR CE \u20b9' + co1.strike.toLocaleString('en-IN') + ' (~est)', v: nearLTP, c: '#00c896' }},
         {{ l: 'BUY FAR CE \u20b9'   + atm.toLocaleString('en-IN'),                   v: farLTP,  c: '#00c8e0' }}
       ];
-      netDelta=(gCeAtm.delta - gCo1.delta*0.5)*0.1*lotSz; netTheta=Math.abs(gCeAtm.theta)*0.35*lotSz; netVega=(gCeAtm.vega-gCo1.vega*0.5)*0.3*lotSz;
+      netDelta=(gCeAtm.delta - gCo1.delta*0.5)*0.1*lotSz; netTheta=Math.abs(gCeAtm.theta)*0.35*lotSz; netVega=(gCeAtm.vega-gCo1.vega*0.5)*0.3*lotSz; netGamma=(gCeAtm.gamma - gCo1.gamma*0.5)*0.1*lotSz;
       break;
     }}
 
@@ -2241,6 +2241,7 @@ function calcMetrics(shape, smartPop) {{
            netDelta:Math.round(netDelta*100)/100,
            netTheta:Math.round(netTheta*100)/100,
            netVega:Math.round(netVega*100)/100,
+           netGamma:Math.round(netGamma*10000)/10000,
            mlRawVal:ml}};
 }}
 
@@ -2318,11 +2319,12 @@ function buildIntradaySim(m) {{
   const nd      = m.netDelta;   // ₹ per 1 point Nifty move
   const nt      = m.netTheta;   // ₹ per day (negative = decay cost)
   const nv      = m.netVega;    // ₹ per 1% IV change
+  const ng      = m.netGamma;   // ₹ curvature (½·Γ·move²)
 
-  const moves = [-500,-400,-300,-200,-150,-100,-50,0,50,100,150,200,300,400,500];
+  const moves = [-300,-200,-150,-100,-50,0,50,100,150,200,300];
 
   function calcPnl(movePts) {{
-    let pnl = nd * movePts + nt;
+    let pnl = nd * movePts + 0.5 * ng * movePts * movePts + nt;
     if (maxL !== null) pnl = Math.max(-maxL, pnl);
     if (maxP !== null) pnl = Math.min(maxP * 0.9, pnl);
     return Math.round(pnl);
@@ -2388,7 +2390,7 @@ function buildIntradaySim(m) {{
       <tbody>${{tRows}}</tbody>
     </table>
     <div style="padding:9px 12px;font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,70,.75);background:rgba(0,0,0,.25);border-top:1px solid rgba(255,185,0,.1);line-height:1.7;">
-      © P&amp;L = <span style="color:rgba(255,215,0,.9);">Delta×move</span> + <span style="color:rgba(255,215,0,.9);">Theta (1 day)</span>. Actual exit P&amp;L may differ due to IV changes. Max profit of ${{m.mpStr}} is achievable at expiry only.
+      © P&amp;L = <span style="color:rgba(255,215,0,.9);">Delta×move + ½Gamma×move²</span> + <span style="color:rgba(255,215,0,.9);">Theta (1 day)</span>. Actual exit P&amp;L may differ due to IV changes. Max profit of ${{m.mpStr}} is achievable at expiry only.
     </div>
   </div>
 
