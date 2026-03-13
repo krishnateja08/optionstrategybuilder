@@ -2433,54 +2433,6 @@ function buildIntradaySim(m) {{
     </div>
   </div>
 
-  <script>
-  (function(){{
-    const SID='${{simId}}', MXD=${{maxDays}};
-    const _nd=${{nd}},_nt=${{nt}},_nv=${{nv}},_ng=${{ng}};
-    const _mxL=${{maxL===null?'null':maxL}},_mxP=${{maxP===null?'null':maxP}};
-    const _sp=OC.spot;
-    const _mv=[-500,-400,-300,-200,-150,-100,-50,0,50,100,150,200,300,400,500];
-    function _pnl(mv,days){{
-      const iv=-(mv/_sp)*400;
-      let p=_nd*mv+0.5*_ng*mv*mv+_nv*iv+(_nt*days);
-      if(_mxL!==null)p=Math.max(-_mxL,p);
-      if(_mxP!==null)p=Math.min(_mxP*0.9,p);
-      return Math.round(p);
-    }}
-    window['selDay_'+SID]=function(days){{
-      for(let d=1;d<=MXD;d++){{
-        const b=document.getElementById('daybtn_'+SID+'_'+d);
-        if(!b)continue;
-        const a=(d===days);
-        b.style.borderColor=a?'#ffcc00':'rgba(255,185,0,.3)';
-        b.style.color=a?'#ffcc00':'rgba(255,200,80,.5)';
-        b.style.background=a?'rgba(255,185,0,.15)':'transparent';
-      }}
-      const isExp=(days===MXD);
-      document.getElementById(SID+'_hdr').innerHTML=isExp
-        ?'📋 EXPIRY P&amp;L SCENARIOS'
-        :'📋 '+days+' DAY'+(days>1?'S':'')+' P&amp;L SCENARIOS';
-      document.getElementById(SID+'_col2').innerHTML=isExp
-        ?'EXPIRY P&amp;L'
-        :days+' DAY'+(days>1?'S':'')+' P&amp;L';
-      document.getElementById(SID+'_daylbl').textContent=days;
-      document.getElementById(SID+'_tbody').innerHTML=_mv.map(mv=>{{
-        const pnl=_pnl(mv,days);
-        const col=pnl>100?'#38d888':pnl>0?'#ffcc00':pnl>-200?'#ffaa00':'#f04050';
-        const mc=mv>0?'#38d888':mv<0?'#f04050':'#ffcc00';
-        const mb=mv>0?'rgba(56,216,136,.12)':mv<0?'rgba(240,64,80,.18)':'rgba(255,185,0,.18)';
-        const ml=mv>0?'+'+mv:mv===0?'Flat':String(mv);
-        const pc=_mxP?((pnl/_mxP)*100).toFixed(0)+'%':'\u2014';
-        const rb=mv===0?'background:rgba(255,185,0,.05);':'';
-        return '<tr style="'+rb+'"><td style="padding:6px 10px;white-space:nowrap;"><span style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;padding:4px 8px;border-radius:4px;background:'+mb+';color:'+mc+';white-space:nowrap;display:inline-block;min-width:56px;text-align:center;">'+ml+(mv!==0?'p':'')+'</span></td>'
-          +'<td style="padding:6px 8px;font-family:DM Mono,monospace;font-size:13px;color:rgba(255,200,80,.82);white-space:nowrap;text-align:left;">'+(_sp+mv).toLocaleString('en-IN')+'</td>'
-          +'<td style="padding:6px 8px;font-family:DM Mono,monospace;font-weight:700;font-size:15px;color:'+col+';white-space:nowrap;text-align:right;">'+(pnl>=0?'+':'')+'\u20b9'+Math.abs(pnl).toLocaleString('en-IN')+'</td>'
-          +'<td style="padding:6px 6px;font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:'+col+';text-align:right;white-space:nowrap;">'+pc+'</td></tr>';
-      }}).join('');
-    }};
-  }})();
-  </script>
-
 
   <!-- TAB 2: Greeks Breakdown -->
   <div id="${{simId}}_c2" style="display:none;">
@@ -3676,6 +3628,56 @@ function drawPayoffChart(card, m) {{
     </div>`;
 }}
 
+
+// ── Day Selector Setup (called after innerHTML injection) ────────────────────
+function setupDaySelector(simId, nd, nt, nv, ng, maxL, maxP, maxDays) {{
+  const _mv = [-500,-400,-300,-200,-150,-100,-50,0,50,100,150,200,300,400,500];
+  function _pnl(mv, days) {{
+    const iv = -(mv / OC.spot) * 400;
+    let p = nd*mv + 0.5*ng*mv*mv + nv*iv + (nt*days);
+    if (maxL !== null) p = Math.max(-maxL, p);
+    if (maxP !== null) p = Math.min(maxP*0.9, p);
+    return Math.round(p);
+  }}
+  window['selDay_'+simId] = function(days) {{
+    // Update button styles
+    for (let d=1; d<=maxDays; d++) {{
+      const b = document.getElementById('daybtn_'+simId+'_'+d);
+      if (!b) continue;
+      const a = (d===days);
+      b.style.borderColor = a ? '#ffcc00' : 'rgba(255,185,0,.3)';
+      b.style.color       = a ? '#ffcc00' : 'rgba(255,200,80,.5)';
+      b.style.background  = a ? 'rgba(255,185,0,.15)' : 'transparent';
+    }}
+    // Update headers
+    const isExp = (days === maxDays);
+    const hdr = document.getElementById(simId+'_hdr');
+    const col2 = document.getElementById(simId+'_col2');
+    const dlbl = document.getElementById(simId+'_daylbl');
+    if (hdr)  hdr.innerHTML  = isExp ? '📋 EXPIRY P&amp;L SCENARIOS' : '📋 '+days+' DAY'+(days>1?'S':'')+' P&amp;L SCENARIOS';
+    if (col2) col2.innerHTML = isExp ? 'EXPIRY P&amp;L' : days+' DAY'+(days>1?'S':'')+' P&amp;L';
+    if (dlbl) dlbl.textContent = days;
+    // Rebuild rows
+    const tbody = document.getElementById(simId+'_tbody');
+    if (!tbody) return;
+    tbody.innerHTML = _mv.map(mv => {{
+      const pnl = _pnl(mv, days);
+      const col = pnl>100?'#38d888':pnl>0?'#ffcc00':pnl>-200?'#ffaa00':'#f04050';
+      const mc  = mv>0?'#38d888':mv<0?'#f04050':'#ffcc00';
+      const mb  = mv>0?'rgba(56,216,136,.12)':mv<0?'rgba(240,64,80,.18)':'rgba(255,185,0,.18)';
+      const ml  = mv>0?'+'+mv:mv===0?'Flat':String(mv);
+      const pc  = maxP ? ((pnl/maxP)*100).toFixed(0)+'%' : '—';
+      const rb  = mv===0 ? 'background:rgba(255,185,0,.05);' : '';
+      return '<tr style="'+rb+'">'
+        +'<td style="padding:6px 10px;white-space:nowrap;"><span style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;padding:4px 8px;border-radius:4px;background:'+mb+';color:'+mc+';white-space:nowrap;display:inline-block;min-width:56px;text-align:center;">'+ml+(mv!==0?'p':'')+'</span></td>'
+        +'<td style="padding:6px 8px;font-family:DM Mono,monospace;font-size:13px;color:rgba(255,200,80,.82);white-space:nowrap;text-align:left;">'+(OC.spot+mv).toLocaleString('en-IN')+'</td>'
+        +'<td style="padding:6px 8px;font-family:DM Mono,monospace;font-weight:700;font-size:15px;color:'+col+';white-space:nowrap;text-align:right;">'+(pnl>=0?'+':'')+'₹'+Math.abs(pnl).toLocaleString('en-IN')+'</td>'
+        +'<td style="padding:6px 6px;font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:'+col+';text-align:right;white-space:nowrap;">'+pc+'</td>'
+        +'</tr>';
+    }}).join('');
+  }};
+}}
+
 document.addEventListener("click",function(e){{
   const card=e.target.closest(".sc-card");
   if(card){{
@@ -3691,6 +3693,15 @@ document.addEventListener("click",function(e){{
           const m=calcMetrics(shape,scoreResult.pop);
           mel.innerHTML=renderMetrics(m, scoreResult);
           drawPayoffChart(card, m);
+          // Setup day selector (must be after innerHTML since script tags don't execute there)
+          const _sid=mel.querySelector('[id$="_tbody"]');
+          if(_sid){{
+            const _simId=_sid.id.replace('_tbody','');
+            setupDaySelector(_simId,m.netDelta,m.netTheta,m.netVega,m.netGamma,
+              m.mlRawVal===999999?null:m.mlRawVal,
+              m.mpRaw===999999?null:m.mpRaw,
+              (function(){{try{{const p=OC.expiry.split('-');const mo={{Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}};const exp=new Date(Date.UTC(parseInt(p[2]),mo[p[1]],parseInt(p[0])));const nu=Date.now()+(new Date().getTimezoneOffset()*60000);const ni=new Date(nu+5.5*3600000);const td=new Date(Date.UTC(ni.getUTCFullYear(),ni.getUTCMonth(),ni.getUTCDate()));return Math.max(1,Math.round((exp-td)/86400000));}}catch(e){{return 4;}}}})());
+          }}
         }}catch(err){{mel.innerHTML='<div class="sc-loading">Could not calculate metrics</div>';}}
       }}
     }}
