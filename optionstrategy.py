@@ -1416,6 +1416,7 @@ STRATEGIES_DATA = {
 def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed=None, expiry_list=None):
     spot       = oc_analysis["underlying"]   if oc_analysis else 23000
     atm        = oc_analysis["atm_strike"]   if oc_analysis else 23000
+    expiry     = oc_analysis["expiry"]       if oc_analysis else "17-Mar-2026"
     pcr        = oc_analysis["pcr_oi"]       if oc_analysis else 1.0
     mp         = oc_analysis["max_pain"]     if oc_analysis else 23000
     max_ce_s   = oc_analysis["max_ce_strike"] if oc_analysis else atm + 200
