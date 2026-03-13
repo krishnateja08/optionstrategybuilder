@@ -3687,22 +3687,27 @@ document.addEventListener("click",function(e){{
       card.classList.add("expanded");
       const mel=card.querySelector('.sc-metrics-live');
       if(mel&&mel.querySelector('.sc-loading')){{
+        let _m = null;
         try{{
           const shape=card.dataset.shape, cat=card.dataset.cat;
           const scoreResult=smartPoP(shape,cat);
-          const m=calcMetrics(shape,scoreResult.pop);
-          mel.innerHTML=renderMetrics(m, scoreResult);
-          drawPayoffChart(card, m);
-          // Setup day selector (must be after innerHTML since script tags don't execute there)
-          const _sid=mel.querySelector('[id$="_tbody"]');
-          if(_sid){{
-            const _simId=_sid.id.replace('_tbody','');
-            setupDaySelector(_simId,m.netDelta,m.netTheta,m.netVega,m.netGamma,
-              m.mlRawVal===999999?null:m.mlRawVal,
-              m.mpRaw===999999?null:m.mpRaw,
-              (function(){{try{{const p=OC.expiry.split('-');const mo={{Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}};const exp=new Date(Date.UTC(parseInt(p[2]),mo[p[1]],parseInt(p[0])));const nu=Date.now()+(new Date().getTimezoneOffset()*60000);const ni=new Date(nu+5.5*3600000);const td=new Date(Date.UTC(ni.getUTCFullYear(),ni.getUTCMonth(),ni.getUTCDate()));return Math.max(1,Math.round((exp-td)/86400000));}}catch(e){{return 4;}}}})());
-          }}
+          _m=calcMetrics(shape,scoreResult.pop);
+          mel.innerHTML=renderMetrics(_m, scoreResult);
         }}catch(err){{mel.innerHTML='<div class="sc-loading">Could not calculate metrics</div>';}}
+        // Payoff chart and day selector run separately so they never break metrics display
+        if(_m){{
+          try{{ drawPayoffChart(card, _m); }}catch(e){{}}
+          try{{
+            const _sid=mel.querySelector('[id$="_tbody"]');
+            if(_sid){{
+              const _simId=_sid.id.replace('_tbody','');
+              const _daysLeft=(function(){{try{{const p=OC.expiry.split('-');const mo={{Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}};const exp=new Date(Date.UTC(parseInt(p[2]),mo[p[1]],parseInt(p[0])));const nu=Date.now()+(new Date().getTimezoneOffset()*60000);const ni=new Date(nu+5.5*3600000);const td=new Date(Date.UTC(ni.getUTCFullYear(),ni.getUTCMonth(),ni.getUTCDate()));return Math.max(1,Math.round((exp-td)/86400000));}}catch(e){{return 4;}}}})();
+              setupDaySelector(_simId,_m.netDelta,_m.netTheta,_m.netVega,_m.netGamma,
+                _m.mlRawVal===999999?null:_m.mlRawVal,
+                _m.mpRaw===999999?null:_m.mpRaw,_daysLeft);
+            }}
+          }}catch(e){{}}
+        }}
       }}
     }}
   }}
