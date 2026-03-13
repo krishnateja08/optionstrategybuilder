@@ -3503,7 +3503,7 @@ function drawPayoffChart(card, m) {{
   const maxPnl=Math.max(...pnlArr,0);
   const pnlRange=maxPnl-minPnl||1;
 
-  const W=520,H=290,padL=68,padR=18,padT=30,padB=42;
+  const W=520,H=310,padL=68,padR=18,padT=46,padB=52;
   const cW=W-padL-padR, cH=H-padT-padB;
 
   function xPx(s)   {{ return padL+(s-xMin)/(xMax-xMin)*cW; }}
@@ -3529,13 +3529,28 @@ function drawPayoffChart(card, m) {{
     return (v>=0?'+':'-')+'₹'+(abs>=1000?(abs/1000).toFixed(1)+'k':abs);
   }}
 
-  const beLines=breakevens.filter(b=>b>xMin&&b<xMax).map(b=>{{
+  // Smart BE lines: stagger labels vertically to avoid overlap
+  const beFiltered=breakevens.filter(b=>b>xMin&&b<xMax);
+  const spx=xPx(spot);
+  const beLines=beFiltered.map((b,bi)=>{{
     const bx=xPx(b);
+    const lbl='BE \u20b9'+Math.round(b).toLocaleString('en-IN');
+    const lblW=lbl.length*6+10;
+    // Alternate label row: even=top row, odd=second row to avoid overlap
+    const lblY=padT - 8 - (bi%2)*14;
     return `<line x1="${{bx}}" y1="${{padT}}" x2="${{bx}}" y2="${{padT+cH}}" stroke="#ffd166" stroke-width="1.2" stroke-dasharray="4,3" opacity=".8"/>
-            <text x="${{bx}}" y="${{padT-6}}" text-anchor="middle" font-family="DM Mono,monospace" font-size="9.5" fill="#ffd166">BE ₹${{Math.round(b).toLocaleString('en-IN')}}</text>`;
+            <rect x="${{bx-lblW/2}}" y="${{lblY-11}}" width="${{lblW}}" height="13" rx="3" fill="rgba(30,20,0,.85)" stroke="rgba(255,209,102,.4)" stroke-width="1"/>
+            <text x="${{bx}}" y="${{lblY}}" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" font-weight="700" fill="#ffd166">${{lbl}}</text>`;
   }}).join('');
 
-  const spx=xPx(spot);
+  // SPOT label: pill at bottom of chart, below x-axis labels — never overlaps
+  const spotLbl='SPOT \u20b9'+Math.round(spot).toLocaleString('en-IN');
+  const spotLblW=spotLbl.length*6+12;
+  const spotPillX=Math.min(Math.max(spx,padL+spotLblW/2),padL+cW-spotLblW/2);
+  const spotLblSvg=`
+    <rect x="${{spotPillX-spotLblW/2}}" y="${{H-14}}" width="${{spotLblW}}" height="13" rx="3" fill="rgba(20,20,60,.9)" stroke="rgba(100,128,255,.5)" stroke-width="1"/>
+    <text x="${{spotPillX}}" y="${{H-4}}" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" font-weight="700" fill="#6480ff">${{spotLbl}}</text>`;
+
   const profitFillPts=pathStr+` L ${{xPx(steps[steps.length-1])}} ${{y0}} L ${{xPx(steps[0])}} ${{y0}} Z`;
 
   const svg=`<svg viewBox="0 0 ${{W}} ${{H}}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
@@ -3557,12 +3572,12 @@ function drawPayoffChart(card, m) {{
     <path d="${{profitFillPts}}" fill="url(#lg_${{card.id}})" clip-path="url(#cL_${{card.id}})"/>
     ${{beLines}}
     <line x1="${{spx}}" y1="${{padT}}" x2="${{spx}}" y2="${{padT+cH}}" stroke="#6480ff" stroke-width="1.5" stroke-dasharray="5,3" opacity=".9"/>
-    <text x="${{spx+4}}" y="${{padT+14}}" font-family="DM Mono,monospace" font-size="9.5" fill="#6480ff" opacity=".9">SPOT</text>
     <path d="${{pathStr}}" fill="none" stroke="#00c896" stroke-width="2.5" stroke-linejoin="round" clip-path="url(#cP_${{card.id}})"/>
     <path d="${{pathStr}}" fill="none" stroke="#f04050" stroke-width="2.5" stroke-linejoin="round" clip-path="url(#cL_${{card.id}})"/>
     ${{yTicks.map(t=>`<text x="${{padL-5}}" y="${{t.y+4}}" text-anchor="end" font-family="DM Mono,monospace" font-size="10" fill="rgba(255,200,80,.75)">${{fmtY(t.v)}}</text>`).join('')}}
-    ${{xTicks.map(x=>`<text x="${{xPx(x)}}" y="${{padT+cH+13}}" text-anchor="middle" font-family="DM Mono,monospace" font-size="9.5" fill="rgba(255,200,80,.65)">${{x.toLocaleString('en-IN')}}</text>`).join('')}}
-    <text x="${{padL+cW/2}}" y="18" text-anchor="middle" font-family="DM Mono,monospace" font-size="11" font-weight="700" letter-spacing="1.5" fill="rgba(0,200,150,.85)">EXPIRY PAYOFF · PER LOT</text>
+    ${{xTicks.map(x=>`<text x="${{xPx(x)}}" y="${{padT+cH+14}}" text-anchor="middle" font-family="DM Mono,monospace" font-size="9.5" fill="rgba(255,200,80,.65)">${{x.toLocaleString('en-IN')}}</text>`).join('')}}
+    ${{spotLblSvg}}
+    <text x="${{padL+cW/2}}" y="18" text-anchor="middle" font-family="DM Mono,monospace" font-size="11" font-weight="700" letter-spacing="1.5" fill="rgba(0,200,150,.85)">EXPIRY PAYOFF \u00b7 PER LOT</text>
   </svg>`;
 
   container.innerHTML=`
