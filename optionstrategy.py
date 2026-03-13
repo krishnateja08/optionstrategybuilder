@@ -1493,7 +1493,10 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
                 f'<div class="sc-desc">{s["desc"]}</div>'
                 f'<div class="sc-metrics-live" id="metrics_{cid}">'
                 f'<div class="sc-loading">&#9685; Calculating metrics...</div>'
-                f'</div></div></div>'
+                f'</div></div>'
+                f'<div class="sc-payoff" id="payoff_{cid}">'
+                f'<div class="sc-payoff-inner" id="payoff_canvas_{cid}"></div>'
+                f'</div></div>'
             )
         return cards
 
@@ -2873,6 +2876,9 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .sc-card.expanded .sc-detail{display:block;flex:0 0 400px;width:400px;border-top:none;border-left:1px solid rgba(0,229,160,.15);overflow:visible;background:rgba(5,13,26,.8);}
 .sc-card.expanded .sc-summary{flex:1;min-width:180px;}
 .sc-card.expanded:hover{transform:none;}
+.sc-payoff{display:none;}
+.sc-card.expanded .sc-payoff{display:flex;flex:1;min-width:0;flex-direction:column;border-left:1px solid rgba(0,229,160,.15);background:rgba(3,10,22,.9);padding:0;}
+.sc-payoff-inner{width:100%;height:100%;display:flex;flex-direction:column;}
 .sc-pop-badge{position:absolute;top:8px;right:8px;font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;padding:3px 8px;border-radius:20px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);z-index:5;letter-spacing:.5px;transition:all .3s;min-width:38px;text-align:center;}
 .sc-svg{display:flex;align-items:center;justify-content:center;padding:14px 0 6px;background:rgba(255,255,255,.02)}
 .sc-body{padding:10px 12px 12px}
@@ -3464,6 +3470,115 @@ function filterStrat(cat,btn){{
     {{t.style.borderColor=col;t.style.color=col;t.style.background=col+"20";}}
   }});}}
 }}
+
+// ── Payoff Chart ─────────────────────────────────────────────────────────────
+function drawPayoffChart(card, m) {{
+  const container = card.querySelector('.sc-payoff-inner');
+  if (!container) return;
+
+  const spot  = OC.spot;
+  const mp    = m.mpRaw    === 999999 ? null : m.mpRaw;
+  const ml    = m.mlRawVal === 999999 ? null : m.mlRawVal;
+  const nd    = m.netDelta;
+  const ng    = m.netGamma;
+  const breakevens = m.beStr.replace(/[₹,]/g,'').split(' / ')
+                      .map(v=>parseFloat(v)).filter(v=>!isNaN(v));
+
+  // X range: spot ± 600 pts, step 25
+  const xMin = Math.round((spot-600)/50)*50;
+  const xMax = Math.round((spot+600)/50)*50;
+  const steps=[];
+  for(let x=xMin;x<=xMax;x+=25) steps.push(x);
+
+  function expiryPnl(s){{
+    const mv=s-spot;
+    let p=nd*mv+0.5*ng*mv*mv;
+    if(ml!==null) p=Math.max(-ml,p);
+    if(mp!==null) p=Math.min(mp,p);
+    return p;
+  }}
+
+  const pnlArr=steps.map(expiryPnl);
+  const minPnl=Math.min(...pnlArr,0);
+  const maxPnl=Math.max(...pnlArr,0);
+  const pnlRange=maxPnl-minPnl||1;
+
+  const W=520,H=290,padL=68,padR=18,padT=30,padB=42;
+  const cW=W-padL-padR, cH=H-padT-padB;
+
+  function xPx(s)   {{ return padL+(s-xMin)/(xMax-xMin)*cW; }}
+  function yPx(p)   {{ return padT+cH-(p-minPnl)/pnlRange*cH; }}
+  const y0=yPx(0);
+
+  let pathStr='';
+  steps.forEach((s,i)=>{{
+    const px=xPx(s),py=yPx(pnlArr[i]);
+    pathStr+=i===0?`M ${{px}} ${{py}}`:`L ${{px}} ${{py}}`;
+  }});
+
+  const profitClip=`M ${{padL}} ${{padT}} L ${{padL+cW}} ${{padT}} L ${{padL+cW}} ${{y0}} L ${{padL}} ${{y0}} Z`;
+  const lossClip  =`M ${{padL}} ${{y0}} L ${{padL+cW}} ${{y0}} L ${{padL+cW}} ${{padT+cH}} L ${{padL}} ${{padT+cH}} Z`;
+
+  const yTicks=[];
+  for(let i=0;i<=5;i++) yTicks.push({{v:minPnl+pnlRange*i/5,y:yPx(minPnl+pnlRange*i/5)}});
+  const xTicks=[];
+  for(let x=xMin;x<=xMax;x+=200) xTicks.push(x);
+
+  function fmtY(v){{
+    const abs=Math.abs(Math.round(v));
+    return (v>=0?'+':'-')+'₹'+(abs>=1000?(abs/1000).toFixed(1)+'k':abs);
+  }}
+
+  const beLines=breakevens.filter(b=>b>xMin&&b<xMax).map(b=>{{
+    const bx=xPx(b);
+    return `<line x1="${{bx}}" y1="${{padT}}" x2="${{bx}}" y2="${{padT+cH}}" stroke="#ffd166" stroke-width="1.2" stroke-dasharray="4,3" opacity=".8"/>
+            <text x="${{bx}}" y="${{padT-6}}" text-anchor="middle" font-family="DM Mono,monospace" font-size="9.5" fill="#ffd166">BE ₹${{Math.round(b).toLocaleString('en-IN')}}</text>`;
+  }}).join('');
+
+  const spx=xPx(spot);
+  const profitFillPts=pathStr+` L ${{xPx(steps[steps.length-1])}} ${{y0}} L ${{xPx(steps[0])}} ${{y0}} Z`;
+
+  const svg=`<svg viewBox="0 0 ${{W}} ${{H}}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
+    <defs>
+      <linearGradient id="pg_${{card.id}}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#00c896" stop-opacity=".5"/>
+        <stop offset="100%" stop-color="#00c896" stop-opacity=".02"/>
+      </linearGradient>
+      <linearGradient id="lg_${{card.id}}" x1="0" y1="1" x2="0" y2="0">
+        <stop offset="0%" stop-color="#f04050" stop-opacity=".5"/>
+        <stop offset="100%" stop-color="#f04050" stop-opacity=".02"/>
+      </linearGradient>
+      <clipPath id="cP_${{card.id}}"><path d="${{profitClip}}"/></clipPath>
+      <clipPath id="cL_${{card.id}}"><path d="${{lossClip}}"/></clipPath>
+    </defs>
+    ${{yTicks.map(t=>`<line x1="${{padL}}" y1="${{t.y}}" x2="${{padL+cW}}" y2="${{t.y}}" stroke="rgba(255,255,255,.05)" stroke-width="1"/>`).join('')}}
+    <line x1="${{padL}}" y1="${{y0}}" x2="${{padL+cW}}" y2="${{y0}}" stroke="rgba(255,255,255,.2)" stroke-width="1.5"/>
+    <path d="${{profitFillPts}}" fill="url(#pg_${{card.id}})" clip-path="url(#cP_${{card.id}})"/>
+    <path d="${{profitFillPts}}" fill="url(#lg_${{card.id}})" clip-path="url(#cL_${{card.id}})"/>
+    ${{beLines}}
+    <line x1="${{spx}}" y1="${{padT}}" x2="${{spx}}" y2="${{padT+cH}}" stroke="#6480ff" stroke-width="1.5" stroke-dasharray="5,3" opacity=".9"/>
+    <text x="${{spx+4}}" y="${{padT+14}}" font-family="DM Mono,monospace" font-size="9.5" fill="#6480ff" opacity=".9">SPOT</text>
+    <path d="${{pathStr}}" fill="none" stroke="#00c896" stroke-width="2.5" stroke-linejoin="round" clip-path="url(#cP_${{card.id}})"/>
+    <path d="${{pathStr}}" fill="none" stroke="#f04050" stroke-width="2.5" stroke-linejoin="round" clip-path="url(#cL_${{card.id}})"/>
+    ${{yTicks.map(t=>`<text x="${{padL-5}}" y="${{t.y+4}}" text-anchor="end" font-family="DM Mono,monospace" font-size="10" fill="rgba(255,200,80,.75)">${{fmtY(t.v)}}</text>`).join('')}}
+    ${{xTicks.map(x=>`<text x="${{xPx(x)}}" y="${{padT+cH+13}}" text-anchor="middle" font-family="DM Mono,monospace" font-size="9.5" fill="rgba(255,200,80,.65)">${{x.toLocaleString('en-IN')}}</text>`).join('')}}
+    <text x="${{padL+cW/2}}" y="18" text-anchor="middle" font-family="DM Mono,monospace" font-size="11" font-weight="700" letter-spacing="1.5" fill="rgba(0,200,150,.85)">EXPIRY PAYOFF · PER LOT</text>
+  </svg>`;
+
+  container.innerHTML=`
+    <div style="padding:10px 14px 4px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;
+      letter-spacing:1.5px;color:rgba(0,200,150,.85);text-transform:uppercase;
+      border-bottom:1px solid rgba(0,200,150,.12);">📈 PAYOFF AT EXPIRY</div>
+    <div style="flex:1;min-height:270px;padding:6px 4px 2px;">${{svg}}</div>
+    <div style="padding:6px 14px 8px;display:flex;gap:14px;border-top:1px solid rgba(255,255,255,.06);
+      font-family:DM Mono,monospace;font-size:11px;flex-wrap:wrap;">
+      <span style="color:#00c896;">● Profit</span>
+      <span style="color:#f04050;">● Loss</span>
+      <span style="color:#ffd166;">-- Breakeven</span>
+      <span style="color:#6480ff;">-- Spot</span>
+    </div>`;
+}}
+
 document.addEventListener("click",function(e){{
   const card=e.target.closest(".sc-card");
   if(card){{
@@ -3478,6 +3593,7 @@ document.addEventListener("click",function(e){{
           const scoreResult=smartPoP(shape,cat);
           const m=calcMetrics(shape,scoreResult.pop);
           mel.innerHTML=renderMetrics(m, scoreResult);
+          drawPayoffChart(card, m);
         }}catch(err){{mel.innerHTML='<div class="sc-loading">Could not calculate metrics</div>';}}
       }}
     }}
