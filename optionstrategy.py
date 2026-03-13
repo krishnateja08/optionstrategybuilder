@@ -1675,8 +1675,8 @@ function getGreeks(type, strike) {{
     (b, s) => Math.abs(s.strike - strike) < Math.abs(b.strike - strike) ? s : b,
     OC.strikes[0] || {{strike: OC.atm, ce_delta:0.5, pe_delta:-0.5, ce_theta:-0.1, pe_theta:-0.1, ce_vega:0.05, pe_vega:0.05}}
   );
-  if (type === 'ce') return {{ delta: row.ce_delta||0.5,  theta: row.ce_theta||0, vega: row.ce_vega||0  }};
-  else               return {{ delta: row.pe_delta||-0.5, theta: row.pe_theta||0, vega: row.pe_vega||0 }};
+  if (type === 'ce') return {{ delta: row.ce_delta||0.5,  theta: row.ce_theta||0, vega: row.ce_vega||0,  gamma: row.ce_gamma||0 }};
+  else               return {{ delta: row.pe_delta||-0.5, theta: row.pe_theta||0, vega: row.pe_vega||0, gamma: row.pe_gamma||0 }};
 }}
 
 function calcMetrics(shape, smartPop) {{
