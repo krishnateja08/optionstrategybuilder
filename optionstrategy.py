@@ -2373,6 +2373,8 @@ function buildIntradaySim(m) {{
   const ndStr  = (nd >= 0 ? '+' : '') + '\u20b9' + Math.abs(nd).toFixed(2);
   const ntStr  = ntSign + '\u20b9' + Math.abs(Math.round(nt));
   const nvStr  = (nv >= 0 ? '+' : '') + '\u20b9' + Math.abs(nv).toFixed(2);
+  const flatPnl = Math.round(nd * 0 + nt);   // P&L at flat (0 move), 1 day
+  const flatCol = flatPnl >= 0 ? '#38d888' : '#f04050';
 
   // Day selector buttons
   const dayBtnsHtml = Array.from({{length: maxDays}}, (_,i)=>i+1).map(d=>{{
@@ -3693,7 +3695,7 @@ document.addEventListener("click",function(e){{
           const scoreResult=smartPoP(shape,cat);
           _m=calcMetrics(shape,scoreResult.pop);
           mel.innerHTML=renderMetrics(_m, scoreResult);
-        }}catch(err){{mel.innerHTML='<div class="sc-loading">Error: '+err.message+'</div>';}}
+        }}catch(err){{mel.innerHTML='<div class="sc-loading">Could not calculate metrics</div>';}}
         // Payoff chart and day selector run separately so they never break metrics display
         if(_m){{
           try{{ drawPayoffChart(card, _m); }}catch(e){{}}
