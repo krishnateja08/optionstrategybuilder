@@ -315,26 +315,9 @@ class NSEOptionChain:
 
         if result is None:
             print("  ERROR: Option chain fetch failed for all expiries.")
-        # Also capture full expiry list for dropdown
-        self._cached_expiry_list = []
-        try:
-            url = f"https://www.nseindia.com/api/option-chain-v3?type=Indices&symbol={self.symbol}"
-            resp = session.get(url, headers=headers, impersonate="chrome", timeout=20)
-            if resp.status_code == 200:
-                all_exp = resp.json().get("records", {}).get("expiryDates", [])
-                today = today_ist()
-                for exp_str in all_exp:
-                    try:
-                        exp_dt = datetime.strptime(exp_str, "%d-%b-%Y").date()
-                        if exp_dt >= today:
-                            self._cached_expiry_list.append(exp_str)
-                            if len(self._cached_expiry_list) >= 7:
-                                break
-                    except Exception:
-                        continue
-                print(f"  Expiry list fetched: {self._cached_expiry_list}")
-        except Exception as e:
-            print(f"  WARNING expiry list: {e}")
+        # NOTE: _cached_expiry_list removed — expiry list is fetched inside
+        # fetch_multiple_expiries() which is always called right after fetch().
+        # Fetching it here too was a redundant NSE API call.
         return result, session, headers
 
 
@@ -1416,6 +1399,7 @@ STRATEGIES_DATA = {
 def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed=None, expiry_list=None):
     spot       = oc_analysis["underlying"]   if oc_analysis else 23000
     atm        = oc_analysis["atm_strike"]   if oc_analysis else 23000
+    expiry     = oc_analysis["expiry"]       if oc_analysis else "17-Mar-2026"
     pcr        = oc_analysis["pcr_oi"]       if oc_analysis else 1.0
     mp         = oc_analysis["max_pain"]     if oc_analysis else 23000
     max_ce_s   = oc_analysis["max_ce_strike"] if oc_analysis else atm + 200
@@ -1432,6 +1416,7 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
             all_expiry_js[exp] = {
                 "spot":        round(oc_e["underlying"], 2),
                 "atm":         oc_e["atm_strike"],
+                "expiry":      exp,
                 "pcr":         round(oc_e["pcr_oi"], 3),
                 "maxCeStrike": oc_e["max_ce_strike"],
                 "maxPeStrike": oc_e["max_pe_strike"],
@@ -1579,6 +1564,7 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
 const OC={{
   spot:        {spot:.2f},
   atm:         {atm},
+  expiry:      "{expiry}",
   pcr:         {pcr:.3f},
   maxPain:     {mp},
   maxCeStrike: {max_ce_s},
@@ -2373,6 +2359,8 @@ function buildIntradaySim(m) {{
   const ndStr  = (nd >= 0 ? '+' : '') + '\u20b9' + Math.abs(nd).toFixed(2);
   const ntStr  = ntSign + '\u20b9' + Math.abs(Math.round(nt));
   const nvStr  = (nv >= 0 ? '+' : '') + '\u20b9' + Math.abs(nv).toFixed(2);
+  const flatPnl = Math.round(nd * 0 + nt);   // P&L at flat (0 move), 1 day
+  const flatCol = flatPnl >= 0 ? '#38d888' : '#f04050';
 
   // Day selector buttons
   const dayBtnsHtml = Array.from({{length: maxDays}}, (_,i)=>i+1).map(d=>{{
@@ -2432,54 +2420,6 @@ function buildIntradaySim(m) {{
       P&amp;L = <span style="color:rgba(255,215,0,.9);">Δ×move + ½Γ×move\u00b2 + \u03bd×\u0394IV + \u0398\u00d7<span id="${{simId}}_daylbl">1</span> day(s)</span>. Max profit ${{m.mpStr}} at expiry only.
     </div>
   </div>
-
-  <script>
-  (function(){{
-    const SID='${{simId}}', MXD=${{maxDays}};
-    const _nd=${{nd}},_nt=${{nt}},_nv=${{nv}},_ng=${{ng}};
-    const _mxL=${{maxL===null?'null':maxL}},_mxP=${{maxP===null?'null':maxP}};
-    const _sp=OC.spot;
-    const _mv=[-500,-400,-300,-200,-150,-100,-50,0,50,100,150,200,300,400,500];
-    function _pnl(mv,days){{
-      const iv=-(mv/_sp)*400;
-      let p=_nd*mv+0.5*_ng*mv*mv+_nv*iv+(_nt*days);
-      if(_mxL!==null)p=Math.max(-_mxL,p);
-      if(_mxP!==null)p=Math.min(_mxP*0.9,p);
-      return Math.round(p);
-    }}
-    window['selDay_'+SID]=function(days){{
-      for(let d=1;d<=MXD;d++){{
-        const b=document.getElementById('daybtn_'+SID+'_'+d);
-        if(!b)continue;
-        const a=(d===days);
-        b.style.borderColor=a?'#ffcc00':'rgba(255,185,0,.3)';
-        b.style.color=a?'#ffcc00':'rgba(255,200,80,.5)';
-        b.style.background=a?'rgba(255,185,0,.15)':'transparent';
-      }}
-      const isExp=(days===MXD);
-      document.getElementById(SID+'_hdr').innerHTML=isExp
-        ?'📋 EXPIRY P&amp;L SCENARIOS'
-        :'📋 '+days+' DAY'+(days>1?'S':'')+' P&amp;L SCENARIOS';
-      document.getElementById(SID+'_col2').innerHTML=isExp
-        ?'EXPIRY P&amp;L'
-        :days+' DAY'+(days>1?'S':'')+' P&amp;L';
-      document.getElementById(SID+'_daylbl').textContent=days;
-      document.getElementById(SID+'_tbody').innerHTML=_mv.map(mv=>{{
-        const pnl=_pnl(mv,days);
-        const col=pnl>100?'#38d888':pnl>0?'#ffcc00':pnl>-200?'#ffaa00':'#f04050';
-        const mc=mv>0?'#38d888':mv<0?'#f04050':'#ffcc00';
-        const mb=mv>0?'rgba(56,216,136,.12)':mv<0?'rgba(240,64,80,.18)':'rgba(255,185,0,.18)';
-        const ml=mv>0?'+'+mv:mv===0?'Flat':String(mv);
-        const pc=_mxP?((pnl/_mxP)*100).toFixed(0)+'%':'\u2014';
-        const rb=mv===0?'background:rgba(255,185,0,.05);':'';
-        return '<tr style="'+rb+'"><td style="padding:6px 10px;white-space:nowrap;"><span style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;padding:4px 8px;border-radius:4px;background:'+mb+';color:'+mc+';white-space:nowrap;display:inline-block;min-width:56px;text-align:center;">'+ml+(mv!==0?'p':'')+'</span></td>'
-          +'<td style="padding:6px 8px;font-family:DM Mono,monospace;font-size:13px;color:rgba(255,200,80,.82);white-space:nowrap;text-align:left;">'+(_sp+mv).toLocaleString('en-IN')+'</td>'
-          +'<td style="padding:6px 8px;font-family:DM Mono,monospace;font-weight:700;font-size:15px;color:'+col+';white-space:nowrap;text-align:right;">'+(pnl>=0?'+':'')+'\u20b9'+Math.abs(pnl).toLocaleString('en-IN')+'</td>'
-          +'<td style="padding:6px 6px;font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:'+col+';text-align:right;white-space:nowrap;">'+pc+'</td></tr>';
-      }}).join('');
-    }};
-  }})();
-  </script>
 
 
   <!-- TAB 2: Greeks Breakdown -->
@@ -2689,6 +2629,7 @@ window.switchExpiry = function(exp) {{
   // Update OC object with selected expiry's data
   OC.spot        = d.spot;
   OC.atm         = d.atm;
+  OC.expiry      = exp;
   OC.pcr         = d.pcr;
   OC.maxCeStrike = d.maxCeStrike;
   OC.maxPeStrike = d.maxPeStrike;
@@ -3676,6 +3617,56 @@ function drawPayoffChart(card, m) {{
     </div>`;
 }}
 
+
+// ── Day Selector Setup (called after innerHTML injection) ────────────────────
+function setupDaySelector(simId, nd, nt, nv, ng, maxL, maxP, maxDays) {{
+  const _mv = [-500,-400,-300,-200,-150,-100,-50,0,50,100,150,200,300,400,500];
+  function _pnl(mv, days) {{
+    const iv = -(mv / OC.spot) * 400;
+    let p = nd*mv + 0.5*ng*mv*mv + nv*iv + (nt*days);
+    if (maxL !== null) p = Math.max(-maxL, p);
+    if (maxP !== null) p = Math.min(maxP*0.9, p);
+    return Math.round(p);
+  }}
+  window['selDay_'+simId] = function(days) {{
+    // Update button styles
+    for (let d=1; d<=maxDays; d++) {{
+      const b = document.getElementById('daybtn_'+simId+'_'+d);
+      if (!b) continue;
+      const a = (d===days);
+      b.style.borderColor = a ? '#ffcc00' : 'rgba(255,185,0,.3)';
+      b.style.color       = a ? '#ffcc00' : 'rgba(255,200,80,.5)';
+      b.style.background  = a ? 'rgba(255,185,0,.15)' : 'transparent';
+    }}
+    // Update headers
+    const isExp = (days === maxDays);
+    const hdr = document.getElementById(simId+'_hdr');
+    const col2 = document.getElementById(simId+'_col2');
+    const dlbl = document.getElementById(simId+'_daylbl');
+    if (hdr)  hdr.innerHTML  = isExp ? '📋 EXPIRY P&amp;L SCENARIOS' : '📋 '+days+' DAY'+(days>1?'S':'')+' P&amp;L SCENARIOS';
+    if (col2) col2.innerHTML = isExp ? 'EXPIRY P&amp;L' : days+' DAY'+(days>1?'S':'')+' P&amp;L';
+    if (dlbl) dlbl.textContent = days;
+    // Rebuild rows
+    const tbody = document.getElementById(simId+'_tbody');
+    if (!tbody) return;
+    tbody.innerHTML = _mv.map(mv => {{
+      const pnl = _pnl(mv, days);
+      const col = pnl>100?'#38d888':pnl>0?'#ffcc00':pnl>-200?'#ffaa00':'#f04050';
+      const mc  = mv>0?'#38d888':mv<0?'#f04050':'#ffcc00';
+      const mb  = mv>0?'rgba(56,216,136,.12)':mv<0?'rgba(240,64,80,.18)':'rgba(255,185,0,.18)';
+      const ml  = mv>0?'+'+mv:mv===0?'Flat':String(mv);
+      const pc  = maxP ? ((pnl/maxP)*100).toFixed(0)+'%' : '—';
+      const rb  = mv===0 ? 'background:rgba(255,185,0,.05);' : '';
+      return '<tr style="'+rb+'">'
+        +'<td style="padding:6px 10px;white-space:nowrap;"><span style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;padding:4px 8px;border-radius:4px;background:'+mb+';color:'+mc+';white-space:nowrap;display:inline-block;min-width:56px;text-align:center;">'+ml+(mv!==0?'p':'')+'</span></td>'
+        +'<td style="padding:6px 8px;font-family:DM Mono,monospace;font-size:13px;color:rgba(255,200,80,.82);white-space:nowrap;text-align:left;">'+(OC.spot+mv).toLocaleString('en-IN')+'</td>'
+        +'<td style="padding:6px 8px;font-family:DM Mono,monospace;font-weight:700;font-size:15px;color:'+col+';white-space:nowrap;text-align:right;">'+(pnl>=0?'+':'')+'₹'+Math.abs(pnl).toLocaleString('en-IN')+'</td>'
+        +'<td style="padding:6px 6px;font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:'+col+';text-align:right;white-space:nowrap;">'+pc+'</td>'
+        +'</tr>';
+    }}).join('');
+  }};
+}}
+
 document.addEventListener("click",function(e){{
   const card=e.target.closest(".sc-card");
   if(card){{
@@ -3685,13 +3676,27 @@ document.addEventListener("click",function(e){{
       card.classList.add("expanded");
       const mel=card.querySelector('.sc-metrics-live');
       if(mel&&mel.querySelector('.sc-loading')){{
+        let _m = null;
         try{{
           const shape=card.dataset.shape, cat=card.dataset.cat;
           const scoreResult=smartPoP(shape,cat);
-          const m=calcMetrics(shape,scoreResult.pop);
-          mel.innerHTML=renderMetrics(m, scoreResult);
-          drawPayoffChart(card, m);
+          _m=calcMetrics(shape,scoreResult.pop);
+          mel.innerHTML=renderMetrics(_m, scoreResult);
         }}catch(err){{mel.innerHTML='<div class="sc-loading">Could not calculate metrics</div>';}}
+        // Payoff chart and day selector run separately so they never break metrics display
+        if(_m){{
+          try{{ drawPayoffChart(card, _m); }}catch(e){{}}
+          try{{
+            const _sid=mel.querySelector('[id$="_tbody"]');
+            if(_sid){{
+              const _simId=_sid.id.replace('_tbody','');
+              const _daysLeft=(function(){{try{{const p=OC.expiry.split('-');const mo={{Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}};const exp=new Date(Date.UTC(parseInt(p[2]),mo[p[1]],parseInt(p[0])));const nu=Date.now()+(new Date().getTimezoneOffset()*60000);const ni=new Date(nu+5.5*3600000);const td=new Date(Date.UTC(ni.getUTCFullYear(),ni.getUTCMonth(),ni.getUTCDate()));return Math.max(1,Math.round((exp-td)/86400000));}}catch(e){{return 4;}}}})();
+              setupDaySelector(_simId,_m.netDelta,_m.netTheta,_m.netVega,_m.netGamma,
+                _m.mlRawVal===999999?null:_m.mlRawVal,
+                _m.mpRaw===999999?null:_m.mpRaw,_daysLeft);
+            }}
+          }}catch(e){{}}
+        }}
       }}
     }}
   }}
@@ -3742,8 +3747,7 @@ def main():
     live_vix = vix_data["value"] if vix_data else 18.0
     # Fetch all 7 expiries for dropdown
     print("\n  Fetching next 7 expiries for dropdown...")
-    time.sleep(1.5)   # small gap so NSE doesn't block
-    multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=15)
+    multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=7)
     print(f"  Expiry dropdown will show: {expiry_list}")
 
     # Pre-analyze all expiry data
@@ -3824,4 +3828,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Runs ONCE and exits — scheduling is handled by crontab / GitHub Actions.
+    # Do NOT wrap in a while loop here.
+    try:
+        main()
+    except Exception as e:
+        print(f"\n  ERROR during run: {e}")
+        raise
