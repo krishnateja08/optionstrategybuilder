@@ -226,7 +226,7 @@ class NSEOptionChain:
             print(f"  WARNING  Expiry fetch: {e}")
         return None
 
-    def _fetch_for_expiry(self, session, headers, expiry):
+    def _fetch_for_expiry(self, session, headers, expiry, vix=18.0):
         api_url = (
             f"https://www.nseindia.com/api/option-chain-v3"
             f"?type=Indices&symbol={self.symbol}&expiry={expiry}"
@@ -243,8 +243,19 @@ class NSEOptionChain:
                     return None
                 underlying = json_data.get("records", {}).get("underlyingValue", 0)
                 atm_strike = round(underlying / 50) * 50
-                lower_bound = underlying - 500
-                upper_bound = underlying + 500
+
+                # Dynamic strike range based on VIX — during high volatility NIFTY can
+                # move 500+ pts in a session so a fixed ±500 misses the true OI walls.
+                # The vix param is passed in from the caller when available.
+                if vix >= 28:
+                    half_range = 1000   # extreme fear: capture all meaningful strikes
+                elif vix >= 20:
+                    half_range = 800    # elevated vol: expand to catch OTM walls
+                else:
+                    half_range = 500    # normal: ±500 is sufficient
+
+                lower_bound = underlying - half_range
+                upper_bound = underlying + half_range
                 rows = []
                 for item in data:
                     strike = item.get("strikePrice")
@@ -274,14 +285,14 @@ class NSEOptionChain:
                         "PE_Vega":      pe.get("vega", 0),
                     })
                 df = pd.DataFrame(rows).sort_values("Strike").reset_index(drop=True)
-                print(f"    OK {len(df)} strikes | Spot={underlying:.0f} ATM={atm_strike}")
+                print(f"    OK {len(df)} strikes | Spot={underlying:.0f} ATM={atm_strike} Range=±{half_range}")
                 return {"expiry": expiry, "df": df, "underlying": underlying, "atm_strike": atm_strike}
             except Exception as e:
                 print(f"    FAIL Attempt {attempt}: {e}")
                 time.sleep(2)
         return None
 
-    def fetch_multiple_expiries(self, session, headers, n=7):
+    def fetch_multiple_expiries(self, session, headers, n=7, vix=18.0):
         """Fetch next n expiry dates directly from NSE API (includes weekly,
            monthly, and quarterly expiries exactly as NSE lists them)."""
 
@@ -330,7 +341,7 @@ class NSEOptionChain:
         results = {}
         for exp in expiry_list:
             print(f"    Fetching expiry: {exp}")
-            data = self._fetch_for_expiry(session, headers, exp)
+            data = self._fetch_for_expiry(session, headers, exp, vix=vix)
             if data:
                 results[exp] = data
                 print(f"      OK: {exp}")
@@ -622,16 +633,152 @@ def extract_atm_greeks(df, atm_strike, underlying=None, expiry_str="", vix=18.0)
 #  SECTION 2 -- OPTION CHAIN ANALYSIS
 # =================================================================
 
+def _dealer_hedge_alert(atm_greeks, days_to_expiry, atm_strike):
+    """
+    Detects "Dealer Pinning" — when both Vanna and Charm are elevated near expiry.
+
+    In NIFTY specifically: IV drops when the market goes UP (negative IV-spot correlation).
+    Positive Vanna means as the market rises and IV drops, dealers MUST BUY the underlying
+    to re-hedge — this mechanical buying is why NIFTY drifts up into expiry with no news.
+
+    When BOTH Vanna and Charm are high:
+    - Vanna: IV is falling → dealers re-hedge delta by buying
+    - Charm: time is passing → dealers re-hedge delta by buying
+    Both forces push dealers to buy, causing price to "pin" near the ATM strike.
+    Expiry pin is most powerful in the last 2 days.
+    """
+    if not atm_greeks:
+        return {"active": False, "reason": "No ATM greeks available"}
+
+    ce_vanna = abs(atm_greeks.get("ce_vanna", 0))
+    pe_vanna = abs(atm_greeks.get("pe_vanna", 0))
+    ce_charm = abs(atm_greeks.get("ce_charm", 0))
+    pe_charm = abs(atm_greeks.get("pe_charm", 0))
+
+    # Use the higher of CE/PE for each greek (whichever side is more active)
+    vanna = max(ce_vanna, pe_vanna)
+    charm = max(ce_charm, pe_charm)
+
+    # Thresholds: Vanna > 0.05 and Charm > 0.001 are meaningful near expiry
+    VANNA_THRESHOLD = 0.05
+    CHARM_THRESHOLD = 0.001
+
+    vanna_high = vanna > VANNA_THRESHOLD
+    charm_high = charm > CHARM_THRESHOLD
+    near_expiry = days_to_expiry <= 2   # last 2 days: pin is strongest
+
+    if vanna_high and charm_high and near_expiry:
+        severity = "STRONG"
+        msg = (f"Vanna={vanna:.4f} & Charm={charm:.4f} both elevated with {days_to_expiry}d left. "
+               f"Dealers are mechanically buying near ₹{atm_strike:,} — expect price to stay pinned.")
+    elif vanna_high and charm_high:
+        severity = "MODERATE"
+        msg = (f"Vanna={vanna:.4f} & Charm={charm:.4f} elevated — dealer hedging building. "
+               f"Pin force grows as expiry approaches ₹{atm_strike:,}.")
+    elif vanna_high or charm_high:
+        severity = "WATCH"
+        which = "Vanna" if vanna_high else "Charm"
+        val   = vanna if vanna_high else charm
+        msg = (f"{which}={val:.4f} elevated. Only partial dealer-pin signal — "
+               f"watch for the other greek to confirm near ₹{atm_strike:,}.")
+    else:
+        return {"active": False, "vanna": round(vanna, 4), "charm": round(charm, 4),
+                "days_to_expiry": days_to_expiry, "reason": "Vanna and Charm below pin thresholds"}
+
+    return {
+        "active":         True,
+        "severity":       severity,
+        "message":        msg,
+        "vanna":          round(vanna, 4),
+        "charm":          round(charm, 4),
+        "days_to_expiry": days_to_expiry,
+        "pin_strike":     atm_strike,
+        "nifty_note":     "NIFTY IV drops on rallies — positive Vanna causes dealers to BUY on the way up",
+    }
+
+
+def _detect_oi_spike(ce_chg, pe_chg):
+    """
+    Detects a sudden OI spike that may signal a gamma squeeze or stop-loss cascade.
+
+    The script runs every N minutes via crontab. Between two consecutive runs, if a
+    large portion of the day's total CE OI change appeared in one window, it means
+    a single burst of positioning — characteristic of a gamma squeeze or forced
+    stop-loss from option writers.
+
+    Threshold: if the current run's CE/PE CHG jumped by ≥50% relative to the
+    prior run's value in a single interval, flag it as a spike.
+    """
+    prev_ce_chg = None
+    prev_pe_chg = None
+    try:
+        meta_path = os.path.join("docs", "latest.json")
+        if os.path.exists(meta_path):
+            with open(meta_path, "r") as f:
+                prev = json.load(f)
+                prev_ce_chg = prev.get("ce_chg")
+                prev_pe_chg = prev.get("pe_chg")
+    except Exception:
+        pass
+
+    if prev_ce_chg is None or prev_pe_chg is None:
+        return {"spike": False, "reason": "No prior run data for comparison"}
+
+    # How much did each side change since last run?
+    ce_delta = ce_chg - prev_ce_chg   # positive = more call writing this window
+    pe_delta = pe_chg - prev_pe_chg   # positive = more put writing this window
+
+    # A spike = one side moved ≥ 50% of its TOTAL day value in a single interval
+    SPIKE_RATIO = 0.50
+    alerts = []
+
+    if abs(ce_chg) > 0 and abs(ce_delta) >= abs(ce_chg) * SPIKE_RATIO:
+        direction = "bearish" if ce_delta > 0 else "bullish"
+        alerts.append({
+            "side": "CE",
+            "delta": ce_delta,
+            "direction": direction,
+            "message": (f"CE OI spiked by {ce_delta:+,} in one window "
+                        f"({abs(ce_delta)/max(abs(ce_chg),1)*100:.0f}% of day's total) — "
+                        f"{'gamma squeeze / stop-loss trigger' if abs(ce_delta) > 200_000 else 'sudden positioning shift'}"),
+        })
+
+    if abs(pe_chg) > 0 and abs(pe_delta) >= abs(pe_chg) * SPIKE_RATIO:
+        direction = "bullish" if pe_delta > 0 else "bearish"
+        alerts.append({
+            "side": "PE",
+            "delta": pe_delta,
+            "direction": direction,
+            "message": (f"PE OI spiked by {pe_delta:+,} in one window "
+                        f"({abs(pe_delta)/max(abs(pe_chg),1)*100:.0f}% of day's total) — "
+                        f"{'gamma squeeze / stop-loss trigger' if abs(pe_delta) > 200_000 else 'sudden positioning shift'}"),
+        })
+
+    if alerts:
+        return {
+            "spike":       True,
+            "alerts":      alerts,
+            "prev_ce_chg": prev_ce_chg,
+            "prev_pe_chg": prev_pe_chg,
+        }
+    return {
+        "spike":       False,
+        "prev_ce_chg": prev_ce_chg,
+        "prev_pe_chg": prev_pe_chg,
+        "reason":      "No spike detected — OI changed gradually",
+    }
+
+
 def _price_oi_divergence(current_price, net_oi_change):
     """
     Cross-checks price direction vs OI change to classify market participation.
     Loads previous price from docs/latest.json (saved by prior run).
 
     4 patterns:
-      Price↑ + OI↑ = Long Buildup   (Strong Bullish — fresh money entering long)
-      Price↑ + OI↓ = Short Covering (Weak Bullish  — shorts closing, not fresh longs)
-      Price↓ + OI↑ = Short Buildup  (Strong Bearish — fresh money entering short)
-      Price↓ + OI↓ = Long Unwinding (Weak Bearish  — longs exiting, not fresh shorts)
+      Price↑ + OI↑ = Long Buildup    (Strong Bullish — fresh money, sustainable)
+      Price↑ + OI↓ = Short Covering  (Explosive — violent but unsustainable, no fresh longs)
+      Price↓ + OI↑ = Short Buildup   (Strong Bearish — fresh shorts, sustainable)
+      Price↓ + OI↓ = Long Unwinding  (Fragile Fall — longs exiting, no fresh sellers)
     """
     prev_price = None
     try:
@@ -653,23 +800,28 @@ def _price_oi_divergence(current_price, net_oi_change):
 
     if price_up and oi_up:
         return {"label": "Long Buildup",
-                "signal": "Price↑ + OI↑ — Fresh longs entering, trend is strong",
+                "signal": "Price↑ + OI↑ — Fresh longs entering, trend is strong and sustainable",
                 "strength": "Strong Bullish", "cls": "bullish",
                 "prev_price": round(float(prev_price), 2)}
     elif price_up and not oi_up:
+        # Short covering is NOT weak — it produces the most violent, fastest rallies.
+        # It is however UNSUSTAINABLE because there are no fresh longs behind it.
+        # Once all shorts have covered, buying stops. Trade it hard but don't hold.
         return {"label": "Short Covering",
-                "signal": "Price↑ + OI↓ — Shorts closing, NOT fresh longs (fragile rally)",
-                "strength": "Weak Bullish", "cls": "bullish",
+                "signal": "Price↑ + OI↓ — Shorts closing, explosive move but NO fresh longs (exit fast)",
+                "strength": "Explosive / Unsustainable", "cls": "bullish",
                 "prev_price": round(float(prev_price), 2)}
     elif not price_up and oi_up:
         return {"label": "Short Buildup",
-                "signal": "Price↓ + OI↑ — Fresh shorts entering, downtrend confirmed",
+                "signal": "Price↓ + OI↑ — Fresh shorts entering, downtrend is confirmed and sustainable",
                 "strength": "Strong Bearish", "cls": "bearish",
                 "prev_price": round(float(prev_price), 2)}
     else:
+        # Long unwinding is a fragile, seller-less fall — longs just giving up.
+        # No conviction from bears, can snap back quickly.
         return {"label": "Long Unwinding",
-                "signal": "Price↓ + OI↓ — Longs exiting, NOT fresh shorts (fragile fall)",
-                "strength": "Weak Bearish", "cls": "bearish",
+                "signal": "Price↓ + OI↓ — Longs exiting, NO fresh sellers (snap-back risk, shallow fall)",
+                "strength": "Fragile / Unsustainable", "cls": "bearish",
                 "prev_price": round(float(prev_price), 2)}
 
 def analyze_option_chain(oc_data, vix=18.0):
@@ -754,6 +906,9 @@ def analyze_option_chain(oc_data, vix=18.0):
     net_oi_change = ce_chg + pe_chg
     price_oi_div  = _price_oi_divergence(oc_data["underlying"], net_oi_change)
 
+    # OI Spike detection: did a large chunk of today's OI move happen in one window?
+    oi_spike = _detect_oi_spike(ce_chg, pe_chg)
+
     atm_strike = oc_data["atm_strike"]
     greeks = extract_atm_greeks(df, atm_strike,
                                 underlying=oc_data["underlying"],
@@ -770,6 +925,10 @@ def analyze_option_chain(oc_data, vix=18.0):
         _sd["pe_theta"] = round(_g.get("pe_theta", 0.0),   4)
         _sd["ce_vega"]  = round(_g.get("ce_vega",  0.0),   4)
         _sd["pe_vega"]  = round(_g.get("pe_vega",  0.0),   4)
+
+    # Dealer hedging alert: check if Vanna + Charm are pinning price near ATM
+    days_left    = _days_to_expiry_ist(oc_data["expiry"])
+    dealer_alert = _dealer_hedge_alert(greeks["atm_greeks"], days_left, atm_strike)
 
     return {
         "expiry":          oc_data["expiry"],
@@ -809,6 +968,8 @@ def analyze_option_chain(oc_data, vix=18.0):
         "greeks_table":    greeks["greeks_table"],
         "all_strikes":     greeks["all_strikes"],
         "price_oi_div":    price_oi_div,
+        "dealer_alert":    dealer_alert,
+        "oi_spike":        oi_spike,
     }
 
 
@@ -933,9 +1094,51 @@ def compute_market_direction(tech, oc_analysis, live_vix=18.0):
         pcr = oc_analysis["pcr_oi"]
         if   pcr > 1.2: bull += 2
         elif pcr < 0.7: bear += 2
-        mp = oc_analysis["max_pain"]
-        if   cp > mp + 100: bear += 1
-        elif cp < mp - 100: bull += 1
+
+        # ── Max Pain scoring — time-weighted by days to expiry ────
+        # Max Pain is almost meaningless 5+ days before expiry (market hasn't
+        # started pinning yet). It becomes highly predictive in the last 48h.
+        # Weight: 0 pts (early week) → 1 pt (Mon/Tue of expiry week).
+        mp           = oc_analysis["max_pain"]
+        days_left    = _days_to_expiry_ist(oc_analysis["expiry"])
+        mp_threshold = 100   # pts away from Max Pain to count as a signal
+
+        if   days_left <= 1: mp_weight = 2   # expiry day / day before: strongest pin
+        elif days_left <= 2: mp_weight = 2   # Mon/Tue of expiry week
+        elif days_left <= 4: mp_weight = 1   # Thu/Fri prior week: moderate
+        else:                mp_weight = 0   # early week: Max Pain not reliable yet
+
+        if mp_weight > 0:
+            if   cp > mp + mp_threshold: bear += mp_weight
+            elif cp < mp - mp_threshold: bull += mp_weight
+
+        # ── Max Pain shift detection (leading indicator) ──────────
+        # If Max Pain has moved UP since last run while bias is neutral/sideways,
+        # that is a leading bullish signal (writers repositioning higher).
+        # If Max Pain moved DOWN, it is a leading bearish signal.
+        prev_max_pain = None
+        try:
+            meta_path = os.path.join("docs", "latest.json")
+            if os.path.exists(meta_path):
+                with open(meta_path, "r") as f:
+                    prev_max_pain = json.load(f).get("max_pain")
+        except Exception:
+            pass
+
+        max_pain_shift = None
+        if prev_max_pain and prev_max_pain != mp:
+            shift = mp - prev_max_pain
+            if   shift > 0:
+                max_pain_shift = {"direction": "up",   "pts": shift,
+                                  "signal": f"Max Pain shifted UP +{shift} pts — leading bullish signal"}
+                bull += 1   # writers repositioning higher = subtle bull lean
+            elif shift < 0:
+                max_pain_shift = {"direction": "down", "pts": abs(shift),
+                                  "signal": f"Max Pain shifted DOWN −{abs(shift)} pts — leading bearish signal"}
+                bear += 1   # writers repositioning lower = subtle bear lean
+    else:
+        mp_weight      = 0
+        max_pain_shift = None
 
     diff = bull - bear
 
@@ -960,6 +1163,8 @@ def compute_market_direction(tech, oc_analysis, live_vix=18.0):
         "vix_regime":           vix_regime,
         "vix_high":             live_vix > 22,
         "vix_low":              live_vix < 15,
+        "max_pain_shift":       max_pain_shift,
+        "mp_weight":            mp_weight,
     }
 
 
@@ -4010,7 +4215,7 @@ def main():
             print(f"  WARNING: No option data for NR-IV — using hardcoded 18.0")
     # Fetch all 7 expiries for dropdown
     print("\n  Fetching next 7 expiries for dropdown...")
-    multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=7)
+    multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=7, vix=live_vix)
     print(f"  Expiry dropdown will show: {expiry_list}")
 
     # Pre-analyze all expiry data
@@ -4042,6 +4247,10 @@ def main():
     if md.get("sma200_filter_active"):
         print(f"  SMA200 Filter ACTIVE — MACD/RSI bullish signals penalized (structural bear)")
     print(f"  VIX Regime={md['vix_regime'].upper()}  (live_vix={live_vix:.2f})")
+    print(f"  Max Pain Weight={md['mp_weight']}  (days to expiry affects how much Max Pain scores)")
+    if md.get("max_pain_shift"):
+        mps = md["max_pain_shift"]
+        print(f"  *** MAX PAIN SHIFT: {mps['signal']}")
 
     print("\nGenerating Holiday-Aware Dashboard...")
     html = generate_html(tech, oc_analysis, md, ts, vix_data=vix_data,
@@ -4073,6 +4282,7 @@ def main():
         "atm_strike":      oc_analysis["atm_strike"]       if oc_analysis else None,
         "max_ce":          oc_analysis["max_ce_strike"]    if oc_analysis else None,
         "max_pe":          oc_analysis["max_pe_strike"]    if oc_analysis else None,
+        "max_pain":        oc_analysis["max_pain"]         if oc_analysis else None,
         "support":         round(tech["support"], 0)       if tech        else None,
         "resistance":      round(tech["resistance"], 0)    if tech        else None,
         "ce_chg":          oc_analysis["ce_chg"]           if oc_analysis else None,
