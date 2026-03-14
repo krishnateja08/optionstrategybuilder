@@ -315,26 +315,9 @@ class NSEOptionChain:
 
         if result is None:
             print("  ERROR: Option chain fetch failed for all expiries.")
-        # Also capture full expiry list for dropdown
-        self._cached_expiry_list = []
-        try:
-            url = f"https://www.nseindia.com/api/option-chain-v3?type=Indices&symbol={self.symbol}"
-            resp = session.get(url, headers=headers, impersonate="chrome", timeout=20)
-            if resp.status_code == 200:
-                all_exp = resp.json().get("records", {}).get("expiryDates", [])
-                today = today_ist()
-                for exp_str in all_exp:
-                    try:
-                        exp_dt = datetime.strptime(exp_str, "%d-%b-%Y").date()
-                        if exp_dt >= today:
-                            self._cached_expiry_list.append(exp_str)
-                            if len(self._cached_expiry_list) >= 7:
-                                break
-                    except Exception:
-                        continue
-                print(f"  Expiry list fetched: {self._cached_expiry_list}")
-        except Exception as e:
-            print(f"  WARNING expiry list: {e}")
+        # NOTE: _cached_expiry_list removed — expiry list is fetched inside
+        # fetch_multiple_expiries() which is always called right after fetch().
+        # Fetching it here too was a redundant NSE API call.
         return result, session, headers
 
 
@@ -3764,8 +3747,7 @@ def main():
     live_vix = vix_data["value"] if vix_data else 18.0
     # Fetch all 7 expiries for dropdown
     print("\n  Fetching next 7 expiries for dropdown...")
-    time.sleep(1.5)   # small gap so NSE doesn't block
-    multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=15)
+    multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=7)
     print(f"  Expiry dropdown will show: {expiry_list}")
 
     # Pre-analyze all expiry data
