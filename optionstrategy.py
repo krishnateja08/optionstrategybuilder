@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v21.0 · Smart Dynamic PoP Engine + Intraday P&L Simulator
+Aurora Borealis Theme · v22.0 · Smart Dynamic PoP Engine + Intraday P&L Simulator
 - PoP now reflects: Market Bias + Support/Resistance + Max CE/PE OI walls + PCR
 - lotSize fixed to 65
 - Strategies ranked by smart PoP — highest PoP = best trade right now
@@ -22,6 +22,11 @@ Aurora Borealis Theme · v21.0 · Smart Dynamic PoP Engine + Intraday P&L Simula
   1. Skew-aware IV fallback — missing OTM IVs now use ATM skew proxy instead of flat VIX
   2. GEX Gamma Flip strike — added to OI analysis and displayed in Key Levels
   3. Exhaustion override in bias scoring — RSI>68 at CE wall caps bias at SIDEWAYS/CAUTION
+- NEW v22.0: Three Professional Strategy Metrics on Every Card
+  1. IV Percentile (IVP) — 90-day VIX percentile baked into smartPoP stratAdj
+     Short premium penalised −15 when IVP<20; rewarded +8 when IVP>70
+  2. Theta/Vega Ratio — displayed in Greeks tab; T/V≥0.10=well compensated
+  3. Theoretical EV — (TruePop×MaxProfit)−((1−TruePop)×MaxLoss) per lot
 
 pip install curl_cffi pandas numpy yfinance pytz scipy
 """
@@ -1278,6 +1283,23 @@ def get_technical_data():
         df["log_ret"] = np.log(df["Close"] / df["Close"].shift(1))
         hv = df["log_ret"].tail(20).std() * np.sqrt(252) * 100
 
+        # ── IV Percentile (IVP) ───────────────────────────────────────────
+        # IVP = % of days in the last 90 trading days where India VIX was
+        # LOWER than today's VIX.  IVP > 70 = IV expensive (good to sell).
+        # IVP < 20 = IV cheap (avoid selling premium).
+        # We use ^INDIAVIX daily close as the IV proxy.
+        ivp = 50   # safe default if fetch fails
+        try:
+            vix_hist = yf.Ticker("^INDIAVIX").history(period="6mo")
+            if not vix_hist.empty and len(vix_hist) >= 10:
+                vix_closes = vix_hist["Close"].dropna().values
+                today_vix  = float(vix_closes[-1])
+                window     = vix_closes[-90:] if len(vix_closes) >= 90 else vix_closes
+                days_below = int(np.sum(window < today_vix))
+                ivp        = round(days_below / len(window) * 100)
+        except Exception as e:
+            print(f"  WARNING IVP calc: {e}")
+
         return {
             "price":       cp,
             "sma20":       latest["SMA_20"],
@@ -1291,6 +1313,7 @@ def get_technical_data():
             "strong_sup":  strong_sup,
             "strong_res":  strong_res,
             "hv":          round(float(hv), 2),
+            "ivp":         ivp,
         }
     except Exception as e:
         print(f"  ERROR Technical: {e}")
@@ -2258,6 +2281,7 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
     resistance  = tech["resistance"] if tech else spot + 150
     strong_sup  = tech["strong_sup"] if tech else spot - 300
     strong_res  = tech["strong_res"] if tech else spot + 300
+    ivp         = tech["ivp"]        if tech else 50   # IV Percentile (0–100)
 
     bias        = md["bias"]       if md else "SIDEWAYS"
     conf        = md["confidence"] if md else "MEDIUM"
@@ -2389,12 +2413,18 @@ const OC={{
   bullScore:   {bull_sc},
   bearScore:   {bear_sc},
   strikes:     {strikes_json},
-  lotSize:     65
+  lotSize:     65,
+  ivp:         {ivp}
 }};
 
 // TRUE_POP_MAP — IV-based N(d2) probability, pre-computed in Python.
 // Answers "what does the Black-Scholes bell curve say?" (independent of bias/OI).
 const TRUE_POP_MAP = {true_pop_json};
+
+// IVP — India VIX percentile over last 90 trading days.
+// IVP > 70: IV expensive → favour premium selling.
+// IVP < 20: IV cheap → avoid short premium, prefer long vega strategies.
+const IVP = {ivp};
 
 const STRIKE_MAP={{}};
 OC.strikes.forEach(s=>{{ STRIKE_MAP[s.strike]=s; }});
@@ -2447,13 +2477,44 @@ function smartPoP(shape, cat) {{
   if (cat === "bullish") {{ pcrAdj = pcr > 1.5 ? 8 : pcr > 1.2 ? 6 : pcr > 1.0 ? 3 : pcr < 0.7 ? -8 : pcr < 0.9 ? -4 : 0; }}
   else if (cat === "bearish") {{ pcrAdj = pcr < 0.5 ? 8 : pcr < 0.7 ? 6 : pcr < 0.9 ? 3 : pcr > 1.3 ? -8 : pcr > 1.1 ? -4 : 0; }}
   else {{ pcrAdj = (pcr >= 0.85 && pcr <= 1.15) ? 6 : (pcr >= 0.7 && pcr <= 1.3) ? 3 : -4; }}
+
+  // ── IVP-based strategy adjustment ────────────────────────────────────
+  // Short premium strategies (condors, straddles, spreads) are penalised
+  // when IV is cheap (IVP < 20) — you are selling low and the trade is
+  // structurally poor regardless of bias alignment.
+  // Long vol strategies (straddles, backspreads) are rewarded when IV is cheap.
+  // Short premium is rewarded when IVP > 70 — IV is expensive relative to history.
+  const ivp = IVP;
+  const isShortPremium = ['short_straddle','short_strangle','short_iron_condor',
+    'short_iron_fly','short_put','short_call','bear_call_spread','bull_put_spread',
+    'jade_lizard','reverse_jade','call_ratio_spread','put_ratio_spread'].includes(shape);
+  const isLongVol = ['long_straddle','long_strangle','long_iron_condor',
+    'long_iron_fly','call_ratio_back','put_ratio_back','long_call','long_put'].includes(shape);
+  let ivpAdj = 0;
+  if (isShortPremium) {{
+    if (ivp < 20)      ivpAdj = -15;  // IV cheap — never sell; hard penalty
+    else if (ivp < 35) ivpAdj = -8;   // IV below average — cautious
+    else if (ivp > 70) ivpAdj = +8;   // IV expensive — premium selling ideal
+    else if (ivp > 55) ivpAdj = +4;   // IV moderately high — slight boost
+  }}
+  if (isLongVol) {{
+    if (ivp < 20)      ivpAdj = +10;  // IV cheap — long vol is a bargain
+    else if (ivp < 35) ivpAdj = +5;
+    else if (ivp > 70) ivpAdj = -8;   // IV expensive — long vol is overpriced
+    else if (ivp > 55) ivpAdj = -4;
+  }}
+
   let stratAdj = 0;
   if (shape.includes('spread') || shape.includes('condor') || shape.includes('butterfly')) {{ stratAdj = 2; }}
   if (shape === 'short_straddle' || shape === 'short_strangle') {{ stratAdj = bias === 'SIDEWAYS' ? 8 : -10; }}
   if (shape === 'long_straddle' || shape === 'long_strangle') {{ stratAdj = bias === 'SIDEWAYS' ? -8 : 8; }}
   if ((shape === 'short_iron_condor' || shape === 'short_iron_fly') && bias === 'SIDEWAYS') {{ stratAdj = 10; }}
-  const rawPoP = 50 + biasAdj + srAdj + oiAdj + pcrAdj + stratAdj;
-  return {{ edgeScore: Math.min(95, Math.max(5, Math.round(rawPoP))), biasAdj: Math.round(biasAdj), srAdj: Math.round(srAdj), oiAdj: Math.round(oiAdj), pcrAdj: Math.round(pcrAdj), stratAdj: Math.round(stratAdj) }};
+
+  const rawPoP = 50 + biasAdj + srAdj + oiAdj + pcrAdj + stratAdj + ivpAdj;
+  return {{ edgeScore: Math.min(95, Math.max(5, Math.round(rawPoP))),
+            biasAdj: Math.round(biasAdj), srAdj: Math.round(srAdj),
+            oiAdj: Math.round(oiAdj), pcrAdj: Math.round(pcrAdj),
+            stratAdj: Math.round(stratAdj), ivpAdj: Math.round(ivpAdj) }};
 }}
 
 function normCDF(x) {{
@@ -3058,7 +3119,40 @@ function calcMetrics(shape, edgeScore) {{
   // True PoP from Python-computed IV-based N(d2) map
   const truePop = TRUE_POP_MAP[shape] !== undefined ? TRUE_POP_MAP[shape] : null;
 
-  return {{edgeScore:es, truePop,
+  // ── Theta/Vega Ratio ────────────────────────────────────────────────
+  // Answers: "for each ₹1 of daily theta collected, how much IV-spike risk am I carrying?"
+  // T/V = |netTheta| / |netVega|
+  // > 0.10 = acceptable compensation (earn back vega exposure in ~10 days of theta)
+  // < 0.05 = poorly compensated (a 1% IV spike costs 20+ days of theta)
+  // N/A for strategies with near-zero vega (synthetics, calendars have their own metric)
+  const absVega  = Math.abs(Math.round(netVega * 100) / 100);
+  const absTheta = Math.abs(Math.round(netTheta * 100) / 100);
+  const tvRatio  = absVega > 0.5 ? Math.round((absTheta / absVega) * 1000) / 1000 : null;
+
+  // ── Theoretical Expected Value ──────────────────────────────────────
+  // EV = (truePop/100 × maxProfit) − ((1 − truePop/100) × maxLoss)
+  // Positive EV = trade has mathematical edge. Negative EV = avoid.
+  // Important: this is MODEL-DEPENDENT — assumes log-normal returns and
+  // accurate IV. Fat tails (NIFTY events) can make actual EV worse.
+  // "Unlimited" max loss/profit = EV not meaningful → null.
+  let evRaw = null;
+  const tp_ = TRUE_POP_MAP[shape];
+  if (tp_ !== undefined && mp < 999990 && ml < 999990 && mp > 0 && ml > 0) {{
+    const pWin  = tp_ / 100;
+    const pLose = 1 - pWin;
+    evRaw = Math.round(pWin * mp - pLose * ml);
+  }}
+  const evStr = evRaw === null ? null
+    : (evRaw >= 0 ? '+' : '') + '\u20b9' + Math.abs(evRaw).toLocaleString('en-IN');
+  const evCol = evRaw === null ? '#888'
+    : evRaw >= 500 ? '#38d888' : evRaw >= 0 ? '#ffcc00' : evRaw >= -500 ? '#ffaa00' : '#f04050';
+  const evLabel = evRaw === null ? 'N/A (unlimited leg)'
+    : evRaw >= 500  ? 'Positive edge — trade has merit'
+    : evRaw >= 0    ? 'Marginal — thin edge, watch slippage'
+    : evRaw >= -500 ? 'Negative EV — poor R:R vs PoP'
+    :                 'Avoid — strongly negative EV';
+
+  return {{edgeScore:es, truePop, tvRatio, evRaw, evStr, evCol, evLabel,
            mpStr,mlStr,rrStr,beStr,ncStr,slipNote,marginStr,mpPct,strikeStr,ltpStr,
            mpRaw:mp,mlRaw:ml,ncRaw:Math.round(ncAdjusted),ncPositive:ncAdjusted>=0,
            netDelta:Math.round(netDelta*100)/100,
@@ -3086,6 +3180,7 @@ function renderMetrics(m, scoreBreakdown) {{
         <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">OI <b style="color:${{scoreBreakdown.oiAdj>=0?'#38d888':'#f04050'}};">${{scoreBreakdown.oiAdj>=0?'+':''}}${{scoreBreakdown.oiAdj}}</b></span>
         <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">PCR <b style="color:${{scoreBreakdown.pcrAdj>=0?'#38d888':'#f04050'}};">${{scoreBreakdown.pcrAdj>=0?'+':''}}${{scoreBreakdown.pcrAdj}}</b></span>
         <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">Strat <b style="color:${{scoreBreakdown.stratAdj>=0?'#38d888':'#f04050'}};">${{scoreBreakdown.stratAdj>=0?'+':''}}${{scoreBreakdown.stratAdj}}</b></span>
+        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">IVP ${{IVP}}% <b style="color:${{(scoreBreakdown.ivpAdj||0)>=0?'#38d888':'#f04050'}};">${{(scoreBreakdown.ivpAdj||0)>=0?'+':''}}${{scoreBreakdown.ivpAdj||0}}</b></span>
       </div>
     </div>` : '';
 
@@ -3104,10 +3199,19 @@ function renderMetrics(m, scoreBreakdown) {{
     <div style="padding:11px 12px;border-right:1px solid rgba(255,185,0,.1);">
       <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">Edge Score</div>
       <div style="font-family:DM Mono,monospace;font-size:26px;font-weight:800;color:${{esc}};">${{es}}%</div>
-      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,255,255,.42);margin-top:2px;">Bias + S/R + OI + PCR</div>
+      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,255,255,.42);margin-top:2px;">Bias + S/R + OI + PCR + IVP</div>
     </div>
     <div style="padding:11px 12px;">
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">True PoP (IV)</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">True PoP (IV)</div>
+        <div style="font-family:DM Mono,monospace;font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;
+          background:${{IVP>=70?'rgba(56,216,136,.15)':IVP>=35?'rgba(255,185,0,.12)':IVP<20?'rgba(240,64,80,.18)':'rgba(100,128,255,.12)'}};
+          color:${{IVP>=70?'#38d888':IVP>=35?'#ffcc00':IVP<20?'#f04050':'#8aa0ff'}};
+          border:1px solid ${{IVP>=70?'rgba(56,216,136,.3)':IVP>=35?'rgba(255,185,0,.3)':IVP<20?'rgba(240,64,80,.3)':'rgba(100,128,255,.3)'}};
+          white-space:nowrap;">
+          IVP ${{IVP}}%
+        </div>
+      </div>
       <div style="font-family:DM Mono,monospace;font-size:26px;font-weight:800;color:${{tpc}};">${{tp !== null ? tp+'%' : '—'}}</div>
       <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,255,255,.42);margin-top:2px;">N(d2) · P(expire OTM)</div>
     </div>
@@ -3131,6 +3235,31 @@ function renderMetrics(m, scoreBreakdown) {{
     <div style="padding:11px 12px;">
       <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">Breakeven</div>
       <div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:#fff8e0;">${{m.beStr}}</div>
+    </div>
+  </div>
+
+  <!-- ── Theoretical EV row ─────────────────────────────────────── -->
+  <div style="padding:10px 12px;border-bottom:1px solid rgba(255,185,0,.1);background:rgba(0,0,0,.2);">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div>
+        <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">
+          Theoretical EV
+          <span style="font-size:9px;font-weight:400;color:rgba(255,255,255,.35);letter-spacing:.5px;text-transform:none;margin-left:5px;">model-based · per lot</span>
+        </div>
+        <div style="font-family:DM Mono,monospace;font-size:22px;font-weight:800;color:${{m.evCol || '#888'}};">
+          ${{m.evStr || '—'}}
+        </div>
+      </div>
+      <div style="font-family:DM Mono,monospace;font-size:12px;color:${{m.evCol || 'rgba(255,255,255,.4)'}};
+           padding:4px 10px;border-radius:6px;
+           background:${{m.evRaw === null ? 'rgba(255,255,255,.04)' : m.evRaw >= 0 ? 'rgba(56,216,136,.08)' : 'rgba(240,64,80,.08)'}};
+           border:1px solid ${{m.evRaw === null ? 'rgba(255,255,255,.08)' : m.evRaw >= 0 ? 'rgba(56,216,136,.25)' : 'rgba(240,64,80,.25)'}};
+           white-space:nowrap;max-width:260px;text-align:right;">
+        ${{m.evLabel || 'N/A'}}
+      </div>
+    </div>
+    <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,255,255,.28);margin-top:5px;line-height:1.5;">
+      EV = (TruePoP × MaxProfit) − ((1−TruePoP) × MaxLoss) · assumes log-normal · events inflate actual tail risk
     </div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(255,185,0,.1);">
@@ -3306,6 +3435,42 @@ function buildIntradaySim(m) {{
         </div>
         <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#ffcc00;white-space:nowrap;">${{nvStr}}</div>
       </div>
+      ${{(()=>{{
+        // ── Theta / Vega ratio ─────────────────────────────────────────
+        // T/V = |netTheta| / |netVega| per lot.
+        // Tells you: "for each ₹1 of daily theta, how much IV-spike risk?"
+        // ≥ 0.10 = well compensated  |  0.05–0.10 = marginal  |  < 0.05 = poorly compensated
+        // N/A when vega ≈ 0 (pure directional strategies, long synthetics).
+        const tv = m.tvRatio;
+        if (tv === null) {{
+          return `<div style="display:flex;align-items:center;gap:10px;background:rgba(100,128,255,.05);border:1px solid rgba(100,128,255,.15);border-radius:8px;padding:9px 12px;">
+            <div style="width:32px;height:32px;border-radius:6px;background:rgba(100,128,255,.12);border:1px solid rgba(100,128,255,.2);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#8aa0ff;flex-shrink:0;">T/V</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;color:rgba(138,160,255,.9);text-transform:uppercase;">THETA / VEGA</div>
+              <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,80,.95);">compensation ratio</div>
+            </div>
+            <div style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:rgba(255,255,255,.4);">N/A</div>
+          </div>`;
+        }}
+        const tvCol  = tv >= 0.10 ? '#38d888' : tv >= 0.05 ? '#ffcc00' : '#f04050';
+        const tvLbl  = tv >= 0.10 ? 'Well compensated' : tv >= 0.05 ? 'Marginal — monitor' : 'Poorly compensated';
+        const tvNote = tv >= 0.10
+          ? `Earn back full vega in ~${{Math.round(1/tv)}} days theta`
+          : tv >= 0.05
+          ? `A 1% IV spike costs ~${{Math.round(1/tv)}} days theta`
+          : `A 1% IV spike costs ${{Math.round(1/tv)}}+ days theta — high risk`;
+        return `<div style="display:flex;align-items:center;gap:10px;background:rgba(100,128,255,.05);border:1px solid rgba(100,128,255,.15);border-radius:8px;padding:9px 12px;">
+          <div style="width:32px;height:32px;border-radius:6px;background:rgba(100,128,255,.12);border:1px solid rgba(100,128,255,.2);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#8aa0ff;flex-shrink:0;">T/V</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;color:rgba(138,160,255,.9);text-transform:uppercase;">THETA / VEGA RATIO</div>
+            <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,80,.95);">${{tvNote}}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:${{tvCol}};white-space:nowrap;">${{tv.toFixed(3)}}</div>
+            <div style="font-family:DM Mono,monospace;font-size:10px;color:${{tvCol}};opacity:.8;">${{tvLbl}}</div>
+          </div>
+        </div>`;
+      }})()}}
     </div>
     <div style="border-top:1px solid rgba(255,185,0,.12);margin:0 12px;"></div>
     <div style="padding:10px 12px 10px;">
@@ -4666,6 +4831,11 @@ def main():
     if md.get("sma200_filter_active"):
         print(f"  SMA200 Filter ACTIVE — MACD/RSI bullish signals penalized (structural bear)")
     print(f"  VIX Regime={md['vix_regime'].upper()}  (live_vix={live_vix:.2f})")
+    ivp_val = tech.get("ivp", "N/A") if tech else "N/A"
+    ivp_lbl = ("CHEAP — avoid short premium" if isinstance(ivp_val, int) and ivp_val < 20
+               else "EXPENSIVE — short premium favoured" if isinstance(ivp_val, int) and ivp_val > 70
+               else "NORMAL" if isinstance(ivp_val, int) else "N/A")
+    print(f"  IVP={ivp_val}%  ({ivp_lbl})")
     print(f"  Max Pain Weight={md['mp_weight']}  (days to expiry affects how much Max Pain scores)")
     if md.get("max_pain_shift"):
         mps = md["max_pain_shift"]
@@ -4729,7 +4899,7 @@ def main():
         json.dump(meta, f, indent=2)
     print("  Saved: docs/latest.json")
     print("\n" + "=" * 65)
-    print(f"  DONE  |  v21.0 · Skew IV + GEX Flip + Exhaustion Override")
+    print(f"  DONE  |  v22.0 · IVP + Theta/Vega Ratio + Theoretical EV")
     print(f"  Bias: {md['bias']}  |  Confidence: {md['confidence']}")
     print("  Holiday list: 2026 NSE official holidays pre-loaded")
     print("  Logic: Tuesday holiday → Monday → Friday (fallback)")
