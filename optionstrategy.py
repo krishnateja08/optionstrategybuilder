@@ -2313,61 +2313,86 @@ function renderMetrics(m, scoreBreakdown) {{
   ${{sbHtml}}
   ${{buildIntradaySim(m)}}`;
 }}
-
 // ── Intraday P&L Simulator ───────────────────────────────────────────────────
 function buildIntradaySim(m) {{
   const lotSz   = OC.lotSize;
   const maxL    = m.mlRawVal === 999999 ? null : m.mlRawVal;
   const maxP    = m.mpRaw    === 999999 ? null : m.mpRaw;
-  const nd      = m.netDelta;   // ₹ per 1 point Nifty move
-  const nt      = m.netTheta;   // ₹ per day (negative = decay cost)
-  const nv      = m.netVega;    // ₹ per 1% IV change
-  const ng      = m.netGamma;   // ₹ curvature (½·Γ·move²)
+  const nd      = m.netDelta;
+  const nt      = m.netTheta;   // ₹ per day
+  const nv      = m.netVega;
+  const ng      = m.netGamma;
+
+  // ── Days to expiry (IST) ────────────────────────────────────────────
+  function calcDaysToExpiry() {{
+    try {{
+      const expStr = OC.expiry;
+      const parts  = expStr.split('-');
+      const months = {{Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}};
+      const expDate = new Date(Date.UTC(parseInt(parts[2]), months[parts[1]], parseInt(parts[0])));
+      const nowUtc  = Date.now() + (new Date().getTimezoneOffset() * 60000);
+      const nowIst  = new Date(nowUtc + 5.5 * 3600000);
+      const todayIst = new Date(Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth(), nowIst.getUTCDate()));
+      return Math.max(1, Math.round((expDate - todayIst) / 86400000));
+    }} catch(e) {{ return 4; }}
+  }}
+  const maxDays = calcDaysToExpiry();
 
   const moves = [-500,-400,-300,-200,-150,-100,-50,0,50,100,150,200,300,400,500];
 
-  function calcPnl(movePts) {{
-    // IV estimate: index moves ~4x inverse relationship to IV
-    // e.g. -300pt drop on 23000 spot ≈ -1.3% → IV rises ~5%
+  function calcPnl(movePts, days) {{
     const ivEst = -(movePts / OC.spot) * 400;
-    let pnl = nd * movePts + 0.5 * ng * movePts * movePts + nv * ivEst + nt;
+    let pnl = nd * movePts + 0.5 * ng * movePts * movePts + nv * ivEst + (nt * days);
     if (maxL !== null) pnl = Math.max(-maxL, pnl);
     if (maxP !== null) pnl = Math.min(maxP * 0.9, pnl);
     return Math.round(pnl);
   }}
 
-  const flatPnl  = calcPnl(0);
-  const flatCol  = flatPnl >= 0 ? '#38d888' : '#f04050';
-  const ntCol    = nt >= 0 ? '#38d888' : '#f04050';
-  const ntSign   = nt >= 0 ? '+' : '';
-  const ndStr    = (nd >= 0 ? '+' : '') + '\u20b9' + Math.abs(nd).toFixed(2);
-  const ntStr    = ntSign + '\u20b9' + Math.abs(Math.round(nt));
-  const nvStr    = (nv >= 0 ? '+' : '') + '\u20b9' + Math.abs(nv).toFixed(2);
+  function buildRows(days) {{
+    return moves.map(mv => {{
+      const pnl   = calcPnl(mv, days);
+      const col   = pnl > 100 ? '#38d888' : pnl > 0 ? '#ffcc00' : pnl > -200 ? '#ffaa00' : '#f04050';
+      const mvcol = mv > 0 ? '#38d888' : mv < 0 ? '#f04050' : '#ffcc00';
+      const mvbg  = mv > 0 ? 'rgba(56,216,136,.12)' : mv < 0 ? 'rgba(240,64,80,.18)' : 'rgba(255,185,0,.18)';
+      const mvlbl = mv > 0 ? '+' + mv : mv === 0 ? 'Flat' : String(mv);
+      const pctmp = maxP ? ((pnl / maxP) * 100).toFixed(0) + '%' : '\u2014';
+      const rowBg = mv === 0 ? 'background:rgba(255,185,0,.05);' : '';
+      return `<tr style="${{rowBg}}">
+        <td style="padding:6px 10px;white-space:nowrap;">
+          <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;padding:4px 8px;border-radius:4px;background:${{mvbg}};color:${{mvcol}};white-space:nowrap;display:inline-block;min-width:56px;text-align:center;">${{mvlbl}}${{mv!==0?'p':''}}</span>
+        </td>
+        <td style="padding:6px 8px;font-family:'DM Mono',monospace;font-size:13px;color:rgba(255,200,80,.82);white-space:nowrap;text-align:left;">${{(OC.spot+mv).toLocaleString('en-IN')}}</td>
+        <td style="padding:6px 8px;font-family:'DM Mono',monospace;font-weight:700;font-size:15px;color:${{col}};white-space:nowrap;text-align:right;">${{pnl>=0?'+':''}}\u20b9${{Math.abs(pnl).toLocaleString('en-IN')}}</td>
+        <td style="padding:6px 6px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${{col}};text-align:right;white-space:nowrap;">${{pctmp}}</td>
+      </tr>`;
+    }}).join('');
+  }}
 
-  let tRows = '';
-  moves.forEach(mv => {{
-    const pnl    = calcPnl(mv);
-    const col    = pnl > 100 ? '#38d888' : pnl > 0 ? '#ffcc00' : pnl > -200 ? '#ffaa00' : '#f04050';
-    const mvcol  = mv > 0 ? '#38d888' : mv < 0 ? '#f04050' : '#ffcc00';
-    const mvbg   = mv > 0 ? 'rgba(56,216,136,.12)' : mv < 0 ? 'rgba(240,64,80,.18)' : 'rgba(255,185,0,.18)';
-    const mvlbl  = mv > 0 ? '+' + mv : mv === 0 ? 'Flat' : String(mv);
-    const pctmp  = maxP ? ((pnl / maxP) * 100).toFixed(0) + '%' : '—';
-    const isFlat = mv === 0;
-    const rowBg  = isFlat ? 'background:rgba(255,185,0,.05);' : '';
-    tRows += `<tr style="${{rowBg}}">
-      <td style="padding:6px 10px;white-space:nowrap;">
-        <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;padding:4px 8px;border-radius:4px;background:${{mvbg}};color:${{mvcol}};white-space:nowrap;display:inline-block;min-width:56px;text-align:center;">${{mvlbl}}${{mv!==0?'p':''}}</span>
-      </td>
-      <td style="padding:6px 8px;font-family:'DM Mono',monospace;font-size:13px;color:rgba(255,200,80,.82);white-space:nowrap;text-align:left;">${{(OC.spot+mv).toLocaleString('en-IN')}}</td>
-      <td style="padding:6px 8px;font-family:'DM Mono',monospace;font-weight:700;font-size:15px;color:${{col}};white-space:nowrap;text-align:right;">${{pnl>=0?'+':''}}\u20b9${{Math.abs(pnl).toLocaleString('en-IN')}}</td>
-      <td style="padding:6px 6px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${{col}};text-align:right;white-space:nowrap;">${{pctmp}}</td>
-    </tr>`;
-  }});
+  const ntCol  = nt >= 0 ? '#38d888' : '#f04050';
+  const ntSign = nt >= 0 ? '+' : '';
+  const ndStr  = (nd >= 0 ? '+' : '') + '\u20b9' + Math.abs(nd).toFixed(2);
+  const ntStr  = ntSign + '\u20b9' + Math.abs(Math.round(nt));
+  const nvStr  = (nv >= 0 ? '+' : '') + '\u20b9' + Math.abs(nv).toFixed(2);
 
-  // Slider range: spot ± 400 in steps of 25
+  // Day selector buttons
+  const dayBtnsHtml = Array.from({{length: maxDays}}, (_,i)=>i+1).map(d=>{{
+    const isExp = d === maxDays;
+    const lbl   = isExp ? d+'D \u2605 Expiry' : d+'D';
+    const act   = d === 1;
+    return `<button id="SIDBTN_${{d}}"
+      onclick="SIDSEL(${{d}})"
+      style="padding:4px 10px;font-family:DM Mono,monospace;font-size:12px;font-weight:700;
+        border-radius:4px;cursor:pointer;white-space:nowrap;transition:all .15s;
+        border:1px solid ${{act?'#ffcc00':'rgba(255,185,0,.3)'}};
+        color:${{act?'#ffcc00':'rgba(255,200,80,.5)'}};
+        background:${{act?'rgba(255,185,0,.15)':'transparent'}};">${{lbl}}</button>`;
+  }}).join('');
+
   const slMin = Math.round((OC.spot - 400) / 25) * 25;
   const slMax = Math.round((OC.spot + 400) / 25) * 25;
   const simId = 'sim_' + Math.random().toString(36).slice(2,7);
+
+  const dayBtns = dayBtnsHtml.replace(/SIDBTN/g, 'daybtn_'+simId).replace(/SIDSEL/g, 'selDay_'+simId);
 
   return `
 <div style="border-top:1px solid rgba(255,185,0,.2);background:rgba(11,8,0,.6);" onclick="event.stopPropagation()">
@@ -2380,25 +2405,82 @@ function buildIntradaySim(m) {{
 
   <!-- TAB 1: Scenarios -->
   <div id="${{simId}}_c1">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px;border-bottom:1px solid rgba(255,185,0,.12);">
-      <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,210,0,.95);">📋 TODAY'S P&amp;L SCENARIOS</div>
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,60,.7);background:rgba(0,0,0,.25);padding:2px 8px;border-radius:4px;">Delta + ½Gamma + Vega(IV) + Theta</div>
+
+    <!-- Day Selector -->
+    <div style="display:flex;align-items:center;gap:7px;padding:8px 12px;border-bottom:1px solid rgba(255,185,0,.1);background:rgba(0,0,0,.25);flex-wrap:wrap;">
+      <span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:rgba(255,200,60,.7);text-transform:uppercase;white-space:nowrap;">📅 DAYS TO EXPIRY:</span>
+      ${{dayBtns}}
+      <span style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,185,0,.35);margin-left:2px;">Max ${{maxDays}}D · IST</span>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px 6px;border-bottom:1px solid rgba(255,185,0,.12);">
+      <div id="${{simId}}_hdr" style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,210,0,.95);">📋 1 DAY P&amp;L SCENARIOS</div>
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,60,.7);background:rgba(0,0,0,.25);padding:2px 8px;border-radius:4px;">Δ + ½Γ + ν(IV) + Θ×days</div>
     </div>
     <table style="width:100%;border-collapse:collapse;">
       <thead>
         <tr style="background:rgba(0,0,0,.3);">
           <th style="padding:6px 10px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,205,60,.85);text-align:left;border-bottom:1px solid rgba(255,185,0,.08);">MOVE</th>
-          <th style="padding:6px 8px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,205,60,.85);text-align:left;border-bottom:1px solid rgba(255,185,0,.08);">TODAY P&amp;L</th>
+          <th id="${{simId}}_col2" style="padding:6px 8px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,205,60,.85);text-align:left;border-bottom:1px solid rgba(255,185,0,.08);">1 DAY P&amp;L</th>
           <th style="padding:6px 8px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,205,60,.85);text-align:right;border-bottom:1px solid rgba(255,185,0,.08);">VS MAX</th>
           <th style="padding:6px 6px;border-bottom:1px solid rgba(255,185,0,.08);"></th>
         </tr>
       </thead>
-      <tbody>${{tRows}}</tbody>
+      <tbody id="${{simId}}_tbody">${{buildRows(1)}}</tbody>
     </table>
     <div style="padding:9px 12px;font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,70,.75);background:rgba(0,0,0,.25);border-top:1px solid rgba(255,185,0,.1);line-height:1.7;">
-      © P&amp;L = <span style="color:rgba(255,215,0,.9);">Delta×move + ½Gamma×move² + Vega×ΔIV + Theta (1 day)</span>. ΔIV estimated from move size. Actual exit P&amp;L may differ. Max profit of ${{m.mpStr}} achievable at expiry only.
+      P&amp;L = <span style="color:rgba(255,215,0,.9);">Δ×move + ½Γ×move\u00b2 + \u03bd×\u0394IV + \u0398\u00d7<span id="${{simId}}_daylbl">1</span> day(s)</span>. Max profit ${{m.mpStr}} at expiry only.
     </div>
   </div>
+
+  <script>
+  (function(){{
+    const SID='${{simId}}', MXD=${{maxDays}};
+    const _nd=${{nd}},_nt=${{nt}},_nv=${{nv}},_ng=${{ng}};
+    const _mxL=${{maxL===null?'null':maxL}},_mxP=${{maxP===null?'null':maxP}};
+    const _sp=OC.spot;
+    const _mv=[-500,-400,-300,-200,-150,-100,-50,0,50,100,150,200,300,400,500];
+    function _pnl(mv,days){{
+      const iv=-(mv/_sp)*400;
+      let p=_nd*mv+0.5*_ng*mv*mv+_nv*iv+(_nt*days);
+      if(_mxL!==null)p=Math.max(-_mxL,p);
+      if(_mxP!==null)p=Math.min(_mxP*0.9,p);
+      return Math.round(p);
+    }}
+    window['selDay_'+SID]=function(days){{
+      for(let d=1;d<=MXD;d++){{
+        const b=document.getElementById('daybtn_'+SID+'_'+d);
+        if(!b)continue;
+        const a=(d===days);
+        b.style.borderColor=a?'#ffcc00':'rgba(255,185,0,.3)';
+        b.style.color=a?'#ffcc00':'rgba(255,200,80,.5)';
+        b.style.background=a?'rgba(255,185,0,.15)':'transparent';
+      }}
+      const isExp=(days===MXD);
+      document.getElementById(SID+'_hdr').innerHTML=isExp
+        ?'📋 EXPIRY P&amp;L SCENARIOS'
+        :'📋 '+days+' DAY'+(days>1?'S':'')+' P&amp;L SCENARIOS';
+      document.getElementById(SID+'_col2').innerHTML=isExp
+        ?'EXPIRY P&amp;L'
+        :days+' DAY'+(days>1?'S':'')+' P&amp;L';
+      document.getElementById(SID+'_daylbl').textContent=days;
+      document.getElementById(SID+'_tbody').innerHTML=_mv.map(mv=>{{
+        const pnl=_pnl(mv,days);
+        const col=pnl>100?'#38d888':pnl>0?'#ffcc00':pnl>-200?'#ffaa00':'#f04050';
+        const mc=mv>0?'#38d888':mv<0?'#f04050':'#ffcc00';
+        const mb=mv>0?'rgba(56,216,136,.12)':mv<0?'rgba(240,64,80,.18)':'rgba(255,185,0,.18)';
+        const ml=mv>0?'+'+mv:mv===0?'Flat':String(mv);
+        const pc=_mxP?((pnl/_mxP)*100).toFixed(0)+'%':'\u2014';
+        const rb=mv===0?'background:rgba(255,185,0,.05);':'';
+        return '<tr style="'+rb+'"><td style="padding:6px 10px;white-space:nowrap;"><span style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;padding:4px 8px;border-radius:4px;background:'+mb+';color:'+mc+';white-space:nowrap;display:inline-block;min-width:56px;text-align:center;">'+ml+(mv!==0?'p':'')+'</span></td>'
+          +'<td style="padding:6px 8px;font-family:DM Mono,monospace;font-size:13px;color:rgba(255,200,80,.82);white-space:nowrap;text-align:left;">'+(_sp+mv).toLocaleString('en-IN')+'</td>'
+          +'<td style="padding:6px 8px;font-family:DM Mono,monospace;font-weight:700;font-size:15px;color:'+col+';white-space:nowrap;text-align:right;">'+(pnl>=0?'+':'')+'\u20b9'+Math.abs(pnl).toLocaleString('en-IN')+'</td>'
+          +'<td style="padding:6px 6px;font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:'+col+';text-align:right;white-space:nowrap;">'+pc+'</td></tr>';
+      }}).join('');
+    }};
+  }})();
+  </script>
+
 
   <!-- TAB 2: Greeks Breakdown -->
   <div id="${{simId}}_c2" style="display:none;">
