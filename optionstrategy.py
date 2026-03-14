@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v22.0 · Smart Dynamic PoP Engine + Intraday P&L Simulator
+Aurora Borealis Theme · v23.0 · Smart Dynamic PoP Engine + Intraday P&L Simulator
 - PoP now reflects: Market Bias + Support/Resistance + Max CE/PE OI walls + PCR
 - lotSize fixed to 65
 - Strategies ranked by smart PoP — highest PoP = best trade right now
@@ -27,6 +27,11 @@ Aurora Borealis Theme · v22.0 · Smart Dynamic PoP Engine + Intraday P&L Simula
      Short premium penalised −15 when IVP<20; rewarded +8 when IVP>70
   2. Theta/Vega Ratio — displayed in Greeks tab; T/V≥0.10=well compensated
   3. Theoretical EV — (TruePop×MaxProfit)−((1−TruePop)×MaxLoss) per lot
+- NEW v23.0: Grid Scan Improvements — no more opening every card
+  1. Mini-strip on every collapsed card: EV · True PoP · R:R visible at a glance
+  2. Table View toggle — compare all strategies side-by-side, sortable by any column
+  3. Filter pills — EV>0 / IVP OK / PoP≥60% / Edge≥65% / Limited Risk
+     Active filters dim non-qualifying cards; table view respects same filters
 
 pip install curl_cffi pandas numpy yfinance pytz scipy
 """
@@ -2308,7 +2313,13 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
                 f'<div class="sc-tags">'
                 f'<span class="sc-tag" style="color:{rc};border-color:{rc}40;">Risk: {s["risk"]}</span>'
                 f'<span class="sc-tag" style="color:{rwc};border-color:{rwc}40;">Reward: {s["reward"]}</span>'
-                f'</div></div>'
+                f'</div>'
+                f'<div class="sc-mini-strip" id="mini_{cid}">'
+                f'<div class="sc-mini-cell"><span class="sc-mini-lbl">EV</span><span class="sc-mini-val sc-mini-ev" id="mini_ev_{cid}">—</span></div>'
+                f'<div class="sc-mini-cell"><span class="sc-mini-lbl">PoP</span><span class="sc-mini-val sc-mini-pop" id="mini_pop_{cid}">—</span></div>'
+                f'<div class="sc-mini-cell"><span class="sc-mini-lbl">R:R</span><span class="sc-mini-val" id="mini_rr_{cid}">—</span></div>'
+                f'</div>'
+                f'</div>'
                 f'<div class="sc-detail" id="detail_{cid}">'
                 f'<div class="sc-desc">{s["desc"]}</div>'
                 f'<div class="sc-metrics-live" id="metrics_{cid}">'
@@ -2377,6 +2388,25 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
       style="border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.5);">
       &#8596; NON-DIRECTIONAL <span class="sc-cnt" style="background:#6480ff;">20</span>
     </button>
+
+    <!-- View toggle: Grid / Table -->
+    <div style="display:flex;align-items:center;gap:6px;margin-left:12px;">
+      <button id="viewGrid" onclick="setView('grid')"
+        title="Card grid view"
+        style="padding:6px 12px;border-radius:8px;border:1px solid rgba(255,185,0,.4);
+               background:rgba(255,185,0,.15);color:#ffd166;font-family:'DM Mono',monospace;
+               font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.5px;">
+        &#9783; GRID
+      </button>
+      <button id="viewTable" onclick="setView('table')"
+        title="Comparison table view"
+        style="padding:6px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.15);
+               background:transparent;color:rgba(255,255,255,.45);font-family:'DM Mono',monospace;
+               font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.5px;">
+        &#9776; TABLE
+      </button>
+    </div>
+
     <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
       <span style="font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
                    color:rgba(255,209,102,.7);">&#128197; EXPIRY DATE</span>
@@ -2390,6 +2420,47 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
       </select>
     </div>
   </div>
+
+  <!-- Filter pills row -->
+  <div id="sc-filter-row" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center;">
+    <span style="font-family:'DM Mono',monospace;font-size:11px;font-weight:700;
+                 letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.4);">
+      FILTER:
+    </span>
+    <button class="sc-filter-pill" data-filter="ev-pos"    onclick="toggleFilter(this)" title="Only trades with positive theoretical EV">EV &gt; 0</button>
+    <button class="sc-filter-pill" data-filter="ivp-ok"    onclick="toggleFilter(this)" title="Only trades not penalised by low IVP (IVP ≥ 20)">IVP OK</button>
+    <button class="sc-filter-pill" data-filter="pop-60"    onclick="toggleFilter(this)" title="True PoP ≥ 60%">PoP ≥ 60%</button>
+    <button class="sc-filter-pill" data-filter="edge-65"   onclick="toggleFilter(this)" title="Edge Score ≥ 65%">Edge ≥ 65%</button>
+    <button class="sc-filter-pill" data-filter="risk-ltd"  onclick="toggleFilter(this)" title="Only limited-risk strategies">Limited Risk</button>
+    <span id="sc-filter-count" style="font-family:'DM Mono',monospace;font-size:12px;
+           color:rgba(255,255,255,.35);margin-left:4px;"></span>
+    <button onclick="clearFilters()" style="font-family:'DM Mono',monospace;font-size:11px;
+            padding:3px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.12);
+            background:transparent;color:rgba(255,255,255,.35);cursor:pointer;margin-left:4px;">
+      CLEAR
+    </button>
+  </div>
+
+  <!-- Table view container (hidden by default) -->
+  <div id="sc-table-wrap" style="display:none;overflow-x:auto;margin-bottom:16px;">
+    <table id="sc-table" style="width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;font-size:13px;">
+      <thead>
+        <tr style="border-bottom:2px solid rgba(255,185,0,.25);background:rgba(0,0,0,.3);">
+          <th class="sc-th" onclick="sortTable('name')"       style="text-align:left;  padding:9px 12px;cursor:pointer;white-space:nowrap;">Strategy &#8597;</th>
+          <th class="sc-th" onclick="sortTable('edge')"       style="text-align:center;padding:9px 10px;cursor:pointer;white-space:nowrap;color:#ffcc00;">Edge &#8597;</th>
+          <th class="sc-th" onclick="sortTable('pop')"        style="text-align:center;padding:9px 10px;cursor:pointer;white-space:nowrap;color:#8aa0ff;">True PoP &#8597;</th>
+          <th class="sc-th" onclick="sortTable('ev')"         style="text-align:center;padding:9px 10px;cursor:pointer;white-space:nowrap;color:#38d888;">Theo EV &#8597;</th>
+          <th class="sc-th" onclick="sortTable('rr')"         style="text-align:center;padding:9px 10px;cursor:pointer;white-space:nowrap;">R:R &#8597;</th>
+          <th class="sc-th" onclick="sortTable('maxprofit')"  style="text-align:center;padding:9px 10px;cursor:pointer;white-space:nowrap;">Max Profit &#8597;</th>
+          <th class="sc-th" onclick="sortTable('maxloss')"    style="text-align:center;padding:9px 10px;cursor:pointer;white-space:nowrap;">Max Loss &#8597;</th>
+          <th class="sc-th"                                   style="text-align:center;padding:9px 10px;white-space:nowrap;">IVP Adj</th>
+          <th class="sc-th"                                   style="text-align:left;  padding:9px 10px;white-space:nowrap;">Legs</th>
+        </tr>
+      </thead>
+      <tbody id="sc-table-body"></tbody>
+    </table>
+  </div>
+
   <div class="sc-grid" id="sc-grid">
     {bull_cards}{bear_cards}{nd_cards}
   </div>
@@ -3653,6 +3724,7 @@ window.addEventListener('load',function(){{
   initAllCards();
   ['bullish','bearish','nondirectional'].forEach(sortGridByPoP);
   filterStrat('bullish',document.querySelector('.sc-tab'));
+  populateMiniStrips();
 }});
 
 // ── Multi-Expiry Switcher ─────────────────────────────────────
@@ -3938,9 +4010,27 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .main-tab:hover{color:rgba(255,255,255,.85);background:rgba(255,255,255,.04);}
 .main-tab.active{color:#00c896;border-bottom:3px solid #00c896;background:rgba(0,200,150,.07);}
 footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:rgba(6,8,15,.9);backdrop-filter:blur(12px);display:flex;justify-content:space-between;font-size:15.9px;color:var(--muted2);font-family:var(--fm)}
-.sc-tabs{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.sc-tabs{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
 .sc-tab{padding:8px 20px;border-radius:24px;border:1px solid;cursor:pointer;font-family:var(--fh);font-size:17.4px;font-weight:600;transition:all .2s;display:flex;align-items:center;gap:8px;background:transparent}
 .sc-tab:hover{opacity:.85}
+/* Filter pills */
+.sc-filter-pill{padding:4px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.18);background:transparent;color:rgba(255,255,255,.45);font-family:'DM Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.5px;transition:all .2s;}
+.sc-filter-pill:hover{border-color:rgba(255,185,0,.4);color:#ffd166;}
+.sc-filter-pill.active{border-color:#ffd166;background:rgba(255,185,0,.15);color:#ffd166;}
+.sc-card.filter-dim{opacity:.22;pointer-events:none;}
+/* Mini strip on collapsed card */
+.sc-mini-strip{display:flex;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.2);}
+.sc-mini-cell{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5px 4px;border-right:1px solid rgba(255,255,255,.05);}
+.sc-mini-cell:last-child{border-right:none;}
+.sc-mini-lbl{font-family:'DM Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.32);margin-bottom:2px;}
+.sc-mini-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:rgba(255,255,255,.55);}
+.sc-mini-ev{font-size:11px;}
+/* Table view */
+.sc-th{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.55);user-select:none;}
+.sc-th:hover{color:#ffd166;}
+.sc-tr{border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;transition:background .15s;}
+.sc-tr:hover{background:rgba(255,185,0,.06)!important;}
+.sc-tr.filter-dim{opacity:.2;pointer-events:none;}
 .sc-cnt{font-size:14.5px;padding:1px 7px;border-radius:10px;color:#fff;font-weight:700}
 .sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
 .sc-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;position:relative;}
@@ -4538,16 +4628,242 @@ function switchMainTab(tab) {{
   document.getElementById('mainTabOI').classList.toggle('active',    tab === 'oi');
   document.getElementById('mainTabStrat').classList.toggle('active', tab === 'strat');
 }}
-function filterStrat(cat,btn){{
-  document.querySelectorAll(".sc-card").forEach(c=>{{c.classList.toggle("hidden",c.dataset.cat!==cat);}});
-  const colors={{bullish:"#00c896",bearish:"#ff6b6b",nondirectional:"#6480ff"}};
-  const col=colors[cat]||"#00c896";
-  document.querySelectorAll(".sc-tab").forEach(t=>{{t.style.borderColor="rgba(255,255,255,.15)";t.style.color="rgba(255,255,255,.5)";t.style.background="transparent";}});
-  if(btn){{btn.style.borderColor=col;btn.style.color=col;btn.style.background=col+"20";}}
-  else{{document.querySelectorAll(".sc-tab").forEach(t=>{{
-    if((cat==="bullish"&&t.textContent.includes("BULLISH"))||(cat==="bearish"&&t.textContent.includes("BEARISH"))||(cat==="nondirectional"&&t.textContent.includes("NON")))
-    {{t.style.borderColor=col;t.style.color=col;t.style.background=col+"20";}}
-  }});}}
+// ── Current view state ───────────────────────────────────────────────────────
+let _currentCat    = 'bullish';
+let _currentView   = 'grid';
+let _activeFilters = new Set();
+let _tableSortCol  = 'edge';
+let _tableSortAsc  = false;
+
+function filterStrat(cat, btn) {{
+  _currentCat = cat;
+  document.querySelectorAll('.sc-card').forEach(c => {{
+    c.classList.toggle('hidden', c.dataset.cat !== cat);
+  }});
+  const colors = {{bullish:'#00c896', bearish:'#ff6b6b', nondirectional:'#6480ff'}};
+  const col = colors[cat] || '#00c896';
+  document.querySelectorAll('.sc-tab').forEach(t => {{
+    t.style.borderColor = 'rgba(255,255,255,.15)';
+    t.style.color       = 'rgba(255,255,255,.5)';
+    t.style.background  = 'transparent';
+  }});
+  if (btn) {{
+    btn.style.borderColor = col;
+    btn.style.color       = col;
+    btn.style.background  = col + '20';
+  }} else {{
+    document.querySelectorAll('.sc-tab').forEach(t => {{
+      if ((cat==='bullish'&&t.textContent.includes('BULLISH')) ||
+          (cat==='bearish'&&t.textContent.includes('BEARISH')) ||
+          (cat==='nondirectional'&&t.textContent.includes('NON')))
+        {{ t.style.borderColor=col; t.style.color=col; t.style.background=col+'20'; }}
+    }});
+  }}
+  applyFilters();
+  if (_currentView === 'table') buildTable();
+}}
+
+// ── View toggle: GRID ↔ TABLE ─────────────────────────────────────────────────
+function setView(v) {{
+  _currentView = v;
+  const grid     = document.getElementById('sc-grid');
+  const tableWrap = document.getElementById('sc-table-wrap');
+  const btnGrid  = document.getElementById('viewGrid');
+  const btnTable = document.getElementById('viewTable');
+  if (v === 'table') {{
+    grid.style.display      = 'none';
+    tableWrap.style.display = 'block';
+    btnGrid.style.background  = 'transparent';
+    btnGrid.style.color       = 'rgba(255,255,255,.45)';
+    btnGrid.style.borderColor = 'rgba(255,255,255,.15)';
+    btnTable.style.background  = 'rgba(255,185,0,.15)';
+    btnTable.style.color       = '#ffd166';
+    btnTable.style.borderColor = 'rgba(255,185,0,.4)';
+    buildTable();
+  }} else {{
+    grid.style.display      = 'grid';
+    tableWrap.style.display = 'none';
+    btnTable.style.background  = 'transparent';
+    btnTable.style.color       = 'rgba(255,255,255,.45)';
+    btnTable.style.borderColor = 'rgba(255,255,255,.15)';
+    btnGrid.style.background   = 'rgba(255,185,0,.15)';
+    btnGrid.style.color        = '#ffd166';
+    btnGrid.style.borderColor  = 'rgba(255,185,0,.4)';
+  }}
+}}
+
+// ── Table builder ─────────────────────────────────────────────────────────────
+function buildTable() {{
+  const tbody = document.getElementById('sc-table-body');
+  if (!tbody) return;
+  const cards = Array.from(document.querySelectorAll(`.sc-card[data-cat="${{_currentCat}}"]`));
+  const rows = cards.map(card => {{
+    const shape = card.dataset.shape;
+    const sr    = smartPoP(shape, _currentCat);
+    const m     = calcMetrics(shape, sr.edgeScore);
+    return {{ card, shape, sr, m,
+      name:      card.dataset.name,
+      edge:      sr.edgeScore,
+      pop:       m.truePop !== null ? m.truePop : 0,
+      ev:        m.evRaw !== null ? m.evRaw : -999999,
+      rr:        m.rrStr,
+      maxprofit: m.mpRaw < 999990 ? m.mpRaw : 999999,
+      maxloss:   m.mlRawVal < 999990 ? m.mlRawVal : 999999,
+      ivpadj:    sr.ivpAdj || 0,
+      legs:      card.dataset.legs,
+      risk:      card.dataset.risk,
+    }};
+  }});
+
+  // Sort
+  rows.sort((a, b) => {{
+    let av = a[_tableSortCol], bv = b[_tableSortCol];
+    if (typeof av === 'string') av = av.toLowerCase(), bv = bv.toLowerCase();
+    return _tableSortAsc ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+  }});
+
+  const cat = _currentCat;
+  const rowColor = cat === 'bullish' ? 'rgba(0,200,150,.04)' : cat === 'bearish' ? 'rgba(255,107,107,.04)' : 'rgba(100,128,255,.04)';
+
+  tbody.innerHTML = rows.map((r, i) => {{
+    const m = r.m;
+    const evCol   = m.evRaw === null ? '#888' : m.evRaw >= 500 ? '#38d888' : m.evRaw >= 0 ? '#ffcc00' : m.evRaw >= -500 ? '#ffaa00' : '#f04050';
+    const evTxt   = m.evStr || '—';
+    const popCol  = m.truePop === null ? '#888' : m.truePop >= 65 ? '#38d888' : m.truePop >= 50 ? '#ffcc00' : '#f04050';
+    const edgeCol = r.edge >= 70 ? '#38d888' : r.edge >= 55 ? '#ffcc00' : '#f04050';
+    const ivpCol  = r.ivpadj > 0 ? '#38d888' : r.ivpadj < -5 ? '#f04050' : r.ivpadj < 0 ? '#ffaa00' : 'rgba(255,255,255,.4)';
+    const ivpTxt  = r.ivpadj === 0 ? '—' : (r.ivpadj > 0 ? '+' : '') + r.ivpadj;
+    const mpTxt   = m.mpRaw < 999990 ? '\u20b9' + Math.round(m.mpRaw).toLocaleString('en-IN') : '\u221e';
+    const mlTxt   = m.mlRawVal < 999990 ? '\u20b9' + Math.round(m.mlRawVal).toLocaleString('en-IN') : '\u221e';
+    const isDim   = _activeFilters.size > 0 && !_passesFilters(r.card, m, r.sr);
+    const dimCls  = isDim ? 'sc-tr filter-dim' : 'sc-tr';
+    const bg      = i % 2 === 0 ? rowColor : 'transparent';
+    return `<tr class="${{dimCls}}" style="background:${{bg}};" onclick="jumpToCard('${{r.card.id}}')">
+      <td style="padding:8px 12px;font-weight:700;color:rgba(255,255,255,.85);white-space:nowrap;">${{r.name}}</td>
+      <td style="padding:8px 10px;text-align:center;font-size:15px;font-weight:800;color:${{edgeCol}};">${{r.edge}}%</td>
+      <td style="padding:8px 10px;text-align:center;font-size:14px;font-weight:700;color:${{popCol}};">${{m.truePop !== null ? m.truePop + '%' : '—'}}</td>
+      <td style="padding:8px 10px;text-align:center;font-size:14px;font-weight:700;color:${{evCol}};">${{evTxt}}</td>
+      <td style="padding:8px 10px;text-align:center;color:rgba(255,255,255,.7);">${{m.rrStr}}</td>
+      <td style="padding:8px 10px;text-align:center;color:#38d888;">${{mpTxt}}</td>
+      <td style="padding:8px 10px;text-align:center;color:#f04050;">${{mlTxt}}</td>
+      <td style="padding:8px 10px;text-align:center;font-weight:700;color:${{ivpCol}};">${{ivpTxt}}</td>
+      <td style="padding:8px 10px;color:rgba(0,200,220,.65);font-size:11px;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${{r.legs}}</td>
+    </tr>`;
+  }}).join('');
+}}
+
+function sortTable(col) {{
+  if (_tableSortCol === col) _tableSortAsc = !_tableSortAsc;
+  else {{ _tableSortCol = col; _tableSortAsc = false; }}
+  buildTable();
+}}
+
+function jumpToCard(cardId) {{
+  // Switch to grid view and expand the card
+  setView('grid');
+  const card = document.getElementById(cardId);
+  if (!card) return;
+  document.querySelectorAll('.sc-card.expanded').forEach(c => c.classList.remove('expanded'));
+  card.classList.add('expanded');
+  setTimeout(() => card.scrollIntoView({{behavior:'smooth', block:'center'}}), 80);
+  // Trigger metrics calculation if not yet done
+  const mel = card.querySelector('.sc-metrics-live');
+  if (mel && mel.querySelector('.sc-loading')) {{
+    try {{
+      const shape = card.dataset.shape, cat = card.dataset.cat;
+      const scoreResult = smartPoP(shape, cat);
+      const _m = calcMetrics(shape, scoreResult.edgeScore);
+      mel.innerHTML = renderMetrics(_m, scoreResult);
+      try {{ drawPayoffChart(card, _m); }} catch(e) {{}}
+      try {{
+        const _sid = mel.querySelector('[id$="_tbody"]');
+        if (_sid) {{
+          const _simId = _sid.id.replace('_tbody','');
+          const _daysLeft = (function(){{try{{const p=OC.expiry.split('-');const mo={{Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}};const exp=new Date(Date.UTC(parseInt(p[2]),mo[p[1]],parseInt(p[0])));const nu=Date.now()+(new Date().getTimezoneOffset()*60000);const ni=new Date(nu+5.5*3600000);const td=new Date(Date.UTC(ni.getUTCFullYear(),ni.getUTCMonth(),ni.getUTCDate()));return Math.max(1,Math.round((exp-td)/86400000));}}catch(e){{return 4;}}}})();
+          setupDaySelector(_simId,_m.netDelta,_m.netTheta,_m.netVega,_m.netGamma,
+            _m.mlRawVal===999999?null:_m.mlRawVal,
+            _m.mpRaw===999999?null:_m.mpRaw,_daysLeft);
+        }}
+      }} catch(e) {{}}
+    }} catch(err) {{ mel.innerHTML = '<div class="sc-loading">Could not calculate metrics</div>'; }}
+  }}
+}}
+
+// ── Filter logic ─────────────────────────────────────────────────────────────
+function _passesFilters(card, m, sr) {{
+  for (const f of _activeFilters) {{
+    if (f === 'ev-pos'   && (m.evRaw === null || m.evRaw < 0))   return false;
+    if (f === 'ivp-ok'   && (sr.ivpAdj || 0) < -5)               return false;
+    if (f === 'pop-60'   && (m.truePop === null || m.truePop < 60)) return false;
+    if (f === 'edge-65'  && (sr.edgeScore || 0) < 65)            return false;
+    if (f === 'risk-ltd' && card.dataset.risk !== 'Limited')      return false;
+  }}
+  return true;
+}}
+
+function toggleFilter(btn) {{
+  const f = btn.dataset.filter;
+  if (_activeFilters.has(f)) {{ _activeFilters.delete(f); btn.classList.remove('active'); }}
+  else                       {{ _activeFilters.add(f);    btn.classList.add('active');    }}
+  applyFilters();
+  if (_currentView === 'table') buildTable();
+}}
+
+function applyFilters() {{
+  if (_activeFilters.size === 0) {{
+    document.querySelectorAll(`.sc-card[data-cat="${{_currentCat}}"]`).forEach(c => c.classList.remove('filter-dim'));
+    document.getElementById('sc-filter-count').textContent = '';
+    return;
+  }}
+  let shown = 0, total = 0;
+  document.querySelectorAll(`.sc-card[data-cat="${{_currentCat}}"]`).forEach(card => {{
+    total++;
+    const shape = card.dataset.shape;
+    const sr    = smartPoP(shape, _currentCat);
+    const m     = calcMetrics(shape, sr.edgeScore);
+    const passes = _passesFilters(card, m, sr);
+    card.classList.toggle('filter-dim', !passes);
+    if (passes) shown++;
+  }});
+  const countEl = document.getElementById('sc-filter-count');
+  if (countEl) countEl.textContent = shown + ' / ' + total + ' match';
+}}
+
+function clearFilters() {{
+  _activeFilters.clear();
+  document.querySelectorAll('.sc-filter-pill').forEach(p => p.classList.remove('active'));
+  applyFilters();
+  if (_currentView === 'table') buildTable();
+}}
+
+// ── Populate mini-strips on collapsed cards after initAllCards ────────────────
+function populateMiniStrips() {{
+  document.querySelectorAll('.sc-card').forEach(card => {{
+    const shape = card.dataset.shape;
+    const cat   = card.dataset.cat;
+    const cid   = card.id;
+    try {{
+      const sr = smartPoP(shape, cat);
+      const m  = calcMetrics(shape, sr.edgeScore);
+      // EV cell
+      const evEl = document.getElementById('mini_ev_' + cid);
+      if (evEl) {{
+        evEl.textContent = m.evStr || '—';
+        evEl.style.color = m.evCol || 'rgba(255,255,255,.5)';
+      }}
+      // True PoP cell
+      const popEl = document.getElementById('mini_pop_' + cid);
+      if (popEl) {{
+        const tp = m.truePop;
+        popEl.textContent = tp !== null ? tp + '%' : '—';
+        popEl.style.color = tp === null ? 'rgba(255,255,255,.5)'
+          : tp >= 65 ? '#38d888' : tp >= 50 ? '#ffcc00' : '#f04050';
+      }}
+      // R:R cell
+      const rrEl = document.getElementById('mini_rr_' + cid);
+      if (rrEl) {{ rrEl.textContent = m.rrStr || '—'; }}
+    }} catch(e) {{}}
+  }});
 }}
 
 // ── Payoff Chart ─────────────────────────────────────────────────────────────
@@ -4922,7 +5238,7 @@ def main():
         json.dump(meta, f, indent=2)
     print("  Saved: docs/latest.json")
     print("\n" + "=" * 65)
-    print(f"  DONE  |  v22.0 · IVP + Theta/Vega Ratio + Theoretical EV")
+    print(f"  DONE  |  v23.0 · Mini-strip + Table View + Filter Pills")
     print(f"  Bias: {md['bias']}  |  Confidence: {md['confidence']}")
     print("  Holiday list: 2026 NSE official holidays pre-loaded")
     print("  Logic: Tuesday holiday → Monday → Friday (fallback)")
