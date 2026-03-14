@@ -3846,4 +3846,15 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    REFRESH_INTERVAL = 30   # seconds — must match TOTAL_SECS in the HTML JS
+    while True:
+        try:
+            main()
+        except KeyboardInterrupt:
+            print("\n  Stopped by user. Goodbye!")
+            break
+        except Exception as e:
+            print(f"\n  ERROR during run: {e}")
+            print(f"  Retrying in {REFRESH_INTERVAL}s ...\n")
+        print(f"\n  Next refresh in {REFRESH_INTERVAL}s  (Ctrl+C to stop)\n")
+        time.sleep(REFRESH_INTERVAL)
