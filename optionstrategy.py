@@ -5151,19 +5151,19 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None,
     <div class="sidebar-scroll">
     <div class="sb-sec">
       <div class="sb-lbl">LIVE ANALYSIS</div>
-      <button class="sb-btn active" onclick="go('oi',this)">OI Dashboard</button>
-      <button class="sb-btn"        onclick="go('greeksTable',this)">&#9652; Option Greeks</button>
-      <button class="sb-btn"        onclick="go('kl',this)">Key Levels</button>
+      <button class="sb-btn active" onclick="switchMainTab('oi');go('oi',this)">OI Dashboard</button>
+      <button class="sb-btn"        onclick="switchMainTab('oi');go('greeksTable',this)">&#9652; Option Greeks</button>
+      <button class="sb-btn"        onclick="switchMainTab('oi');go('kl',this)">Key Levels</button>
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">STRATEGIES</div>
-      <button class="sb-btn" onclick="go('strat',this);filterStrat('bullish',null)">&#9650; Bullish <span class="sb-badge" style="color:var(--bull);">9</span></button>
-      <button class="sb-btn" onclick="go('strat',this);filterStrat('bearish',null)">&#9660; Bearish <span class="sb-badge" style="color:var(--bear);">9</span></button>
-      <button class="sb-btn" onclick="go('strat',this);filterStrat('nondirectional',null)">&#8596; Non-Directional <span class="sb-badge" style="color:var(--neut);">20</span></button>
+      <button class="sb-btn" onclick="goStrat('bullish',this)">&#9650; Bullish <span class="sb-badge" style="color:var(--bull);">9</span></button>
+      <button class="sb-btn" onclick="goStrat('bearish',this)">&#9660; Bearish <span class="sb-badge" style="color:var(--bear);">9</span></button>
+      <button class="sb-btn" onclick="goStrat('nondirectional',this)">&#8596; Non-Directional <span class="sb-badge" style="color:var(--neut);">20</span></button>
     </div>
     <div class="sb-sec">
       <div class="sb-lbl">OPTION CHAIN</div>
-      <button class="sb-btn" onclick="go('strikes',this)">Top 5 Strikes</button>
+      <button class="sb-btn" onclick="switchMainTab('oi');go('strikes',this)">Top 5 Strikes</button>
     </div>
     </div>
   </aside>
@@ -5205,6 +5205,24 @@ function go(id,btn){{
   const el=document.getElementById(id);
   if(el)el.scrollIntoView({{behavior:"smooth",block:"start"}});
   if(btn){{document.querySelectorAll(".sb-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");}}
+}}
+
+function goStrat(cat, btn) {{
+  // 1. Switch main tab so the strategies panel becomes visible
+  switchMainTab('strat');
+  // 2. Mark the top-level "Option Strategies Reference" tab as active
+  document.getElementById('mainTabStrat').classList.add('active');
+  document.getElementById('mainTabOI').classList.remove('active');
+  // 3. Highlight the sidebar button
+  document.querySelectorAll('.sb-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  // 4. Apply the category filter
+  filterStrat(cat, null);
+  // 5. Scroll to the strategies section after a short delay (so display:none is lifted first)
+  setTimeout(function() {{
+    const el = document.getElementById('strat');
+    if (el) el.scrollIntoView({{behavior:'smooth', block:'start'}});
+  }}, 60);
 }}
 
 function updateISTClock() {{
