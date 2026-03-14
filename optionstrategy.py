@@ -2074,12 +2074,15 @@ def build_key_levels_html(tech, oc):
         f'<div class="section"><div class="sec-title">KEY LEVELS'
         f'<span class="sec-sub">1H Candles · Last 120 bars · Rounded to 25</span></div>'
         f'<div class="kl-zone-labels"><span style="color:#00c896;">SUPPORT ZONE</span><span style="color:#ff6b6b;">RESISTANCE ZONE</span></div>'
-        f'<div style="position:relative;height:58px;">'
+        f'<div style="position:relative;height:72px;">'
         f'<div class="kl-node" style="left:3%;bottom:0;transform:translateX(-50%);"><div class="kl-lbl" style="color:#00a07a;">Strong Sup</div><div class="kl-val" style="color:#00c896;">&#8377;{ss:,.0f}</div><div class="kl-dot" style="background:#00a07a;margin:5px auto 0;"></div></div>'
         f'<div class="kl-node" style="left:22%;bottom:0;transform:translateX(-50%);"><div class="kl-lbl" style="color:#00c896;">Support</div><div class="kl-val" style="color:#4de8b8;">&#8377;{s1:,.0f}</div><div class="kl-dot" style="background:#00c896;box-shadow:0 0 8px rgba(0,200,150,.5);margin:5px auto 0;"></div></div>'
-        f'<div style="position:absolute;left:{cp_pct}%;bottom:6px;transform:translateX(-50%);background:linear-gradient(90deg,#00c896,#6480ff);color:#fff;font-size:15.9px;font-weight:700;padding:3px 14px;border-radius:20px;white-space:nowrap;box-shadow:0 2px 14px rgba(0,200,150,.35);z-index:10;">NOW &#8377;{cp:,.0f}</div>'
         f'<div class="kl-node" style="left:75%;bottom:0;transform:translateX(-50%);"><div class="kl-lbl" style="color:#ff6b6b;">Resistance</div><div class="kl-val" style="color:#ff9090;">&#8377;{r1:,.0f}</div><div class="kl-dot" style="background:#ff6b6b;box-shadow:0 0 8px rgba(255,107,107,.5);margin:5px auto 0;"></div></div>'
         f'<div class="kl-node" style="left:95%;bottom:0;transform:translateX(-50%);"><div class="kl-lbl" style="color:#cc4040;">Strong Res</div><div class="kl-val" style="color:#ff6b6b;">&#8377;{sr:,.0f}</div><div class="kl-dot" style="background:#cc4040;margin:5px auto 0;"></div></div>'
+        f'<div id="kl-now-pill" style="position:absolute;left:{cp_pct}%;bottom:8px;transform:translateX(-50%);'
+        f'background:linear-gradient(90deg,#00c896,#6480ff);color:#fff;font-size:15.9px;font-weight:700;'
+        f'padding:3px 14px;border-radius:20px;white-space:nowrap;'
+        f'box-shadow:0 2px 14px rgba(0,200,150,.35);z-index:20;">NOW &#8377;{cp:,.0f}</div>'
         f'</div>'
         f'<div class="kl-gradient-bar"><div class="kl-price-tick" style="left:{cp_pct}%;"></div></div>'
         f'<div style="position:relative;height:54px;">{mp_html}</div>'
@@ -2088,6 +2091,20 @@ def build_key_levels_html(tech, oc):
         f'<div class="kl-dist-box" style="border-color:rgba(255,107,107,.18);"><span style="color:var(--muted);">To Resistance</span><span style="color:#ff6b6b;font-weight:700;">+{pts_r:,} pts</span></div>'
         f'<div class="kl-dist-box" style="border-color:rgba(0,200,150,.18);"><span style="color:var(--muted);">To Support</span><span style="color:#00c896;font-weight:700;">-{pts_s:,} pts</span></div>'
         f'</div></div>'
+        f'<script>'
+        f'(function(){{'
+        f'  var pill=document.getElementById("kl-now-pill");'
+        f'  if(!pill) return;'
+        f'  var cpP={cp_pct};'
+        f'  var r1P=75; var srP=95;'
+        f'  var tooCloseRes = Math.abs(cpP-r1P)<12 || Math.abs(cpP-srP)<10;'
+        f'  var tooCloseSupp= Math.abs(cpP-22)<12  || Math.abs(cpP-3)<10;'
+        f'  if(tooCloseRes || tooCloseSupp){{'
+        f'    pill.style.bottom="auto";'
+        f'    pill.style.top="4px";'
+        f'  }}'
+        f'}})();'
+        f'</script>'
     )
 
 
@@ -4019,12 +4036,12 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .sc-filter-pill.active{border-color:#ffd166;background:rgba(255,185,0,.15);color:#ffd166;}
 .sc-card.filter-dim{opacity:.22;pointer-events:none;}
 /* Mini strip on collapsed card */
-.sc-mini-strip{display:flex;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.2);}
-.sc-mini-cell{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5px 4px;border-right:1px solid rgba(255,255,255,.05);}
+.sc-mini-strip{display:flex;border-top:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.3);}
+.sc-mini-cell{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 4px;border-right:1px solid rgba(255,255,255,.07);}
 .sc-mini-cell:last-child{border-right:none;}
-.sc-mini-lbl{font-family:'DM Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.32);margin-bottom:2px;}
-.sc-mini-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:rgba(255,255,255,.55);}
-.sc-mini-ev{font-size:11px;}
+.sc-mini-lbl{font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:3px;}
+.sc-mini-val{font-family:'DM Mono',monospace;font-size:14px;font-weight:800;color:rgba(255,255,255,.82);}
+.sc-mini-ev{font-size:13px;}
 /* Table view */
 .sc-th{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.55);user-select:none;}
 .sc-th:hover{color:#ffd166;}
@@ -4898,7 +4915,7 @@ function drawPayoffChart(card, m) {{
   const maxPnl=Math.max(...pnlArr,0);
   const pnlRange=maxPnl-minPnl||1;
 
-  const W=520,H=310,padL=68,padR=18,padT=46,padB=52;
+  const W=520,H=320,padL=68,padR=18,padT=64,padB=52;
   const cW=W-padL-padR, cH=H-padT-padB;
 
   function xPx(s)   {{ return padL+(s-xMin)/(xMax-xMin)*cW; }}
@@ -4925,17 +4942,20 @@ function drawPayoffChart(card, m) {{
   }}
 
   // Smart BE lines: stagger labels vertically to avoid overlap
+  // Use 3 rows (0, 20, 40px above padT) cycling by index — 14px was too tight
   const beFiltered=breakevens.filter(b=>b>xMin&&b<xMax);
   const spx=xPx(spot);
   const beLines=beFiltered.map((b,bi)=>{{
     const bx=xPx(b);
     const lbl='BE \u20b9'+Math.round(b).toLocaleString('en-IN');
-    const lblW=lbl.length*6+10;
-    // Alternate label row: even=top row, odd=second row to avoid overlap
-    const lblY=padT - 8 - (bi%2)*14;
-    return `<line x1="${{bx}}" y1="${{padT}}" x2="${{bx}}" y2="${{padT+cH}}" stroke="#ffd166" stroke-width="1.2" stroke-dasharray="4,3" opacity=".8"/>
-            <rect x="${{bx-lblW/2}}" y="${{lblY-11}}" width="${{lblW}}" height="13" rx="3" fill="rgba(30,20,0,.85)" stroke="rgba(255,209,102,.4)" stroke-width="1"/>
-            <text x="${{bx}}" y="${{lblY}}" text-anchor="middle" font-family="DM Mono,monospace" font-size="9" font-weight="700" fill="#ffd166">${{lbl}}</text>`;
+    const lblW=lbl.length*7+14;   // wider char estimate (was 6px — too narrow)
+    // 3-row stagger: row 0=top, row 1=middle, row 2=slightly lower
+    const rowOffset = (bi % 3) * 20;
+    const lblY = padT - 10 - rowOffset;
+    const rectY = lblY - 12;
+    return `<line x1="${{bx}}" y1="${{padT}}" x2="${{bx}}" y2="${{padT+cH}}" stroke="#ffd166" stroke-width="1.5" stroke-dasharray="5,3" opacity=".9"/>
+            <rect x="${{bx-lblW/2}}" y="${{rectY}}" width="${{lblW}}" height="15" rx="4" fill="rgba(20,10,0,.92)" stroke="rgba(255,209,102,.55)" stroke-width="1"/>
+            <text x="${{bx}}" y="${{lblY}}" text-anchor="middle" font-family="DM Mono,monospace" font-size="10" font-weight="700" fill="#ffd166">${{lbl}}</text>`;
   }}).join('');
 
   // SPOT label: pill at bottom of chart, below x-axis labels — never overlaps
