@@ -2030,38 +2030,111 @@ def build_oi_html(oc):
 
 def build_key_levels_html(tech, oc):
     cp = tech["price"]; ss = tech["strong_sup"]; s1 = tech["support"]
-    r1 = tech["resistance"]; sr = tech["strong_res"]; rng = sr - ss or 1
-    def pct(v): return round(max(3, min(97, (v - ss) / rng * 100)), 1)
-    cp_pct = pct(cp); pts_r = int(r1 - cp); pts_s = int(cp - s1)
+    r1 = tech["resistance"]; sr = tech["strong_res"]
 
-    # Max Pain node
+    # ── Price-ordered scale ───────────────────────────────────────────────────
+    # Build the bar min/max from ALL values including spot and max pain so that
+    # every price lands at its correct proportional position regardless of
+    # whether spot is above, below, or between the support/resistance levels.
+    mp  = oc["max_pain"]      if oc else cp
+    gfs = oc.get("gex_flip_strike") if oc else None
+
+    all_prices = [ss, s1, cp, r1, sr, mp]
+    if gfs: all_prices.append(gfs)
+    bar_min = min(all_prices)
+    bar_max = max(all_prices)
+    buf     = max((bar_max - bar_min) * 0.06, 30)   # 6% padding each side
+    bar_min -= buf;  bar_max += buf
+    bar_rng  = bar_max - bar_min or 1
+
+    def pct(v):
+        return round(max(1, min(99, (v - bar_min) / bar_rng * 100)), 1)
+
+    cp_pct = pct(cp)
+    ss_pct = pct(ss); s1_pct = pct(s1)
+    r1_pct = pct(r1); sr_pct = pct(sr)
+    mp_pct = pct(mp)
+
+    # Distance labels — absolute pts between spot and nearest S/R
+    pts_r = int(r1 - cp)   # negative if spot above resistance
+    pts_s = int(cp - s1)   # negative if spot below support
+
+    # ── Determine zone label placement ───────────────────────────────────────
+    # "Support zone" label anchors left of spot; "Resistance zone" anchors right.
+    # If spot is below all supports, both labels shift accordingly.
+    zone_label_html = (
+        f'<div class="kl-zone-labels">'
+        f'<span style="color:#00c896;">SUPPORT ZONE</span>'
+        f'<span style="color:#ff6b6b;">RESISTANCE ZONE</span>'
+        f'</div>'
+    )
+
+    # ── Node vertical stagger to prevent label collisions ─────────────────────
+    # Nodes too close horizontally alternate between bottom=0 and bottom=34px
+    # so their labels don't overlap.  We sort all nodes by pct and check gaps.
+    nodes = [
+        {"p": ss_pct, "lbl": "Strong Sup", "val": f"&#8377;{ss:,.0f}", "lc": "#00a07a", "vc": "#00c896", "dot": "#00a07a", "glow": ""},
+        {"p": s1_pct, "lbl": "Support",    "val": f"&#8377;{s1:,.0f}", "lc": "#00c896", "vc": "#4de8b8", "dot": "#00c896", "glow": "box-shadow:0 0 8px rgba(0,200,150,.5);"},
+        {"p": r1_pct, "lbl": "Resistance", "val": f"&#8377;{r1:,.0f}", "lc": "#ff6b6b", "vc": "#ff9090", "dot": "#ff6b6b", "glow": "box-shadow:0 0 8px rgba(255,107,107,.5);"},
+        {"p": sr_pct, "lbl": "Strong Res", "val": f"&#8377;{sr:,.0f}", "lc": "#cc4040", "vc": "#ff6b6b", "dot": "#cc4040", "glow": ""},
+    ]
+    nodes.sort(key=lambda n: n["p"])
+    # Assign alternating rows: nodes too close to neighbour go to top row
+    MIN_GAP = 12   # pct units — if closer than this, stagger
+    for i, n in enumerate(nodes):
+        if i == 0:
+            n["row"] = 0
+        else:
+            gap = n["p"] - nodes[i-1]["p"]
+            n["row"] = 1 if gap < MIN_GAP and nodes[i-1]["row"] == 0 else 0
+
+    # row=0 → bottom:0 (label on top, dot on bottom)
+    # row=1 → bottom:38px (raised — label clears the node below)
+    def node_html(n):
+        bot = "0" if n["row"] == 0 else "38px"
+        return (
+            f'<div class="kl-node" style="left:{n["p"]}%;bottom:{bot};transform:translateX(-50%);">'
+            f'<div class="kl-lbl" style="color:{n["lc"]};">{n["lbl"]}</div>'
+            f'<div class="kl-val" style="color:{n["vc"]};">{n["val"]}</div>'
+            f'<div class="kl-dot" style="background:{n["dot"]};{n["glow"]}margin:5px auto 0;"></div>'
+            f'</div>'
+        )
+    nodes_html = "".join(node_html(n) for n in nodes)
+
+    # ── NOW pill — flip above bar if too close to any node ───────────────────
+    # Detect proximity using real computed percentages
+    close_to_any = any(abs(cp_pct - n["p"]) < 10 for n in nodes)
+    pill_pos  = 'top:4px' if close_to_any else 'bottom:8px'
+
+    # ── Max Pain node row ─────────────────────────────────────────────────────
     mp_html = ""
     if oc:
-        mp_p = pct(oc["max_pain"]); mp = oc["max_pain"]
-        mp_html = (f'<div class="kl-node" style="left:{mp_p}%;top:0;transform:translateX(-50%);">'
-                   f'<div class="kl-dot" style="background:#6480ff;box-shadow:0 0 8px rgba(100,128,255,.5);margin:0 auto 4px;"></div>'
-                   f'<div class="kl-lbl" style="color:#6480ff;">Max Pain</div>'
-                   f'<div class="kl-val" style="color:#8aa0ff;">&#8377;{mp:,}</div></div>')
+        # If max pain is too close to spot pill horizontally, raise it
+        mp_row_top = abs(mp_pct - cp_pct) < 10
+        mp_top_style = "top:0" if mp_row_top else "top:0"
+        mp_html = (
+            f'<div class="kl-node" style="left:{mp_pct}%;{mp_top_style};transform:translateX(-50%);">'
+            f'<div class="kl-dot" style="background:#6480ff;box-shadow:0 0 8px rgba(100,128,255,.5);margin:0 auto 4px;"></div>'
+            f'<div class="kl-lbl" style="color:#6480ff;">Max Pain</div>'
+            f'<div class="kl-val" style="color:#8aa0ff;">&#8377;{mp:,}</div>'
+            f'</div>'
+        )
 
-    # GEX Gamma Flip node — shown in a second row below max pain
+    # ── GEX Gamma Flip banner ─────────────────────────────────────────────────
     gex_html = ""
-    if oc and oc.get("gex_flip_strike"):
-        gfs      = oc["gex_flip_strike"]
-        regime   = oc.get("gex_regime", "positive")
-        gfp      = pct(gfs)
-        gex_col  = "#00c896" if regime == "positive" else "#ff6b6b"
-        gex_bg   = "rgba(0,200,150,.18)" if regime == "positive" else "rgba(255,107,107,.18)"
-        gex_lbl  = "GEX Flip ▲ Dampen" if regime == "positive" else "GEX Flip ▼ Amplify"
+    if oc and gfs:
+        regime    = oc.get("gex_regime", "positive")
+        gex_col   = "#00c896" if regime == "positive" else "#ff6b6b"
+        gex_bg    = "rgba(0,200,150,.18)" if regime == "positive" else "rgba(255,107,107,.18)"
+        gex_lbl   = "GEX Flip ▲ Dampen" if regime == "positive" else "GEX Flip ▼ Amplify"
         spot_side = "above" if cp > gfs else "below"
-        gex_html = (
+        gex_html  = (
             f'<div style="margin-top:8px;padding:10px 16px;border-radius:10px;'
             f'background:{gex_bg};border:1px solid {gex_col}44;'
             f'display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
             f'<div style="display:flex;align-items:center;gap:10px;">'
-            f'<span style="font-size:13px;font-weight:700;letter-spacing:1.5px;'
-            f'text-transform:uppercase;color:{gex_col};">&#9650; GEX GAMMA FLIP</span>'
-            f'<span style="font-family:\'DM Mono\',monospace;font-size:22px;font-weight:700;'
-            f'color:{gex_col};">&#8377;{gfs:,}</span>'
+            f'<span style="font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:{gex_col};">&#9650; GEX GAMMA FLIP</span>'
+            f'<span style="font-family:\'DM Mono\',monospace;font-size:22px;font-weight:700;color:{gex_col};">&#8377;{gfs:,}</span>'
             f'<span style="font-size:14px;color:rgba(255,255,255,.65);">{gex_lbl}</span>'
             f'</div>'
             f'<div style="font-size:13px;color:rgba(255,255,255,.55);">'
@@ -2070,41 +2143,36 @@ def build_key_levels_html(tech, oc):
             f'</div></div>'
         )
 
+    # ── Distance boxes — colour reflects whether spot is above/below ──────────
+    r_col   = "#ff6b6b" if pts_r > 0 else "#00c896"   # green if spot already above resistance
+    r_sign  = "+" if pts_r > 0 else ""
+    r_label = "To Resistance" if pts_r > 0 else "Above Resistance"
+    s_col   = "#00c896" if pts_s > 0 else "#ff6b6b"   # red if spot below support
+    s_sign  = "-" if pts_s > 0 else ""
+    s_label = "To Support" if pts_s > 0 else "Below Support"
+
     return (
         f'<div class="section"><div class="sec-title">KEY LEVELS'
-        f'<span class="sec-sub">1H Candles · Last 120 bars · Rounded to 25</span></div>'
-        f'<div class="kl-zone-labels"><span style="color:#00c896;">SUPPORT ZONE</span><span style="color:#ff6b6b;">RESISTANCE ZONE</span></div>'
-        f'<div style="position:relative;height:72px;">'
-        f'<div class="kl-node" style="left:3%;bottom:0;transform:translateX(-50%);"><div class="kl-lbl" style="color:#00a07a;">Strong Sup</div><div class="kl-val" style="color:#00c896;">&#8377;{ss:,.0f}</div><div class="kl-dot" style="background:#00a07a;margin:5px auto 0;"></div></div>'
-        f'<div class="kl-node" style="left:22%;bottom:0;transform:translateX(-50%);"><div class="kl-lbl" style="color:#00c896;">Support</div><div class="kl-val" style="color:#4de8b8;">&#8377;{s1:,.0f}</div><div class="kl-dot" style="background:#00c896;box-shadow:0 0 8px rgba(0,200,150,.5);margin:5px auto 0;"></div></div>'
-        f'<div class="kl-node" style="left:75%;bottom:0;transform:translateX(-50%);"><div class="kl-lbl" style="color:#ff6b6b;">Resistance</div><div class="kl-val" style="color:#ff9090;">&#8377;{r1:,.0f}</div><div class="kl-dot" style="background:#ff6b6b;box-shadow:0 0 8px rgba(255,107,107,.5);margin:5px auto 0;"></div></div>'
-        f'<div class="kl-node" style="left:95%;bottom:0;transform:translateX(-50%);"><div class="kl-lbl" style="color:#cc4040;">Strong Res</div><div class="kl-val" style="color:#ff6b6b;">&#8377;{sr:,.0f}</div><div class="kl-dot" style="background:#cc4040;margin:5px auto 0;"></div></div>'
-        f'<div id="kl-now-pill" style="position:absolute;left:{cp_pct}%;bottom:8px;transform:translateX(-50%);'
+        f'<span class="sec-sub">Price-ordered · 1H candles · Rounded to 25</span></div>'
+        f'{zone_label_html}'
+        f'<div style="position:relative;height:80px;">'
+        f'{nodes_html}'
+        f'<div id="kl-now-pill" style="position:absolute;left:{cp_pct}%;{pill_pos};transform:translateX(-50%);'
         f'background:linear-gradient(90deg,#00c896,#6480ff);color:#fff;font-size:15.9px;font-weight:700;'
         f'padding:3px 14px;border-radius:20px;white-space:nowrap;'
         f'box-shadow:0 2px 14px rgba(0,200,150,.35);z-index:20;">NOW &#8377;{cp:,.0f}</div>'
         f'</div>'
         f'<div class="kl-gradient-bar"><div class="kl-price-tick" style="left:{cp_pct}%;"></div></div>'
-        f'<div style="position:relative;height:54px;">{mp_html}</div>'
+        f'<div style="position:relative;height:58px;">{mp_html}</div>'
         f'{gex_html}'
         f'<div class="kl-dist-row">'
-        f'<div class="kl-dist-box" style="border-color:rgba(255,107,107,.18);"><span style="color:var(--muted);">To Resistance</span><span style="color:#ff6b6b;font-weight:700;">+{pts_r:,} pts</span></div>'
-        f'<div class="kl-dist-box" style="border-color:rgba(0,200,150,.18);"><span style="color:var(--muted);">To Support</span><span style="color:#00c896;font-weight:700;">-{pts_s:,} pts</span></div>'
+        f'<div class="kl-dist-box" style="border-color:{r_col}33;">'
+        f'<span style="color:var(--muted);">{r_label}</span>'
+        f'<span style="color:{r_col};font-weight:700;">{r_sign}{abs(pts_r):,} pts</span></div>'
+        f'<div class="kl-dist-box" style="border-color:{s_col}33;">'
+        f'<span style="color:var(--muted);">{s_label}</span>'
+        f'<span style="color:{s_col};font-weight:700;">{s_sign}{abs(pts_s):,} pts</span></div>'
         f'</div></div>'
-        f'<script>'
-        f'(function(){{'
-        f'  var pill=document.getElementById("kl-now-pill");'
-        f'  if(!pill) return;'
-        f'  var cpP={cp_pct};'
-        f'  var r1P=75; var srP=95;'
-        f'  var tooCloseRes = Math.abs(cpP-r1P)<12 || Math.abs(cpP-srP)<10;'
-        f'  var tooCloseSupp= Math.abs(cpP-22)<12  || Math.abs(cpP-3)<10;'
-        f'  if(tooCloseRes || tooCloseSupp){{'
-        f'    pill.style.bottom="auto";'
-        f'    pill.style.top="4px";'
-        f'  }}'
-        f'}})();'
-        f'</script>'
     )
 
 
@@ -3994,7 +4062,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .oi-ticker-metric{font-size:14.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.70)}
 .oi-ticker-cell{text-align:center}
 .kl-zone-labels{display:flex;justify-content:space-between;margin-bottom:6px;font-size:15.9px;font-weight:700}
-.kl-node{position:absolute;text-align:center}
+.kl-node{position:absolute;text-align:center;transition:bottom .3s ease;}
 .kl-lbl{font-size:14.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;line-height:1.3;white-space:nowrap}
 .kl-val{font-size:17.4px;font-weight:700;color:rgba(255,255,255,.7);white-space:nowrap;margin-top:2px}
 .kl-dot{width:11px;height:11px;border-radius:50%;border:2px solid var(--bg)}
