@@ -3132,27 +3132,49 @@ function calcMetrics(shape, edgeScore) {{
   // ── Theoretical Expected Value ──────────────────────────────────────
   // EV = (truePop/100 × maxProfit) − ((1 − truePop/100) × maxLoss)
   // Positive EV = trade has mathematical edge. Negative EV = avoid.
+  // When one leg is unlimited (sentinel 999999) we use a conservative cap:
+  //   Unlimited profit  → cap at 3× maxLoss  (assumes 3:1 best-case move)
+  //   Unlimited loss    → cap at 3× maxProfit (assumes worst-case 3:1 adverse)
+  //   Both unlimited    → N/A (no meaningful bound exists, e.g. long straddle)
   // Important: this is MODEL-DEPENDENT — assumes log-normal returns and
   // accurate IV. Fat tails (NIFTY events) can make actual EV worse.
-  // "Unlimited" max loss/profit = EV not meaningful → null.
   let evRaw = null;
+  let evCapped = false;
   const tp_ = TRUE_POP_MAP[shape];
-  if (tp_ !== undefined && mp < 999990 && ml < 999990 && mp > 0 && ml > 0) {{
-    const pWin  = tp_ / 100;
-    const pLose = 1 - pWin;
-    evRaw = Math.round(pWin * mp - pLose * ml);
+  if (tp_ !== undefined) {{
+    const mpEff = mp < 999990 ? mp : null;
+    const mlEff = ml < 999990 ? ml : null;
+    if (mpEff !== null && mlEff !== null) {{
+      // Both defined — exact EV
+      const pWin = tp_ / 100;
+      evRaw = Math.round(pWin * mpEff - (1 - pWin) * mlEff);
+    }} else if (mpEff === null && mlEff !== null && mlEff > 0) {{
+      // Unlimited profit — cap at 3× maxLoss
+      const capMp = mlEff * 3;
+      const pWin  = tp_ / 100;
+      evRaw   = Math.round(pWin * capMp - (1 - pWin) * mlEff);
+      evCapped = true;
+    }} else if (mlEff === null && mpEff !== null && mpEff > 0) {{
+      // Unlimited loss — cap at 3× maxProfit
+      const capMl = mpEff * 3;
+      const pWin  = tp_ / 100;
+      evRaw   = Math.round(pWin * mpEff - (1 - pWin) * capMl);
+      evCapped = true;
+    }}
+    // Both unlimited → evRaw stays null
   }}
   const evStr = evRaw === null ? null
-    : (evRaw >= 0 ? '+' : '') + '\u20b9' + Math.abs(evRaw).toLocaleString('en-IN');
+    : (evCapped ? '~' : '') + (evRaw >= 0 ? '+' : '') + '\u20b9' + Math.abs(evRaw).toLocaleString('en-IN');
   const evCol = evRaw === null ? '#888'
     : evRaw >= 500 ? '#38d888' : evRaw >= 0 ? '#ffcc00' : evRaw >= -500 ? '#ffaa00' : '#f04050';
-  const evLabel = evRaw === null ? 'N/A (unlimited leg)'
+  const evLabel = evRaw === null ? 'N/A — both legs unlimited'
+    : evCapped    ? (evRaw >= 0 ? 'Est. positive edge (capped unlimited leg)' : 'Est. negative EV (capped unlimited leg)')
     : evRaw >= 500  ? 'Positive edge — trade has merit'
     : evRaw >= 0    ? 'Marginal — thin edge, watch slippage'
     : evRaw >= -500 ? 'Negative EV — poor R:R vs PoP'
     :                 'Avoid — strongly negative EV';
 
-  return {{edgeScore:es, truePop, tvRatio, evRaw, evStr, evCol, evLabel,
+  return {{edgeScore:es, truePop, tvRatio, evRaw, evStr, evCol, evLabel, evCapped,
            mpStr,mlStr,rrStr,beStr,ncStr,slipNote,marginStr,mpPct,strikeStr,ltpStr,
            mpRaw:mp,mlRaw:ml,ncRaw:Math.round(ncAdjusted),ncPositive:ncAdjusted>=0,
            netDelta:Math.round(netDelta*100)/100,
@@ -3260,6 +3282,7 @@ function renderMetrics(m, scoreBreakdown) {{
     </div>
     <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,255,255,.28);margin-top:5px;line-height:1.5;">
       EV = (TruePoP × MaxProfit) − ((1−TruePoP) × MaxLoss) · assumes log-normal · events inflate actual tail risk
+      ${{m.evCapped ? ' · <span style="color:rgba(255,185,0,.4);">~ estimate: unlimited leg capped at 3× defined leg</span>' : ''}}
     </div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(255,185,0,.1);">
