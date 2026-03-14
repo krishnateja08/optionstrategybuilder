@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v19.1 · Smart Dynamic PoP Engine + Intraday P&L Simulator
+Aurora Borealis Theme · v20.0 · Smart Dynamic PoP Engine + Intraday P&L Simulator
 - PoP now reflects: Market Bias + Support/Resistance + Max CE/PE OI walls + PCR
 - lotSize fixed to 65
 - Strategies ranked by smart PoP — highest PoP = best trade right now
@@ -13,6 +13,11 @@ Aurora Borealis Theme · v19.1 · Smart Dynamic PoP Engine + Intraday P&L Simula
                previous trading day (Monday, then Friday if Monday also holiday)
 - NEW v18.5: Intraday P&L Simulator — per-strategy Today P&L (Delta+Theta+Vega)
              3-tab panel: Scenarios Table · Greeks Breakdown · Live Slider
+- NEW v20.0: Professional Enhancements
+  1. EdgeScore + True PoP (IV-based N(d2)) shown side-by-side on every expanded card
+  2. Asymmetric IV move in P&L sim — down moves spike IV 3x harder than up moves
+  3. Slippage deduction on Net Credit/Debit (0.3–0.7% by leg count)
+  4. Skew-adjusted Vega already correct in BS (CE uses CE_IV, PE uses PE_IV)
 
 pip install curl_cffi pandas numpy yfinance pytz scipy
 """
@@ -471,6 +476,150 @@ def _bs_greeks(S, K, T, r, sigma, option_type="CE"):
         return {"delta": 0, "gamma": 0, "theta": 0, "vega": 0, "vanna": 0, "charm": 0}
 
 
+
+
+# =================================================================
+#  SECTION 1C-2 -- TRUE STATISTICAL POP (IV-BASED)
+#  Uses Black-Scholes N(d2) — the probability that the option expires
+#  out-of-the-money (worthless), which is the textbook definition of
+#  Probability of Profit for a short option position.
+#
+#  This is SEPARATE from the EdgeScore (which is a sentiment/bias
+#  composite). True PoP answers: "what does the bell curve say?"
+#  EdgeScore answers: "what does the market setup say?"
+#  Both are shown side-by-side on every expanded strategy card.
+# =================================================================
+
+def _true_pop_from_iv(spot, strike, T, iv_pct, option_type="PE", r=0.065):
+    """
+    True statistical PoP = P(option expires OTM) via Black-Scholes N(d2).
+
+    For a SHORT PE at `strike`:  PoP = P(spot > strike at expiry) = N(d2)
+    For a SHORT CE at `strike`:  PoP = P(spot < strike at expiry) = N(-d2)
+    For spreads / multi-leg, this gives the PoP of the short strike leg,
+    which is the binding constraint for the strategy to expire profitable.
+
+    Returns integer percent, e.g. 68.
+    """
+    try:
+        if T <= 0 or iv_pct <= 0 or spot <= 0 or strike <= 0:
+            return 50
+        sigma = iv_pct / 100.0
+        d1 = (np.log(spot / strike) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+        d2 = d1 - sigma * np.sqrt(T)
+        if option_type == "PE":
+            # Short PE profits when spot stays ABOVE strike → N(d2)
+            return int(round(float(_norm.cdf(d2)) * 100))
+        else:
+            # Short CE profits when spot stays BELOW strike → N(-d2)
+            return int(round(float(_norm.cdf(-d2)) * 100))
+    except Exception:
+        return 50
+
+
+def _compute_true_pop_map(oc_analysis, vix=18.0):
+    """
+    Pre-computes True PoP (IV-based) for every strategy shape and embeds
+    it in the HTML as the JS constant TRUE_POP_MAP.
+
+    For directional strategies the relevant short strike is:
+      - Bullish: short strike is OTM PE (below spot) → use PE PoP
+      - Bearish: short strike is OTM CE (above spot) → use CE PoP
+      - Spreads: use the short leg of the spread
+      - Non-directional (straddle/condor): average of CE and PE PoP at the
+        relevant short strikes
+    """
+    if not oc_analysis:
+        return {}
+
+    spot       = float(oc_analysis["underlying"])
+    atm        = int(oc_analysis["atm_strike"])
+    expiry_str = oc_analysis["expiry"]
+    T          = _days_to_expiry_ist(expiry_str) / 365.0
+
+    # Pull ATM and OTM IVs from the strikes_data list
+    strikes_data = oc_analysis.get("strikes_data", [])
+
+    def get_iv(strike, side):
+        """Return IV% for a given strike and side ('ce' or 'pe')."""
+        key = "ce_iv" if side == "ce" else "pe_iv"
+        for s in strikes_data:
+            if s["strike"] == strike:
+                val = float(s.get(key, 0) or 0)
+                return val if val > 0.5 else vix
+        return vix
+
+    def otm_strike(side, offset):
+        """ATM ± offset*50, rounded to nearest 50."""
+        return atm + offset * 50 if side == "ce" else atm - offset * 50
+
+    atm_ce_iv = get_iv(atm, "ce")
+    atm_pe_iv = get_iv(atm, "pe")
+    otm1_ce   = otm_strike("ce", 1)
+    otm1_pe   = otm_strike("pe", 1)
+    otm2_ce   = otm_strike("ce", 2)
+    otm2_pe   = otm_strike("pe", 2)
+    iv_co1    = get_iv(otm1_ce, "ce")
+    iv_po1    = get_iv(otm1_pe, "pe")
+    iv_co2    = get_iv(otm2_ce, "ce")
+    iv_po2    = get_iv(otm2_pe, "pe")
+
+    def tp(strike, side):
+        iv = get_iv(strike, side)
+        opt = "CE" if side == "ce" else "PE"
+        return _true_pop_from_iv(spot, strike, T, iv, opt)
+
+    pop_map = {
+        # ── Bullish ──────────────────────────────────────────────
+        "long_call":        tp(atm,    "ce"),   # buyer: PoP = P(expires ITM) = 1 - N(d2)
+        "short_put":        tp(atm,    "pe"),
+        "bull_call_spread": tp(atm,    "pe"),   # debit spread: PoP ~ P(above lower CE)
+        "bull_put_spread":  tp(atm,    "pe"),   # short higher PE: N(d2 of ATM PE)
+        "call_ratio_back":  tp(otm1_ce,"ce"),
+        "long_synthetic":   tp(atm,    "pe"),
+        "range_forward":    tp(otm1_pe,"pe"),
+        "bull_butterfly":   tp(atm,    "pe"),
+        "bull_condor":      tp(atm,    "pe"),
+        # ── Bearish ──────────────────────────────────────────────
+        "short_call":       tp(atm,    "ce"),
+        "long_put":         tp(atm,    "pe"),   # buyer: PoP = P(expires ITM)
+        "bear_call_spread": tp(atm,    "ce"),
+        "bear_put_spread":  tp(atm,    "ce"),
+        "put_ratio_back":   tp(otm1_pe,"pe"),
+        "short_synthetic":  tp(atm,    "ce"),
+        "risk_reversal":    tp(otm1_pe,"pe"),
+        "bear_butterfly":   tp(atm,    "ce"),
+        "bear_condor":      tp(atm,    "ce"),
+        # ── Non-directional ──────────────────────────────────────
+        "long_straddle":    50,   # purely vol play, no directional PoP
+        "short_straddle":   (tp(atm, "ce") + tp(atm, "pe")) // 2,
+        "long_strangle":    50,
+        "short_strangle":   (tp(otm1_ce, "ce") + tp(otm1_pe, "pe")) // 2,
+        "jade_lizard":      tp(otm1_pe, "pe"),
+        "reverse_jade":     tp(otm1_ce, "ce"),
+        "call_ratio_spread":tp(otm1_ce, "ce"),
+        "put_ratio_spread": tp(otm1_pe, "pe"),
+        "batman":           (tp(atm, "ce") + tp(atm, "pe")) // 2,
+        "long_iron_fly":    50,
+        "short_iron_fly":   (tp(atm, "ce") + tp(atm, "pe")) // 2,
+        "double_fly":       (tp(atm, "ce") + tp(atm, "pe")) // 2,
+        "long_iron_condor": 50,
+        "short_iron_condor":(tp(otm1_ce, "ce") + tp(otm1_pe, "pe")) // 2,
+        "double_condor":    (tp(otm1_ce, "ce") + tp(otm1_pe, "pe")) // 2,
+        "call_calendar":    tp(atm, "ce"),
+        "put_calendar":     tp(atm, "pe"),
+        "diagonal_calendar":tp(otm1_ce, "ce"),
+        "call_butterfly":   (tp(atm, "ce") + tp(otm2_ce, "ce")) // 2,
+        "put_butterfly":    (tp(atm, "pe") + tp(otm2_pe, "pe")) // 2,
+    }
+
+    # For long options, PoP = P(expires ITM) = 100 - short_PoP
+    for shape in ("long_call", "long_put", "long_straddle", "long_strangle",
+                  "long_iron_fly", "long_iron_condor"):
+        if shape in pop_map and pop_map[shape] != 50:
+            pop_map[shape] = 100 - pop_map[shape]
+
+    return pop_map
 
 
 # =================================================================
@@ -1846,7 +1995,8 @@ STRATEGIES_DATA = {
 }
 
 
-def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed=None, expiry_list=None):
+def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed=None,
+                          expiry_list=None, true_pop_map=None):
     spot       = oc_analysis["underlying"]   if oc_analysis else 23000
     atm        = oc_analysis["atm_strike"]   if oc_analysis else 23000
     expiry     = oc_analysis["expiry"]       if oc_analysis else "17-Mar-2026"
@@ -1854,7 +2004,8 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
     mp         = oc_analysis["max_pain"]     if oc_analysis else 23000
     max_ce_s   = oc_analysis["max_ce_strike"] if oc_analysis else atm + 200
     max_pe_s   = oc_analysis["max_pe_strike"] if oc_analysis else atm - 200
-    strikes_json = json.dumps(oc_analysis.get("strikes_data", [])) if oc_analysis else "[]"
+    strikes_json  = json.dumps(oc_analysis.get("strikes_data", [])) if oc_analysis else "[]"
+    true_pop_json = json.dumps(true_pop_map or {})
 
     # Build multi-expiry data for dropdown
     all_expiry_js = {}
@@ -1950,9 +2101,9 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
     border:1px solid rgba(100,128,255,.2);border-radius:14px;padding:14px 18px;
     margin-bottom:18px;display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;">
     <div style="flex:0 0 auto;">
-      <div style="font-size:13px;font-weight:700;letter-spacing:2px;color:#8aa0ff;text-transform:uppercase;margin-bottom:8px;">&#9889; SMART POP ENGINE</div>
+      <div style="font-size:13px;font-weight:700;letter-spacing:2px;color:#8aa0ff;text-transform:uppercase;margin-bottom:8px;">&#9889; EDGE SCORE + TRUE POP ENGINE</div>
       <div style="font-size:14.5px;color:rgba(255,255,255,.78);line-height:1.8;">
-        PoP = Base 50% + Bias Alignment + S/R Zone + OI Walls + PCR Weight
+        Edge Score = Base 50% + Bias + S/R + OI Walls + PCR &nbsp;|&nbsp; True PoP = N(d2) via IV
       </div>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;flex:1;">
@@ -2031,6 +2182,10 @@ const OC={{
   lotSize:     65
 }};
 
+// TRUE_POP_MAP — IV-based N(d2) probability, pre-computed in Python.
+// Answers "what does the Black-Scholes bell curve say?" (independent of bias/OI).
+const TRUE_POP_MAP = {true_pop_json};
+
 const STRIKE_MAP={{}};
 OC.strikes.forEach(s=>{{ STRIKE_MAP[s.strike]=s; }});
 
@@ -2088,7 +2243,7 @@ function smartPoP(shape, cat) {{
   if (shape === 'long_straddle' || shape === 'long_strangle') {{ stratAdj = bias === 'SIDEWAYS' ? -8 : 8; }}
   if ((shape === 'short_iron_condor' || shape === 'short_iron_fly') && bias === 'SIDEWAYS') {{ stratAdj = 10; }}
   const rawPoP = 50 + biasAdj + srAdj + oiAdj + pcrAdj + stratAdj;
-  return {{ pop: Math.min(95, Math.max(5, Math.round(rawPoP))), biasAdj: Math.round(biasAdj), srAdj: Math.round(srAdj), oiAdj: Math.round(oiAdj), pcrAdj: Math.round(pcrAdj), stratAdj: Math.round(stratAdj) }};
+  return {{ edgeScore: Math.min(95, Math.max(5, Math.round(rawPoP))), biasAdj: Math.round(biasAdj), srAdj: Math.round(srAdj), oiAdj: Math.round(oiAdj), pcrAdj: Math.round(pcrAdj), stratAdj: Math.round(stratAdj) }};
 }}
 
 function normCDF(x) {{
@@ -2118,7 +2273,7 @@ function getGreeks(type, strike) {{
   else               return {{ delta: row.pe_delta||-0.5, theta: row.pe_theta||0, vega: row.pe_vega||0, gamma: row.pe_gamma||0 }};
 }}
 
-function calcMetrics(shape, smartPop) {{
+function calcMetrics(shape, edgeScore) {{
   const spot   = OC.spot, atm = OC.atm;
   const lotSz  = OC.lotSize;
   const ce_atm = getATMLTP('ce'), pe_atm = getATMLTP('pe');
@@ -2139,7 +2294,7 @@ function calcMetrics(shape, smartPop) {{
   const gPo2   = getGreeks('pe', po2.strike);
   const gPo3   = getGreeks('pe', po3.strike);
 
-  let pop = smartPop || 50;
+  let es = edgeScore || 50;
   let mp = 0, ml = 0, be = [], nc = 0, margin = 0, rrRatio = 0;
   let ltpParts = [];
   // Net greeks for intraday simulator (per lot)
@@ -2664,7 +2819,21 @@ function calcMetrics(shape, smartPop) {{
   const beStr     = be.map(v => '\u20b9' + Math.round(v).toLocaleString('en-IN')).join(' / ');
   const mpStr     = mp === 999999 ? 'Unlimited' : '\u20b9' + Math.round(mp).toLocaleString('en-IN');
   const mlStr     = ml === 999999 ? 'Unlimited' : '\u20b9' + Math.round(ml).toLocaleString('en-IN');
-  const ncStr     = (nc >= 0 ? '+ ' : '- ') + '\u20b9' + Math.abs(Math.round(nc)).toLocaleString('en-IN');
+
+  // ── Slippage deduction on net credit/debit ──────────────────────────
+  // Realistic fill price is worse than LTP. Slippage grows with leg count
+  // because each leg needs to cross the bid-ask spread individually.
+  // 1 leg: 0.3%  |  2 legs: 0.5%  |  3–4 legs: 0.7%
+  const legCount     = ltpParts.length;
+  const slipPct      = legCount >= 3 ? 0.007 : legCount === 2 ? 0.005 : 0.003;
+  const slipAmt      = Math.round(Math.abs(nc) * slipPct);
+  const ncAdjusted   = nc >= 0 ? nc - slipAmt : nc - slipAmt;  // credit gets less, debit pays more
+  const ncStr        = (ncAdjusted >= 0 ? '+ ' : '- ') + '\u20b9' + Math.abs(Math.round(ncAdjusted)).toLocaleString('en-IN');
+  const slipNote     = slipAmt > 0
+    ? `<div style="font-size:10px;color:rgba(255,185,0,.5);padding:2px 0 0;font-family:DM Mono,monospace;">
+         ~\u20b9${{slipAmt.toLocaleString('en-IN')}} slippage est. (${{(slipPct*100).toFixed(1)}}% \u00d7 ${{legCount}} leg${{legCount>1?'s':''}})
+       </div>` : '';
+
   const marginStr = '\u20b9' + Math.round(margin).toLocaleString('en-IN');
   const rrStr     = rrRatio === 0 ? '\u221e' : ('1:' + Math.abs(rrRatio));
   const mpPct     = mp === 999999 ? '\u221e' : (ml > 0 ? (mp / ml * 100).toFixed(0) + '%' : '\u2014');
@@ -2675,8 +2844,13 @@ function calcMetrics(shape, smartPop) {{
     </span>`
   ).join('<br>');
   const strikeStr = 'ATM \u20b9' + atm.toLocaleString('en-IN');
-  return {{pop,mpStr,mlStr,rrStr,beStr,ncStr,marginStr,mpPct,strikeStr,ltpStr,
-           mpRaw:mp,mlRaw:ml,ncRaw:Math.round(nc),ncPositive:nc>=0,
+
+  // True PoP from Python-computed IV-based N(d2) map
+  const truePop = TRUE_POP_MAP[shape] !== undefined ? TRUE_POP_MAP[shape] : null;
+
+  return {{edgeScore:es, truePop,
+           mpStr,mlStr,rrStr,beStr,ncStr,slipNote,marginStr,mpPct,strikeStr,ltpStr,
+           mpRaw:mp,mlRaw:ml,ncRaw:Math.round(ncAdjusted),ncPositive:ncAdjusted>=0,
            netDelta:Math.round(netDelta*100)/100,
            netTheta:Math.round(netTheta*100)/100,
            netVega:Math.round(netVega*100)/100,
@@ -2685,13 +2859,18 @@ function calcMetrics(shape, smartPop) {{
 }}
 
 function renderMetrics(m, scoreBreakdown) {{
-  const pc=m.pop>=70?'#38d888':(m.pop>=55?'#ffcc00':m.pop>=45?'#ffaa00':'#f04050');
-  const nc=m.ncPositive?'#38d888':'#f04050';
+  const es  = m.edgeScore || 50;
+  const tp  = m.truePop;
+  const esc = es>=70?'#38d888': es>=55?'#ffcc00': es>=45?'#ffaa00':'#f04050';
+  const tpc = tp===null ? '#888' : tp>=70?'#38d888': tp>=55?'#ffcc00': tp>=45?'#ffaa00':'#f04050';
+  const nc  = m.ncPositive?'#38d888':'#f04050';
+
+  // ── EdgeScore breakdown strip ──────────────────────────────────────
   const sbHtml = scoreBreakdown ? `
     <div style="background:rgba(255,185,0,.04);border-top:1px solid rgba(255,185,0,.12);padding:9px 12px 11px;">
-      <div style="font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,210,0,.85);margin-bottom:7px;font-family:DM Mono,monospace;font-weight:700;">PoP BREAKDOWN</div>
+      <div style="font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,210,0,.85);margin-bottom:7px;font-family:DM Mono,monospace;font-weight:700;">EDGE SCORE BREAKDOWN</div>
       <div style="display:flex;flex-wrap:wrap;gap:5px;">
-        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">Base <b style="color:#ffcc00;">60%</b></span>
+        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">Base <b style="color:#ffcc00;">50%</b></span>
         <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">Bias <b style="color:${{scoreBreakdown.biasAdj>=0?'#38d888':'#f04050'}};">${{scoreBreakdown.biasAdj>=0?'+':''}}${{scoreBreakdown.biasAdj}}</b></span>
         <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">S/R <b style="color:${{scoreBreakdown.srAdj>=0?'#38d888':'#f04050'}};">${{scoreBreakdown.srAdj>=0?'+':''}}${{scoreBreakdown.srAdj}}</b></span>
         <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">OI <b style="color:${{scoreBreakdown.oiAdj>=0?'#38d888':'#f04050'}};">${{scoreBreakdown.oiAdj>=0?'+':''}}${{scoreBreakdown.oiAdj}}</b></span>
@@ -2699,6 +2878,7 @@ function renderMetrics(m, scoreBreakdown) {{
         <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">Strat <b style="color:${{scoreBreakdown.stratAdj>=0?'#38d888':'#f04050'}};">${{scoreBreakdown.stratAdj>=0?'+':''}}${{scoreBreakdown.stratAdj}}</b></span>
       </div>
     </div>` : '';
+
   return `
   <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,185,0,.12);background:rgba(255,185,0,.05);">
     <span style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;font-weight:700;">Strike Price</span>
@@ -2708,42 +2888,50 @@ function renderMetrics(m, scoreBreakdown) {{
     <span style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.9);letter-spacing:1.2px;text-transform:uppercase;font-weight:700;">LTP (per leg)</span>
     <span style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;text-align:right;line-height:1.8;display:flex;flex-direction:column;align-items:flex-end;">${{m.ltpStr}}</span>
   </div>
+
+  <!-- ── EdgeScore + True PoP side-by-side ─────────────────────── -->
   <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(255,185,0,.1);">
     <div style="padding:11px 12px;border-right:1px solid rgba(255,185,0,.1);">
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">Prob. of Profit</div>
-      <div style="font-family:DM Mono,monospace;font-size:26px;font-weight:800;color:${{pc}};">${{m.pop}}%</div>
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">Edge Score</div>
+      <div style="font-family:DM Mono,monospace;font-size:26px;font-weight:800;color:${{esc}};">${{es}}%</div>
+      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,255,255,.42);margin-top:2px;">Bias + S/R + OI + PCR</div>
     </div>
     <div style="padding:11px 12px;">
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">True PoP (IV)</div>
+      <div style="font-family:DM Mono,monospace;font-size:26px;font-weight:800;color:${{tpc}};">${{tp !== null ? tp+'%' : '—'}}</div>
+      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,255,255,.42);margin-top:2px;">N(d2) · P(expire OTM)</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(255,185,0,.1);">
+    <div style="padding:11px 12px;border-right:1px solid rgba(255,185,0,.1);">
       <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">Max Profit</div>
       <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#38d888;">${{m.mpStr}} <span style="font-size:12px;opacity:.7;">${{m.mpPct}}</span></div>
     </div>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(255,185,0,.1);">
-    <div style="padding:11px 12px;border-right:1px solid rgba(255,185,0,.1);">
+    <div style="padding:11px 12px;">
       <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">Max Loss</div>
       <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#f04050;">${{m.mlStr}}</div>
     </div>
-    <div style="padding:11px 12px;">
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(255,185,0,.1);">
+    <div style="padding:11px 12px;border-right:1px solid rgba(255,185,0,.1);">
       <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">R/R Ratio</div>
       <div style="font-family:DM Mono,monospace;font-size:20px;font-weight:700;color:#ffcc00;">${{m.rrStr}}</div>
     </div>
+    <div style="padding:11px 12px;">
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;font-weight:700;">Breakeven</div>
+      <div style="font-family:DM Mono,monospace;font-size:14px;font-weight:700;color:#fff8e0;">${{m.beStr}}</div>
+    </div>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid rgba(255,185,0,.1);">
+  <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid rgba(255,185,0,.1);">
     <div style="padding:9px 10px;border-right:1px solid rgba(255,185,0,.08);">
-      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,205,60,.82);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;font-weight:700;">Breakeven</div>
-      <div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#fff8e0;">${{m.beStr}}</div>
-    </div>
-    <div style="padding:9px 10px;border-right:1px solid rgba(255,185,0,.08);">
-      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,205,60,.82);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;font-weight:700;">Net CR/DR</div>
+      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,205,60,.82);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;font-weight:700;">Net CR/DR (after slip)</div>
       <div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:${{nc}};">${{m.ncStr}}</div>
-    </div>
-    <div style="padding:9px 10px;border-right:1px solid rgba(255,185,0,.08);">
-      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,205,60,.82);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;font-weight:700;">Margin</div>
-      <div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#fff8e0;">${{m.marginStr}}</div>
+      ${{m.slipNote}}
     </div>
     <div style="padding:9px 10px;">
-      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,205,60,.82);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;font-weight:700;">ATM Strike</div>
-      <div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#ffcc00;">${{m.strikeStr}}</div>
+      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,205,60,.82);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;font-weight:700;">Margin Required</div>
+      <div style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:#fff8e0;">${{m.marginStr}}</div>
     </div>
   </div>
   ${{sbHtml}}
@@ -2777,7 +2965,12 @@ function buildIntradaySim(m) {{
   const moves = [-500,-400,-300,-200,-150,-100,-50,0,50,100,150,200,300,400,500];
 
   function calcPnl(movePts, days) {{
-    const ivEst = -(movePts / OC.spot) * 400;
+    // Asymmetric IV response (leverage effect):
+    // Down moves spike IV harder — historically ~3x vs up moves for NIFTY.
+    // Up moves compress IV softly because IV floors at ~10 on big rallies.
+    const ivEst = movePts < 0
+      ? -(movePts / OC.spot) * 600   // down: IV spikes (e.g. -200pt → ~+3.0% IV)
+      : -(movePts / OC.spot) * 200;  // up:   IV compresses softly (~-1.0% IV)
     let pnl = nd * movePts + 0.5 * ng * movePts * movePts + nv * ivEst + (nt * days);
     if (maxL !== null) pnl = Math.max(-maxL, pnl);
     if (maxP !== null) pnl = Math.min(maxP * 0.9, pnl);
@@ -3002,15 +3195,15 @@ function simSlide(simId, val, slMin, slMax, nd, nt, maxL, maxP) {{
   if (pctEl) {{ const pPct = maxP ? ((pnl / maxP) * 100).toFixed(1) + '%' : '—'; pctEl.textContent = pPct; pctEl.style.color = pnl >= 0 ? '#ffcc00' : '#f04050'; }}
 }}
 
-function popBadgeStyle(pop) {{
-  if(pop>=70) return 'background:rgba(0,200,150,.25);color:#00c896;border-color:rgba(0,200,150,.5);font-weight:800;';
-  if(pop>=60) return 'background:rgba(77,232,184,.2);color:#4de8b8;border-color:rgba(77,232,184,.4);';
-  if(pop>=50) return 'background:rgba(100,128,255,.2);color:#8aa0ff;border-color:rgba(100,128,255,.4);';
+function popBadgeStyle(es) {{
+  if(es>=70) return 'background:rgba(0,200,150,.25);color:#00c896;border-color:rgba(0,200,150,.5);font-weight:800;';
+  if(es>=60) return 'background:rgba(77,232,184,.2);color:#4de8b8;border-color:rgba(77,232,184,.4);';
+  if(es>=50) return 'background:rgba(100,128,255,.2);color:#8aa0ff;border-color:rgba(100,128,255,.4);';
   return 'background:rgba(255,107,107,.2);color:#ff6b6b;border-color:rgba(255,107,107,.4);';
 }}
 
 function initAllCards() {{
-  let topPop=0, topName='', topCat='';
+  let topScore=0, topName='', topCat='';
   const bullEx = smartPoP('bull_put_spread','bullish');
   const el_b = document.getElementById('legendBiasVal');
   if(el_b) {{ el_b.textContent=OC.bias+' ('+OC.biasConf+')'; el_b.style.color=OC.bias==='BULLISH'?'#00c896':OC.bias==='BEARISH'?'#ff6b6b':'#6480ff'; }}
@@ -3027,17 +3220,25 @@ function initAllCards() {{
     const badge=document.getElementById('pop_'+card.id);
     try {{
       const result = smartPoP(shape, cat);
-      const m=calcMetrics(shape, result.pop);
-      card.dataset.pop=result.pop;
+      const es = result.edgeScore;
+      card.dataset.pop=es;
       card.dataset.scoreBreakdown=JSON.stringify(result);
-      if(badge) {{ badge.textContent=result.pop+'%'; badge.setAttribute('style', badge.getAttribute('style')||''); badge.setAttribute('style', popBadgeStyle(result.pop)); }}
-      if(result.pop>topPop) {{ topPop=result.pop; topName=card.dataset.name; topCat=cat; }}
+      if(badge) {{
+        const tp = TRUE_POP_MAP[shape];
+        const tpStr = tp !== undefined ? ' / '+tp+'%' : '';
+        badge.textContent = es+'%'+tpStr;
+        badge.setAttribute('style', popBadgeStyle(es));
+        badge.title = 'Edge Score: '+es+'%  |  True PoP (IV): '+(tp !== undefined ? tp+'%' : 'N/A');
+      }}
+      if(es>topScore) {{ topScore=es; topName=card.dataset.name; topCat=cat; }}
     }}catch(e){{card.dataset.pop=0;if(badge)badge.textContent='—%';}}
   }});
   const el_rec = document.getElementById('legendRecVal');
   if(el_rec && topName) {{
     const recCol = topCat==='bullish'?'#00c896':topCat==='bearish'?'#ff6b6b':'#6480ff';
-    el_rec.innerHTML=`<span style="color:${{recCol}};">${{topName}}</span> <span style="color:rgba(255,255,255,.75);font-size:13px;">${{topPop}}% PoP</span>`;
+    const tp = TRUE_POP_MAP[document.querySelector('.sc-card[data-name="'+topName+'"]')?.dataset?.shape];
+    const tpStr = tp !== undefined ? ' · True PoP '+tp+'%' : '';
+    el_rec.innerHTML=`<span style="color:${{recCol}};">${{topName}}</span> <span style="color:rgba(255,255,255,.75);font-size:13px;">${{topScore}}% Edge${{tpStr}}</span>`;
   }}
 }}
 
@@ -3792,10 +3993,15 @@ def build_greeks_script_html(oc_analysis):
 #  SECTION 10 -- HTML ASSEMBLER
 # =================================================================
 
-def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, expiry_list=None):
+def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None,
+                  expiry_list=None, true_pop_map=None):
     oi_html        = build_oi_html(oc)               if oc   else ""
     kl_html        = build_key_levels_html(tech, oc) if tech else ""
-    strat_html     = build_strategies_html(oc, tech, md, multi_expiry_analyzed=multi_expiry_analyzed, expiry_list=expiry_list)
+    strat_html     = build_strategies_html(
+                         oc, tech, md,
+                         multi_expiry_analyzed=multi_expiry_analyzed,
+                         expiry_list=expiry_list,
+                         true_pop_map=true_pop_map)
     strikes_html   = build_strikes_html(oc)
     ticker_html    = build_ticker_bar(tech, oc, vix_data)
     gauge_html     = build_dual_gauge_hero(oc, tech, md, ts)
@@ -3813,7 +4019,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None, e
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Nifty 50 Options Dashboard v18.4</title>
+<title>Nifty 50 Options Dashboard v20.0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>{CSS}</style>
@@ -4130,7 +4336,7 @@ document.addEventListener("click",function(e){{
         try{{
           const shape=card.dataset.shape, cat=card.dataset.cat;
           const scoreResult=smartPoP(shape,cat);
-          _m=calcMetrics(shape,scoreResult.pop);
+          _m=calcMetrics(shape,scoreResult.edgeScore);
           mel.innerHTML=renderMetrics(_m, scoreResult);
         }}catch(err){{mel.innerHTML='<div class="sc-loading">Could not calculate metrics</div>';}}
         // Payoff chart and day selector run separately so they never break metrics display
@@ -4253,9 +4459,12 @@ def main():
         print(f"  *** MAX PAIN SHIFT: {mps['signal']}")
 
     print("\nGenerating Holiday-Aware Dashboard...")
+    true_pop_map = _compute_true_pop_map(oc_analysis, vix=live_vix) if oc_analysis else {}
+    print(f"  True PoP map: {len(true_pop_map)} strategies computed via N(d2)")
     html = generate_html(tech, oc_analysis, md, ts, vix_data=vix_data,
                      multi_expiry_analyzed=multi_expiry_analyzed,
-                     expiry_list=expiry_list)
+                     expiry_list=expiry_list,
+                     true_pop_map=true_pop_map)
 
     os.makedirs("docs", exist_ok=True)
     out = os.path.join("docs", "index.html")
@@ -4296,7 +4505,7 @@ def main():
         json.dump(meta, f, indent=2)
     print("  Saved: docs/latest.json")
     print("\n" + "=" * 65)
-    print(f"  DONE  |  v18.4 · Holiday-Aware Expiry Active")
+    print(f"  DONE  |  v20.0 · EdgeScore + True PoP + Asymmetric IV + Slippage")
     print(f"  Bias: {md['bias']}  |  Confidence: {md['confidence']}")
     print("  Holiday list: 2026 NSE official holidays pre-loaded")
     print("  Logic: Tuesday holiday → Monday → Friday (fallback)")
