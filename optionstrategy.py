@@ -4002,7 +4002,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 @keyframes spin{to{transform:rotate(360deg)}}
 #refreshStatus{font-size:14.5px;color:rgba(255,255,255,.70);transition:color .3s;letter-spacing:.3px;}
 #refreshStatus.updated{color:#00c896;font-weight:600;}
-.hero{display:flex;align-items:stretch;background:linear-gradient(135deg,rgba(0,200,150,.055) 0%,rgba(100,128,255,.055) 100%);border-bottom:1px solid rgba(255,255,255,.07);overflow:hidden;position:relative;height:130px;}
+.hero{display:flex;align-items:stretch;background:linear-gradient(135deg,rgba(0,200,150,.055) 0%,rgba(100,128,255,.055) 100%);border-bottom:1px solid rgba(255,255,255,.07);overflow:hidden;position:relative;min-height:130px;}
 .hero::before{content:'';position:absolute;top:-50px;left:-50px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(0,200,150,.10),transparent 70%);pointer-events:none;}
 .h-gauges{flex-shrink:0;display:flex;align-items:center;gap:10px;padding:0 16px 0 18px;}
 .gauge-sep{width:1px;height:56px;background:rgba(255,255,255,.08);flex-shrink:0;}
@@ -4023,7 +4023,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .pill-track{width:120px;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;flex-shrink:0;}
 .pill-fill{height:100%;border-radius:3px;}
 .pill-num{font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;margin-left:8px;flex-shrink:0;}
-.h-stats{flex-shrink:0;min-width:360px;display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.015);}
+.h-stats{flex-shrink:0;min-width:min(360px,100%);display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.015);}
 .h-stat-row{display:flex;align-items:stretch;flex:1;border-bottom:1px solid rgba(255,255,255,.05);}
 .h-stat{flex:1;display:flex;flex-direction:column;justify-content:center;padding:5px 10px;text-align:center;border-right:1px solid rgba(255,255,255,.04);}
 .h-stat:last-child{border-right:none;}
@@ -4197,8 +4197,46 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 }
 @media(max-width:768px){
   body{font-size:16px;}
-  .h-stat-row{flex-wrap:wrap;gap:8px;}
-  .h-stat{min-width:calc(50% - 8px);}
+  /* ── Hero: stack gauges + mid vertically ────────────────────── */
+  .hero{flex-direction:column;height:auto;overflow:visible;}
+  .h-gauges{
+    width:100%;box-sizing:border-box;
+    display:flex;flex-direction:row;align-items:center;
+    justify-content:center;gap:16px;
+    padding:14px 16px 10px;
+    border-bottom:1px solid rgba(255,255,255,.06);
+  }
+  .gauge-sep{display:none;}
+  .gauge-wrap{width:80px;height:80px;}
+  .h-mid{
+    width:100%;box-sizing:border-box;
+    border-left:none;border-top:none;
+    padding:10px 16px 8px;
+    display:flex;flex-direction:column;align-items:flex-start;
+  }
+  .h-eyebrow{font-size:10px;white-space:normal;overflow:visible;margin-bottom:2px;}
+  .h-signal{font-size:22px;line-height:1.15;margin-bottom:3px;word-break:break-word;}
+  .h-sub{font-size:12px;white-space:normal;overflow:visible;margin-bottom:6px;}
+  .h-divider{margin:4px 0;}
+  .pill-row{flex-wrap:wrap;gap:6px;margin-bottom:5px;}
+  .pill-lbl{width:auto;min-width:90px;font-size:10px;}
+  .pill-track{width:100px;flex-shrink:0;}
+  .pill-num{font-size:12px;}
+  /* h-stats below everything */
+  .h-stats{
+    min-width:100%;width:100%;box-sizing:border-box;
+    border-left:none;border-top:1px solid rgba(255,255,255,.07);
+  }
+  .h-stat-row{flex-wrap:wrap;gap:0;}
+  .h-stat{
+    min-width:calc(50% - 0px);
+    border-bottom:1px solid rgba(255,255,255,.04);
+    padding:8px 10px;
+  }
+  .h-stat-val{font-size:15px;}
+  .h-stat-lbl{font-size:9px;letter-spacing:1px;white-space:normal;}
+  .h-stat-bottom{padding:6px 12px;flex-wrap:wrap;gap:6px;}
+  /* Misc */
   .main-tabs{overflow-x:auto;flex-wrap:nowrap;}
   .main-tab{white-space:nowrap;}
   header{flex-wrap:wrap;gap:8px;padding:10px 14px;}
@@ -4208,22 +4246,14 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .oi-ticker-table{overflow-x:auto;-webkit-overflow-scrolling:touch;}
   .oi-ticker-hdr,.oi-ticker-row{min-width:560px;}
   .greeks-tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-  .h-mid{padding:8px 12px;}
-  .h-signal{font-size:24px;}
-  .h-eyebrow{font-size:10px;}
-  .h-sub{font-size:12px;}
-  .pill-track{width:80px;}
   .sec-sub{margin-left:0;width:100%;}
   .greeks-table-section{padding:16px 14px;}
-  /* Strategy tabs: stack vertically on small screens */
+  /* Strategy tabs */
   .sc-tabs{flex-direction:column;gap:6px;align-items:stretch;}
   .sc-tabs>div[style]{margin-left:0!important;width:100%!important;flex-wrap:wrap;gap:6px;}
   #expiryDropdown{width:100%;font-size:14px;}
-  /* View toggle: full width side-by-side */
   #viewGrid,#viewTable{flex:1;justify-content:center;}
-  /* Filter pills: smaller on tablet */
   .sc-filter-pill{font-size:11px;padding:3px 9px;}
-  /* Table: enable horizontal scroll */
   #sc-table-wrap{-webkit-overflow-scrolling:touch;}
   #sc-table{min-width:640px;}
 }
@@ -4238,31 +4268,33 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .sidebar{display:none;}
   .sc-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
   .main-tab{font-size:10px;padding:6px 10px;}
-  .h-gauges{padding:10px 12px;gap:8px;}
-  .gauge-wrap{width:76px;height:76px;}
+  /* Hero: tighter on narrow phones */
+  .h-gauges{padding:10px 12px;gap:10px;}
+  .gauge-wrap{width:68px;height:68px;}
+  .h-signal{font-size:20px;}
+  .h-mid{padding:8px 12px;}
+  .pill-track{width:80px;}
+  .pill-lbl{font-size:9px;min-width:80px;}
+  .h-stat{min-width:50%;padding:6px 8px;}
+  .h-stat-val{font-size:14px;}
+  .h-stat-lbl{font-size:8px;letter-spacing:.8px;}
   .hdr-meta{font-size:11px;gap:6px;}
   .greeks-table-section{padding:14px 12px;}
   .greeks-tbl-head,.greeks-tbl-row{grid-template-columns:70px repeat(4,1fr);padding:7px 8px;gap:2px;}
   .greeks-tbl-head-label,.greeks-tbl-cell{font-size:11px;}
   .greeks-tbl-strike{font-size:13px;}
   .sec-title{font-size:13px;letter-spacing:1.5px;margin-bottom:14px;}
-  .sec-sub{font-size:11px;margin-left:0;width:100%;}
-  .h-stat-val{font-size:15px;}
-  .h-stat-lbl{font-size:9px;letter-spacing:1px;}
-  /* Strategy cards */
+  .sec-sub{font-size:11px;}
   .sc-tabs{gap:6px;margin-bottom:10px;}
   .sc-tab{padding:7px 14px;font-size:14px;}
   .sc-name{font-size:15px;}
   .sc-legs{font-size:11px;}
   .sc-mini-lbl{font-size:9px;}
   .sc-mini-val{font-size:13px;}
-  /* View toggle: compress labels */
   #viewGrid{padding:5px 8px;font-size:11px;}
   #viewTable{padding:5px 8px;font-size:11px;}
-  /* Filter pills row: scroll horizontally rather than wrap uncontrolled */
   #sc-filter-row{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;padding-bottom:4px;}
   .sc-filter-pill{white-space:nowrap;flex-shrink:0;}
-  /* Key levels bar: reduce font */
   .kl-lbl{font-size:12px;}
   .kl-val{font-size:14px;}
   .kl-dist-box{padding:8px 10px;font-size:14px;}
@@ -4272,33 +4304,35 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .oi-ticker-hdr,.oi-ticker-row{min-width:520px;}
   .metric-lbl{font-size:13px;}
   .metric-val{font-size:15px;}
-  .h-mid{width:100%;border-left:none;border-top:1px solid rgba(255,255,255,.05);}
-  /* OI dashboard: allow horizontal scroll on narrow */
+  .h-mid{width:100%;border-left:none;}
   .oi-dir-card{overflow-x:auto;}
 }
 @media(max-width:480px){
-  /* Two columns for cards — gives better use of portrait phone width */
   .sc-grid{grid-template-columns:1fr 1fr;}
-  .gauge-wrap{width:62px;height:62px;}
-  .g-val{font-size:13px;}
-  .g-lbl{font-size:9px;letter-spacing:1px;}
+  /* Hero: compact single column phone */
+  .h-gauges{padding:8px 10px;gap:8px;}
+  .gauge-wrap{width:58px;height:58px;}
+  .g-val{font-size:12px;}
+  .g-lbl{font-size:8px;letter-spacing:.8px;}
   .gauge-sep{display:none;}
-  .h-signal{font-size:19px;letter-spacing:.5px;}
-  .h-gauges{gap:4px;padding:8px 10px;}
-  .h-mid{padding:6px 10px;}
+  .h-signal{font-size:18px;letter-spacing:.3px;}
+  .h-eyebrow{font-size:9px;letter-spacing:1.2px;}
   .h-sub{font-size:11px;}
+  .h-mid{padding:6px 10px;}
+  .pill-row{gap:4px;margin-bottom:4px;}
+  .pill-lbl{min-width:72px;font-size:8px;letter-spacing:.8px;}
+  .pill-track{width:60px;}
+  .pill-dot{width:6px;height:6px;}
+  .pill-num{font-size:11px;margin-left:3px;}
+  .h-stat{min-width:50%;padding:5px 8px;}
+  .h-stat-val{font-size:13px;}
+  .h-stat-lbl{font-size:8px;letter-spacing:.5px;}
+  /* Other */
   .greeks-tbl-head,.greeks-tbl-row{grid-template-columns:56px repeat(4,1fr);padding:6px 6px;gap:2px;}
   .greeks-tbl-head-label,.greeks-tbl-cell{font-size:10px;}
   .greeks-tbl-strike{font-size:11px;}
   .section{padding:12px 10px;}
   .sec-title{font-size:12px;letter-spacing:1px;}
-  .h-stat{min-width:calc(50% - 4px);}
-  .h-stat-val{font-size:14px;}
-  .h-stat-lbl{font-size:8px;letter-spacing:.8px;}
-  .pill-lbl{width:68px;font-size:9px;letter-spacing:1px;}
-  .pill-num{font-size:12px;margin-left:4px;}
-  .pill-track{width:64px;}
-  .pill-dot{width:6px;height:6px;}
   .sb-btn{font-size:14px;padding:6px 10px;}
   .sb-lbl{font-size:11px;}
   .sb-badge{font-size:12px;}
@@ -4333,11 +4367,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .logo-slide{font-size:18px;}
   #smartPopLegend{flex-direction:column;}
   .hdr-meta>span:not(:first-child):not(:last-child){display:none;}
-  /* Hide Legs column in table view on phones — too wide */
   #sc-table th:last-child,#sc-table td:last-child{display:none;}
-  /* View toggle: icon only */
-  #viewGrid::after{content:' GRID';}
-  #viewTable::after{content:' TABLE';}
 }
 """
 
