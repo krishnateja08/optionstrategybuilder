@@ -3130,7 +3130,7 @@ function buildIntradaySim(m) {{
       </div>
       <input type="range" id="${{simId}}_sl" min="${{slMin}}" max="${{slMax}}" value="${{OC.spot}}" step="25"
         style="width:100%;height:5px;border-radius:3px;outline:none;border:none;-webkit-appearance:none;cursor:pointer;background:linear-gradient(90deg,#ffcc00 50%,rgba(255,185,0,.2) 50%);"
-        onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" oninput="simSlide('${{simId}}', this.value, ${{slMin}}, ${{slMax}}, ${{nd}}, ${{nt}}, ${{maxL===null?'null':maxL}}, ${{maxP===null?'null':maxP}})">
+        onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()" oninput="simSlide('${{simId}}', this.value, ${{slMin}}, ${{slMax}}, ${{nd}}, ${{nt}}, ${{nv}}, ${{maxL===null?'null':maxL}}, ${{maxP===null?'null':maxP}})">
     </div>
     <div id="${{simId}}_sr" style="padding:4px 12px 14px;text-align:center;">
       <div style="background:rgba(0,0,0,.3);border-radius:10px;padding:16px;border:1px solid rgba(255,185,0,.2);">
@@ -3171,7 +3171,7 @@ function simTab(simId, tab) {{
   }});
 }}
 
-function simSlide(simId, val, slMin, slMax, nd, nt, maxL, maxP) {{
+function simSlide(simId, val, slMin, slMax, nd, nt, nv, maxL, maxP) {{
   const spot = parseInt(val);
   const move = spot - OC.spot;
   const pct  = ((val - slMin) / (slMax - slMin) * 100);
@@ -3179,7 +3179,9 @@ function simSlide(simId, val, slMin, slMax, nd, nt, maxL, maxP) {{
   if (sl) sl.style.background = `linear-gradient(90deg,#ffcc00 ${{pct}}%,rgba(255,185,0,.2) ${{pct}}%)`;
   const slv = document.getElementById(simId + '_slv');
   if (slv) slv.textContent = 'Spot: \u20b9' + spot.toLocaleString('en-IN');
-  let pnl = nd * move + nt;
+  // Asymmetric IV: down moves spike IV 3x harder than up moves compress it
+  const ivEst = move < 0 ? -(move / OC.spot) * 600 : -(move / OC.spot) * 200;
+  let pnl = nd * move + nv * ivEst + nt;
   if (maxL !== null) pnl = Math.max(-maxL, pnl);
   if (maxP !== null) pnl = Math.min(maxP * 0.9, pnl);
   pnl = Math.round(pnl);
@@ -4278,7 +4280,8 @@ function drawPayoffChart(card, m) {{
 function setupDaySelector(simId, nd, nt, nv, ng, maxL, maxP, maxDays) {{
   const _mv = [-500,-400,-300,-200,-150,-100,-50,0,50,100,150,200,300,400,500];
   function _pnl(mv, days) {{
-    const iv = -(mv / OC.spot) * 400;
+    // Asymmetric IV: down moves spike IV 3x harder than up moves compress it
+    const iv = mv < 0 ? -(mv / OC.spot) * 600 : -(mv / OC.spot) * 200;
     let p = nd*mv + 0.5*ng*mv*mv + nv*iv + (nt*days);
     if (maxL !== null) p = Math.max(-maxL, p);
     if (maxP !== null) p = Math.min(maxP*0.9, p);
