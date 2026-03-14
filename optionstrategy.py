@@ -102,8 +102,45 @@ def get_prev_trading_day(dt):
 # =================================================================
 
 class NSEOptionChain:
+    COOKIE_FILE    = os.path.join("docs", "nse_cookies.json")
+    COOKIE_MAX_AGE = 3600 * 4      # reuse cookies for up to 4 hours
+
     def __init__(self):
         self.symbol = "NIFTY"
+
+    # ── Cookie persistence helpers ────────────────────────────────
+    def _save_cookies(self, session):
+        """Persist session cookies to disk so the next run skips warm-up."""
+        try:
+            os.makedirs("docs", exist_ok=True)
+            cookies = {name: value for name, value in session.cookies.items()}
+            with open(self.COOKIE_FILE, "w") as f:
+                json.dump({"cookies": cookies, "saved_at": time.time()}, f)
+            print(f"  Cookies saved ({len(cookies)} values)")
+        except Exception as e:
+            print(f"  WARNING: Could not save cookies: {e}")
+
+    def _load_cookies(self, session):
+        """
+        Load cookies from disk into an existing session.
+        Returns True if cookies are fresh and loaded; False if stale/missing.
+        """
+        try:
+            if not os.path.exists(self.COOKIE_FILE):
+                return False
+            with open(self.COOKIE_FILE, "r") as f:
+                data = json.load(f)
+            age = time.time() - data.get("saved_at", 0)
+            if age > self.COOKIE_MAX_AGE:
+                print(f"  Cached cookies are {age / 3600:.1f}h old — will refresh session")
+                return False
+            for name, value in data.get("cookies", {}).items():
+                session.cookies.set(name, value)
+            print(f"  Loaded cached cookies (age: {age / 60:.0f} min) — skipping warm-up")
+            return True
+        except Exception as e:
+            print(f"  WARNING: Could not load cookies: {e}")
+            return False
 
     def _make_session(self):
         headers = {
@@ -114,11 +151,18 @@ class NSEOptionChain:
             "accept-language": "en-US,en;q=0.9",
         }
         session = curl_requests.Session()
+
+        # Try loading saved cookies first — avoids expensive warm-up on every run
+        if self._load_cookies(session):
+            return session, headers
+
+        # Full warm-up: hit homepage + option-chain page to get fresh cookies
         try:
             session.get("https://www.nseindia.com/", headers=headers, impersonate="chrome", timeout=15)
             time.sleep(1.5)
             session.get("https://www.nseindia.com/option-chain", headers=headers, impersonate="chrome", timeout=15)
             time.sleep(1)
+            self._save_cookies(session)   # persist so next run skips this
         except Exception as e:
             print(f"  WARNING  Session warm-up: {e}")
         return session, headers
@@ -391,14 +435,119 @@ def _bs_greeks(S, K, T, r, sigma, option_type="CE"):
             delta        = _norm.cdf(d1) - 1
             theta_annual = (-(S * nd1 * sigma) / (2 * np.sqrt(T))
                             + r * K * np.exp(-r * T) * _norm.cdf(-d2))
+        # Vanna = ∂Delta/∂σ — how much delta shifts when IV moves by 1 point
+        # Explains why NIFTY rallies into expiry even without news (dealers hedge vanna)
+        vanna = float(-nd1 * d2 / sigma) if sigma > 0 else 0.0
+
+        # Charm = ∂Delta/∂t (per calendar day) — delta decay due purely to time passing
+        # Explains why deep ITM options lose delta faster near expiry
+        _charm_denom = 2.0 * T * sigma * np.sqrt(T)
+        if _charm_denom > 1e-10:
+            _charm_annual = -nd1 * (2.0 * r * T - d2 * sigma * np.sqrt(T)) / _charm_denom
+            charm = float(_charm_annual / 365.0)   # per calendar day
+        else:
+            charm = 0.0
+
         return {
             "delta": round(float(delta), 4),
             "gamma": round(float(gamma), 6),
             "theta": round(float(theta_annual / 365.0), 4),
             "vega":  round(float(vega), 4),
+            "vanna": round(vanna, 6),
+            "charm": round(charm, 6),
         }
     except Exception:
-        return {"delta": 0, "gamma": 0, "theta": 0, "vega": 0}
+        return {"delta": 0, "gamma": 0, "theta": 0, "vega": 0, "vanna": 0, "charm": 0}
+
+
+
+
+# =================================================================
+#  SECTION 1D -- NEWTON-RAPHSON IMPLIED VOLATILITY SOLVER
+#  Used as VIX fallback: market-implied IV is always more accurate
+#  than the VIX index for Black-Scholes Greek calculations.
+# =================================================================
+
+def _calc_implied_vol_nr(S, K, T, r, market_price, option_type="CE",
+                         max_iter=100, tol=1e-7):
+    """
+    Newton-Raphson solver for implied volatility.
+    Returns IV as a percentage (e.g., 18.5) or None if it fails to converge.
+    Uses Brenner-Subrahmanyam approximation as the initial guess.
+    """
+    if T <= 0 or market_price <= 0 or S <= 0 or K <= 0:
+        return None
+    intrinsic = max(0.0, (S - K) if option_type == "CE" else (K - S))
+    if market_price <= intrinsic + 1e-6:
+        return None  # price at or below intrinsic — no time value to solve for
+
+    # Brenner-Subrahmanyam initial guess
+    sigma = float((market_price / S) * np.sqrt(2.0 * np.pi / T))
+    sigma = max(0.01, min(sigma, 5.0))
+
+    for _ in range(max_iter):
+        try:
+            d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+            d2 = d1 - sigma * np.sqrt(T)
+            nd1 = _norm.pdf(d1)
+            if option_type == "CE":
+                price = S * _norm.cdf(d1) - K * np.exp(-r * T) * _norm.cdf(d2)
+            else:
+                price = K * np.exp(-r * T) * _norm.cdf(-d2) - S * _norm.cdf(-d1)
+            vega_nr = S * nd1 * np.sqrt(T)        # BS vega (no /100 here)
+            if vega_nr < 1e-10:
+                break
+            diff = price - market_price
+            if abs(diff) < tol:
+                break
+            sigma -= diff / vega_nr
+            sigma = max(0.001, min(sigma, 5.0))    # clamp 0.1%–500%
+        except Exception:
+            break
+
+    if 0.001 < sigma < 4.99:
+        return round(sigma * 100.0, 2)             # return as % e.g. 18.5
+    return None
+
+
+def _derive_atm_iv_fallback(oc_raw, risk_free=0.065):
+    """
+    Derive ATM implied volatility from live ATM CE + PE prices using
+    Newton-Raphson when India VIX cannot be fetched.
+    Returns average of CE and PE implied vols as a percentage, or None.
+    """
+    try:
+        df          = oc_raw["df"]
+        S           = float(oc_raw["underlying"])
+        atm         = int(oc_raw["atm_strike"])
+        expiry_str  = oc_raw["expiry"]
+        T           = _days_to_expiry_ist(expiry_str) / 365.0
+        if T <= 0:
+            return None
+        atm_row = df[df["Strike"] == atm]
+        if atm_row.empty:
+            # Try nearest strike
+            df["_dist"] = abs(df["Strike"] - atm)
+            atm_row = df.loc[df["_dist"].idxmin():df["_dist"].idxmin()]
+        if atm_row.empty:
+            return None
+        row      = atm_row.iloc[0]
+        ce_price = float(row.get("CE_LTP", 0) or 0)
+        pe_price = float(row.get("PE_LTP", 0) or 0)
+        ivs = []
+        if ce_price > 0.5:
+            iv_ce = _calc_implied_vol_nr(S, atm, T, risk_free, ce_price, "CE")
+            if iv_ce:
+                ivs.append(iv_ce)
+        if pe_price > 0.5:
+            iv_pe = _calc_implied_vol_nr(S, atm, T, risk_free, pe_price, "PE")
+            if iv_pe:
+                ivs.append(iv_pe)
+        if ivs:
+            return round(sum(ivs) / len(ivs), 2)
+    except Exception as e:
+        print(f"  WARNING NR-IV fallback: {e}")
+    return None
 
 
 def _days_to_expiry_ist(expiry_str):
@@ -447,6 +596,10 @@ def extract_atm_greeks(df, atm_strike, underlying=None, expiry_str="", vix=18.0)
             "pe_gamma": pe_g["gamma"],
             "ce_vega":  ce_g["vega"],
             "pe_vega":  pe_g["vega"],
+            "ce_vanna": ce_g.get("vanna", 0.0),
+            "pe_vanna": pe_g.get("vanna", 0.0),
+            "ce_charm": ce_g.get("charm", 0.0),
+            "pe_charm": pe_g.get("charm", 0.0),
             "ce_ltp":   ce_ltp,
             "pe_ltp":   pe_ltp,
         })
@@ -468,6 +621,56 @@ def extract_atm_greeks(df, atm_strike, underlying=None, expiry_str="", vix=18.0)
 # =================================================================
 #  SECTION 2 -- OPTION CHAIN ANALYSIS
 # =================================================================
+
+def _price_oi_divergence(current_price, net_oi_change):
+    """
+    Cross-checks price direction vs OI change to classify market participation.
+    Loads previous price from docs/latest.json (saved by prior run).
+
+    4 patterns:
+      Price↑ + OI↑ = Long Buildup   (Strong Bullish — fresh money entering long)
+      Price↑ + OI↓ = Short Covering (Weak Bullish  — shorts closing, not fresh longs)
+      Price↓ + OI↑ = Short Buildup  (Strong Bearish — fresh money entering short)
+      Price↓ + OI↓ = Long Unwinding (Weak Bearish  — longs exiting, not fresh shorts)
+    """
+    prev_price = None
+    try:
+        meta_path = os.path.join("docs", "latest.json")
+        if os.path.exists(meta_path):
+            with open(meta_path, "r") as f:
+                prev_price = json.load(f).get("price")
+    except Exception:
+        pass
+
+    if prev_price is None or prev_price == 0:
+        return {
+            "label": "N/A", "signal": "No prior run data yet",
+            "strength": "neutral", "cls": "neutral", "prev_price": None,
+        }
+
+    price_up = current_price > prev_price
+    oi_up    = net_oi_change > 0
+
+    if price_up and oi_up:
+        return {"label": "Long Buildup",
+                "signal": "Price↑ + OI↑ — Fresh longs entering, trend is strong",
+                "strength": "Strong Bullish", "cls": "bullish",
+                "prev_price": round(float(prev_price), 2)}
+    elif price_up and not oi_up:
+        return {"label": "Short Covering",
+                "signal": "Price↑ + OI↓ — Shorts closing, NOT fresh longs (fragile rally)",
+                "strength": "Weak Bullish", "cls": "bullish",
+                "prev_price": round(float(prev_price), 2)}
+    elif not price_up and oi_up:
+        return {"label": "Short Buildup",
+                "signal": "Price↓ + OI↑ — Fresh shorts entering, downtrend confirmed",
+                "strength": "Strong Bearish", "cls": "bearish",
+                "prev_price": round(float(prev_price), 2)}
+    else:
+        return {"label": "Long Unwinding",
+                "signal": "Price↓ + OI↓ — Longs exiting, NOT fresh shorts (fragile fall)",
+                "strength": "Weak Bearish", "cls": "bearish",
+                "prev_price": round(float(prev_price), 2)}
 
 def analyze_option_chain(oc_data, vix=18.0):
     if not oc_data:
@@ -547,6 +750,10 @@ def analyze_option_chain(oc_data, vix=18.0):
     chg_bull_pct = round(chg_bull_force / chg_total * 100)
     chg_bear_pct = 100 - chg_bull_pct
 
+    # Price-OI Divergence: cross-check price direction vs net OI change
+    net_oi_change = ce_chg + pe_chg
+    price_oi_div  = _price_oi_divergence(oc_data["underlying"], net_oi_change)
+
     atm_strike = oc_data["atm_strike"]
     greeks = extract_atm_greeks(df, atm_strike,
                                 underlying=oc_data["underlying"],
@@ -601,6 +808,7 @@ def analyze_option_chain(oc_data, vix=18.0):
         "atm_greeks":      greeks["atm_greeks"],
         "greeks_table":    greeks["greeks_table"],
         "all_strikes":     greeks["all_strikes"],
+        "price_oi_div":    price_oi_div,
     }
 
 
@@ -682,24 +890,45 @@ def get_technical_data():
 #  SECTION 4 -- MARKET DIRECTION SCORING
 # =================================================================
 
-def compute_market_direction(tech, oc_analysis):
+def compute_market_direction(tech, oc_analysis, live_vix=18.0):
     if not tech:
-        return {"bias": "UNKNOWN", "confidence": "LOW", "bull": 0, "bear": 0, "diff": 0, "bias_cls": "neutral"}
+        return {"bias": "UNKNOWN", "confidence": "LOW", "bull": 0, "bear": 0, "diff": 0,
+                "bias_cls": "neutral", "vix_regime": "normal", "vix_high": False,
+                "vix_low": False, "sma200_filter_active": False}
 
-    cp   = tech["price"]
+    cp  = tech["price"]
     bull = bear = 0
 
+    # ── Structural trend filter ────────────────────────────────────
+    # If price is below SMA200, we are in a structural bear market.
+    # Bullish signals from oscillators (RSI, MACD) are unreliable here
+    # because they often produce "dead cat bounce" false positives.
+    is_below_sma200 = cp < tech.get("sma200", cp)
+
+    # ── SMA scoring (structural weight) ───────────────────────────
     for sma in ["sma20", "sma50", "sma200"]:
         if cp > tech[sma]: bull += 1
         else:               bear += 1
 
+    # ── RSI scoring (penalized below SMA200) ──────────────────────
     rsi = tech["rsi"]
-    if   rsi > 70: bear += 1
-    elif rsi < 30: bull += 2
+    if rsi > 70:
+        bear += 1                           # overbought — always penalise
+    elif rsi < 30:
+        if is_below_sma200:
+            bull += 1                       # oversold in downtrend = bounce risk, not reversal
+        else:
+            bull += 2                       # oversold in uptrend = high-confidence long signal
 
-    if tech["macd"] > tech["signal_line"]: bull += 1
-    else:                                   bear += 1
+    # ── MACD scoring (ignored in structural bear) ─────────────────
+    if tech["macd"] > tech["signal_line"]:
+        if not is_below_sma200:
+            bull += 1                       # MACD crossover in structural bear = unreliable
+        # else: crossover below SMA200 gets 0 points — could be fake
+    else:
+        bear += 1
 
+    # ── OI / PCR scoring ──────────────────────────────────────────
     if oc_analysis:
         pcr = oc_analysis["pcr_oi"]
         if   pcr > 1.2: bull += 2
@@ -714,8 +943,24 @@ def compute_market_direction(tech, oc_analysis):
     elif diff <= -3: bias, bias_cls = "BEARISH",  "bearish"; confidence = "HIGH" if diff <= -4 else "MEDIUM"
     else:            bias, bias_cls = "SIDEWAYS", "neutral"; confidence = "MEDIUM"
 
-    return {"bias": bias, "bias_cls": bias_cls, "confidence": confidence,
-            "bull": bull, "bear": bear, "diff": diff}
+    # ── VIX regime flags (used by JS PoP engine for strategy scoring) ─
+    # High VIX (>22): favour Long Volatility (Straddles, Backspreads)
+    #                 penalise Non-Directional premium-selling (Iron Condors)
+    # Low  VIX (<15): favour premium-selling strategies (Iron Condors, Short Straddles)
+    vix_regime = "high" if live_vix > 22 else "low" if live_vix < 15 else "normal"
+
+    return {
+        "bias":                 bias,
+        "bias_cls":             bias_cls,
+        "confidence":           confidence,
+        "bull":                 bull,
+        "bear":                 bear,
+        "diff":                 diff,
+        "sma200_filter_active": is_below_sma200,
+        "vix_regime":           vix_regime,
+        "vix_high":             live_vix > 22,
+        "vix_low":              live_vix < 15,
+    }
 
 
 # =================================================================
@@ -3744,7 +3989,25 @@ def main():
 
     print("\n[2/4] Fetching India VIX...")
     vix_data = fetch_india_vix(nse_session, nse_headers)
-    live_vix = vix_data["value"] if vix_data else 18.0
+    live_vix = vix_data["value"] if vix_data else None
+
+    # If VIX fetch fails, derive implied volatility from ATM option prices using
+    # Newton-Raphson. Market-implied IV is always more accurate than a hardcoded
+    # fallback for Black-Scholes Greek calculations.
+    if live_vix is None:
+        if oc_raw:
+            live_vix = _derive_atm_iv_fallback(oc_raw)
+            if live_vix:
+                print(f"  VIX unavailable — NR-IV derived from ATM options: {live_vix:.2f}%")
+                vix_data = {"value": live_vix, "prev_close": live_vix, "change": 0,
+                            "change_pct": 0, "high": live_vix, "low": live_vix,
+                            "status": "nr_derived"}
+            else:
+                live_vix = 18.0
+                print(f"  WARNING: VIX + NR-IV both failed — using hardcoded 18.0 (Greeks unreliable)")
+        else:
+            live_vix = 18.0
+            print(f"  WARNING: No option data for NR-IV — using hardcoded 18.0")
     # Fetch all 7 expiries for dropdown
     print("\n  Fetching next 7 expiries for dropdown...")
     multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=7)
@@ -3774,8 +4037,11 @@ def main():
         print(f"  StrongSup={tech['strong_sup']:.0f}  StrongRes={tech['strong_res']:.0f}")
 
     print("\n[4/4] Scoring Market Direction...")
-    md = compute_market_direction(tech, oc_analysis)
+    md = compute_market_direction(tech, oc_analysis, live_vix=live_vix)
     print(f"  Bias={md['bias']}  Conf={md['confidence']}  Bull={md['bull']}  Bear={md['bear']}")
+    if md.get("sma200_filter_active"):
+        print(f"  SMA200 Filter ACTIVE — MACD/RSI bullish signals penalized (structural bear)")
+    print(f"  VIX Regime={md['vix_regime'].upper()}  (live_vix={live_vix:.2f})")
 
     print("\nGenerating Holiday-Aware Dashboard...")
     html = generate_html(tech, oc_analysis, md, ts, vix_data=vix_data,
@@ -3829,7 +4095,6 @@ def main():
 
 if __name__ == "__main__":
     # Runs ONCE and exits — scheduling is handled by crontab / GitHub Actions.
-    # Do NOT wrap in a while loop here.
     try:
         main()
     except Exception as e:
