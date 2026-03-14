@@ -2077,29 +2077,23 @@ def build_key_levels_html(tech, oc):
     mp  = oc["max_pain"]            if oc else cp
     gfs = oc.get("gex_flip_strike") if oc else None
 
-    # ── Smart scale: spot always visible with breathing room ─────────────────
-    # Step 1: find the natural range of all prices
+    # ── Scale: equal 8% padding each side of the full price range ───────────
+    # All 4 S/R levels + spot + max pain are included.
+    # Equal padding means no value ever gets clamped off the bar.
+    # Spot lands at its natural proportional position — always visible.
     all_vals = [ss, s1, r1, sr, cp, mp]
     raw_min  = min(all_vals)
     raw_max  = max(all_vals)
     raw_rng  = raw_max - raw_min or 1
-
-    # Step 2: add 2% buffer to bar_max
-    buf     = raw_rng * 0.02
-    bar_max = raw_max + buf
-
-    # Step 3: set bar_min so spot lands at exactly TARGET_LEFT% from the left.
-    # This ensures spot always has visible space to its left.
-    # Solve: (cp - bar_min) / (bar_max - bar_min) = TARGET_LEFT
-    # => bar_min = (cp - TARGET_LEFT * bar_max) / (1 - TARGET_LEFT)
-    TARGET_LEFT = 0.20   # spot at 20% from left — good breathing room
-    bar_min = (cp - TARGET_LEFT * bar_max) / (1 - TARGET_LEFT)
-    bar_rng = bar_max - bar_min or 1
+    buf      = raw_rng * 0.08          # 8% breathing room each side
+    bar_min  = raw_min - buf
+    bar_max  = raw_max + buf
+    bar_rng  = bar_max - bar_min or 1
 
     def pct(v):
-        return round(max(0.5, min(99.5, (v - bar_min) / bar_rng * 100)), 1)
+        return round((v - bar_min) / bar_rng * 100, 1)
 
-    cp_pct = pct(cp)   # always ~20% from left
+    cp_pct = pct(cp)
     ss_pct = pct(ss); s1_pct = pct(s1)
     r1_pct = pct(r1); sr_pct = pct(sr)
     mp_pct = pct(mp)
