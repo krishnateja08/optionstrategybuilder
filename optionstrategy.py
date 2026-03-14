@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Nifty 50 Options Strategy Dashboard — GitHub Pages Generator
-Aurora Borealis Theme · v20.0 · Smart Dynamic PoP Engine + Intraday P&L Simulator
+Aurora Borealis Theme · v21.0 · Smart Dynamic PoP Engine + Intraday P&L Simulator
 - PoP now reflects: Market Bias + Support/Resistance + Max CE/PE OI walls + PCR
 - lotSize fixed to 65
 - Strategies ranked by smart PoP — highest PoP = best trade right now
@@ -18,6 +18,10 @@ Aurora Borealis Theme · v20.0 · Smart Dynamic PoP Engine + Intraday P&L Simula
   2. Asymmetric IV move in P&L sim — down moves spike IV 3x harder than up moves
   3. Slippage deduction on Net Credit/Debit (0.3–0.7% by leg count)
   4. Skew-adjusted Vega already correct in BS (CE uses CE_IV, PE uses PE_IV)
+- NEW v21.0: Three Professional Corrections
+  1. Skew-aware IV fallback — missing OTM IVs now use ATM skew proxy instead of flat VIX
+  2. GEX Gamma Flip strike — added to OI analysis and displayed in Key Levels
+  3. Exhaustion override in bias scoring — RSI>68 at CE wall caps bias at SIDEWAYS/CAUTION
 
 pip install curl_cffi pandas numpy yfinance pytz scipy
 """
@@ -537,24 +541,66 @@ def _compute_true_pop_map(oc_analysis, vix=18.0):
     expiry_str = oc_analysis["expiry"]
     T          = _days_to_expiry_ist(expiry_str) / 365.0
 
-    # Pull ATM and OTM IVs from the strikes_data list
+    # Pull ATM and OTM IVs from the strikes_data list.
+    # ATM IVs are computed first via a simple raw lookup so the full get_iv()
+    # can reference them as the skew fallback for missing OTM IVs.
     strikes_data = oc_analysis.get("strikes_data", [])
 
-    def get_iv(strike, side):
-        """Return IV% for a given strike and side ('ce' or 'pe')."""
+    def _raw_strike_iv(strike, side):
+        """Simple raw lookup — returns 0.0 if missing, no fallback."""
         key = "ce_iv" if side == "ce" else "pe_iv"
         for s in strikes_data:
             if s["strike"] == strike:
                 val = float(s.get(key, 0) or 0)
-                return val if val > 0.5 else vix
+                return val if val > 0.5 else 0.0
+        return 0.0
+
+    atm_ce_iv = _raw_strike_iv(atm, "ce") or vix
+    atm_pe_iv = _raw_strike_iv(atm, "pe") or vix
+
+    def get_iv(strike, side):
+        """
+        Return IV% for a given strike and side ('ce' or 'pe').
+
+        Fallback hierarchy when NSE IV is missing or zero:
+          1. Use the actual per-strike IV from strikes_data (best — skew-correct)
+          2. Scale ATM IV by a simple skew approximation (wing proxy):
+               OTM puts: add ~0.5 IV pts per 50-pt OTM distance  (put skew)
+               OTM calls: subtract ~0.2 IV pts per 50-pt OTM distance (call skew flatter)
+          3. Only use flat VIX as last resort (worst — ignores skew entirely)
+        This ensures OTM puts are not underpriced in True PoP, which would
+        overstate the probability of a bull put spread expiring OTM.
+        """
+        key = "ce_iv" if side == "ce" else "pe_iv"
+        for s in strikes_data:
+            if s["strike"] == strike:
+                val = float(s.get(key, 0) or 0)
+                if val > 0.5:
+                    return val
+                # Strike found but IV missing — use skew-scaled ATM IV
+                atm_ref = atm_ce_iv if side == "ce" else atm_pe_iv
+                if atm_ref > 0.5:
+                    dist_steps = abs(strike - atm) / 50.0
+                    if side == "pe":
+                        # Puts have steeper skew — IV rises as we go further OTM
+                        skew_adj = dist_steps * 0.5
+                    else:
+                        # Calls have shallower skew — IV slightly falls OTM
+                        skew_adj = -dist_steps * 0.2
+                    return round(max(atm_ref + skew_adj, 5.0), 2)
+                return vix
+        # Strike not found at all — use skew-scaled ATM IV if available
+        atm_ref = atm_ce_iv if side == "ce" else atm_pe_iv
+        if atm_ref > 0.5:
+            dist_steps = abs(strike - atm) / 50.0
+            skew_adj = dist_steps * 0.5 if side == "pe" else -dist_steps * 0.2
+            return round(max(atm_ref + skew_adj, 5.0), 2)
         return vix
 
     def otm_strike(side, offset):
         """ATM ± offset*50, rounded to nearest 50."""
         return atm + offset * 50 if side == "ce" else atm - offset * 50
 
-    atm_ce_iv = get_iv(atm, "ce")
-    atm_pe_iv = get_iv(atm, "pe")
     otm1_ce   = otm_strike("ce", 1)
     otm1_pe   = otm_strike("pe", 1)
     otm2_ce   = otm_strike("ce", 2)
@@ -1079,6 +1125,58 @@ def analyze_option_chain(oc_data, vix=18.0):
     days_left    = _days_to_expiry_ist(oc_data["expiry"])
     dealer_alert = _dealer_hedge_alert(greeks["atm_greeks"], days_left, atm_strike)
 
+    # ── GEX Gamma Flip Strike ──────────────────────────────────────────────
+    # GEX = Σ (OI × Gamma × Spot² × 0.01 × LotSize)
+    # Convention: Call GEX is positive (dealers sold calls → they are short gamma
+    # → must buy on rises). Put GEX is negative (dealers sold puts → short gamma
+    # → must sell on drops). The flip strike is where total GEX crosses zero.
+    # Above the flip: dealers are net long gamma → they dampen moves (mean reversion).
+    # Below the flip: dealers are net short gamma → they amplify moves (trending).
+    # NOTE: We assume MMs are net short all options (standard for weeklies).
+    # This assumption holds well for NIFTY retail-dominated flow but is approximate.
+    LOT_SIZE = 65
+    gex_rows = []
+    for _, row in df.iterrows():
+        strike  = float(row["Strike"])
+        ce_oi   = float(row["CE_OI"])
+        pe_oi   = float(row["PE_OI"])
+        g_row   = _g_by_strike.get(int(strike), {})
+        ce_gam  = float(g_row.get("ce_gamma", 0) or 0)
+        pe_gam  = float(g_row.get("pe_gamma", 0) or 0)
+        spot_sq = oc_data["underlying"] ** 2 * 0.01
+        ce_gex  =  ce_oi * ce_gam * spot_sq * LOT_SIZE   # positive
+        pe_gex  = -pe_oi * pe_gam * spot_sq * LOT_SIZE   # negative
+        gex_rows.append({"strike": int(strike), "gex": ce_gex + pe_gex})
+
+    # Sort by strike and find the flip point (where cumulative GEX sign changes)
+    gex_rows.sort(key=lambda x: x["strike"])
+    gex_flip_strike = None
+    total_gex = sum(r["gex"] for r in gex_rows)
+    # Walk from ATM upward and downward to find crossing
+    atm_idx = next((i for i, r in enumerate(gex_rows) if r["strike"] >= atm_strike), len(gex_rows) // 2)
+    # Cumulative GEX from lowest strike to each level — flip is where sign changes
+    cum = 0.0
+    prev_cum = 0.0
+    for i, r in enumerate(gex_rows):
+        cum += r["gex"]
+        if i > 0 and prev_cum * cum < 0:   # sign change
+            gex_flip_strike = r["strike"]
+            break
+        prev_cum = cum
+    # Fallback: use the strike with minimum absolute cumulative GEX
+    if gex_flip_strike is None and gex_rows:
+        cum = 0.0
+        min_abs = float("inf")
+        for r in gex_rows:
+            cum += r["gex"]
+            if abs(cum) < min_abs:
+                min_abs = abs(cum)
+                gex_flip_strike = r["strike"]
+
+    gex_regime = "positive"  # above flip = dealers long gamma = dampen moves
+    if gex_flip_strike and oc_data["underlying"] < gex_flip_strike:
+        gex_regime = "negative"  # below flip = dealers short gamma = amplify moves
+
     return {
         "expiry":          oc_data["expiry"],
         "underlying":      oc_data["underlying"],
@@ -1119,6 +1217,9 @@ def analyze_option_chain(oc_data, vix=18.0):
         "price_oi_div":    price_oi_div,
         "dealer_alert":    dealer_alert,
         "oi_spike":        oi_spike,
+        "gex_flip_strike": gex_flip_strike,
+        "gex_regime":      gex_regime,
+        "total_gex":       round(total_gex / 1e7, 2),  # in crores for display
     }
 
 
@@ -1295,6 +1396,56 @@ def compute_market_direction(tech, oc_analysis, live_vix=18.0):
     elif diff <= -3: bias, bias_cls = "BEARISH",  "bearish"; confidence = "HIGH" if diff <= -4 else "MEDIUM"
     else:            bias, bias_cls = "SIDEWAYS", "neutral"; confidence = "MEDIUM"
 
+    # ── Exhaustion override ────────────────────────────────────────────────
+    # The raw scoring can output BULLISH even when RSI is stretched and spot
+    # is pressing against a heavy OI wall — which is an exhaustion setup, not
+    # a continuation setup. We cap the bias at SIDEWAYS and flag caution.
+    #
+    # Rule 1 — CE Wall Exhaustion:
+    #   RSI > 68 AND spot within 50pts of max CE OI strike (resistance wall)
+    #   → bias capped at SIDEWAYS, flag "Exhausted / CE Wall Resistance"
+    #   Rationale: heavy call writing at that strike creates a ceiling; overbought
+    #   RSI confirms buyers are losing momentum right at the sellers' zone.
+    #
+    # Rule 2 — PE Wall Exhaustion (mirror image):
+    #   RSI < 32 AND spot within 50pts of max PE OI strike (support wall)
+    #   → bias capped at SIDEWAYS, flag "Exhausted / PE Wall Support"
+    #   Rationale: heavy put writing = strong floor; oversold RSI = sellers
+    #   exhausted right at where put writers are defending.
+    exhaustion_flag = None
+    if oc_analysis:
+        max_ce_s = oc_analysis["max_ce_strike"]
+        max_pe_s = oc_analysis["max_pe_strike"]
+        rsi      = tech["rsi"]
+
+        if rsi > 68 and 0 <= (max_ce_s - cp) <= 50:
+            if bias == "BULLISH":
+                bias      = "SIDEWAYS"
+                bias_cls  = "neutral"
+                confidence = "LOW"
+                bear += 1   # adjust score to reflect caution
+            exhaustion_flag = {
+                "type":    "CE_WALL",
+                "signal":  f"RSI {rsi:.1f} overbought at CE wall ₹{max_ce_s:,} — exhaustion risk",
+                "rsi":     round(rsi, 1),
+                "wall":    max_ce_s,
+                "warning": "Bullish momentum likely stalling — avoid fresh long entries",
+            }
+
+        elif rsi < 32 and 0 <= (cp - max_pe_s) <= 50:
+            if bias == "BEARISH":
+                bias      = "SIDEWAYS"
+                bias_cls  = "neutral"
+                confidence = "LOW"
+                bull += 1   # adjust score to reflect caution
+            exhaustion_flag = {
+                "type":    "PE_WALL",
+                "signal":  f"RSI {rsi:.1f} oversold at PE wall ₹{max_pe_s:,} — snap-back risk",
+                "rsi":     round(rsi, 1),
+                "wall":    max_pe_s,
+                "warning": "Bearish momentum likely stalling — avoid fresh short entries",
+            }
+
     # ── VIX regime flags (used by JS PoP engine for strategy scoring) ─
     # High VIX (>22): favour Long Volatility (Straddles, Backspreads)
     #                 penalise Non-Directional premium-selling (Iron Condors)
@@ -1314,6 +1465,7 @@ def compute_market_direction(tech, oc_analysis, live_vix=18.0):
         "vix_low":              live_vix < 15,
         "max_pain_shift":       max_pain_shift,
         "mp_weight":            mp_weight,
+        "exhaustion_flag":      exhaustion_flag,
     }
 
 
@@ -1603,6 +1755,32 @@ def build_greeks_table_html(oc_analysis):
 #  SECTION 5B -- HERO
 # =================================================================
 
+def _build_exhaustion_banner_html(md):
+    """
+    Renders an amber warning strip below the hero widget when the
+    exhaustion override is active. Returns empty string when inactive.
+    """
+    ef = md.get("exhaustion_flag")
+    if not ef:
+        return ""
+    is_ce = ef["type"] == "CE_WALL"
+    col   = "#ffd166"
+    bg    = "rgba(255,209,102,.07)"
+    bdr   = "rgba(255,209,102,.25)"
+    icon  = "&#9651;" if is_ce else "&#9661;"   # up/down triangle
+    return (
+        f'<div style="background:{bg};border-bottom:1px solid {bdr};'
+        f'padding:8px 28px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">'
+        f'<span style="font-size:17.4px;color:{col};">{icon}</span>'
+        f'<span style="font-family:\'DM Mono\',monospace;font-size:13px;font-weight:700;'
+        f'letter-spacing:1.5px;text-transform:uppercase;color:{col};">EXHAUSTION CAUTION</span>'
+        f'<span style="font-size:15.2px;color:rgba(255,209,102,.85);">{ef["signal"]}</span>'
+        f'<span style="font-size:14.5px;color:rgba(255,255,255,.50);margin-left:auto;">'
+        f'{ef["warning"]}</span>'
+        f'</div>'
+    )
+
+
 def build_dual_gauge_hero(oc, tech, md, ts):
     if oc:
         chg_bull = oc["chg_bull_force"]; chg_bear = oc["chg_bear_force"]
@@ -1700,6 +1878,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     </div>
   </div>
 </div>
+{_build_exhaustion_banner_html(md)}
 """
 
 
@@ -1826,6 +2005,8 @@ def build_key_levels_html(tech, oc):
     r1 = tech["resistance"]; sr = tech["strong_res"]; rng = sr - ss or 1
     def pct(v): return round(max(3, min(97, (v - ss) / rng * 100)), 1)
     cp_pct = pct(cp); pts_r = int(r1 - cp); pts_s = int(cp - s1)
+
+    # Max Pain node
     mp_html = ""
     if oc:
         mp_p = pct(oc["max_pain"]); mp = oc["max_pain"]
@@ -1833,6 +2014,34 @@ def build_key_levels_html(tech, oc):
                    f'<div class="kl-dot" style="background:#6480ff;box-shadow:0 0 8px rgba(100,128,255,.5);margin:0 auto 4px;"></div>'
                    f'<div class="kl-lbl" style="color:#6480ff;">Max Pain</div>'
                    f'<div class="kl-val" style="color:#8aa0ff;">&#8377;{mp:,}</div></div>')
+
+    # GEX Gamma Flip node — shown in a second row below max pain
+    gex_html = ""
+    if oc and oc.get("gex_flip_strike"):
+        gfs      = oc["gex_flip_strike"]
+        regime   = oc.get("gex_regime", "positive")
+        gfp      = pct(gfs)
+        gex_col  = "#00c896" if regime == "positive" else "#ff6b6b"
+        gex_bg   = "rgba(0,200,150,.18)" if regime == "positive" else "rgba(255,107,107,.18)"
+        gex_lbl  = "GEX Flip ▲ Dampen" if regime == "positive" else "GEX Flip ▼ Amplify"
+        spot_side = "above" if cp > gfs else "below"
+        gex_html = (
+            f'<div style="margin-top:8px;padding:10px 16px;border-radius:10px;'
+            f'background:{gex_bg};border:1px solid {gex_col}44;'
+            f'display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
+            f'<div style="display:flex;align-items:center;gap:10px;">'
+            f'<span style="font-size:13px;font-weight:700;letter-spacing:1.5px;'
+            f'text-transform:uppercase;color:{gex_col};">&#9650; GEX GAMMA FLIP</span>'
+            f'<span style="font-family:\'DM Mono\',monospace;font-size:22px;font-weight:700;'
+            f'color:{gex_col};">&#8377;{gfs:,}</span>'
+            f'<span style="font-size:14px;color:rgba(255,255,255,.65);">{gex_lbl}</span>'
+            f'</div>'
+            f'<div style="font-size:13px;color:rgba(255,255,255,.55);">'
+            f'Spot is <b style="color:{gex_col};">{spot_side}</b> flip · '
+            f'{"Dealers long gamma → mean-revert moves" if regime == "positive" else "Dealers short gamma → trending moves"}'
+            f'</div></div>'
+        )
+
     return (
         f'<div class="section"><div class="sec-title">KEY LEVELS'
         f'<span class="sec-sub">1H Candles · Last 120 bars · Rounded to 25</span></div>'
@@ -1846,6 +2055,7 @@ def build_key_levels_html(tech, oc):
         f'</div>'
         f'<div class="kl-gradient-bar"><div class="kl-price-tick" style="left:{cp_pct}%;"></div></div>'
         f'<div style="position:relative;height:54px;">{mp_html}</div>'
+        f'{gex_html}'
         f'<div class="kl-dist-row">'
         f'<div class="kl-dist-box" style="border-color:rgba(255,107,107,.18);"><span style="color:var(--muted);">To Resistance</span><span style="color:#ff6b6b;font-weight:700;">+{pts_r:,} pts</span></div>'
         f'<div class="kl-dist-box" style="border-color:rgba(0,200,150,.18);"><span style="color:var(--muted);">To Support</span><span style="color:#00c896;font-weight:700;">-{pts_s:,} pts</span></div>'
@@ -4460,6 +4670,17 @@ def main():
     if md.get("max_pain_shift"):
         mps = md["max_pain_shift"]
         print(f"  *** MAX PAIN SHIFT: {mps['signal']}")
+    if md.get("exhaustion_flag"):
+        ef = md["exhaustion_flag"]
+        print(f"  *** EXHAUSTION OVERRIDE ({ef['type']}): {ef['signal']}")
+        print(f"      → {ef['warning']}")
+    if oc_analysis and oc_analysis.get("gex_flip_strike"):
+        gfs = oc_analysis["gex_flip_strike"]
+        regime = oc_analysis["gex_regime"]
+        spot_v = oc_analysis["underlying"]
+        print(f"  GEX Flip Strike=₹{gfs:,}  Regime={regime.upper()}  "
+              f"(Spot {'above' if spot_v > gfs else 'below'} flip → "
+              f"{'dampen' if regime == 'positive' else 'amplify'} moves)")
 
     print("\nGenerating Holiday-Aware Dashboard...")
     true_pop_map = _compute_true_pop_map(oc_analysis, vix=live_vix) if oc_analysis else {}
@@ -4508,7 +4729,7 @@ def main():
         json.dump(meta, f, indent=2)
     print("  Saved: docs/latest.json")
     print("\n" + "=" * 65)
-    print(f"  DONE  |  v20.0 · EdgeScore + True PoP + Asymmetric IV + Slippage")
+    print(f"  DONE  |  v21.0 · Skew IV + GEX Flip + Exhaustion Override")
     print(f"  Bias: {md['bias']}  |  Confidence: {md['confidence']}")
     print("  Holiday list: 2026 NSE official holidays pre-loaded")
     print("  Logic: Tuesday holiday → Monday → Friday (fallback)")
