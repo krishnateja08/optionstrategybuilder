@@ -2515,7 +2515,368 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
 <div class="section" id="strat">
   <div class="sec-title">STRATEGIES REFERENCE
     <span class="sec-sub">Smart PoP · Live S/R + OI Walls + Market Bias · Click to expand</span>
+    <button onclick="document.getElementById('tradeGuideModal').style.display='flex'" style="
+      margin-left:auto;background:linear-gradient(135deg,rgba(100,128,255,.18),rgba(0,200,150,.12));
+      border:1px solid rgba(100,128,255,.45);border-radius:20px;padding:7px 16px;cursor:pointer;
+      color:#8aa0ff;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+      display:flex;align-items:center;gap:7px;transition:all .2s;white-space:nowrap;"
+      onmouseover="this.style.background='linear-gradient(135deg,rgba(100,128,255,.28),rgba(0,200,150,.2))'"
+      onmouseout="this.style.background='linear-gradient(135deg,rgba(100,128,255,.18),rgba(0,200,150,.12))'">
+      &#128218; HOW TO TRADE
+    </button>
   </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       TRADE GUIDE MODAL
+       ═══════════════════════════════════════════════════════ -->
+  <div id="tradeGuideModal" style="display:none;position:fixed;inset:0;z-index:9999;
+    background:rgba(0,0,0,.75);align-items:center;justify-content:center;padding:16px;"
+    onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:#0d1117;border:1px solid rgba(100,128,255,.35);border-radius:18px;
+      width:100%;max-width:780px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;">
+
+      <!-- Modal header -->
+      <div style="padding:18px 22px 14px;border-bottom:1px solid rgba(100,128,255,.18);
+        display:flex;align-items:center;gap:12px;flex-shrink:0;">
+        <span style="font-size:22px;">&#128218;</span>
+        <div>
+          <div style="font-size:16px;font-weight:700;color:#e8eaf6;letter-spacing:.5px;">How to Trade — Complete Guide</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.45);margin-top:2px;">Read the card · Understand each metric · Know when to enter &amp; exit</div>
+        </div>
+        <button onclick="document.getElementById('tradeGuideModal').style.display='none'"
+          style="margin-left:auto;background:rgba(255,255,255,.07);border:none;border-radius:50%;
+          width:32px;height:32px;cursor:pointer;color:rgba(255,255,255,.5);font-size:18px;
+          display:flex;align-items:center;justify-content:center;">&#x2715;</button>
+      </div>
+
+      <!-- Tab bar -->
+      <div style="display:flex;gap:6px;padding:12px 22px 0;flex-shrink:0;border-bottom:1px solid rgba(100,128,255,.1);">
+        <button class="gtab active" onclick="gTab(this,'g-what')" style="padding:7px 16px;border-radius:20px 20px 0 0;border:1px solid rgba(100,128,255,.3);border-bottom:none;background:rgba(100,128,255,.15);color:#8aa0ff;font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;">WHAT IS IT</button>
+        <button class="gtab" onclick="gTab(this,'g-metrics')" style="padding:7px 16px;border-radius:20px 20px 0 0;border:1px solid transparent;background:transparent;color:rgba(255,255,255,.4);font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;">READ THE CARD</button>
+        <button class="gtab" onclick="gTab(this,'g-enter')" style="padding:7px 16px;border-radius:20px 20px 0 0;border:1px solid transparent;background:transparent;color:rgba(255,255,255,.4);font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;">ENTER TRADE</button>
+        <button class="gtab" onclick="gTab(this,'g-exit')" style="padding:7px 16px;border-radius:20px 20px 0 0;border:1px solid transparent;background:transparent;color:rgba(255,255,255,.4);font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;">EXIT RULES</button>
+        <button class="gtab" onclick="gTab(this,'g-all')" style="padding:7px 16px;border-radius:20px 20px 0 0;border:1px solid transparent;background:transparent;color:rgba(255,255,255,.4);font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;">ALL STRATEGIES</button>
+      </div>
+
+      <!-- Scrollable body -->
+      <div style="overflow-y:auto;padding:20px 22px;flex:1;">
+
+        <!-- ── TAB: WHAT IS IT ── -->
+        <div id="g-what" class="gtab-content">
+          <div style="font-size:13px;color:rgba(255,255,255,.55);margin-bottom:14px;line-height:1.7;">
+            Every strategy card on this dashboard follows the same layout. Here's what each part means.
+          </div>
+
+          <!-- Strategy anatomy -->
+          <div style="background:rgba(100,128,255,.07);border:1px solid rgba(100,128,255,.2);border-radius:12px;padding:14px 16px;margin-bottom:14px;">
+            <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:#8aa0ff;margin-bottom:10px;">&#9654; EXAMPLE: BULL PUT SPREAD</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div style="background:rgba(255,60,60,.1);border:1px solid rgba(255,80,80,.25);border-radius:8px;padding:10px 12px;">
+                <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#ff6b6b;margin-bottom:4px;">SELL (Short leg)</div>
+                <div style="font-size:18px;font-weight:700;color:#e8eaf6;">23,150 PE</div>
+                <div style="font-size:12px;color:rgba(255,255,255,.45);margin-top:3px;">LTP ₹233.65 — you COLLECT this</div>
+              </div>
+              <div style="background:rgba(0,200,120,.1);border:1px solid rgba(0,200,120,.25);border-radius:8px;padding:10px 12px;">
+                <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#00c896;margin-bottom:4px;">BUY (Hedge leg)</div>
+                <div style="font-size:18px;font-weight:700;color:#e8eaf6;">23,100 PE</div>
+                <div style="font-size:12px;color:rgba(255,255,255,.45);margin-top:3px;">LTP ₹210.05 — you PAY this</div>
+              </div>
+            </div>
+            <div style="margin-top:10px;font-size:12px;color:rgba(255,255,255,.55);line-height:1.7;background:rgba(255,255,255,.04);border-radius:8px;padding:10px;">
+              &#128181; Net credit = ₹233.65 − ₹210.05 = <strong style="color:#f0c040;">₹23.60/unit × 65 lots = ₹1,534 instantly credited</strong><br>
+              &#127919; Profit if Nifty stays <strong style="color:#00c896;">above ₹23,150</strong> till expiry &nbsp;|&nbsp; Max loss capped at <strong style="color:#ff6b6b;">₹1,716</strong>
+            </div>
+          </div>
+
+          <!-- 3 outcomes -->
+          <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:#8aa0ff;margin-bottom:8px;">&#9654; 3 POSSIBLE OUTCOMES AT EXPIRY</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div style="display:flex;gap:10px;align-items:flex-start;background:rgba(0,200,120,.07);border:1px solid rgba(0,200,120,.2);border-radius:8px;padding:10px 12px;">
+              <span style="color:#00c896;font-size:16px;flex-shrink:0;">&#10003;</span>
+              <div style="font-size:13px;color:rgba(255,255,255,.8);line-height:1.6;">
+                <strong>Nifty closes above ₹23,150</strong> → Both PEs expire worthless → Keep full ₹1,534 profit &#127881;
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start;background:rgba(240,192,64,.07);border:1px solid rgba(240,192,64,.2);border-radius:8px;padding:10px 12px;">
+              <span style="color:#f0c040;font-size:16px;flex-shrink:0;">&#8776;</span>
+              <div style="font-size:13px;color:rgba(255,255,255,.8);line-height:1.6;">
+                <strong>Nifty between ₹23,100 – ₹23,150</strong> → Partial outcome. Breakeven = <strong style="color:#f0c040;">₹23,126</strong>. Above it you profit, below it you lose.
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start;background:rgba(255,60,60,.07);border:1px solid rgba(255,80,80,.2);border-radius:8px;padding:10px 12px;">
+              <span style="color:#ff6b6b;font-size:16px;flex-shrink:0;">&#10007;</span>
+              <div style="font-size:13px;color:rgba(255,255,255,.8);line-height:1.6;">
+                <strong>Nifty closes below ₹23,100</strong> → Max loss = ₹1,716. The bought PE caps your loss here — cannot go worse. &#128679;
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── TAB: READ THE CARD ── -->
+        <div id="g-metrics" class="gtab-content" style="display:none;">
+
+          <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:#8aa0ff;margin-bottom:10px;">&#9654; EVERY METRIC EXPLAINED WITH EXAMPLES</div>
+
+          <!-- Metrics grid -->
+          <div style="display:flex;flex-direction:column;gap:8px;">
+
+            <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px 14px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:13px;font-weight:700;color:#e8eaf6;">Edge Score</span>
+                <span style="background:rgba(240,192,64,.15);color:#f0c040;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;">77% = STRONG</span>
+              </div>
+              <div style="font-size:12px;color:rgba(255,255,255,.5);line-height:1.7;">Your script combines 7 signals: Base 50% + Bias + S/R + OI Walls + PCR + Strat + IVP.<br>
+              &#128161; <strong style="color:rgba(255,255,255,.7);">Rule:</strong> Above 65% = tradeable &nbsp;|&nbsp; Above 75% = strong &nbsp;|&nbsp; Above 85% = size up<br>
+              &#128276; <em style="color:rgba(255,255,255,.4);">Eg: OI +9 means huge PE wall at 23,000 — market unlikely to breach it, so Bull Put Spread is safer</em></div>
+            </div>
+
+            <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px 14px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:13px;font-weight:700;color:#e8eaf6;">True PoP (IV-based)</span>
+                <span style="background:rgba(100,128,255,.15);color:#8aa0ff;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;">50% = MATH ONLY</span>
+              </div>
+              <div style="font-size:12px;color:rgba(255,255,255,.5);line-height:1.7;">Pure Black-Scholes probability. Doesn't know about OI walls or support levels.<br>
+              &#128161; <strong style="color:rgba(255,255,255,.7);">Rule:</strong> Trust Edge Score over True PoP — Edge Score adds market context on top.<br>
+              &#128276; <em style="color:rgba(255,255,255,.4);">Eg: True PoP 50% looks mediocre, but Edge 77% says OI+IVP push real odds higher</em></div>
+            </div>
+
+            <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px 14px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:13px;font-weight:700;color:#e8eaf6;">IVP — IV Percentile</span>
+                <span style="background:rgba(0,200,120,.15);color:#00c896;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;">98% = SELL PREMIUM &#10003;</span>
+              </div>
+              <div style="font-size:12px;color:rgba(255,255,255,.5);line-height:1.7;">How expensive options are vs the last 90 days. High IVP = premiums are fat = ideal to sell.<br>
+              &#128161; <strong style="color:rgba(255,255,255,.7);">Rule:</strong> IVP &gt;70% → sell premium strategies favoured (+8 bonus in Edge Score)<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;IVP &lt;20% → avoid selling premium (-15 penalty) → use buying strategies instead<br>
+              &#128276; <em style="color:rgba(255,255,255,.4);">Eg: VIX usually at 13-15, today at 22 → IVP 98% → options overpriced → great time to sell</em></div>
+            </div>
+
+            <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px 14px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:13px;font-weight:700;color:#e8eaf6;">R:R Ratio</span>
+                <span style="background:rgba(255,80,80,.12);color:#ff8080;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;">1:0.89 = TIGHT</span>
+              </div>
+              <div style="font-size:12px;color:rgba(255,255,255,.5);line-height:1.7;">For every ₹1 you risk, you make ₹0.89. Slightly unfavorable but normal for high-PoP trades.<br>
+              &#128161; <strong style="color:rgba(255,255,255,.7);">Rule:</strong> In premium selling, you trade R:R for probability. Accept 1:0.7+ when Edge &gt;75%<br>
+              &#128276; <em style="color:rgba(255,255,255,.4);">Eg: Bull Put earns ₹1,534 but risks ₹1,716. Balanced by 77% Edge Score.</em></div>
+            </div>
+
+            <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px 14px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:13px;font-weight:700;color:#e8eaf6;">Theoretical EV</span>
+                <span style="background:rgba(240,192,64,.12);color:#f0c040;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;">+₹91 = MARGINAL</span>
+              </div>
+              <div style="font-size:12px;color:rgba(255,255,255,.5);line-height:1.7;">EV = (TruePop × MaxProfit) − (1−TruePop) × MaxLoss. Positive EV = mathematically justified.<br>
+              &#128161; <strong style="color:rgba(255,255,255,.7);">Rule:</strong> EV &gt; ₹300 = strong trade &nbsp;|&nbsp; EV &gt; ₹0 = acceptable &nbsp;|&nbsp; EV &lt; ₹0 = skip<br>
+              &#128276; <em style="color:rgba(255,255,255,.4);">Eg: (0.5×1534)−(0.5×1716) = +₹91. Barely positive. The warning fires when R:R doesn't comfortably justify PoP.</em></div>
+            </div>
+
+            <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px 14px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:13px;font-weight:700;color:#e8eaf6;">Net CR/DR after slip</span>
+                <span style="background:rgba(0,200,120,.12);color:#00c896;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;">+₹1,526 = IN POCKET</span>
+              </div>
+              <div style="font-size:12px;color:rgba(255,255,255,.5);line-height:1.7;">Real cash credited after deducting slippage (0.5% × 2 legs = ₹8 deducted from ₹1,534).<br>
+              &#128276; <em style="color:rgba(255,255,255,.4);">Eg: Margin blocked = ₹3,250. You earn ₹1,526 if trade works → Return on margin ≈ 47%</em></div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ── TAB: ENTER TRADE ── -->
+        <div id="g-enter" class="gtab-content" style="display:none;">
+
+          <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:#8aa0ff;margin-bottom:10px;">&#9654; PRE-TRADE CHECKLIST — CHECK ALL 3 BEFORE ENTERING</div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">
+            <div style="background:rgba(0,200,120,.08);border:1px solid rgba(0,200,120,.25);border-radius:10px;padding:10px 12px;text-align:center;">
+              <div style="font-size:11px;color:rgba(255,255,255,.45);margin-bottom:4px;">Edge Score</div>
+              <div style="font-size:16px;font-weight:700;color:#00c896;">&gt; 65%</div>
+              <div style="font-size:10px;color:rgba(255,255,255,.35);margin-top:3px;">Required to enter</div>
+            </div>
+            <div style="background:rgba(0,200,120,.08);border:1px solid rgba(0,200,120,.25);border-radius:10px;padding:10px 12px;text-align:center;">
+              <div style="font-size:11px;color:rgba(255,255,255,.45);margin-bottom:4px;">IVP (for sellers)</div>
+              <div style="font-size:16px;font-weight:700;color:#00c896;">&gt; 70%</div>
+              <div style="font-size:10px;color:rgba(255,255,255,.35);margin-top:3px;">Premiums must be fat</div>
+            </div>
+            <div style="background:rgba(0,200,120,.08);border:1px solid rgba(0,200,120,.25);border-radius:10px;padding:10px 12px;text-align:center;">
+              <div style="font-size:11px;color:rgba(255,255,255,.45);margin-bottom:4px;">Theo EV</div>
+              <div style="font-size:16px;font-weight:700;color:#00c896;">&gt; ₹0</div>
+              <div style="font-size:10px;color:rgba(255,255,255,.35);margin-top:3px;">Must be positive</div>
+            </div>
+          </div>
+
+          <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:#8aa0ff;margin-bottom:10px;">&#9654; STEP-BY-STEP ORDER ENTRY</div>
+
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div style="display:flex;gap:12px;align-items:flex-start;background:rgba(255,255,255,.04);border-radius:10px;padding:10px 14px;">
+              <div style="width:24px;height:24px;border-radius:50%;background:rgba(100,128,255,.25);color:#8aa0ff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">1</div>
+              <div style="font-size:13px;color:rgba(255,255,255,.75);line-height:1.6;"><strong>Open your broker</strong> → go to F&amp;O Options section (Zerodha / Upstox / Sensibull)</div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-start;background:rgba(255,255,255,.04);border-radius:10px;padding:10px 14px;">
+              <div style="width:24px;height:24px;border-radius:50%;background:rgba(100,128,255,.25);color:#8aa0ff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">2</div>
+              <div style="font-size:13px;color:rgba(255,255,255,.75);line-height:1.6;"><strong>Select NIFTY + current week expiry</strong> (Tuesday, or Monday/Friday if Tuesday is holiday — your script handles this automatically)</div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-start;background:rgba(255,255,255,.04);border-radius:10px;padding:10px 14px;">
+              <div style="width:24px;height:24px;border-radius:50%;background:rgba(100,128,255,.25);color:#8aa0ff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">3</div>
+              <div style="font-size:13px;color:rgba(255,255,255,.75);line-height:1.6;"><strong>Place as SPREAD order (both legs together)</strong><br>
+                <span style="color:#ff6b6b;">SELL</span> 1 lot NIFTY [Higher Strike] PE &nbsp;+&nbsp; <span style="color:#00c896;">BUY</span> 1 lot NIFTY [Lower Strike] PE<br>
+                <span style="font-size:12px;color:rgba(255,255,255,.4);">&#9888; Never place legs separately — risk of partial fill</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-start;background:rgba(255,255,255,.04);border-radius:10px;padding:10px 14px;">
+              <div style="width:24px;height:24px;border-radius:50%;background:rgba(100,128,255,.25);color:#8aa0ff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">4</div>
+              <div style="font-size:13px;color:rgba(255,255,255,.75);line-height:1.6;"><strong>Target net credit shown on card</strong> — if market moved and you're getting &lt;75% of shown credit, skip the trade</div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-start;background:rgba(255,255,255,.04);border-radius:10px;padding:10px 14px;">
+              <div style="width:24px;height:24px;border-radius:50%;background:rgba(100,128,255,.25);color:#8aa0ff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">5</div>
+              <div style="font-size:13px;color:rgba(255,255,255,.75);line-height:1.6;"><strong>Set a price alert</strong> on Nifty at the <strong style="color:#f0c040;">Breakeven level</strong> shown on the card — if it's hit intraday, review immediately</div>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;background:rgba(240,192,64,.08);border:1px solid rgba(240,192,64,.2);border-radius:10px;padding:12px 14px;font-size:12px;color:rgba(255,255,255,.55);line-height:1.7;">
+            &#9888; <strong style="color:#f0c040;">Position sizing:</strong> For Edge &lt;80% or EV &lt;₹200 → use 1–2 lots only.
+            For Edge &gt;85% + EV &gt;₹500 + IVP &gt;80% → you can size up to 3–5 lots.
+            Never over-leverage on borderline setups.
+          </div>
+        </div>
+
+        <!-- ── TAB: EXIT RULES ── -->
+        <div id="g-exit" class="gtab-content" style="display:none;">
+          <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:#8aa0ff;margin-bottom:10px;">&#9654; 3 CLEAR EXIT RULES — PICK THE FIRST ONE THAT TRIGGERS</div>
+
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+
+            <div style="background:rgba(0,200,120,.07);border:1px solid rgba(0,200,120,.2);border-radius:10px;padding:12px 14px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <div style="width:28px;height:28px;border-radius:50%;background:rgba(0,200,120,.2);color:#00c896;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;">₹</div>
+                <span style="font-size:13px;font-weight:700;color:#00c896;">PROFIT TARGET — Exit at 50–60% of max profit</span>
+              </div>
+              <div style="font-size:12px;color:rgba(255,255,255,.55);line-height:1.7;">
+                Max profit = what the card shows. Exit when your P&amp;L shows 50–60% of that. Don't hold till expiry.<br>
+                &#128276; <em>Eg: Card shows max profit ₹1,534. Exit when P&amp;L hits +₹750 to +₹900. Done.</em>
+              </div>
+            </div>
+
+            <div style="background:rgba(255,60,60,.07);border:1px solid rgba(255,80,80,.2);border-radius:10px;padding:12px 14px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <div style="width:28px;height:28px;border-radius:50%;background:rgba(255,80,80,.2);color:#ff6b6b;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;">SL</div>
+                <span style="font-size:13px;font-weight:700;color:#ff6b6b;">STOP LOSS — Exit if spread premium doubles</span>
+              </div>
+              <div style="font-size:12px;color:rgba(255,255,255,.55);line-height:1.7;">
+                You collected Net CR shown on the card. If closing the spread now costs 2× that amount → stop loss. Exit immediately.<br>
+                &#128276; <em>Eg: Collected ₹23.60. If closing now costs ₹47+ → exit. Lose ~₹800 instead of ₹1,716 max.</em>
+              </div>
+            </div>
+
+            <div style="background:rgba(240,192,64,.07);border:1px solid rgba(240,192,64,.2);border-radius:10px;padding:12px 14px;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <div style="width:28px;height:28px;border-radius:50%;background:rgba(240,192,64,.2);color:#f0c040;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;">&#8987;</div>
+                <span style="font-size:13px;font-weight:700;color:#f0c040;">TIME EXIT — Nifty approaching breakeven</span>
+              </div>
+              <div style="font-size:12px;color:rgba(255,255,255,.55);line-height:1.7;">
+                If Nifty is within 50 pts of the Breakeven shown on the card → exit. Small loss is better than max loss.<br>
+                &#128276; <em>Eg: Breakeven = ₹23,126. Nifty at ₹23,150 with bad news expected? Close the trade now.</em>
+              </div>
+            </div>
+          </div>
+
+          <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:#8aa0ff;margin-bottom:8px;">&#9654; HIGH IVP SPECIAL NOTE (when IVP &gt; 80%)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div style="background:rgba(0,200,120,.06);border:1px solid rgba(0,200,120,.15);border-radius:8px;padding:10px 12px;font-size:12px;color:rgba(255,255,255,.55);line-height:1.6;">
+              <strong style="color:#00c896;">IV Crush works FOR you &#10003;</strong><br>After any big event (budget, FOMC, earnings), if IV drops from 22→15, your sold premium deflates fast → profit even if Nifty barely moves.
+            </div>
+            <div style="background:rgba(255,60,60,.06);border:1px solid rgba(255,80,80,.15);border-radius:8px;padding:10px 12px;font-size:12px;color:rgba(255,255,255,.55);line-height:1.6;">
+              <strong style="color:#ff6b6b;">Sharp drop overrides IV &#10007;</strong><br>If Nifty falls 300+ pts quickly → price movement loss beats the IV benefit. Don't wait for IV to save you. Exit fast.
+            </div>
+          </div>
+        </div>
+
+        <!-- ── TAB: ALL STRATEGIES ── -->
+        <div id="g-all" class="gtab-content" style="display:none;">
+          <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:#8aa0ff;margin-bottom:10px;">&#9654; QUICK REFERENCE — ALL STRATEGIES AT A GLANCE</div>
+
+          <div style="display:flex;flex-direction:column;gap:6px;">
+
+            <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:rgba(0,200,120,.8);padding:6px 0 2px;">&#9650; BULLISH STRATEGIES</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+              <div style="background:rgba(0,200,120,.06);border:1px solid rgba(0,200,120,.15);border-radius:8px;padding:10px 12px;">
+                <div style="font-size:12px;font-weight:700;color:#e8eaf6;margin-bottom:3px;">Bull Put Spread</div>
+                <div style="font-size:11px;color:rgba(255,255,255,.4);line-height:1.5;">Sell higher PE, buy lower PE. <strong style="color:rgba(0,200,150,.7);">Credit</strong> upfront. Profit if Nifty stays above sold strike. Best when IVP high.</div>
+              </div>
+              <div style="background:rgba(0,200,120,.06);border:1px solid rgba(0,200,120,.15);border-radius:8px;padding:10px 12px;">
+                <div style="font-size:12px;font-weight:700;color:#e8eaf6;margin-bottom:3px;">Bull Call Spread</div>
+                <div style="font-size:11px;color:rgba(255,255,255,.4);line-height:1.5;">Buy lower CE, sell higher CE. <strong style="color:#ff8080;">Debit</strong> paid. Profit if Nifty rises above bought strike. Best when IVP low.</div>
+              </div>
+              <div style="background:rgba(0,200,120,.06);border:1px solid rgba(0,200,120,.15);border-radius:8px;padding:10px 12px;">
+                <div style="font-size:12px;font-weight:700;color:#e8eaf6;margin-bottom:3px;">Bull Call Ladder</div>
+                <div style="font-size:11px;color:rgba(255,255,255,.4);line-height:1.5;">Buy 1 CE, sell 2 higher CEs at different strikes. Lower cost, capped but wide profit zone.</div>
+              </div>
+              <div style="background:rgba(0,200,120,.06);border:1px solid rgba(0,200,120,.15);border-radius:8px;padding:10px 12px;">
+                <div style="font-size:12px;font-weight:700;color:#e8eaf6;margin-bottom:3px;">Bull Butterfly</div>
+                <div style="font-size:11px;color:rgba(255,255,255,.4);line-height:1.5;">Buy low CE, sell 2 mid CEs, buy high CE. Low cost. Profit if Nifty lands near middle strike.</div>
+              </div>
+            </div>
+
+            <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:rgba(255,100,100,.8);padding:10px 0 2px;">&#9660; BEARISH STRATEGIES</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+              <div style="background:rgba(255,60,60,.06);border:1px solid rgba(255,80,80,.15);border-radius:8px;padding:10px 12px;">
+                <div style="font-size:12px;font-weight:700;color:#e8eaf6;margin-bottom:3px;">Bear Call Spread</div>
+                <div style="font-size:11px;color:rgba(255,255,255,.4);line-height:1.5;">Sell lower CE, buy higher CE. <strong style="color:rgba(0,200,150,.7);">Credit</strong> upfront. Profit if Nifty stays below sold strike. Best when IVP high.</div>
+              </div>
+              <div style="background:rgba(255,60,60,.06);border:1px solid rgba(255,80,80,.15);border-radius:8px;padding:10px 12px;">
+                <div style="font-size:12px;font-weight:700;color:#e8eaf6;margin-bottom:3px;">Bear Put Spread</div>
+                <div style="font-size:11px;color:rgba(255,255,255,.4);line-height:1.5;">Buy higher PE, sell lower PE. <strong style="color:#ff8080;">Debit</strong> paid. Cheaper bearish bet. Profit if Nifty falls below bought strike.</div>
+              </div>
+            </div>
+
+            <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:rgba(100,128,255,.8);padding:10px 0 2px;">&#8596; NON-DIRECTIONAL STRATEGIES</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+              <div style="background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.15);border-radius:8px;padding:10px 12px;">
+                <div style="font-size:12px;font-weight:700;color:#e8eaf6;margin-bottom:3px;">Short Iron Condor</div>
+                <div style="font-size:11px;color:rgba(255,255,255,.4);line-height:1.5;">Sell call spread + sell put spread. Credit from both sides. Profit if Nifty stays in a range. Best when IVP high.</div>
+              </div>
+              <div style="background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.15);border-radius:8px;padding:10px 12px;">
+                <div style="font-size:12px;font-weight:700;color:#e8eaf6;margin-bottom:3px;">Short Straddle / Strangle</div>
+                <div style="font-size:11px;color:rgba(255,255,255,.4);line-height:1.5;">Sell ATM CE + ATM PE (straddle) or OTM CE + OTM PE (strangle). High credit. Profit if Nifty barely moves. Unlimited risk.</div>
+              </div>
+              <div style="background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.15);border-radius:8px;padding:10px 12px;">
+                <div style="font-size:12px;font-weight:700;color:#e8eaf6;margin-bottom:3px;">Long Straddle / Strangle</div>
+                <div style="font-size:11px;color:rgba(255,255,255,.4);line-height:1.5;">Buy ATM CE + ATM PE. Profit from big moves in either direction. Best when IVP low (cheap premium).</div>
+              </div>
+              <div style="background:rgba(100,128,255,.06);border:1px solid rgba(100,128,255,.15);border-radius:8px;padding:10px 12px;">
+                <div style="font-size:12px;font-weight:700;color:#e8eaf6;margin-bottom:3px;">Iron Butterfly</div>
+                <div style="font-size:11px;color:rgba(255,255,255,.4);line-height:1.5;">Sell ATM straddle + buy OTM wings. Tight profit zone at ATM. High credit, limited risk.</div>
+              </div>
+            </div>
+
+            <div style="margin-top:10px;background:rgba(255,255,255,.04);border-radius:8px;padding:10px 14px;font-size:12px;color:rgba(255,255,255,.45);line-height:1.8;">
+              &#128161; <strong style="color:rgba(255,255,255,.65);">IVP Quick Rule:</strong>&nbsp;
+              IVP &gt; 70% → <span style="color:#00c896;">Sell premium</span> (Bull Put, Bear Call, Iron Condor, Short Straddle) &nbsp;|&nbsp;
+              IVP &lt; 30% → <span style="color:#8aa0ff;">Buy premium</span> (Bull Call, Bear Put, Long Straddle, Long Strangle)
+            </div>
+          </div>
+        </div>
+
+      </div><!-- end scrollable body -->
+    </div><!-- end modal inner -->
+  </div><!-- end modal overlay -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+
+  <script>
+  function gTab(btn, id) {{
+    document.querySelectorAll('.gtab-content').forEach(el => el.style.display = 'none');
+    document.getElementById(id).style.display = 'block';
+    document.querySelectorAll('.gtab').forEach(el => {{
+      el.style.background = 'transparent';
+      el.style.color = 'rgba(255,255,255,.4)';
+      el.style.borderColor = 'transparent';
+    }});
+    btn.style.background = 'rgba(100,128,255,.15)';
+    btn.style.color = '#8aa0ff';
+    btn.style.borderColor = 'rgba(100,128,255,.3)';
+  }}
+  </script>
 
   <div id="smartPopLegend" style="
     background:linear-gradient(135deg,rgba(100,128,255,.08),rgba(0,200,150,.06));
