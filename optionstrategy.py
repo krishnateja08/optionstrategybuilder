@@ -2031,21 +2031,16 @@ def build_oi_html(oc):
 def build_key_levels_html(tech, oc):
     cp = tech["price"]; ss = tech["strong_sup"]; s1 = tech["support"]
     r1 = tech["resistance"]; sr = tech["strong_res"]
+    mp  = oc["max_pain"]            if oc else cp
+    gfs = oc.get("gex_flip_strike") if oc else None
 
-    mp  = oc["max_pain"]             if oc else cp
-    gfs = oc.get("gex_flip_strike")  if oc else None
-
-    # ── Wall-to-wall price scale ──────────────────────────────────────────────
-    # Use ONLY the 4 S/R levels + spot as scale anchors.
-    # No buffer — the bar spans from the lowest to highest price exactly,
-    # so nodes spread across the full width naturally.
+    # Wall-to-wall scale — 2% edge buffer only
     scale_prices = [ss, s1, r1, sr, cp]
     bar_min = min(scale_prices)
     bar_max = max(scale_prices)
-    # Tiny 2% edge buffer so leftmost/rightmost nodes aren't flush against edge
-    buf     = (bar_max - bar_min) * 0.02
-    bar_min -= buf;  bar_max += buf
-    bar_rng  = bar_max - bar_min or 1
+    buf = (bar_max - bar_min) * 0.02
+    bar_min -= buf; bar_max += buf
+    bar_rng = bar_max - bar_min or 1
 
     def pct(v):
         return round(max(0.5, min(99.5, (v - bar_min) / bar_rng * 100)), 1)
@@ -2055,116 +2050,68 @@ def build_key_levels_html(tech, oc):
     r1_pct = pct(r1); sr_pct = pct(sr)
     mp_pct = pct(mp)
 
-    pts_r = int(r1 - cp)
-    pts_s = int(cp - s1)
+    pts_r = int(r1 - cp); pts_s = int(cp - s1)
 
-    # ── Zone labels — positioned above their cluster midpoints ───────────────
-    sup_mid_pct = (ss_pct + s1_pct) / 2
-    res_mid_pct = (r1_pct + sr_pct) / 2
-    zone_label_html = (
-        f'<div style="position:relative;height:16px;margin-bottom:4px;">'
-        f'<span style="position:absolute;left:{sup_mid_pct}%;transform:translateX(-50%);'
-        f'font-family:\'DM Mono\',monospace;font-size:10px;font-weight:700;'
-        f'letter-spacing:1.5px;text-transform:uppercase;color:#00c896;white-space:nowrap;">'
-        f'SUPPORT ZONE</span>'
-        f'<span style="position:absolute;left:{res_mid_pct}%;transform:translateX(-50%);'
-        f'font-family:\'DM Mono\',monospace;font-size:10px;font-weight:700;'
-        f'letter-spacing:1.5px;text-transform:uppercase;color:#ff6b6b;white-space:nowrap;">'
-        f'RESISTANCE ZONE</span>'
-        f'</div>'
-    )
+    DM = "DM Mono,monospace"
+    BG = "rgba(6,8,15,.9)"
 
-    # ── Node layout: above-bar row only, dot on the bar line ─────────────────
-    # Each node is: dot on the bar + label ABOVE the dot.
-    # To avoid label collision we assign each node a vertical offset tier
-    # (0 = normal, 1 = raised 36px, 2 = raised 72px) using a greedy
-    # left-to-right algorithm that treats the NOW pill as a pre-placed blocker.
-    # Label width estimate: ~7px per char + 8px padding.
-    def lbl_w_pct(text, bar_px=1200):
-        """Approximate label width as percentage of bar width."""
-        return (len(text) * 7 + 8) / bar_px * 100
-
-    nodes = [
-        {"p": r1_pct, "lbl": "Resistance", "val": f"₹{r1:,.0f}",
-         "lc": "#ff6b6b", "vc": "#ff9090", "dot": "#ff6b6b",
-         "glow": "box-shadow:0 0 6px rgba(255,107,107,.6);"},
-        {"p": sr_pct, "lbl": "Strong Res",  "val": f"₹{sr:,.0f}",
-         "lc": "#cc4040", "vc": "#ff6b6b", "dot": "#cc4040", "glow": ""},
-        {"p": s1_pct, "lbl": "Support",     "val": f"₹{s1:,.0f}",
-         "lc": "#00c896", "vc": "#4de8b8", "dot": "#00c896",
-         "glow": "box-shadow:0 0 6px rgba(0,200,150,.6);"},
-        {"p": ss_pct, "lbl": "Strong Sup",  "val": f"₹{ss:,.0f}",
-         "lc": "#00a07a", "vc": "#00c896", "dot": "#00a07a", "glow": ""},
-    ]
-    nodes.sort(key=lambda n: n["p"])
-
-    # Greedy row assignment — pill is a pre-placed obstacle in row 0
-    TIER_H   = 38    # px per tier
-    MIN_PCT  = 9     # minimum pct-unit gap between labels on same tier
-    tiers    = [[] for _ in range(3)]   # list of occupied ranges per tier
-    # Pre-place the NOW pill as an obstacle in tier 0
-    pill_hw  = lbl_w_pct("NOW ₹" + f"{cp:,.0f}") / 2
-    tiers[0].append((cp_pct - pill_hw - 1, cp_pct + pill_hw + 1))
-
-    def fits(tier_idx, p, lbl, val):
-        hw = lbl_w_pct(val) / 2 + 0.5
-        lo, hi = p - hw - 1, p + hw + 1
-        for (a, b) in tiers[tier_idx]:
-            if lo < b and hi > a:
-                return False
-        return True
-
-    for n in nodes:
-        assigned = False
-        for t in range(3):
-            if fits(t, n["p"], n["lbl"], n["val"]):
-                n["tier"] = t
-                hw = lbl_w_pct(n["val"]) / 2 + 0.5
-                tiers[t].append((n["p"] - hw - 1, n["p"] + hw + 1))
-                assigned = True
-                break
-        if not assigned:
-            n["tier"] = 2
-
-    max_tier     = max(n["tier"] for n in nodes)
-    container_h  = 48 + max_tier * TIER_H   # enough room for all tiers + dot
-
-    # NOW pill: always place ABOVE the bar (top) — never below — so it
-    # never sits on the same horizontal plane as the node labels
-    pill_top = 4 + max_tier * TIER_H   # align with bottom of tallest tier
-
-    def node_html(n):
-        bot = str(n["tier"] * TIER_H) + "px"
+    def node_above(p, lbl, val, lc, vc, dc, glow=""):
         return (
-            f'<div class="kl-node" style="left:{n["p"]}%;bottom:{bot};'
-            f'transform:translateX(-50%);z-index:5;">'
-            f'<div class="kl-lbl" style="color:{n["lc"]};font-size:11px;">'
-            f'{n["lbl"]}</div>'
-            f'<div class="kl-val" style="color:{n["vc"]};font-size:13px;">'
-            f'{n["val"]}</div>'
-            f'<div class="kl-dot" style="background:{n["dot"]};{n["glow"]}'
-            f'margin:4px auto 0;width:9px;height:9px;border-radius:50%;'
-            f'border:2px solid var(--bg);"></div>'
-            f'</div>'
+            '<div style="position:absolute;left:' + str(p) + '%;bottom:12px;'
+            'transform:translateX(-50%);text-align:center;">'
+            '<div style="font-family:' + DM + ';font-size:10px;font-weight:700;'
+            'letter-spacing:1.2px;text-transform:uppercase;color:' + lc + ';'
+            'white-space:nowrap;line-height:1.3;">' + lbl + '</div>'
+            '<div style="font-family:' + DM + ';font-size:13px;font-weight:700;'
+            'color:' + vc + ';white-space:nowrap;line-height:1.3;">' + val + '</div>'
+            '<div style="width:9px;height:9px;border-radius:50%;background:' + dc + ';'
+            + glow + 'margin:4px auto 0;border:2px solid ' + BG + ';"></div>'
+            '</div>'
         )
 
-    nodes_html = "".join(node_html(n) for n in nodes)
+    nodes_html = (
+        node_above(ss_pct, "Strong Sup", "&#8377;" + f"{ss:,.0f}",
+                   "#00a07a", "#00c896", "#00a07a") +
+        node_above(s1_pct, "Support", "&#8377;" + f"{s1:,.0f}",
+                   "#00c896", "#4de8b8", "#00c896",
+                   "box-shadow:0 0 6px rgba(0,200,150,.7);") +
+        node_above(r1_pct, "Resistance", "&#8377;" + f"{r1:,.0f}",
+                   "#ff6b6b", "#ff9090", "#ff6b6b",
+                   "box-shadow:0 0 6px rgba(255,107,107,.7);") +
+        node_above(sr_pct, "Strong Res", "&#8377;" + f"{sr:,.0f}",
+                   "#cc4040", "#ff6b6b", "#cc4040")
+    )
 
-    # ── Max Pain (below bar row) ──────────────────────────────────────────────
+    # NOW pill — sits on the bar with downward triangle pointer
+    now_html = (
+        '<div style="position:absolute;left:' + str(cp_pct) + '%;bottom:6px;'
+        'transform:translateX(-50%);text-align:center;z-index:20;">'
+        '<div style="background:linear-gradient(90deg,#00c896,#6480ff);'
+        'color:#fff;font-family:' + DM + ';font-size:13px;font-weight:700;'
+        'padding:2px 11px;border-radius:20px;white-space:nowrap;'
+        'box-shadow:0 2px 10px rgba(0,200,150,.45);">'
+        '&#9660; NOW &#8377;' + f"{cp:,.0f}" +
+        '</div></div>'
+    )
+
+    # Max Pain — below the bar
     mp_html = ""
     if oc:
         mp_html = (
-            f'<div class="kl-node" style="left:{mp_pct}%;top:4px;'
-            f'transform:translateX(-50%);">'
-            f'<div class="kl-dot" style="background:#6480ff;'
-            f'box-shadow:0 0 6px rgba(100,128,255,.6);margin:0 auto 3px;'
-            f'width:9px;height:9px;border-radius:50%;border:2px solid var(--bg);"></div>'
-            f'<div class="kl-lbl" style="color:#6480ff;font-size:11px;">Max Pain</div>'
-            f'<div class="kl-val" style="color:#8aa0ff;font-size:13px;">₹{mp:,}</div>'
-            f'</div>'
+            '<div style="position:absolute;left:' + str(mp_pct) + '%;top:4px;'
+            'transform:translateX(-50%);text-align:center;">'
+            '<div style="width:9px;height:9px;border-radius:50%;background:#6480ff;'
+            'box-shadow:0 0 6px rgba(100,128,255,.7);margin:0 auto 3px;'
+            'border:2px solid ' + BG + ';"></div>'
+            '<div style="font-family:' + DM + ';font-size:10px;font-weight:700;'
+            'letter-spacing:1.2px;text-transform:uppercase;color:#6480ff;'
+            'white-space:nowrap;line-height:1.3;">Max Pain</div>'
+            '<div style="font-family:' + DM + ';font-size:13px;font-weight:700;'
+            'color:#8aa0ff;white-space:nowrap;line-height:1.3;">&#8377;' + f"{mp:,}" + '</div>'
+            '</div>'
         )
 
-    # ── GEX banner ────────────────────────────────────────────────────────────
+    # GEX banner
     gex_html = ""
     if oc and gfs:
         regime    = oc.get("gex_regime", "positive")
@@ -2173,23 +2120,23 @@ def build_key_levels_html(tech, oc):
         gex_lbl   = "GEX Flip ▲ Dampen" if regime == "positive" else "GEX Flip ▼ Amplify"
         spot_side = "above" if cp > gfs else "below"
         gex_html  = (
-            f'<div style="margin-top:8px;padding:10px 16px;border-radius:10px;'
-            f'background:{gex_bg};border:1px solid {gex_col}44;'
-            f'display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
-            f'<div style="display:flex;align-items:center;gap:10px;">'
-            f'<span style="font-size:13px;font-weight:700;letter-spacing:1.5px;'
-            f'text-transform:uppercase;color:{gex_col};">&#9650; GEX GAMMA FLIP</span>'
-            f'<span style="font-family:\'DM Mono\',monospace;font-size:22px;font-weight:700;'
-            f'color:{gex_col};">&#8377;{gfs:,}</span>'
-            f'<span style="font-size:14px;color:rgba(255,255,255,.65);">{gex_lbl}</span>'
-            f'</div>'
-            f'<div style="font-size:13px;color:rgba(255,255,255,.55);">'
-            f'Spot is <b style="color:{gex_col};">{spot_side}</b> flip · '
-            f'{"Dealers long gamma → mean-revert moves" if regime == "positive" else "Dealers short gamma → trending moves"}'
-            f'</div></div>'
+            '<div style="margin-top:8px;padding:10px 16px;border-radius:10px;'
+            'background:' + gex_bg + ';border:1px solid ' + gex_col + '44;'
+            'display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
+            '<div style="display:flex;align-items:center;gap:10px;">'
+            '<span style="font-size:13px;font-weight:700;letter-spacing:1.5px;'
+            'text-transform:uppercase;color:' + gex_col + ';">&#9650; GEX GAMMA FLIP</span>'
+            '<span style="font-family:' + DM + ';font-size:22px;font-weight:700;'
+            'color:' + gex_col + ';">&#8377;' + f"{gfs:,}" + '</span>'
+            '<span style="font-size:14px;color:rgba(255,255,255,.65);">' + gex_lbl + '</span>'
+            '</div>'
+            '<div style="font-size:13px;color:rgba(255,255,255,.55);">'
+            'Spot is <b style="color:' + gex_col + ';">' + spot_side + '</b> flip · '
+            + ("Dealers long gamma \u2192 mean-revert moves" if regime == "positive" else "Dealers short gamma \u2192 trending moves") +
+            '</div></div>'
         )
 
-    # ── Distance boxes ────────────────────────────────────────────────────────
+    # Distance boxes
     r_col   = "#ff6b6b" if pts_r > 0 else "#00c896"
     r_label = "To Resistance" if pts_r > 0 else "Above Resistance"
     r_sign  = "+" if pts_r > 0 else ""
@@ -2197,33 +2144,36 @@ def build_key_levels_html(tech, oc):
     s_label = "To Support" if pts_s > 0 else "Below Support"
     s_sign  = "-" if pts_s > 0 else ""
 
-    return (
-        f'<div class="section"><div class="sec-title">KEY LEVELS'
-        f'<span class="sec-sub">Price-ordered · 1H candles · Rounded to 25</span></div>'
-        f'{zone_label_html}'
-        f'<div style="position:relative;height:{container_h}px;">'
-        f'{nodes_html}'
-        f'<div id="kl-now-pill" style="position:absolute;left:{cp_pct}%;'
-        f'top:{pill_top}px;transform:translateX(-50%);'
-        f'background:linear-gradient(90deg,#00c896,#6480ff);color:#fff;'
-        f'font-size:14px;font-weight:700;padding:2px 12px;border-radius:20px;'
-        f'white-space:nowrap;box-shadow:0 2px 12px rgba(0,200,150,.4);z-index:20;">'
-        f'NOW &#8377;{cp:,.0f}</div>'
-        f'</div>'
-        f'<div class="kl-gradient-bar" style="margin-top:2px;">'
-        f'<div class="kl-price-tick" style="left:{cp_pct}%;"></div></div>'
-        f'<div style="position:relative;height:56px;">{mp_html}</div>'
-        f'{gex_html}'
-        f'<div class="kl-dist-row">'
-        f'<div class="kl-dist-box" style="border-color:{r_col}33;">'
-        f'<span style="color:var(--muted);">{r_label}</span>'
-        f'<span style="color:{r_col};font-weight:700;">{r_sign}{abs(pts_r):,} pts</span></div>'
-        f'<div class="kl-dist-box" style="border-color:{s_col}33;">'
-        f'<span style="color:var(--muted);">{s_label}</span>'
-        f'<span style="color:{s_col};font-weight:700;">{s_sign}{abs(pts_s):,} pts</span></div>'
-        f'</div></div>'
-    )
+    ZL = ('font-family:' + DM + ';font-size:10px;font-weight:700;'
+          'letter-spacing:1.5px;text-transform:uppercase;white-space:nowrap;')
 
+    return (
+        '<div class="section"><div class="sec-title">KEY LEVELS'
+        '<span class="sec-sub">Price-ordered \u00b7 1H candles \u00b7 Rounded to 25</span></div>'
+        # Zone labels — fixed edges, arrows pointing inward toward their zones
+        '<div style="display:flex;justify-content:space-between;align-items:center;'
+        'margin-bottom:4px;padding:0 2px;">'
+        '<span style="' + ZL + 'color:#ff6b6b;">&#9666; RESISTANCE ZONE</span>'
+        '<span style="' + ZL + 'color:#00c896;">SUPPORT ZONE &#9656;</span>'
+        '</div>'
+        # Main container: labels grow upward from bar, NOW pill just above bar
+        '<div style="position:relative;height:110px;">'
+        + nodes_html + now_html +
+        '<div class="kl-gradient-bar" style="position:absolute;bottom:0;left:0;right:0;">'
+        '<div class="kl-price-tick" style="left:' + str(cp_pct) + '%;"></div></div>'
+        '</div>'
+        # Max Pain below bar
+        '<div style="position:relative;height:52px;">' + mp_html + '</div>'
+        + gex_html +
+        '<div class="kl-dist-row">'
+        '<div class="kl-dist-box" style="border-color:' + r_col + '33;">'
+        '<span style="color:var(--muted);">' + r_label + '</span>'
+        '<span style="color:' + r_col + ';font-weight:700;">' + r_sign + str(abs(pts_r)) + ' pts</span></div>'
+        '<div class="kl-dist-box" style="border-color:' + s_col + '33;">'
+        '<span style="color:var(--muted);">' + s_label + '</span>'
+        '<span style="color:' + s_col + ';font-weight:700;">' + s_sign + str(abs(pts_s)) + ' pts</span></div>'
+        '</div></div>'
+    )
 
 def build_strikes_html(oc):
     if not oc or (not oc["top_ce"] and not oc["top_pe"]): return ""
