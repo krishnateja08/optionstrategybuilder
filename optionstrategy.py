@@ -2034,18 +2034,29 @@ def build_key_levels_html(tech, oc):
     mp  = oc["max_pain"]            if oc else cp
     gfs = oc.get("gex_flip_strike") if oc else None
 
-    # Wall-to-wall scale — 2% edge buffer only
-    scale_prices = [ss, s1, r1, sr, cp]
-    bar_min = min(scale_prices)
-    bar_max = max(scale_prices)
-    buf = (bar_max - bar_min) * 0.02
-    bar_min -= buf; bar_max += buf
+    # ── Smart scale: spot always visible with breathing room ─────────────────
+    # Step 1: find the natural range of all prices
+    all_vals = [ss, s1, r1, sr, cp, mp]
+    raw_min  = min(all_vals)
+    raw_max  = max(all_vals)
+    raw_rng  = raw_max - raw_min or 1
+
+    # Step 2: add 2% buffer to bar_max
+    buf     = raw_rng * 0.02
+    bar_max = raw_max + buf
+
+    # Step 3: set bar_min so spot lands at exactly TARGET_LEFT% from the left.
+    # This ensures spot always has visible space to its left.
+    # Solve: (cp - bar_min) / (bar_max - bar_min) = TARGET_LEFT
+    # => bar_min = (cp - TARGET_LEFT * bar_max) / (1 - TARGET_LEFT)
+    TARGET_LEFT = 0.20   # spot at 20% from left — good breathing room
+    bar_min = (cp - TARGET_LEFT * bar_max) / (1 - TARGET_LEFT)
     bar_rng = bar_max - bar_min or 1
 
     def pct(v):
         return round(max(0.5, min(99.5, (v - bar_min) / bar_rng * 100)), 1)
 
-    cp_pct = pct(cp)
+    cp_pct = pct(cp)   # always ~20% from left
     ss_pct = pct(ss); s1_pct = pct(s1)
     r1_pct = pct(r1); sr_pct = pct(sr)
     mp_pct = pct(mp)
@@ -2070,19 +2081,19 @@ def build_key_levels_html(tech, oc):
         )
 
     nodes_html = (
-        node_above(ss_pct, "Strong Sup", "&#8377;" + f"{ss:,.0f}",
+        node_above(ss_pct, "Strong Sup", "\u20b9" + f"{ss:,.0f}",
                    "#00a07a", "#00c896", "#00a07a") +
-        node_above(s1_pct, "Support", "&#8377;" + f"{s1:,.0f}",
+        node_above(s1_pct, "Support", "\u20b9" + f"{s1:,.0f}",
                    "#00c896", "#4de8b8", "#00c896",
                    "box-shadow:0 0 6px rgba(0,200,150,.7);") +
-        node_above(r1_pct, "Resistance", "&#8377;" + f"{r1:,.0f}",
+        node_above(r1_pct, "Resistance", "\u20b9" + f"{r1:,.0f}",
                    "#ff6b6b", "#ff9090", "#ff6b6b",
                    "box-shadow:0 0 6px rgba(255,107,107,.7);") +
-        node_above(sr_pct, "Strong Res", "&#8377;" + f"{sr:,.0f}",
+        node_above(sr_pct, "Strong Res", "\u20b9" + f"{sr:,.0f}",
                    "#cc4040", "#ff6b6b", "#cc4040")
     )
 
-    # NOW pill — sits on the bar with downward triangle pointer
+    # NOW pill — always at ~20% from left, sits on bar with ▼ pointer
     now_html = (
         '<div style="position:absolute;left:' + str(cp_pct) + '%;bottom:6px;'
         'transform:translateX(-50%);text-align:center;z-index:20;">'
@@ -2090,11 +2101,11 @@ def build_key_levels_html(tech, oc):
         'color:#fff;font-family:' + DM + ';font-size:13px;font-weight:700;'
         'padding:2px 11px;border-radius:20px;white-space:nowrap;'
         'box-shadow:0 2px 10px rgba(0,200,150,.45);">'
-        '&#9660; NOW &#8377;' + f"{cp:,.0f}" +
+        '\u25bc NOW \u20b9' + f"{cp:,.0f}" +
         '</div></div>'
     )
 
-    # Max Pain — below the bar
+    # Max Pain — below bar
     mp_html = ""
     if oc:
         mp_html = (
@@ -2107,7 +2118,7 @@ def build_key_levels_html(tech, oc):
             'letter-spacing:1.2px;text-transform:uppercase;color:#6480ff;'
             'white-space:nowrap;line-height:1.3;">Max Pain</div>'
             '<div style="font-family:' + DM + ';font-size:13px;font-weight:700;'
-            'color:#8aa0ff;white-space:nowrap;line-height:1.3;">&#8377;' + f"{mp:,}" + '</div>'
+            'color:#8aa0ff;white-space:nowrap;line-height:1.3;">\u20b9' + f"{mp:,}" + '</div>'
             '</div>'
         )
 
@@ -2117,7 +2128,7 @@ def build_key_levels_html(tech, oc):
         regime    = oc.get("gex_regime", "positive")
         gex_col   = "#00c896" if regime == "positive" else "#ff6b6b"
         gex_bg    = "rgba(0,200,150,.18)" if regime == "positive" else "rgba(255,107,107,.18)"
-        gex_lbl   = "GEX Flip ▲ Dampen" if regime == "positive" else "GEX Flip ▼ Amplify"
+        gex_lbl   = "GEX Flip \u25b2 Dampen" if regime == "positive" else "GEX Flip \u25bc Amplify"
         spot_side = "above" if cp > gfs else "below"
         gex_html  = (
             '<div style="margin-top:8px;padding:10px 16px;border-radius:10px;'
@@ -2125,14 +2136,15 @@ def build_key_levels_html(tech, oc):
             'display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
             '<div style="display:flex;align-items:center;gap:10px;">'
             '<span style="font-size:13px;font-weight:700;letter-spacing:1.5px;'
-            'text-transform:uppercase;color:' + gex_col + ';">&#9650; GEX GAMMA FLIP</span>'
+            'text-transform:uppercase;color:' + gex_col + ';">\u25b2 GEX GAMMA FLIP</span>'
             '<span style="font-family:' + DM + ';font-size:22px;font-weight:700;'
-            'color:' + gex_col + ';">&#8377;' + f"{gfs:,}" + '</span>'
+            'color:' + gex_col + ';">\u20b9' + f"{gfs:,}" + '</span>'
             '<span style="font-size:14px;color:rgba(255,255,255,.65);">' + gex_lbl + '</span>'
             '</div>'
             '<div style="font-size:13px;color:rgba(255,255,255,.55);">'
-            'Spot is <b style="color:' + gex_col + ';">' + spot_side + '</b> flip · '
-            + ("Dealers long gamma \u2192 mean-revert moves" if regime == "positive" else "Dealers short gamma \u2192 trending moves") +
+            'Spot is <b style="color:' + gex_col + ';">' + spot_side + '</b> flip \u00b7 '
+            + ("Dealers long gamma \u2192 mean-revert moves" if regime == "positive"
+               else "Dealers short gamma \u2192 trending moves") +
             '</div></div>'
         )
 
@@ -2149,20 +2161,17 @@ def build_key_levels_html(tech, oc):
 
     return (
         '<div class="section"><div class="sec-title">KEY LEVELS'
-        '<span class="sec-sub">Price-ordered \u00b7 1H candles \u00b7 Rounded to 25</span></div>'
-        # Zone labels — fixed edges, arrows pointing inward toward their zones
+        '<span class="sec-sub">Spot-anchored \u00b7 1H candles \u00b7 Rounded to 25</span></div>'
         '<div style="display:flex;justify-content:space-between;align-items:center;'
         'margin-bottom:4px;padding:0 2px;">'
-        '<span style="' + ZL + 'color:#ff6b6b;">&#9666; RESISTANCE ZONE</span>'
-        '<span style="' + ZL + 'color:#00c896;">SUPPORT ZONE &#9656;</span>'
+        '<span style="' + ZL + 'color:#00c896;">\u25c4 SUPPORT ZONE</span>'
+        '<span style="' + ZL + 'color:#ff6b6b;">RESISTANCE ZONE \u25ba</span>'
         '</div>'
-        # Main container: labels grow upward from bar, NOW pill just above bar
         '<div style="position:relative;height:110px;">'
         + nodes_html + now_html +
         '<div class="kl-gradient-bar" style="position:absolute;bottom:0;left:0;right:0;">'
         '<div class="kl-price-tick" style="left:' + str(cp_pct) + '%;"></div></div>'
         '</div>'
-        # Max Pain below bar
         '<div style="position:relative;height:52px;">' + mp_html + '</div>'
         + gex_html +
         '<div class="kl-dist-row">'
