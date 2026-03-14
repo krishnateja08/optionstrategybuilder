@@ -2106,37 +2106,80 @@ def build_key_levels_html(tech, oc):
 
     pts_r = int(r1 - cp); pts_s = int(cp - s1)
 
-    DM = "DM Mono,monospace"
-    BG = "rgba(6,8,15,.9)"
+    # ── Smart node rendering with vertical stagger ───────────────────────────
+    # Estimate label width in pct units (DM Mono ~7.5px/char at 10px font)
+    # If two adjacent nodes are within MIN_PX_GAP pct units, raise the right
+    # one by STAGGER_PX so labels never overlap.
+    # Also treat the NOW pill as a virtual obstacle.
+    BAR_PX    = 1200   # estimated bar pixel width
+    MIN_GAP   = 9.0    # pct units — closer than this = stagger needed
+    STAGGER   = 42     # px to raise a colliding node
 
-    def node_above(p, lbl, val, lc, vc, dc, glow=""):
+    def label_half_pct(text):
+        """Half-width of label in pct units based on character count."""
+        return (len(text) * 7.5 + 12) / BAR_PX * 100
+
+    # Build list of all nodes sorted left→right
+    raw_nodes = [
+        {"p": ss_pct, "lbl": "Strong Sup", "val": "\u20b9" + f"{ss:,.0f}",
+         "lc": "#00a07a", "vc": "#00c896", "dc": "#00a07a", "glow": ""},
+        {"p": s1_pct, "lbl": "Support",    "val": "\u20b9" + f"{s1:,.0f}",
+         "lc": "#00c896", "vc": "#4de8b8", "dc": "#00c896",
+         "glow": "box-shadow:0 0 6px rgba(0,200,150,.7);"},
+        {"p": r1_pct, "lbl": "Resistance", "val": "\u20b9" + f"{r1:,.0f}",
+         "lc": "#ff6b6b", "vc": "#ff9090", "dc": "#ff6b6b",
+         "glow": "box-shadow:0 0 6px rgba(255,107,107,.7);"},
+        {"p": sr_pct, "lbl": "Strong Res", "val": "\u20b9" + f"{sr:,.0f}",
+         "lc": "#cc4040", "vc": "#ff6b6b", "dc": "#cc4040", "glow": ""},
+    ]
+    raw_nodes.sort(key=lambda n: n["p"])
+
+    # Assign bottom offset: 12px base. If this node's label overlaps
+    # the previous node OR the NOW pill, raise by STAGGER_PX.
+    # Track placed label ranges as (lo, hi) pairs per bottom tier.
+    placed = {}  # {bottom_px: [(lo, hi), ...]}
+
+    # Pre-place NOW pill as obstacle at bottom=12 (pill sits near bottom of container)
+    pill_hw = label_half_pct("NOW \u20b9" + f"{cp:,.0f}")
+    placed[12] = [(cp_pct - pill_hw, cp_pct + pill_hw)]
+
+    def find_bottom(p, lbl, val, start_bottom=12):
+        hw = label_half_pct(val)
+        lo, hi = p - hw, p + hw
+        b = start_bottom
+        for _ in range(5):   # try up to 5 tiers
+            occupied = placed.get(b, [])
+            if not any(lo < oh and hi > ol for (ol, oh) in occupied):
+                placed.setdefault(b, []).append((lo, hi))
+                return b
+            b += STAGGER
+        placed.setdefault(b, []).append((lo, hi))
+        return b
+
+    for n in raw_nodes:
+        n["bottom"] = find_bottom(n["p"], n["lbl"], n["val"])
+
+    max_bottom   = max(n["bottom"] for n in raw_nodes)
+    container_h  = max_bottom + 46   # label height ~34px + dot ~9px + gap
+
+    def node_html(n):
+        b = str(n["bottom"]) + "px"
         return (
-            '<div style="position:absolute;left:' + str(p) + '%;bottom:12px;'
+            '<div style="position:absolute;left:' + str(n["p"]) + '%;bottom:' + b + ';'
             'transform:translateX(-50%);text-align:center;">'
             '<div style="font-family:' + DM + ';font-size:10px;font-weight:700;'
-            'letter-spacing:1.2px;text-transform:uppercase;color:' + lc + ';'
-            'white-space:nowrap;line-height:1.3;">' + lbl + '</div>'
+            'letter-spacing:1.2px;text-transform:uppercase;color:' + n["lc"] + ';'
+            'white-space:nowrap;line-height:1.3;">' + n["lbl"] + '</div>'
             '<div style="font-family:' + DM + ';font-size:13px;font-weight:700;'
-            'color:' + vc + ';white-space:nowrap;line-height:1.3;">' + val + '</div>'
-            '<div style="width:9px;height:9px;border-radius:50%;background:' + dc + ';'
-            + glow + 'margin:4px auto 0;border:2px solid ' + BG + ';"></div>'
+            'color:' + n["vc"] + ';white-space:nowrap;line-height:1.3;">' + n["val"] + '</div>'
+            '<div style="width:9px;height:9px;border-radius:50%;background:' + n["dc"] + ';'
+            + n["glow"] + 'margin:4px auto 0;border:2px solid ' + BG + ';"></div>'
             '</div>'
         )
 
-    nodes_html = (
-        node_above(ss_pct, "Strong Sup", "\u20b9" + f"{ss:,.0f}",
-                   "#00a07a", "#00c896", "#00a07a") +
-        node_above(s1_pct, "Support", "\u20b9" + f"{s1:,.0f}",
-                   "#00c896", "#4de8b8", "#00c896",
-                   "box-shadow:0 0 6px rgba(0,200,150,.7);") +
-        node_above(r1_pct, "Resistance", "\u20b9" + f"{r1:,.0f}",
-                   "#ff6b6b", "#ff9090", "#ff6b6b",
-                   "box-shadow:0 0 6px rgba(255,107,107,.7);") +
-        node_above(sr_pct, "Strong Res", "\u20b9" + f"{sr:,.0f}",
-                   "#cc4040", "#ff6b6b", "#cc4040")
-    )
+    nodes_html = "".join(node_html(n) for n in raw_nodes)
 
-    # NOW pill — always at ~20% from left, sits on bar with ▼ pointer
+    # NOW pill — sits just above the gradient bar, never overlaps node labels
     now_html = (
         '<div style="position:absolute;left:' + str(cp_pct) + '%;bottom:6px;'
         'transform:translateX(-50%);text-align:center;z-index:20;">'
@@ -2210,7 +2253,7 @@ def build_key_levels_html(tech, oc):
         '<span style="' + ZL + 'color:#00c896;">\u25c4 SUPPORT ZONE</span>'
         '<span style="' + ZL + 'color:#ff6b6b;">RESISTANCE ZONE \u25ba</span>'
         '</div>'
-        '<div style="position:relative;height:110px;">'
+        '<div style="position:relative;height:' + str(container_h) + 'px;">'
         + nodes_html + now_html +
         '<div class="kl-gradient-bar" style="position:absolute;bottom:0;left:0;right:0;">'
         '<div class="kl-price-tick" style="left:' + str(cp_pct) + '%;"></div></div>'
