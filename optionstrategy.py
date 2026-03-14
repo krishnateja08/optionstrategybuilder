@@ -2100,6 +2100,9 @@ def build_key_levels_html(tech, oc):
 
     pts_r = int(r1 - cp); pts_s = int(cp - s1)
 
+    DM = "DM Mono,monospace"
+    BG = "rgba(6,8,15,.9)"
+
     # ── Smart node rendering with vertical stagger ───────────────────────────
     # Estimate label width in pct units (DM Mono ~7.5px/char at 10px font)
     # If two adjacent nodes are within MIN_PX_GAP pct units, raise the right
