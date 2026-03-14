@@ -315,9 +315,26 @@ class NSEOptionChain:
 
         if result is None:
             print("  ERROR: Option chain fetch failed for all expiries.")
-        # NOTE: _cached_expiry_list removed — expiry list is fetched inside
-        # fetch_multiple_expiries() which is always called right after fetch().
-        # Fetching it here too was a redundant NSE API call.
+        # Also capture full expiry list for dropdown
+        self._cached_expiry_list = []
+        try:
+            url = f"https://www.nseindia.com/api/option-chain-v3?type=Indices&symbol={self.symbol}"
+            resp = session.get(url, headers=headers, impersonate="chrome", timeout=20)
+            if resp.status_code == 200:
+                all_exp = resp.json().get("records", {}).get("expiryDates", [])
+                today = today_ist()
+                for exp_str in all_exp:
+                    try:
+                        exp_dt = datetime.strptime(exp_str, "%d-%b-%Y").date()
+                        if exp_dt >= today:
+                            self._cached_expiry_list.append(exp_str)
+                            if len(self._cached_expiry_list) >= 7:
+                                break
+                    except Exception:
+                        continue
+                print(f"  Expiry list fetched: {self._cached_expiry_list}")
+        except Exception as e:
+            print(f"  WARNING expiry list: {e}")
         return result, session, headers
 
 
@@ -1399,7 +1416,6 @@ STRATEGIES_DATA = {
 def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed=None, expiry_list=None):
     spot       = oc_analysis["underlying"]   if oc_analysis else 23000
     atm        = oc_analysis["atm_strike"]   if oc_analysis else 23000
-    expiry     = oc_analysis["expiry"]       if oc_analysis else "17-Mar-2026"
     pcr        = oc_analysis["pcr_oi"]       if oc_analysis else 1.0
     mp         = oc_analysis["max_pain"]     if oc_analysis else 23000
     max_ce_s   = oc_analysis["max_ce_strike"] if oc_analysis else atm + 200
@@ -1416,7 +1432,6 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
             all_expiry_js[exp] = {
                 "spot":        round(oc_e["underlying"], 2),
                 "atm":         oc_e["atm_strike"],
-                "expiry":      exp,
                 "pcr":         round(oc_e["pcr_oi"], 3),
                 "maxCeStrike": oc_e["max_ce_strike"],
                 "maxPeStrike": oc_e["max_pe_strike"],
@@ -1564,7 +1579,6 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
 const OC={{
   spot:        {spot:.2f},
   atm:         {atm},
-  expiry:      "{expiry}",
   pcr:         {pcr:.3f},
   maxPain:     {mp},
   maxCeStrike: {max_ce_s},
@@ -2299,88 +2313,61 @@ function renderMetrics(m, scoreBreakdown) {{
   ${{sbHtml}}
   ${{buildIntradaySim(m)}}`;
 }}
+
 // ── Intraday P&L Simulator ───────────────────────────────────────────────────
 function buildIntradaySim(m) {{
   const lotSz   = OC.lotSize;
   const maxL    = m.mlRawVal === 999999 ? null : m.mlRawVal;
   const maxP    = m.mpRaw    === 999999 ? null : m.mpRaw;
-  const nd      = m.netDelta;
-  const nt      = m.netTheta;   // ₹ per day
-  const nv      = m.netVega;
-  const ng      = m.netGamma;
-
-  // ── Days to expiry (IST) ────────────────────────────────────────────
-  function calcDaysToExpiry() {{
-    try {{
-      const expStr = OC.expiry;
-      const parts  = expStr.split('-');
-      const months = {{Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}};
-      const expDate = new Date(Date.UTC(parseInt(parts[2]), months[parts[1]], parseInt(parts[0])));
-      const nowUtc  = Date.now() + (new Date().getTimezoneOffset() * 60000);
-      const nowIst  = new Date(nowUtc + 5.5 * 3600000);
-      const todayIst = new Date(Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth(), nowIst.getUTCDate()));
-      return Math.max(1, Math.round((expDate - todayIst) / 86400000));
-    }} catch(e) {{ return 4; }}
-  }}
-  const maxDays = calcDaysToExpiry();
+  const nd      = m.netDelta;   // ₹ per 1 point Nifty move
+  const nt      = m.netTheta;   // ₹ per day (negative = decay cost)
+  const nv      = m.netVega;    // ₹ per 1% IV change
+  const ng      = m.netGamma;   // ₹ curvature (½·Γ·move²)
 
   const moves = [-500,-400,-300,-200,-150,-100,-50,0,50,100,150,200,300,400,500];
 
-  function calcPnl(movePts, days) {{
+  function calcPnl(movePts) {{
+    // IV estimate: index moves ~4x inverse relationship to IV
+    // e.g. -300pt drop on 23000 spot ≈ -1.3% → IV rises ~5%
     const ivEst = -(movePts / OC.spot) * 400;
-    let pnl = nd * movePts + 0.5 * ng * movePts * movePts + nv * ivEst + (nt * days);
+    let pnl = nd * movePts + 0.5 * ng * movePts * movePts + nv * ivEst + nt;
     if (maxL !== null) pnl = Math.max(-maxL, pnl);
     if (maxP !== null) pnl = Math.min(maxP * 0.9, pnl);
     return Math.round(pnl);
   }}
 
-  function buildRows(days) {{
-    return moves.map(mv => {{
-      const pnl   = calcPnl(mv, days);
-      const col   = pnl > 100 ? '#38d888' : pnl > 0 ? '#ffcc00' : pnl > -200 ? '#ffaa00' : '#f04050';
-      const mvcol = mv > 0 ? '#38d888' : mv < 0 ? '#f04050' : '#ffcc00';
-      const mvbg  = mv > 0 ? 'rgba(56,216,136,.12)' : mv < 0 ? 'rgba(240,64,80,.18)' : 'rgba(255,185,0,.18)';
-      const mvlbl = mv > 0 ? '+' + mv : mv === 0 ? 'Flat' : String(mv);
-      const pctmp = maxP ? ((pnl / maxP) * 100).toFixed(0) + '%' : '\u2014';
-      const rowBg = mv === 0 ? 'background:rgba(255,185,0,.05);' : '';
-      return `<tr style="${{rowBg}}">
-        <td style="padding:6px 10px;white-space:nowrap;">
-          <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;padding:4px 8px;border-radius:4px;background:${{mvbg}};color:${{mvcol}};white-space:nowrap;display:inline-block;min-width:56px;text-align:center;">${{mvlbl}}${{mv!==0?'p':''}}</span>
-        </td>
-        <td style="padding:6px 8px;font-family:'DM Mono',monospace;font-size:13px;color:rgba(255,200,80,.82);white-space:nowrap;text-align:left;">${{(OC.spot+mv).toLocaleString('en-IN')}}</td>
-        <td style="padding:6px 8px;font-family:'DM Mono',monospace;font-weight:700;font-size:15px;color:${{col}};white-space:nowrap;text-align:right;">${{pnl>=0?'+':''}}\u20b9${{Math.abs(pnl).toLocaleString('en-IN')}}</td>
-        <td style="padding:6px 6px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${{col}};text-align:right;white-space:nowrap;">${{pctmp}}</td>
-      </tr>`;
-    }}).join('');
-  }}
+  const flatPnl  = calcPnl(0);
+  const flatCol  = flatPnl >= 0 ? '#38d888' : '#f04050';
+  const ntCol    = nt >= 0 ? '#38d888' : '#f04050';
+  const ntSign   = nt >= 0 ? '+' : '';
+  const ndStr    = (nd >= 0 ? '+' : '') + '\u20b9' + Math.abs(nd).toFixed(2);
+  const ntStr    = ntSign + '\u20b9' + Math.abs(Math.round(nt));
+  const nvStr    = (nv >= 0 ? '+' : '') + '\u20b9' + Math.abs(nv).toFixed(2);
 
-  const ntCol  = nt >= 0 ? '#38d888' : '#f04050';
-  const ntSign = nt >= 0 ? '+' : '';
-  const ndStr  = (nd >= 0 ? '+' : '') + '\u20b9' + Math.abs(nd).toFixed(2);
-  const ntStr  = ntSign + '\u20b9' + Math.abs(Math.round(nt));
-  const nvStr  = (nv >= 0 ? '+' : '') + '\u20b9' + Math.abs(nv).toFixed(2);
-  const flatPnl = Math.round(nd * 0 + nt);   // P&L at flat (0 move), 1 day
-  const flatCol = flatPnl >= 0 ? '#38d888' : '#f04050';
+  let tRows = '';
+  moves.forEach(mv => {{
+    const pnl    = calcPnl(mv);
+    const col    = pnl > 100 ? '#38d888' : pnl > 0 ? '#ffcc00' : pnl > -200 ? '#ffaa00' : '#f04050';
+    const mvcol  = mv > 0 ? '#38d888' : mv < 0 ? '#f04050' : '#ffcc00';
+    const mvbg   = mv > 0 ? 'rgba(56,216,136,.12)' : mv < 0 ? 'rgba(240,64,80,.18)' : 'rgba(255,185,0,.18)';
+    const mvlbl  = mv > 0 ? '+' + mv : mv === 0 ? 'Flat' : String(mv);
+    const pctmp  = maxP ? ((pnl / maxP) * 100).toFixed(0) + '%' : '—';
+    const isFlat = mv === 0;
+    const rowBg  = isFlat ? 'background:rgba(255,185,0,.05);' : '';
+    tRows += `<tr style="${{rowBg}}">
+      <td style="padding:6px 10px;white-space:nowrap;">
+        <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;padding:4px 8px;border-radius:4px;background:${{mvbg}};color:${{mvcol}};white-space:nowrap;display:inline-block;min-width:56px;text-align:center;">${{mvlbl}}${{mv!==0?'p':''}}</span>
+      </td>
+      <td style="padding:6px 8px;font-family:'DM Mono',monospace;font-size:13px;color:rgba(255,200,80,.82);white-space:nowrap;text-align:left;">${{(OC.spot+mv).toLocaleString('en-IN')}}</td>
+      <td style="padding:6px 8px;font-family:'DM Mono',monospace;font-weight:700;font-size:15px;color:${{col}};white-space:nowrap;text-align:right;">${{pnl>=0?'+':''}}\u20b9${{Math.abs(pnl).toLocaleString('en-IN')}}</td>
+      <td style="padding:6px 6px;font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:${{col}};text-align:right;white-space:nowrap;">${{pctmp}}</td>
+    </tr>`;
+  }});
 
-  // Day selector buttons
-  const dayBtnsHtml = Array.from({{length: maxDays}}, (_,i)=>i+1).map(d=>{{
-    const isExp = d === maxDays;
-    const lbl   = isExp ? d+'D \u2605 Expiry' : d+'D';
-    const act   = d === 1;
-    return `<button id="SIDBTN_${{d}}"
-      onclick="SIDSEL(${{d}})"
-      style="padding:4px 10px;font-family:DM Mono,monospace;font-size:12px;font-weight:700;
-        border-radius:4px;cursor:pointer;white-space:nowrap;transition:all .15s;
-        border:1px solid ${{act?'#ffcc00':'rgba(255,185,0,.3)'}};
-        color:${{act?'#ffcc00':'rgba(255,200,80,.5)'}};
-        background:${{act?'rgba(255,185,0,.15)':'transparent'}};">${{lbl}}</button>`;
-  }}).join('');
-
+  // Slider range: spot ± 400 in steps of 25
   const slMin = Math.round((OC.spot - 400) / 25) * 25;
   const slMax = Math.round((OC.spot + 400) / 25) * 25;
   const simId = 'sim_' + Math.random().toString(36).slice(2,7);
-
-  const dayBtns = dayBtnsHtml.replace(/SIDBTN/g, 'daybtn_'+simId).replace(/SIDSEL/g, 'selDay_'+simId);
 
   return `
 <div style="border-top:1px solid rgba(255,185,0,.2);background:rgba(11,8,0,.6);" onclick="event.stopPropagation()">
@@ -2393,34 +2380,25 @@ function buildIntradaySim(m) {{
 
   <!-- TAB 1: Scenarios -->
   <div id="${{simId}}_c1">
-
-    <!-- Day Selector -->
-    <div style="display:flex;align-items:center;gap:7px;padding:8px 12px;border-bottom:1px solid rgba(255,185,0,.1);background:rgba(0,0,0,.25);flex-wrap:wrap;">
-      <span style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1px;color:rgba(255,200,60,.7);text-transform:uppercase;white-space:nowrap;">📅 DAYS TO EXPIRY:</span>
-      ${{dayBtns}}
-      <span style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,185,0,.35);margin-left:2px;">Max ${{maxDays}}D · IST</span>
-    </div>
-
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px 6px;border-bottom:1px solid rgba(255,185,0,.12);">
-      <div id="${{simId}}_hdr" style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,210,0,.95);">📋 1 DAY P&amp;L SCENARIOS</div>
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,60,.7);background:rgba(0,0,0,.25);padding:2px 8px;border-radius:4px;">Δ + ½Γ + ν(IV) + Θ×days</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px;border-bottom:1px solid rgba(255,185,0,.12);">
+      <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,210,0,.95);">📋 TODAY'S P&amp;L SCENARIOS</div>
+      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,60,.7);background:rgba(0,0,0,.25);padding:2px 8px;border-radius:4px;">Delta + ½Gamma + Vega(IV) + Theta</div>
     </div>
     <table style="width:100%;border-collapse:collapse;">
       <thead>
         <tr style="background:rgba(0,0,0,.3);">
           <th style="padding:6px 10px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,205,60,.85);text-align:left;border-bottom:1px solid rgba(255,185,0,.08);">MOVE</th>
-          <th id="${{simId}}_col2" style="padding:6px 8px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,205,60,.85);text-align:left;border-bottom:1px solid rgba(255,185,0,.08);">1 DAY P&amp;L</th>
+          <th style="padding:6px 8px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,205,60,.85);text-align:left;border-bottom:1px solid rgba(255,185,0,.08);">TODAY P&amp;L</th>
           <th style="padding:6px 8px;font-family:DM Mono,monospace;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,205,60,.85);text-align:right;border-bottom:1px solid rgba(255,185,0,.08);">VS MAX</th>
           <th style="padding:6px 6px;border-bottom:1px solid rgba(255,185,0,.08);"></th>
         </tr>
       </thead>
-      <tbody id="${{simId}}_tbody">${{buildRows(1)}}</tbody>
+      <tbody>${{tRows}}</tbody>
     </table>
     <div style="padding:9px 12px;font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,70,.75);background:rgba(0,0,0,.25);border-top:1px solid rgba(255,185,0,.1);line-height:1.7;">
-      P&amp;L = <span style="color:rgba(255,215,0,.9);">Δ×move + ½Γ×move\u00b2 + \u03bd×\u0394IV + \u0398\u00d7<span id="${{simId}}_daylbl">1</span> day(s)</span>. Max profit ${{m.mpStr}} at expiry only.
+      © P&amp;L = <span style="color:rgba(255,215,0,.9);">Delta×move + ½Gamma×move² + Vega×ΔIV + Theta (1 day)</span>. ΔIV estimated from move size. Actual exit P&amp;L may differ. Max profit of ${{m.mpStr}} achievable at expiry only.
     </div>
   </div>
-
 
   <!-- TAB 2: Greeks Breakdown -->
   <div id="${{simId}}_c2" style="display:none;">
@@ -2629,7 +2607,6 @@ window.switchExpiry = function(exp) {{
   // Update OC object with selected expiry's data
   OC.spot        = d.spot;
   OC.atm         = d.atm;
-  OC.expiry      = exp;
   OC.pcr         = d.pcr;
   OC.maxCeStrike = d.maxCeStrike;
   OC.maxPeStrike = d.maxPeStrike;
@@ -3617,56 +3594,6 @@ function drawPayoffChart(card, m) {{
     </div>`;
 }}
 
-
-// ── Day Selector Setup (called after innerHTML injection) ────────────────────
-function setupDaySelector(simId, nd, nt, nv, ng, maxL, maxP, maxDays) {{
-  const _mv = [-500,-400,-300,-200,-150,-100,-50,0,50,100,150,200,300,400,500];
-  function _pnl(mv, days) {{
-    const iv = -(mv / OC.spot) * 400;
-    let p = nd*mv + 0.5*ng*mv*mv + nv*iv + (nt*days);
-    if (maxL !== null) p = Math.max(-maxL, p);
-    if (maxP !== null) p = Math.min(maxP*0.9, p);
-    return Math.round(p);
-  }}
-  window['selDay_'+simId] = function(days) {{
-    // Update button styles
-    for (let d=1; d<=maxDays; d++) {{
-      const b = document.getElementById('daybtn_'+simId+'_'+d);
-      if (!b) continue;
-      const a = (d===days);
-      b.style.borderColor = a ? '#ffcc00' : 'rgba(255,185,0,.3)';
-      b.style.color       = a ? '#ffcc00' : 'rgba(255,200,80,.5)';
-      b.style.background  = a ? 'rgba(255,185,0,.15)' : 'transparent';
-    }}
-    // Update headers
-    const isExp = (days === maxDays);
-    const hdr = document.getElementById(simId+'_hdr');
-    const col2 = document.getElementById(simId+'_col2');
-    const dlbl = document.getElementById(simId+'_daylbl');
-    if (hdr)  hdr.innerHTML  = isExp ? '📋 EXPIRY P&amp;L SCENARIOS' : '📋 '+days+' DAY'+(days>1?'S':'')+' P&amp;L SCENARIOS';
-    if (col2) col2.innerHTML = isExp ? 'EXPIRY P&amp;L' : days+' DAY'+(days>1?'S':'')+' P&amp;L';
-    if (dlbl) dlbl.textContent = days;
-    // Rebuild rows
-    const tbody = document.getElementById(simId+'_tbody');
-    if (!tbody) return;
-    tbody.innerHTML = _mv.map(mv => {{
-      const pnl = _pnl(mv, days);
-      const col = pnl>100?'#38d888':pnl>0?'#ffcc00':pnl>-200?'#ffaa00':'#f04050';
-      const mc  = mv>0?'#38d888':mv<0?'#f04050':'#ffcc00';
-      const mb  = mv>0?'rgba(56,216,136,.12)':mv<0?'rgba(240,64,80,.18)':'rgba(255,185,0,.18)';
-      const ml  = mv>0?'+'+mv:mv===0?'Flat':String(mv);
-      const pc  = maxP ? ((pnl/maxP)*100).toFixed(0)+'%' : '—';
-      const rb  = mv===0 ? 'background:rgba(255,185,0,.05);' : '';
-      return '<tr style="'+rb+'">'
-        +'<td style="padding:6px 10px;white-space:nowrap;"><span style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;padding:4px 8px;border-radius:4px;background:'+mb+';color:'+mc+';white-space:nowrap;display:inline-block;min-width:56px;text-align:center;">'+ml+(mv!==0?'p':'')+'</span></td>'
-        +'<td style="padding:6px 8px;font-family:DM Mono,monospace;font-size:13px;color:rgba(255,200,80,.82);white-space:nowrap;text-align:left;">'+(OC.spot+mv).toLocaleString('en-IN')+'</td>'
-        +'<td style="padding:6px 8px;font-family:DM Mono,monospace;font-weight:700;font-size:15px;color:'+col+';white-space:nowrap;text-align:right;">'+(pnl>=0?'+':'')+'₹'+Math.abs(pnl).toLocaleString('en-IN')+'</td>'
-        +'<td style="padding:6px 6px;font-family:DM Mono,monospace;font-size:13px;font-weight:700;color:'+col+';text-align:right;white-space:nowrap;">'+pc+'</td>'
-        +'</tr>';
-    }}).join('');
-  }};
-}}
-
 document.addEventListener("click",function(e){{
   const card=e.target.closest(".sc-card");
   if(card){{
@@ -3676,27 +3603,13 @@ document.addEventListener("click",function(e){{
       card.classList.add("expanded");
       const mel=card.querySelector('.sc-metrics-live');
       if(mel&&mel.querySelector('.sc-loading')){{
-        let _m = null;
         try{{
           const shape=card.dataset.shape, cat=card.dataset.cat;
           const scoreResult=smartPoP(shape,cat);
-          _m=calcMetrics(shape,scoreResult.pop);
-          mel.innerHTML=renderMetrics(_m, scoreResult);
+          const m=calcMetrics(shape,scoreResult.pop);
+          mel.innerHTML=renderMetrics(m, scoreResult);
+          drawPayoffChart(card, m);
         }}catch(err){{mel.innerHTML='<div class="sc-loading">Could not calculate metrics</div>';}}
-        // Payoff chart and day selector run separately so they never break metrics display
-        if(_m){{
-          try{{ drawPayoffChart(card, _m); }}catch(e){{}}
-          try{{
-            const _sid=mel.querySelector('[id$="_tbody"]');
-            if(_sid){{
-              const _simId=_sid.id.replace('_tbody','');
-              const _daysLeft=(function(){{try{{const p=OC.expiry.split('-');const mo={{Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}};const exp=new Date(Date.UTC(parseInt(p[2]),mo[p[1]],parseInt(p[0])));const nu=Date.now()+(new Date().getTimezoneOffset()*60000);const ni=new Date(nu+5.5*3600000);const td=new Date(Date.UTC(ni.getUTCFullYear(),ni.getUTCMonth(),ni.getUTCDate()));return Math.max(1,Math.round((exp-td)/86400000));}}catch(e){{return 4;}}}})();
-              setupDaySelector(_simId,_m.netDelta,_m.netTheta,_m.netVega,_m.netGamma,
-                _m.mlRawVal===999999?null:_m.mlRawVal,
-                _m.mpRaw===999999?null:_m.mpRaw,_daysLeft);
-            }}
-          }}catch(e){{}}
-        }}
       }}
     }}
   }}
@@ -3747,7 +3660,8 @@ def main():
     live_vix = vix_data["value"] if vix_data else 18.0
     # Fetch all 7 expiries for dropdown
     print("\n  Fetching next 7 expiries for dropdown...")
-    multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=7)
+    time.sleep(1.5)   # small gap so NSE doesn't block
+    multi_expiry_raw, expiry_list = nse.fetch_multiple_expiries(nse_session, nse_headers, n=15)
     print(f"  Expiry dropdown will show: {expiry_list}")
 
     # Pre-analyze all expiry data
@@ -3828,15 +3742,4 @@ def main():
 
 
 if __name__ == "__main__":
-    REFRESH_INTERVAL = 30   # seconds — must match TOTAL_SECS in the HTML JS
-    while True:
-        try:
-            main()
-        except KeyboardInterrupt:
-            print("\n  Stopped by user. Goodbye!")
-            break
-        except Exception as e:
-            print(f"\n  ERROR during run: {e}")
-            print(f"  Retrying in {REFRESH_INTERVAL}s ...\n")
-        print(f"\n  Next refresh in {REFRESH_INTERVAL}s  (Ctrl+C to stop)\n")
-        time.sleep(REFRESH_INTERVAL)
+    main()
