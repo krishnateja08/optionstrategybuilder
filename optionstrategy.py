@@ -2033,17 +2033,14 @@ def build_key_levels_html(tech, oc):
     r1 = tech["resistance"]; sr = tech["strong_res"]
 
     # ── Price-ordered scale ───────────────────────────────────────────────────
-    # Build the bar min/max from ALL values including spot and max pain so that
-    # every price lands at its correct proportional position regardless of
-    # whether spot is above, below, or between the support/resistance levels.
-    mp  = oc["max_pain"]      if oc else cp
-    gfs = oc.get("gex_flip_strike") if oc else None
+    mp  = oc["max_pain"]             if oc else cp
+    gfs = oc.get("gex_flip_strike")  if oc else None
 
     all_prices = [ss, s1, cp, r1, sr, mp]
     if gfs: all_prices.append(gfs)
     bar_min = min(all_prices)
     bar_max = max(all_prices)
-    buf     = max((bar_max - bar_min) * 0.06, 30)   # 6% padding each side
+    buf     = max((bar_max - bar_min) * 0.08, 50)   # 8% padding — more room at edges
     bar_min -= buf;  bar_max += buf
     bar_rng  = bar_max - bar_min or 1
 
@@ -2055,66 +2052,101 @@ def build_key_levels_html(tech, oc):
     r1_pct = pct(r1); sr_pct = pct(sr)
     mp_pct = pct(mp)
 
-    # Distance labels — absolute pts between spot and nearest S/R
-    pts_r = int(r1 - cp)   # negative if spot above resistance
-    pts_s = int(cp - s1)   # negative if spot below support
+    # Distance labels
+    pts_r = int(r1 - cp)
+    pts_s = int(cp - s1)
 
-    # ── Determine zone label placement ───────────────────────────────────────
-    # "Support zone" label anchors left of spot; "Resistance zone" anchors right.
-    # If spot is below all supports, both labels shift accordingly.
+    # ── Data-driven zone labels ───────────────────────────────────────────────
+    # Figure out where support and resistance actually are relative to spot.
+    # Show the zone label above the correct half of the bar, not hardcoded L/R.
+    sup_mid_pct  = (ss_pct + s1_pct) / 2   # midpoint of the two support nodes
+    res_mid_pct  = (r1_pct + sr_pct) / 2   # midpoint of the two resistance nodes
     zone_label_html = (
-        f'<div class="kl-zone-labels">'
-        f'<span style="color:#00c896;">SUPPORT ZONE</span>'
-        f'<span style="color:#ff6b6b;">RESISTANCE ZONE</span>'
+        f'<div style="position:relative;height:18px;margin-bottom:2px;">'
+        f'<span style="position:absolute;left:{sup_mid_pct}%;transform:translateX(-50%);'
+        f'font-family:\'DM Mono\',monospace;font-size:10px;font-weight:700;letter-spacing:1.5px;'
+        f'text-transform:uppercase;color:#00c896;white-space:nowrap;">SUPPORT ZONE</span>'
+        f'<span style="position:absolute;left:{res_mid_pct}%;transform:translateX(-50%);'
+        f'font-family:\'DM Mono\',monospace;font-size:10px;font-weight:700;letter-spacing:1.5px;'
+        f'text-transform:uppercase;color:#ff6b6b;white-space:nowrap;">RESISTANCE ZONE</span>'
         f'</div>'
     )
 
-    # ── Node vertical stagger to prevent label collisions ─────────────────────
-    # Nodes too close horizontally alternate between bottom=0 and bottom=34px
-    # so their labels don't overlap.  We sort all nodes by pct and check gaps.
+    # ── 3-row stagger system ──────────────────────────────────────────────────
+    # Row 0: bottom:0   (normal, dot sits on bar)
+    # Row 1: bottom:42px (raised one level above row 0)
+    # Row 2: bottom:84px (raised two levels — for very tight clusters)
+    # Algorithm: sort nodes by position, assign row greedily.
+    # A node is "blocked" at row N if any already-placed node at row N
+    # is within MIN_GAP pct units horizontally.
+    # Also treat the NOW pill position as a virtual obstacle.
+    MIN_GAP = 11   # pct units — nodes closer than this need different rows
+    ROW_BOTTOMS = ["0", "42px", "84px"]
+
     nodes = [
-        {"p": ss_pct, "lbl": "Strong Sup", "val": f"&#8377;{ss:,.0f}", "lc": "#00a07a", "vc": "#00c896", "dot": "#00a07a", "glow": ""},
-        {"p": s1_pct, "lbl": "Support",    "val": f"&#8377;{s1:,.0f}", "lc": "#00c896", "vc": "#4de8b8", "dot": "#00c896", "glow": "box-shadow:0 0 8px rgba(0,200,150,.5);"},
-        {"p": r1_pct, "lbl": "Resistance", "val": f"&#8377;{r1:,.0f}", "lc": "#ff6b6b", "vc": "#ff9090", "dot": "#ff6b6b", "glow": "box-shadow:0 0 8px rgba(255,107,107,.5);"},
-        {"p": sr_pct, "lbl": "Strong Res", "val": f"&#8377;{sr:,.0f}", "lc": "#cc4040", "vc": "#ff6b6b", "dot": "#cc4040", "glow": ""},
+        {"p": ss_pct, "lbl": "Strong Sup", "val": f"&#8377;{ss:,.0f}",
+         "lc": "#00a07a", "vc": "#00c896", "dot": "#00a07a", "glow": ""},
+        {"p": s1_pct, "lbl": "Support",    "val": f"&#8377;{s1:,.0f}",
+         "lc": "#00c896", "vc": "#4de8b8", "dot": "#00c896",
+         "glow": "box-shadow:0 0 8px rgba(0,200,150,.5);"},
+        {"p": r1_pct, "lbl": "Resistance", "val": f"&#8377;{r1:,.0f}",
+         "lc": "#ff6b6b", "vc": "#ff9090", "dot": "#ff6b6b",
+         "glow": "box-shadow:0 0 8px rgba(255,107,107,.5);"},
+        {"p": sr_pct, "lbl": "Strong Res", "val": f"&#8377;{sr:,.0f}",
+         "lc": "#cc4040", "vc": "#ff6b6b", "dot": "#cc4040", "glow": ""},
     ]
     nodes.sort(key=lambda n: n["p"])
-    # Assign alternating rows: nodes too close to neighbour go to top row
-    MIN_GAP = 12   # pct units — if closer than this, stagger
-    for i, n in enumerate(nodes):
-        if i == 0:
-            n["row"] = 0
-        else:
-            gap = n["p"] - nodes[i-1]["p"]
-            n["row"] = 1 if gap < MIN_GAP and nodes[i-1]["row"] == 0 else 0
 
-    # row=0 → bottom:0 (label on top, dot on bottom)
-    # row=1 → bottom:38px (raised — label clears the node below)
+    # Virtual obstacles: the NOW pill acts as a blocker at row 0
+    # so nodes too close to it get raised to row 1 or 2
+    obstacles = {0: [cp_pct], 1: [], 2: []}
+
+    def find_row(p):
+        for row in range(3):
+            blocked = any(abs(p - op) < MIN_GAP for op in obstacles[row])
+            if not blocked:
+                obstacles[row].append(p)
+                return row
+        # All three rows blocked — fall back to row 2
+        obstacles[2].append(p)
+        return 2
+
+    for n in nodes:
+        n["row"] = find_row(n["p"])
+
+    # Container height depends on how many rows are used
+    max_row = max(n["row"] for n in nodes)
+    container_h = 52 + max_row * 44   # 52px base + 44px per extra row
+
     def node_html(n):
-        bot = "0" if n["row"] == 0 else "38px"
+        bot = ROW_BOTTOMS[n["row"]]
         return (
-            f'<div class="kl-node" style="left:{n["p"]}%;bottom:{bot};transform:translateX(-50%);">'
+            f'<div class="kl-node" style="left:{n["p"]}%;bottom:{bot};'
+            f'transform:translateX(-50%);">'
             f'<div class="kl-lbl" style="color:{n["lc"]};">{n["lbl"]}</div>'
             f'<div class="kl-val" style="color:{n["vc"]};">{n["val"]}</div>'
-            f'<div class="kl-dot" style="background:{n["dot"]};{n["glow"]}margin:5px auto 0;"></div>'
+            f'<div class="kl-dot" style="background:{n["dot"]};{n["glow"]}'
+            f'margin:5px auto 0;"></div>'
             f'</div>'
         )
     nodes_html = "".join(node_html(n) for n in nodes)
 
-    # ── NOW pill — flip above bar if too close to any node ───────────────────
-    # Detect proximity using real computed percentages
-    close_to_any = any(abs(cp_pct - n["p"]) < 10 for n in nodes)
-    pill_pos  = 'top:4px' if close_to_any else 'bottom:8px'
+    # ── NOW pill vertical position ────────────────────────────────────────────
+    # Place pill above the bar (top:4px) so it never covers node labels below.
+    # Only keep it below (bottom:8px) when spot is far from all nodes.
+    close_to_any = any(abs(cp_pct - n["p"]) < MIN_GAP for n in nodes)
+    pill_pos = 'top:4px' if close_to_any else 'bottom:8px'
 
-    # ── Max Pain node row ─────────────────────────────────────────────────────
+    # ── Max Pain row (below the bar) ─────────────────────────────────────────
     mp_html = ""
     if oc:
-        # If max pain is too close to spot pill horizontally, raise it
-        mp_row_top = abs(mp_pct - cp_pct) < 10
-        mp_top_style = "top:0" if mp_row_top else "top:0"
+        # If max pain is very close to spot, offset its label slightly
+        mp_offset = "margin-left:18px;" if abs(mp_pct - cp_pct) < 8 else ""
         mp_html = (
-            f'<div class="kl-node" style="left:{mp_pct}%;{mp_top_style};transform:translateX(-50%);">'
-            f'<div class="kl-dot" style="background:#6480ff;box-shadow:0 0 8px rgba(100,128,255,.5);margin:0 auto 4px;"></div>'
+            f'<div class="kl-node" style="left:{mp_pct}%;top:0;'
+            f'transform:translateX(-50%);{mp_offset}">'
+            f'<div class="kl-dot" style="background:#6480ff;'
+            f'box-shadow:0 0 8px rgba(100,128,255,.5);margin:0 auto 4px;"></div>'
             f'<div class="kl-lbl" style="color:#6480ff;">Max Pain</div>'
             f'<div class="kl-val" style="color:#8aa0ff;">&#8377;{mp:,}</div>'
             f'</div>'
@@ -2133,8 +2165,10 @@ def build_key_levels_html(tech, oc):
             f'background:{gex_bg};border:1px solid {gex_col}44;'
             f'display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
             f'<div style="display:flex;align-items:center;gap:10px;">'
-            f'<span style="font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:{gex_col};">&#9650; GEX GAMMA FLIP</span>'
-            f'<span style="font-family:\'DM Mono\',monospace;font-size:22px;font-weight:700;color:{gex_col};">&#8377;{gfs:,}</span>'
+            f'<span style="font-size:13px;font-weight:700;letter-spacing:1.5px;'
+            f'text-transform:uppercase;color:{gex_col};">&#9650; GEX GAMMA FLIP</span>'
+            f'<span style="font-family:\'DM Mono\',monospace;font-size:22px;font-weight:700;'
+            f'color:{gex_col};">&#8377;{gfs:,}</span>'
             f'<span style="font-size:14px;color:rgba(255,255,255,.65);">{gex_lbl}</span>'
             f'</div>'
             f'<div style="font-size:13px;color:rgba(255,255,255,.55);">'
@@ -2143,11 +2177,11 @@ def build_key_levels_html(tech, oc):
             f'</div></div>'
         )
 
-    # ── Distance boxes — colour reflects whether spot is above/below ──────────
-    r_col   = "#ff6b6b" if pts_r > 0 else "#00c896"   # green if spot already above resistance
+    # ── Distance boxes ────────────────────────────────────────────────────────
+    r_col   = "#ff6b6b" if pts_r > 0 else "#00c896"
     r_sign  = "+" if pts_r > 0 else ""
     r_label = "To Resistance" if pts_r > 0 else "Above Resistance"
-    s_col   = "#00c896" if pts_s > 0 else "#ff6b6b"   # red if spot below support
+    s_col   = "#00c896" if pts_s > 0 else "#ff6b6b"
     s_sign  = "-" if pts_s > 0 else ""
     s_label = "To Support" if pts_s > 0 else "Below Support"
 
@@ -2155,12 +2189,13 @@ def build_key_levels_html(tech, oc):
         f'<div class="section"><div class="sec-title">KEY LEVELS'
         f'<span class="sec-sub">Price-ordered · 1H candles · Rounded to 25</span></div>'
         f'{zone_label_html}'
-        f'<div style="position:relative;height:80px;">'
+        f'<div style="position:relative;height:{container_h}px;">'
         f'{nodes_html}'
-        f'<div id="kl-now-pill" style="position:absolute;left:{cp_pct}%;{pill_pos};transform:translateX(-50%);'
-        f'background:linear-gradient(90deg,#00c896,#6480ff);color:#fff;font-size:15.9px;font-weight:700;'
-        f'padding:3px 14px;border-radius:20px;white-space:nowrap;'
-        f'box-shadow:0 2px 14px rgba(0,200,150,.35);z-index:20;">NOW &#8377;{cp:,.0f}</div>'
+        f'<div id="kl-now-pill" style="position:absolute;left:{cp_pct}%;{pill_pos};'
+        f'transform:translateX(-50%);background:linear-gradient(90deg,#00c896,#6480ff);'
+        f'color:#fff;font-size:15.9px;font-weight:700;padding:3px 14px;border-radius:20px;'
+        f'white-space:nowrap;box-shadow:0 2px 14px rgba(0,200,150,.35);z-index:20;">'
+        f'NOW &#8377;{cp:,.0f}</div>'
         f'</div>'
         f'<div class="kl-gradient-bar"><div class="kl-price-tick" style="left:{cp_pct}%;"></div></div>'
         f'<div style="position:relative;height:58px;">{mp_html}</div>'
@@ -4061,7 +4096,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .oi-ticker-row:hover{background:rgba(255,255,255,.03)}
 .oi-ticker-metric{font-size:14.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.70)}
 .oi-ticker-cell{text-align:center}
-.kl-zone-labels{display:flex;justify-content:space-between;margin-bottom:6px;font-size:15.9px;font-weight:700}
+.kl-zone-labels{display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;overflow:hidden;}
 .kl-node{position:absolute;text-align:center;transition:bottom .3s ease;}
 .kl-lbl{font-size:14.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;line-height:1.3;white-space:nowrap}
 .kl-val{font-size:17.4px;font-weight:700;color:rgba(255,255,255,.7);white-space:nowrap;margin-top:2px}
