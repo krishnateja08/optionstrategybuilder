@@ -1264,26 +1264,69 @@ def get_technical_data():
                 recent_1h = df_1h.tail(120)
                 highs = sorted(recent_1h["High"].values)
                 lows  = sorted(recent_1h["Low"].values)
-                res_c = [h for h in highs if cp < h <= cp + 200]
-                sup_c = [l for l in lows  if cp - 200 <= l < cp]
+
+                # ── Dynamic search window based on recent volatility ──────────
+                # Use 2× the 20-day ATR as the search radius so the window
+                # automatically widens after large moves (crashes, breakouts).
+                # Minimum window: 150 pts. Maximum: 800 pts.
+                recent_closes = df_1h["Close"].tail(20).values
+                if len(recent_closes) >= 2:
+                    atr_approx = float(np.std(np.diff(recent_closes))) * 2
+                    search_w   = max(150, min(800, round(atr_approx / 25) * 25))
+                else:
+                    search_w   = 300
+
+                # ── Resistance: levels strictly ABOVE spot ────────────────────
+                res_c = [h for h in highs if cp < h <= cp + search_w]
+                # ── Support: levels strictly BELOW spot ──────────────────────
+                sup_c = [l for l in lows  if cp - search_w <= l < cp]
+
+                # Widen search if not enough levels found (e.g. after a crash)
+                if len(res_c) < 4:
+                    res_c = [h for h in highs if cp < h <= cp + search_w * 3]
+                if len(sup_c) < 4:
+                    sup_c = [l for l in lows  if cp - search_w * 3 <= l < cp]
+
                 if len(res_c) >= 4:
-                    r1 = round(float(np.percentile(res_c, 40)) / 25) * 25
-                    r2 = round(float(np.percentile(res_c, 80)) / 25) * 25
+                    r1 = round(float(np.percentile(res_c, 30)) / 25) * 25
+                    r2 = round(float(np.percentile(res_c, 70)) / 25) * 25
                 if len(sup_c) >= 4:
                     s1 = round(float(np.percentile(sup_c, 70)) / 25) * 25
                     s2 = round(float(np.percentile(sup_c, 20)) / 25) * 25
-                if r1 and r1 <= cp:         r1 = round((cp + 50) / 25) * 25
-                if r2 and r1 and r2 <= r1:  r2 = r1 + 75
-                if s1 and s1 >= cp:         s1 = round((cp - 50) / 25) * 25
-                if s2 and s1 and s2 >= s1:  s2 = s1 - 75
+
+                # ── Hard enforcement: resistance MUST be above spot ───────────
+                if r1 is not None and r1 <= cp:
+                    r1 = round((cp + 50) / 25) * 25
+                if r2 is not None and r1 is not None and r2 <= r1:
+                    r2 = r1 + 75
+
+                # ── Hard enforcement: support MUST be below spot ──────────────
+                if s1 is not None and s1 >= cp:
+                    s1 = round((cp - 50) / 25) * 25
+                if s2 is not None and s1 is not None and s2 >= s1:
+                    s2 = s1 - 75
+
         except Exception as e:
             print(f"  WARNING 1H data: {e}")
 
         recent_d   = df.tail(60)
-        resistance = r1 if r1 else recent_d["High"].quantile(0.90)
-        support    = s1 if s1 else recent_d["Low"].quantile(0.10)
-        strong_res = r2 if r2 else resistance + 100
-        strong_sup = s2 if s2 else support - 100
+
+        # ── Fallbacks also enforce above/below spot ───────────────────────────
+        if r1 is None:
+            cand = recent_d["High"].quantile(0.90)
+            r1   = cand if cand > cp else round((cp + 75) / 25) * 25
+        if r2 is None:
+            r2   = r1 + 75
+        if s1 is None:
+            cand = recent_d["Low"].quantile(0.10)
+            s1   = cand if cand < cp else round((cp - 75) / 25) * 25
+        if s2 is None:
+            s2   = s1 - 75
+
+        resistance = r1
+        support    = s1
+        strong_res = r2
+        strong_sup = s2
 
         df["log_ret"] = np.log(df["Close"] / df["Close"].shift(1))
         hv = df["log_ret"].tail(20).std() * np.sqrt(252) * 100
