@@ -1959,9 +1959,9 @@ def build_oi_html(oc):
 
     dir_card = f"""
 <div style="display:flex;align-items:stretch;border:1px solid {dir_bdr};border-radius:14px;
-  background:{dir_bg};overflow:hidden;margin-bottom:16px;">
-  <div style="padding:18px 24px;min-width:200px;border-right:1px solid rgba(255,255,255,.07);
-    display:flex;flex-direction:column;justify-content:center;flex-shrink:0;">
+  background:{dir_bg};overflow:hidden;margin-bottom:16px;flex-wrap:wrap;">
+  <div style="padding:18px 24px;min-width:0;width:100%;max-width:220px;border-right:1px solid rgba(255,255,255,.07);
+    display:flex;flex-direction:column;justify-content:center;flex-shrink:0;box-sizing:border-box;">
     <div style="font-size:12.3px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.65);margin-bottom:7px;">OI CHANGE DIRECTION</div>
     <div style="font-size:30.4px;font-weight:700;color:{dir_col};line-height:1.1;margin-bottom:5px;">{oi_dir}</div>
     <div style="font-size:15.2px;color:{dir_col};opacity:.7;">{oi_sig}</div>
@@ -3911,7 +3911,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
   background:rgba(6,8,15,.85);backdrop-filter:blur(16px);
   border-bottom:1px solid rgba(255,255,255,.07);position:sticky;top:0;z-index:200;
   box-shadow:0 1px 0 rgba(0,200,150,.1)}
-.logo-wrap{position:relative;height:42px;overflow:hidden;min-width:400px;}
+.logo-wrap{position:relative;height:42px;overflow:hidden;min-width:0;max-width:420px;width:clamp(160px,40vw,420px);}
 .logo-slide{position:absolute;top:0;left:0;width:100%;font-family:var(--fh);font-size:29px;font-weight:700;
   background:linear-gradient(90deg,#00c896,#6480ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;
   filter:drop-shadow(0 0 12px rgba(0,200,150,.3));opacity:0;transform:translateY(20px);
@@ -4124,7 +4124,8 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .h-eyebrow{white-space:normal;overflow:visible;}
   .h-sub{white-space:normal;overflow:visible;}
   .sc-card.expanded{flex-direction:column !important;}
-  .sc-card.expanded .sc-detail{flex:none !important;width:100% !important;border-left:none;border-top:1px solid rgba(0,229,160,.15);}
+  .sc-card.expanded .sc-detail{flex:none !important;width:100% !important;min-width:0;border-left:none;border-top:1px solid rgba(0,229,160,.15);}
+  #smartPopLegend{flex-direction:column;}
 }
 @media(max-width:768px){
   body{font-size:16px;}
@@ -4146,9 +4147,17 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .pill-track{width:80px;}
   .sec-sub{margin-left:0;width:100%;}
   .greeks-table-section{padding:16px 14px;}
-  .sc-tabs{flex-direction:column;gap:8px;}
-  .sc-tabs>div[style]{margin-left:0!important;width:100%;}
+  /* Strategy tabs: stack vertically on small screens */
+  .sc-tabs{flex-direction:column;gap:6px;align-items:stretch;}
+  .sc-tabs>div[style]{margin-left:0!important;width:100%!important;flex-wrap:wrap;gap:6px;}
   #expiryDropdown{width:100%;font-size:14px;}
+  /* View toggle: full width side-by-side */
+  #viewGrid,#viewTable{flex:1;justify-content:center;}
+  /* Filter pills: smaller on tablet */
+  .sc-filter-pill{font-size:11px;padding:3px 9px;}
+  /* Table: enable horizontal scroll */
+  #sc-table-wrap{-webkit-overflow-scrolling:touch;}
+  #sc-table{min-width:640px;}
 }
 @media(max-width:640px){
   header{padding:10px 12px}
@@ -4172,11 +4181,23 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .sec-sub{font-size:11px;margin-left:0;width:100%;}
   .h-stat-val{font-size:15px;}
   .h-stat-lbl{font-size:9px;letter-spacing:1px;}
-  .sc-tabs{gap:6px;margin-bottom:14px;flex-direction:column;}
-  .sc-tabs>div[style]{margin-left:0!important;width:100%!important;}
-  #expiryDropdown{width:100%!important;font-size:13px;padding:6px 10px;}
-  .sc-tab{padding:6px 14px;font-size:15px;}
+  /* Strategy cards */
+  .sc-tabs{gap:6px;margin-bottom:10px;}
+  .sc-tab{padding:7px 14px;font-size:14px;}
   .sc-name{font-size:15px;}
+  .sc-legs{font-size:11px;}
+  .sc-mini-lbl{font-size:9px;}
+  .sc-mini-val{font-size:13px;}
+  /* View toggle: compress labels */
+  #viewGrid{padding:5px 8px;font-size:11px;}
+  #viewTable{padding:5px 8px;font-size:11px;}
+  /* Filter pills row: scroll horizontally rather than wrap uncontrolled */
+  #sc-filter-row{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;padding-bottom:4px;}
+  .sc-filter-pill{white-space:nowrap;flex-shrink:0;}
+  /* Key levels bar: reduce font */
+  .kl-lbl{font-size:12px;}
+  .kl-val{font-size:14px;}
+  .kl-dist-box{padding:8px 10px;font-size:14px;}
   .sb-btn{font-size:15px;padding:7px 10px;}
   .strikes-head{font-size:16px;}
   .s-table th,.s-table td{padding:8px 10px;font-size:14px;}
@@ -4184,8 +4205,11 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .metric-lbl{font-size:13px;}
   .metric-val{font-size:15px;}
   .h-mid{width:100%;border-left:none;border-top:1px solid rgba(255,255,255,.05);}
+  /* OI dashboard: allow horizontal scroll on narrow */
+  .oi-dir-card{overflow-x:auto;}
 }
 @media(max-width:480px){
+  /* Two columns for cards — gives better use of portrait phone width */
   .sc-grid{grid-template-columns:1fr 1fr;}
   .gauge-wrap{width:62px;height:62px;}
   .g-val{font-size:13px;}
@@ -4215,13 +4239,16 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .strikes-wrap{gap:10px;}
   .s-table th,.s-table td{padding:7px 8px;font-size:13px;}
   footer{padding:12px 10px;font-size:13px;}
-  .sc-name{font-size:14px;padding-right:36px;}
-  .sc-legs{font-size:11px;}
-  .sc-tag{font-size:11px;}
-  .sc-pop-badge{font-size:12px;padding:2px 6px;}
-  .kl-lbl{font-size:12px;}
-  .kl-val{font-size:14px;}
-  .kl-dist-box{padding:8px 10px;font-size:14px;}
+  .sc-name{font-size:13px;padding-right:32px;}
+  .sc-legs{font-size:10px;}
+  .sc-tag{font-size:10px;padding:1px 5px;}
+  .sc-pop-badge{font-size:11px;padding:2px 5px;top:5px;right:5px;}
+  .sc-mini-lbl{font-size:8px;}
+  .sc-mini-val{font-size:12px;}
+  .sc-mini-ev{font-size:11px;}
+  .kl-lbl{font-size:11px;}
+  .kl-val{font-size:13px;}
+  .kl-dist-box{padding:8px 10px;font-size:13px;}
   .greeks-panel{margin:6px 6px 4px;padding:10px 10px;}
   .greeks-row{padding:5px 0;}
   .greek-name{font-size:13px;}
@@ -4238,6 +4265,11 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .logo-slide{font-size:18px;}
   #smartPopLegend{flex-direction:column;}
   .hdr-meta>span:not(:first-child):not(:last-child){display:none;}
+  /* Hide Legs column in table view on phones — too wide */
+  #sc-table th:last-child,#sc-table td:last-child{display:none;}
+  /* View toggle: icon only */
+  #viewGrid::after{content:' GRID';}
+  #viewTable::after{content:' TABLE';}
 }
 """
 
