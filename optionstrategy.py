@@ -4157,6 +4157,20 @@ function buildIntradaySim(m) {{
             <div id="${{simId}}_spct" style="font-family:DM Mono,monospace;font-size:17px;font-weight:700;color:#ffcc00;">—</div>
           </div>
         </div>
+        <div style="display:flex;gap:10px;justify-content:center;margin-top:9px;padding:8px 6px 6px;border-top:1px solid rgba(138,160,255,.2);border-radius:0 0 8px 8px;background:rgba(138,160,255,.05);">
+          <div style="text-align:center;min-width:72px;">
+            <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(138,160,255,.9);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">IV Change</div>
+            <div id="${{simId}}_sivchg" style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:#8aa0ff;">0%</div>
+          </div>
+          <div style="text-align:center;min-width:80px;">
+            <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(138,160,255,.9);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">Vega P&amp;L</div>
+            <div id="${{simId}}_svega" style="font-family:DM Mono,monospace;font-size:16px;font-weight:700;color:#8aa0ff;">\u20b90</div>
+          </div>
+          <div style="text-align:center;min-width:80px;">
+            <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(138,160,255,.9);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">IV Model</div>
+            <div style="font-family:DM Mono,monospace;font-size:9px;font-weight:700;color:rgba(138,160,255,.6);margin-top:3px;line-height:1.6;">↓ down = 3x spike<br>↑ up = 1x compress</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -4187,6 +4201,9 @@ function simSlide(simId, val, slMin, slMax, nd, nt, nv, maxL, maxP) {{
   if (slv) slv.textContent = 'Spot: \u20b9' + spot.toLocaleString('en-IN');
   // Asymmetric IV: down moves spike IV 3x harder than up moves compress it
   const ivEst = move < 0 ? -(move / OC.spot) * 600 : -(move / OC.spot) * 200;
+  // ivEst is in IV points (e.g. 12 means +12% IV spike)
+  const ivChangePct = Math.round(ivEst * 10) / 10;
+  const vegaPnl = Math.round(nv * ivEst);
   let pnl = nd * move + nv * ivEst + nt;
   if (maxL !== null) pnl = Math.max(-maxL, pnl);
   if (maxP !== null) pnl = Math.min(maxP * 0.9, pnl);
@@ -4195,12 +4212,26 @@ function simSlide(simId, val, slMin, slMax, nd, nt, nv, maxL, maxP) {{
   const pEl = document.getElementById(simId + '_spnl');
   if (pEl) {{ pEl.textContent = (pnl>=0?'+':'') + '\u20b9' + Math.abs(pnl).toLocaleString('en-IN'); pEl.style.color = col; }}
   const nEl = document.getElementById(simId + '_snote');
-  if (nEl) nEl.textContent = move > 0 ? `Nifty up ${{move}} pts` : move < 0 ? `Nifty down ${{Math.abs(move)}} pts` : 'Flat market — theta drag only';
+  const ivNote = move !== 0 ? (ivChangePct > 0 ? ' · IV +' + ivChangePct.toFixed(1) + '%' : ' · IV ' + ivChangePct.toFixed(1) + '%') : '';
+  if (nEl) nEl.textContent = move > 0 ? `Nifty up ${{move}} pts${{ivNote}}` : move < 0 ? `Nifty down ${{Math.abs(move)}} pts${{ivNote}}` : 'Flat market — theta drag only';
   const deltaPnl = Math.round(nd * move);
   const dEl = document.getElementById(simId + '_sdelta');
   if (dEl) {{ dEl.textContent = (deltaPnl>=0?'+':'') + '\u20b9' + Math.abs(deltaPnl).toLocaleString('en-IN'); dEl.style.color = deltaPnl >= 0 ? '#38d888' : '#f04050'; }}
   const pctEl = document.getElementById(simId + '_spct');
   if (pctEl) {{ const pPct = maxP ? ((pnl / maxP) * 100).toFixed(1) + '%' : '—'; pctEl.textContent = pPct; pctEl.style.color = pnl >= 0 ? '#ffcc00' : '#f04050'; }}
+  // Update IV Change display
+  const ivChgEl = document.getElementById(simId + '_sivchg');
+  if (ivChgEl) {{
+    const ivSign = ivChangePct >= 0 ? '+' : '';
+    ivChgEl.textContent = ivSign + ivChangePct.toFixed(1) + '%';
+    ivChgEl.style.color = ivChangePct > 0 ? '#ff8080' : ivChangePct < 0 ? '#38d888' : '#8aa0ff';
+  }}
+  // Update Vega P&L display
+  const vegaEl = document.getElementById(simId + '_svega');
+  if (vegaEl) {{
+    vegaEl.textContent = (vegaPnl >= 0 ? '+' : '') + '\u20b9' + Math.abs(vegaPnl).toLocaleString('en-IN');
+    vegaEl.style.color = vegaPnl >= 0 ? '#38d888' : '#f04050';
+  }}
 }}
 
 function popBadgeStyle(es) {{
