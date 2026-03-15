@@ -2410,7 +2410,7 @@ STRATEGIES_DATA = {
 
 
 def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed=None,
-                          expiry_list=None, true_pop_map=None):
+                          expiry_list=None, true_pop_map=None, live_vix=18.0):
     spot       = oc_analysis["underlying"]   if oc_analysis else 23000
     atm        = oc_analysis["atm_strike"]   if oc_analysis else 23000
     expiry     = oc_analysis["expiry"]       if oc_analysis else "17-Mar-2026"
@@ -2463,6 +2463,7 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
     strong_sup  = tech["strong_sup"] if tech else spot - 300
     strong_res  = tech["strong_res"] if tech else spot + 300
     ivp         = tech["ivp"]        if tech else 50   # IV Percentile (0–100)
+    vix         = round(float(live_vix), 2)            # Live India VIX for IV modelling
 
     bias        = md["bias"]       if md else "SIDEWAYS"
     conf        = md["confidence"] if md else "MEDIUM"
@@ -3022,7 +3023,8 @@ const OC={{
   bearScore:   {bear_sc},
   strikes:     {strikes_json},
   lotSize:     65,
-  ivp:         {ivp}
+  ivp:         {ivp},
+  vix:         {vix}
 }};
 
 // TRUE_POP_MAP — IV-based N(d2) probability, pre-computed in Python.
@@ -4016,7 +4018,10 @@ function buildIntradaySim(m) {{
 
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px 6px;border-bottom:1px solid rgba(255,185,0,.12);">
       <div id="${{simId}}_hdr" style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,210,0,.95);">📋 1 DAY P&amp;L SCENARIOS</div>
-      <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,60,.7);background:rgba(0,0,0,.25);padding:2px 8px;border-radius:4px;">Δ + ½Γ + ν(IV) + Θ×days</div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div style="font-family:DM Mono,monospace;font-size:10px;font-weight:700;background:rgba(138,160,255,.15);border:1px solid rgba(138,160,255,.3);border-radius:4px;padding:2px 7px;color:#a8c0ff;">VIX ${{OC.vix.toFixed(1)}}</div>
+        <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,200,60,.7);background:rgba(0,0,0,.25);padding:2px 8px;border-radius:4px;">Δ + ½Γ + ν(IV) + Θ×days</div>
+      </div>
     </div>
     <table style="width:100%;border-collapse:collapse;">
       <thead>
@@ -4127,6 +4132,7 @@ function buildIntradaySim(m) {{
   <div id="${{simId}}_c3" style="display:none;">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px;border-bottom:1px solid rgba(255,185,0,.12);">
       <div style="font-family:DM Mono,monospace;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,210,0,.95);">⟺ LIVE SCENARIO SLIDER</div>
+      <div style="font-family:DM Mono,monospace;font-size:11px;font-weight:700;background:rgba(138,160,255,.15);border:1px solid rgba(138,160,255,.35);border-radius:4px;padding:2px 8px;color:#a8c0ff;">VIX ${{OC.vix.toFixed(1)}} · IV LIVE</div>
     </div>
     <div style="padding:11px 12px;">
       <div style="display:flex;justify-content:space-between;margin-bottom:7px;font-family:DM Mono,monospace;font-size:12px;">
@@ -4168,7 +4174,7 @@ function buildIntradaySim(m) {{
           </div>
           <div style="text-align:center;min-width:80px;">
             <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(138,160,255,.9);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">IV Model</div>
-            <div style="font-family:DM Mono,monospace;font-size:9px;font-weight:700;color:rgba(138,160,255,.6);margin-top:3px;line-height:1.6;">↓ down = 3x spike<br>↑ up = 1x compress</div>
+            <div style="font-family:DM Mono,monospace;font-size:9px;font-weight:700;color:rgba(138,160,255,.6);margin-top:3px;line-height:1.6;">VIX ${{OC.vix.toFixed(1)}} (live)<br>↓ down=3x · ↑ up=0.8x</div>
           </div>
         </div>
       </div>
@@ -4199,9 +4205,13 @@ function simSlide(simId, val, slMin, slMax, nd, nt, nv, maxL, maxP) {{
   if (sl) sl.style.background = `linear-gradient(90deg,#ffcc00 ${{pct}}%,rgba(255,185,0,.2) ${{pct}}%)`;
   const slv = document.getElementById(simId + '_slv');
   if (slv) slv.textContent = 'Spot: \u20b9' + spot.toLocaleString('en-IN');
-  // Asymmetric IV: down moves spike IV 3x harder than up moves compress it
-  const ivEst = move < 0 ? -(move / OC.spot) * 600 : -(move / OC.spot) * 200;
-  // ivEst is in IV points (e.g. 12 means +12% IV spike)
+  // VIX-based IV model — uses live India VIX from OC object
+  const movePct  = Math.abs(move) / OC.spot;
+  const baseVix  = OC.vix || 16;
+  const downSens = baseVix * 3.5;
+  const upSens   = baseVix * 0.8;
+  const ivEst    = move < 0 ? movePct * downSens : -(movePct * upSens);
+  // ivChangePct is the estimated IV point change (e.g. +8.4 means IV rose 8.4 points)
   const ivChangePct = Math.round(ivEst * 10) / 10;
   const vegaPnl = Math.round(nv * ivEst);
   let pnl = nd * move + nv * ivEst + nt;
@@ -5121,7 +5131,8 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None,
                          oc, tech, md,
                          multi_expiry_analyzed=multi_expiry_analyzed,
                          expiry_list=expiry_list,
-                         true_pop_map=true_pop_map)
+                         true_pop_map=true_pop_map,
+                         live_vix=vix_data["value"] if vix_data else 18.0)
     strikes_html   = build_strikes_html(oc)
     ticker_html    = build_ticker_bar(tech, oc, vix_data)
     gauge_html     = build_dual_gauge_hero(oc, tech, md, ts)
@@ -5645,8 +5656,15 @@ function drawPayoffChart(card, m) {{
 function setupDaySelector(simId, nd, nt, nv, ng, maxL, maxP, maxDays) {{
   const _mv = [-500,-400,-300,-200,-150,-100,-50,0,50,100,150,200,300,400,500];
   function _pnl(mv, days) {{
-    // Asymmetric IV: down moves spike IV 3x harder than up moves compress it
-    const iv = mv < 0 ? -(mv / OC.spot) * 600 : -(mv / OC.spot) * 200;
+    // VIX-based IV model: real India VIX drives the base IV level
+    // Down moves spike IV asymmetrically (fear > greed)
+    // Formula: IV change = (move% × vix_sensitivity) with 3x down / 1x up multiplier
+    const movePct = Math.abs(mv) / OC.spot;
+    const baseVix = OC.vix || 16;
+    // Sensitivity: larger moves spike IV more non-linearly
+    const downSens = baseVix * 3.5;   // down moves: VIX amplified 3.5x
+    const upSens   = baseVix * 0.8;   // up moves: VIX dampened (relief rally compresses IV)
+    const iv = mv < 0 ? movePct * downSens : -(movePct * upSens);
     let p = nd*mv + 0.5*ng*mv*mv + nv*iv + (nt*days);
     if (maxL !== null) p = Math.max(-maxL, p);
     if (maxP !== null) p = Math.min(maxP*0.9, p);
