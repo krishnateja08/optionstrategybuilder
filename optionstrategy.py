@@ -1417,14 +1417,13 @@ def compute_market_direction(tech, oc_analysis, live_vix=18.0):
         elif pcr < 0.7: bear += 2
 
         # ── CHG-based OI flow scoring (today's fresh money) ───────
-        # This gives a separate vote based on intraday OI change
-        # direction, which is more real-time than cumulative PCR.
-        # Only scored when signal is decisive (≥60% or ≤40%).
-        # Weighted at 1 pt so it doesn't override PCR outright.
+        # Gives a real-time vote based on intraday OI change direction,
+        # more actionable than cumulative PCR alone.
+        # Only scored when signal is decisive (>=60% or <=40%).
         chg_bull_pct = oc_analysis.get("chg_bull_pct", 50)
         if   chg_bull_pct >= 60: bull += 1   # today's flow clearly bullish
         elif chg_bull_pct <= 40: bear += 1   # today's flow clearly bearish
-        # 41–59% = no vote (noise / balanced — avoid false signals)
+        # 41-59% = no vote (noise / balanced)
 
         # ── Max Pain scoring — time-weighted by days to expiry ────
         # Max Pain is almost meaningless 5+ days before expiry (market hasn't
@@ -1867,10 +1866,6 @@ def build_dual_gauge_hero(oc, tech, md, ts):
         chg_bull = oc["chg_bull_force"]; chg_bear = oc["chg_bear_force"]
         bull_pct = oc["chg_bull_pct"]; bear_pct = oc["chg_bear_pct"]; pcr = oc["pcr_oi"]
         # ── Smart banner signal: prefer CHG when it strongly disagrees ──
-        # If today's OI flow is decisively bullish (>=60%) but cumulative
-        # PCR says bearish, the fresh money is more actionable — show it.
-        # Similarly if flow is decisively bearish vs a bullish PCR.
-        # When both agree, or flow is mixed (40-60%), use PCR-based signal.
         raw_oi_dir = oc["raw_oi_dir"]; raw_oi_sig = oc["raw_oi_sig"]; raw_oi_cls = oc["raw_oi_cls"]
         chg_bull_pct_h = oc["chg_bull_pct"]
         if chg_bull_pct_h >= 60 and raw_oi_cls == "bearish":
@@ -5007,6 +5002,15 @@ ANIMATED_JS = """
         // if the browser delays the load event slightly
         sessionStorage.setItem('nifty_scroll_pos', window.scrollY);
         sessionStorage.setItem('nifty_scroll_ts',  Date.now());
+        // Save which strategy card is currently open so we can
+        // reopen it after reload — prevents the "jumps to home" UX issue
+        var openCard = document.querySelector('.sc-card.expanded');
+        if (openCard) {
+          sessionStorage.setItem('nifty_open_card', openCard.dataset.shape || '');
+          sessionStorage.setItem('nifty_open_tab',  document.querySelector('.nav-tab.active') ? document.querySelector('.nav-tab.active').dataset.tab || '' : '');
+        } else {
+          sessionStorage.removeItem('nifty_open_card');
+        }
         // Short delay so flashUpdated() is visible before reload
         setTimeout(function() { location.reload(); }, 600);
       })
@@ -5038,6 +5042,38 @@ ANIMATED_JS = """
       window.scrollTo(0, parseInt(pos));
       sessionStorage.removeItem('nifty_scroll_pos');
       sessionStorage.removeItem('nifty_scroll_ts');
+    }
+    // ── Restore open strategy card after a data-triggered reload ──
+    var openShape = sessionStorage.getItem('nifty_open_card');
+    var openTab   = sessionStorage.getItem('nifty_open_tab');
+    if (openShape) {
+      sessionStorage.removeItem('nifty_open_card');
+      sessionStorage.removeItem('nifty_open_tab');
+      // Switch to the correct tab first (e.g. strategies reference)
+      if (openTab) {
+        var tabEl = document.querySelector('.nav-tab[data-tab="' + openTab + '"]');
+        if (tabEl) tabEl.click();
+      }
+      // Wait for tab content to render then reopen the card
+      setTimeout(function() {
+        var card = document.querySelector('.sc-card[data-shape="' + openShape + '"]');
+        if (card) {
+          document.querySelectorAll('.sc-card.expanded').forEach(function(c) { c.classList.remove('expanded'); });
+          card.classList.add('expanded');
+          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Trigger metrics load just like a real click does
+          var mel = card.querySelector('.sc-metrics-live');
+          if (mel && mel.querySelector('.sc-loading')) {
+            try {
+              var shape = card.dataset.shape, cat = card.dataset.cat;
+              var scoreResult = smartPoP(shape, cat);
+              var _m = calcMetrics(shape, scoreResult.edgeScore);
+              mel.innerHTML = renderMetrics(_m, scoreResult);
+              try { drawPayoffChart(card, _m); } catch(e) {}
+            } catch(err) {}
+          }
+        }
+      }, 400);
     }
     // First poll after page load (slight delay for DOM to settle)
     setTimeout(doSilentRefresh, 2000);
