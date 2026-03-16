@@ -4667,8 +4667,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
 .greeks-tbl-row:hover{background:rgba(255,255,255,.03);}
 .greeks-tbl-strike{font-family:'DM Mono',monospace;font-size:17.4px;font-weight:700;color:rgba(255,255,255,.8);}
 .greeks-tbl-cell{font-family:'DM Mono',monospace;font-size:15.9px;font-weight:600;text-align:center;color:rgba(255,255,255,.65);}
-/* Hidden refresh iframe — zero footprint */
-#silentRefreshFrame{position:fixed;width:0;height:0;border:none;visibility:hidden;pointer-events:none;opacity:0;}
+
 @media(max-width:1024px){
   .main{grid-template-columns:1fr}
   .sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid rgba(255,255,255,.06)}
@@ -4945,63 +4944,49 @@ ANIMATED_JS = """
     return changed;
   }
 
-  let iframe = document.getElementById('silentRefreshFrame');
-  if (!iframe) {
-    iframe = document.createElement('iframe');
-    iframe.id = 'silentRefreshFrame';
-    iframe.style.cssText = 'position:fixed;width:0;height:0;border:none;' +
-                            'visibility:hidden;pointer-events:none;opacity:0;' +
-                            'top:-9999px;left:-9999px;';
-    document.body.appendChild(iframe);
-  }
+  // ── latest.json polling — works reliably on GitHub Pages ──────
+  // Replaces iframe trick which could fail due to GitHub Pages CSP.
+  // Polls latest.json every TOTAL_SECS, reloads ONLY when new data
+  // arrives. Scroll position is saved before reload and restored
+  // after — no more "jumps to top / feels like home page" issue.
 
-  let _lastTimestamp  = null;
-  let _refreshing     = false;
+  let _lastGenAt  = null;
+  let _refreshing = false;
 
   function doSilentRefresh() {
     if (_refreshing) return;
     _refreshing = true;
     showSpinner(true);
-    iframe.src = 'index.html?_=' + Date.now();
-  }
-
-  iframe.addEventListener('load', function() {
-    if (!iframe.src || iframe.src === 'about:blank') {
-      _refreshing = false; showSpinner(false); return;
-    }
-    try {
-      const newDoc = iframe.contentDocument || iframe.contentWindow.document;
-      if (!newDoc || !newDoc.body) throw new Error('empty doc');
-      const newTsEl = newDoc.getElementById('lastUpdatedTs');
-      const newTs   = newTsEl ? newTsEl.textContent.trim() : '';
-      if (_lastTimestamp !== null && newTs === _lastTimestamp) {
-        showSpinner(false); _refreshing = false; return;
-      }
-      _lastTimestamp = newTs;
-      const changed = microDiff(newDoc);
-      showSpinner(false); _refreshing = false;
-      if (changed) {
+    fetch('latest.json?_=' + Date.now())
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var newTs = data.generated_at;
+        showSpinner(false);
+        _refreshing = false;
+        if (_lastGenAt === null) {
+          // First poll — just record the timestamp, no reload needed
+          _lastGenAt = newTs;
+          return;
+        }
+        if (newTs === _lastGenAt) {
+          // No new data — do nothing
+          return;
+        }
+        // ── New data detected ──────────────────────────────────
+        _lastGenAt = newTs;
         flashUpdated();
-        setTimeout(function() {
-          try {
-            if (typeof initAllCards === 'function') {
-              initAllCards();
-              ['bullish','bearish','nondirectional'].forEach(function(c) {
-                if (typeof sortGridByPoP === 'function') sortGridByPoP(c);
-              });
-            }
-            if (typeof greeksUpdateStrike === 'function') {
-              var sel = document.getElementById('greeksStrikeSelect');
-              if (sel) greeksUpdateStrike(sel.value);
-            }
-          } catch(e) {}
-        }, 60);
-      }
-    } catch(e) {
-      showSpinner(false); _refreshing = false;
-    }
-    setTimeout(function() { try { iframe.src = 'about:blank'; } catch(e) {} }, 500);
-  });
+        // Save scroll position + timestamp so restore works even
+        // if the browser delays the load event slightly
+        sessionStorage.setItem('nifty_scroll_pos', window.scrollY);
+        sessionStorage.setItem('nifty_scroll_ts',  Date.now());
+        // Short delay so flashUpdated() is visible before reload
+        setTimeout(function() { location.reload(); }, 600);
+      })
+      .catch(function() {
+        showSpinner(false);
+        _refreshing = false;
+      });
+  }
 
   let remaining = TOTAL_SECS;
   setCountdownUI(remaining);
@@ -5018,6 +5003,15 @@ ANIMATED_JS = """
   }, 1000);
 
   window.addEventListener('load', function() {
+    // ── Restore scroll position after a data-triggered reload ──
+    var pos = sessionStorage.getItem('nifty_scroll_pos');
+    var ts  = sessionStorage.getItem('nifty_scroll_ts');
+    if (pos && ts && (Date.now() - parseInt(ts)) < 10000) {
+      window.scrollTo(0, parseInt(pos));
+      sessionStorage.removeItem('nifty_scroll_pos');
+      sessionStorage.removeItem('nifty_scroll_ts');
+    }
+    // First poll after page load (slight delay for DOM to settle)
     setTimeout(doSilentRefresh, 2000);
   });
 })();
@@ -5237,10 +5231,6 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None,
   <span>S/R + OI Walls + Bias + PCR &middot; Educational Only &middot; &copy; 2025</span>
 </footer>
 </div>
-
-<iframe id="silentRefreshFrame" src="about:blank"
-  style="position:fixed;width:0;height:0;border:none;visibility:hidden;
-         pointer-events:none;opacity:0;top:-9999px;left:-9999px;"></iframe>
 
 <script>
 function go(id,btn){{
