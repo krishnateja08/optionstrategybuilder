@@ -1417,13 +1417,11 @@ def compute_market_direction(tech, oc_analysis, live_vix=18.0):
         elif pcr < 0.7: bear += 2
 
         # ── CHG-based OI flow scoring (today's fresh money) ───────
-        # Gives a real-time vote based on intraday OI change direction,
-        # more actionable than cumulative PCR alone.
-        # Only scored when signal is decisive (>=60% or <=40%).
+        # Real-time vote based on intraday OI change — more actionable
+        # than cumulative PCR alone. Only scored when decisive (>=60%).
         chg_bull_pct = oc_analysis.get("chg_bull_pct", 50)
-        if   chg_bull_pct >= 60: bull += 1   # today's flow clearly bullish
-        elif chg_bull_pct <= 40: bear += 1   # today's flow clearly bearish
-        # 41-59% = no vote (noise / balanced)
+        if   chg_bull_pct >= 60: bull += 1
+        elif chg_bull_pct <= 40: bear += 1
 
         # ── Max Pain scoring — time-weighted by days to expiry ────
         # Max Pain is almost meaningless 5+ days before expiry (market hasn't
@@ -1865,7 +1863,6 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     if oc:
         chg_bull = oc["chg_bull_force"]; chg_bear = oc["chg_bear_force"]
         bull_pct = oc["chg_bull_pct"]; bear_pct = oc["chg_bear_pct"]; pcr = oc["pcr_oi"]
-        # ── Smart banner signal: prefer CHG when it strongly disagrees ──
         raw_oi_dir = oc["raw_oi_dir"]; raw_oi_sig = oc["raw_oi_sig"]; raw_oi_cls = oc["raw_oi_cls"]
         chg_bull_pct_h = oc["chg_bull_pct"]
         if chg_bull_pct_h >= 60 and raw_oi_cls == "bearish":
@@ -4998,16 +4995,22 @@ ANIMATED_JS = """
         // ── New data detected ──────────────────────────────────
         _lastGenAt = newTs;
         flashUpdated();
-        // Save scroll position + timestamp so restore works even
-        // if the browser delays the load event slightly
-        sessionStorage.setItem('nifty_scroll_pos', window.scrollY);
-        sessionStorage.setItem('nifty_scroll_ts',  Date.now());
-        // Save which strategy card is currently open so we can
-        // reopen it after reload — prevents the "jumps to home" UX issue
+        // Save complete page state before reload so user never loses their place
+        sessionStorage.setItem('nifty_scroll_pos',  window.scrollY);
+        sessionStorage.setItem('nifty_scroll_ts',   Date.now());
+        // Which main tab is active (oi or strat)
+        var activeMainTab = document.getElementById('mainTabStrat') &&
+                            document.getElementById('mainTabStrat').classList.contains('active')
+                            ? 'strat' : 'oi';
+        sessionStorage.setItem('nifty_main_tab', activeMainTab);
+        // Which strategy category filter is active (bullish/bearish/nondirectional)
+        if (typeof _currentCat !== 'undefined') {
+          sessionStorage.setItem('nifty_cat', _currentCat);
+        }
+        // Which card is open
         var openCard = document.querySelector('.sc-card.expanded');
-        if (openCard) {
-          sessionStorage.setItem('nifty_open_card', openCard.dataset.shape || '');
-          sessionStorage.setItem('nifty_open_tab',  document.querySelector('.nav-tab.active') ? document.querySelector('.nav-tab.active').dataset.tab || '' : '');
+        if (openCard && openCard.dataset.shape) {
+          sessionStorage.setItem('nifty_open_card', openCard.dataset.shape);
         } else {
           sessionStorage.removeItem('nifty_open_card');
         }
@@ -5035,47 +5038,76 @@ ANIMATED_JS = """
   }, 1000);
 
   window.addEventListener('load', function() {
-    // ── Restore scroll position after a data-triggered reload ──
-    var pos = sessionStorage.getItem('nifty_scroll_pos');
-    var ts  = sessionStorage.getItem('nifty_scroll_ts');
-    if (pos && ts && (Date.now() - parseInt(ts)) < 10000) {
-      window.scrollTo(0, parseInt(pos));
-      sessionStorage.removeItem('nifty_scroll_pos');
-      sessionStorage.removeItem('nifty_scroll_ts');
+    // ── Restore full page state after a data-triggered reload ──────
+    var scrollPos  = sessionStorage.getItem('nifty_scroll_pos');
+    var scrollTs   = sessionStorage.getItem('nifty_scroll_ts');
+    var mainTab    = sessionStorage.getItem('nifty_main_tab');
+    var openShape  = sessionStorage.getItem('nifty_open_card');
+    var savedCat   = sessionStorage.getItem('nifty_cat');
+
+    // Clear all saved state immediately so a manual refresh doesn't re-apply it
+    sessionStorage.removeItem('nifty_scroll_pos');
+    sessionStorage.removeItem('nifty_scroll_ts');
+    sessionStorage.removeItem('nifty_main_tab');
+    sessionStorage.removeItem('nifty_open_card');
+    sessionStorage.removeItem('nifty_cat');
+
+    // Only restore if the save was recent (within 10 seconds — data reload)
+    if (!scrollTs || (Date.now() - parseInt(scrollTs)) > 10000) {
+      setTimeout(doSilentRefresh, 2000);
+      return;
     }
-    // ── Restore open strategy card after a data-triggered reload ──
-    var openShape = sessionStorage.getItem('nifty_open_card');
-    var openTab   = sessionStorage.getItem('nifty_open_tab');
+
+    // Step 1: Switch to correct main tab
+    if (mainTab === 'strat') {
+      switchMainTab('strat');
+    }
+
+    // Step 2: Restore category filter
+    if (savedCat && typeof filterStrat === 'function') {
+      filterStrat(savedCat, null);
+    }
+
+    // Step 3: Restore scroll position
+    if (scrollPos) {
+      window.scrollTo(0, parseInt(scrollPos));
+    }
+
+    // Step 4: Reopen the card — use a retry loop to beat any rendering delay
     if (openShape) {
-      sessionStorage.removeItem('nifty_open_card');
-      sessionStorage.removeItem('nifty_open_tab');
-      // Switch to the correct tab first (e.g. strategies reference)
-      if (openTab) {
-        var tabEl = document.querySelector('.nav-tab[data-tab="' + openTab + '"]');
-        if (tabEl) tabEl.click();
-      }
-      // Wait for tab content to render then reopen the card
-      setTimeout(function() {
+      var attempts = 0;
+      var maxAttempts = 15;  // try for up to ~1.5 seconds
+      function tryRestoreCard() {
+        attempts++;
         var card = document.querySelector('.sc-card[data-shape="' + openShape + '"]');
         if (card) {
-          document.querySelectorAll('.sc-card.expanded').forEach(function(c) { c.classList.remove('expanded'); });
+          // Found — expand it and reload its metrics
+          document.querySelectorAll('.sc-card.expanded').forEach(function(c) {
+            c.classList.remove('expanded');
+          });
           card.classList.add('expanded');
           card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          // Trigger metrics load just like a real click does
+          // Trigger metrics load exactly as a real click does
           var mel = card.querySelector('.sc-metrics-live');
           if (mel && mel.querySelector('.sc-loading')) {
             try {
-              var shape = card.dataset.shape, cat = card.dataset.cat;
+              var shape      = card.dataset.shape;
+              var cat        = card.dataset.cat;
               var scoreResult = smartPoP(shape, cat);
-              var _m = calcMetrics(shape, scoreResult.edgeScore);
-              mel.innerHTML = renderMetrics(_m, scoreResult);
+              var _m         = calcMetrics(shape, scoreResult.edgeScore);
+              mel.innerHTML  = renderMetrics(_m, scoreResult);
               try { drawPayoffChart(card, _m); } catch(e) {}
             } catch(err) {}
           }
+        } else if (attempts < maxAttempts) {
+          // Card not in DOM yet — wait 100ms and retry
+          setTimeout(tryRestoreCard, 100);
         }
-      }, 400);
+      }
+      setTimeout(tryRestoreCard, 200);
     }
-    // First poll after page load (slight delay for DOM to settle)
+
+    // First poll after page load
     setTimeout(doSilentRefresh, 2000);
   });
 })();
