@@ -1416,6 +1416,16 @@ def compute_market_direction(tech, oc_analysis, live_vix=18.0):
         if   pcr > 1.2: bull += 2
         elif pcr < 0.7: bear += 2
 
+        # ── CHG-based OI flow scoring (today's fresh money) ───────
+        # This gives a separate vote based on intraday OI change
+        # direction, which is more real-time than cumulative PCR.
+        # Only scored when signal is decisive (≥60% or ≤40%).
+        # Weighted at 1 pt so it doesn't override PCR outright.
+        chg_bull_pct = oc_analysis.get("chg_bull_pct", 50)
+        if   chg_bull_pct >= 60: bull += 1   # today's flow clearly bullish
+        elif chg_bull_pct <= 40: bear += 1   # today's flow clearly bearish
+        # 41–59% = no vote (noise / balanced — avoid false signals)
+
         # ── Max Pain scoring — time-weighted by days to expiry ────
         # Max Pain is almost meaningless 5+ days before expiry (market hasn't
         # started pinning yet). It becomes highly predictive in the last 48h.
@@ -1856,7 +1866,25 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     if oc:
         chg_bull = oc["chg_bull_force"]; chg_bear = oc["chg_bear_force"]
         bull_pct = oc["chg_bull_pct"]; bear_pct = oc["chg_bear_pct"]; pcr = oc["pcr_oi"]
-        oi_dir = oc["raw_oi_dir"]; oi_sig = oc["raw_oi_sig"]; oi_cls = oc["raw_oi_cls"]
+        # ── Smart banner signal: prefer CHG when it strongly disagrees ──
+        # If today's OI flow is decisively bullish (>=60%) but cumulative
+        # PCR says bearish, the fresh money is more actionable — show it.
+        # Similarly if flow is decisively bearish vs a bullish PCR.
+        # When both agree, or flow is mixed (40-60%), use PCR-based signal.
+        raw_oi_dir = oc["raw_oi_dir"]; raw_oi_sig = oc["raw_oi_sig"]; raw_oi_cls = oc["raw_oi_cls"]
+        chg_bull_pct_h = oc["chg_bull_pct"]
+        if chg_bull_pct_h >= 60 and raw_oi_cls == "bearish":
+            oi_dir = oc["oi_dir"]
+            oi_sig = oc["oi_sig"] + " | CHG flow dominant"
+            oi_cls = oc["oi_cls"]
+        elif chg_bull_pct_h <= 40 and raw_oi_cls == "bullish":
+            oi_dir = oc["oi_dir"]
+            oi_sig = oc["oi_sig"] + " | CHG flow dominant"
+            oi_cls = oc["oi_cls"]
+        else:
+            oi_dir = raw_oi_dir
+            oi_sig = raw_oi_sig
+            oi_cls = raw_oi_cls
         bull_label = _fmt_chg_oi(chg_bull); bear_label = _fmt_chg_oi(chg_bear)
         expiry = oc["expiry"]; underlying = oc["underlying"]; atm = oc["atm_strike"]; max_pain = oc["max_pain"]
     else:
