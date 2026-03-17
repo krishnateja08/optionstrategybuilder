@@ -1998,6 +1998,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 # =================================================================
 
 def build_oi_html(oc):
+    # ── All original logic preserved exactly — only HTML output changed (Style 1) ──
     ce  = oc["ce_chg"]; pe = oc["pe_chg"]
     expiry = oc["expiry"]; oi_dir = oc["oi_dir"]; oi_sig = oc["oi_sig"]; oi_cls = oc["oi_cls"]
     pcr = oc["pcr_oi"]; total_ce = oc["total_ce_oi"]; total_pe = oc["total_pe_oi"]
@@ -2040,74 +2041,129 @@ def build_oi_html(oc):
     net_bar_col     = "#00c896" if net_is_bullish else "#ff6b6b"
     net_pct_display = f"+{net_pct}%" if net_is_bullish else f"−{net_pct}%"
 
-    dir_card = f"""
-<div style="display:flex;align-items:stretch;border:1px solid {dir_bdr};border-radius:14px;
-  background:{dir_bg};overflow:hidden;margin-bottom:16px;flex-wrap:wrap;">
-  <div style="padding:18px 24px;min-width:0;width:100%;max-width:220px;border-right:1px solid rgba(255,255,255,.07);
-    display:flex;flex-direction:column;justify-content:center;flex-shrink:0;box-sizing:border-box;">
-    <div style="font-size:12.3px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.65);margin-bottom:7px;">OI CHANGE DIRECTION</div>
-    <div style="font-size:30.4px;font-weight:700;color:{dir_col};line-height:1.1;margin-bottom:5px;">{oi_dir}</div>
-    <div style="font-size:15.2px;color:{dir_col};opacity:.7;">{oi_sig}</div>
-    <div style="margin-top:10px;font-family:'DM Mono',monospace;font-size:14.5px;color:rgba(255,255,255,.68);">PCR &nbsp;<span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
+    ce_icon_bg  = "rgba(255,107,107,.12)"
+    pe_icon_bg  = "rgba(0,200,150,.12)"
+    net_icon_bg = "rgba(0,200,150,.12)" if net_is_bullish else "rgba(255,107,107,.12)"
+    net_arrow   = "&#8593;" if net_is_bullish else "&#8595;"
+
+    if oi_cls == "bullish":
+        badge_style = "background:rgba(0,200,150,.12);color:#00c896;border:1px solid rgba(0,200,150,.25);"
+    elif oi_cls == "bearish":
+        badge_style = "background:rgba(255,107,107,.12);color:#ff6b6b;border:1px solid rgba(255,107,107,.25);"
+    else:
+        badge_style = "background:rgba(100,128,255,.12);color:#6480ff;border:1px solid rgba(100,128,255,.25);"
+
+    badge_word = oi_dir.split()[0] if oi_dir else oi_dir
+
+    html = f"""<style>
+.oi-s1{{background:#080b14;border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;font-family:'DM Mono',monospace;margin-bottom:16px;}}
+.oi-s1-top{{display:flex;align-items:stretch;border-bottom:1px solid rgba(255,255,255,.07);flex-wrap:wrap;}}
+.oi-s1-badge{{padding:0 14px;min-height:44px;display:flex;align-items:center;gap:8px;border-right:1px solid rgba(255,255,255,.07);background:{dir_bg};flex-shrink:0;flex:1;min-width:0;}}
+.oi-s1-dot{{width:8px;height:8px;border-radius:50%;background:{dir_col};flex-shrink:0;}}
+.oi-s1-dir{{font-size:13px;font-weight:700;color:{dir_col};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
+.oi-s1-sig{{font-size:10px;color:rgba(255,255,255,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
+.oi-s1-pcr{{padding:0 14px;display:flex;align-items:center;gap:6px;font-size:11px;color:rgba(255,255,255,.4);flex-shrink:0;min-height:44px;}}
+.oi-s1-strip{{display:grid;grid-template-columns:repeat(3,1fr);}}
+.oi-s1-cell{{padding:10px 14px;border-right:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:10px;min-width:0;}}
+.oi-s1-cell:last-child{{border-right:none;}}
+.oi-s1-icon{{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;letter-spacing:.3px;}}
+.oi-s1-body{{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;}}
+.oi-s1-lbl{{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.3);}}
+.oi-s1-val{{font-size:20px;font-weight:700;line-height:1;}}
+.oi-s1-sub{{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
+.oi-s1-bar{{display:flex;align-items:center;gap:5px;margin-top:3px;}}
+.oi-s1-track{{flex:1;height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;}}
+.oi-s1-fill{{height:100%;border-radius:2px;}}
+.oi-s1-pct{{font-size:10px;font-weight:700;min-width:28px;text-align:right;flex-shrink:0;}}
+.oi-s1-bottom{{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid rgba(255,255,255,.07);}}
+.oi-s1-stat{{display:flex;flex-direction:column;align-items:center;padding:7px 6px;border-right:1px solid rgba(255,255,255,.05);}}
+.oi-s1-stat:last-child{{border-right:none;}}
+.oi-s1-stat-lbl{{font-size:8px;letter-spacing:.8px;text-transform:uppercase;color:rgba(255,255,255,.25);margin-bottom:2px;text-align:center;}}
+.oi-s1-stat-val{{font-size:13px;font-weight:700;text-align:center;}}
+.oi-s1-pain{{display:flex;align-items:center;gap:10px;padding:7px 14px;border-top:1px solid rgba(255,255,255,.07);background:rgba(100,128,255,.04);flex-wrap:wrap;}}
+.oi-s1-pain-lbl{{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);}}
+.oi-s1-pain-val{{font-size:16px;font-weight:700;color:#6480ff;}}
+.oi-s1-pain-desc{{font-size:10px;color:rgba(100,128,255,.4);}}
+@media(max-width:600px){{
+  .oi-s1-sig{{display:none;}}
+  .oi-s1-strip{{grid-template-columns:1fr;}}
+  .oi-s1-cell{{border-right:none;border-bottom:1px solid rgba(255,255,255,.06);}}
+  .oi-s1-cell:last-child{{border-bottom:none;}}
+  .oi-s1-bottom{{grid-template-columns:repeat(3,1fr);}}
+  .oi-s1-stat:nth-child(4),.oi-s1-stat:nth-child(5){{display:none;}}
+  .oi-s1-val{{font-size:18px;}}
+  .oi-s1-pcr{{padding:0 10px;}}
+}}
+</style>
+<div class="oi-s1">
+  <div class="oi-s1-top">
+    <div class="oi-s1-badge">
+      <div class="oi-s1-dot"></div>
+      <div class="oi-s1-dir">{oi_dir}</div>
+      <div class="oi-s1-sig">&nbsp;&middot;&nbsp;{oi_sig}</div>
+    </div>
+    <div class="oi-s1-pcr">
+      PCR&nbsp;<span style="color:{pcr_col};font-weight:700;font-size:13px;">{pcr:.3f}</span>
+      &nbsp;
+      <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;{badge_style}">{badge_word}</span>
+    </div>
   </div>
-  <div style="display:flex;flex:1;align-items:stretch;">
-    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:16px 20px;border-right:1px solid rgba(255,255,255,.05);gap:5px;">
-      <div style="font-size:12.3px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.65);white-space:nowrap;">CE OI Change</div>
-      <div style="font-family:'DM Mono',monospace;font-size:31.9px;font-weight:700;color:{ce_col};line-height:1;">{ce_fmt}</div>
-      <div style="font-size:14.5px;color:rgba(255,255,255,.68);white-space:nowrap;">{ce_label}</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
-        <div style="flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;"><div style="width:{ce_pct}%;height:100%;border-radius:3px;background:{ce_bar_col};"></div></div>
-        <div style="font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;color:{ce_bar_col};min-width:38px;text-align:right;">{ce_pct_display}</div>
+  <div class="oi-s1-strip">
+    <div class="oi-s1-cell">
+      <div class="oi-s1-icon" style="background:{ce_icon_bg};color:{ce_col};">CE</div>
+      <div class="oi-s1-body">
+        <div class="oi-s1-lbl">CE OI Change</div>
+        <div class="oi-s1-val" style="color:{ce_col};">{ce_fmt}</div>
+        <div class="oi-s1-sub" style="color:{ce_col};">{ce_label}</div>
+        <div class="oi-s1-bar">
+          <div class="oi-s1-track"><div class="oi-s1-fill" style="width:{ce_pct}%;background:{ce_bar_col};"></div></div>
+          <span class="oi-s1-pct" style="color:{ce_bar_col};">{ce_pct_display}</span>
+        </div>
       </div>
     </div>
-    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:16px 20px;border-right:1px solid rgba(255,255,255,.05);gap:5px;">
-      <div style="font-size:12.3px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.65);white-space:nowrap;">PE OI Change</div>
-      <div style="font-family:'DM Mono',monospace;font-size:31.9px;font-weight:700;color:{pe_col};line-height:1;">{pe_fmt}</div>
-      <div style="font-size:14.5px;color:rgba(255,255,255,.68);white-space:nowrap;">{pe_label}</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
-        <div style="flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;"><div style="width:{pe_pct}%;height:100%;border-radius:3px;background:{pe_bar_col};"></div></div>
-        <div style="font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;color:{pe_bar_col};min-width:38px;text-align:right;">{pe_pct_display}</div>
+    <div class="oi-s1-cell">
+      <div class="oi-s1-icon" style="background:{pe_icon_bg};color:{pe_col};">PE</div>
+      <div class="oi-s1-body">
+        <div class="oi-s1-lbl">PE OI Change</div>
+        <div class="oi-s1-val" style="color:{pe_col};">{pe_fmt}</div>
+        <div class="oi-s1-sub" style="color:{pe_col};">{pe_label}</div>
+        <div class="oi-s1-bar">
+          <div class="oi-s1-track"><div class="oi-s1-fill" style="width:{pe_pct}%;background:{pe_bar_col};"></div></div>
+          <span class="oi-s1-pct" style="color:{pe_bar_col};">{pe_pct_display}</span>
+        </div>
       </div>
     </div>
-    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:16px 20px;gap:5px;">
-      <div style="font-size:12.3px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,255,255,.65);white-space:nowrap;">Net OI Change</div>
-      <div style="font-family:'DM Mono',monospace;font-size:31.9px;font-weight:700;color:{net_col};line-height:1;">{net_fmt}</div>
-      <div style="font-size:14.5px;color:rgba(255,255,255,.68);white-space:nowrap;">{net_label}</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
-        <div style="flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;"><div style="width:{net_pct}%;height:100%;border-radius:3px;background:{net_bar_col};box-shadow:0 0 8px {net_bar_col}66;"></div></div>
-        <div style="font-family:'DM Mono',monospace;font-size:14.5px;font-weight:700;color:{net_bar_col};min-width:38px;text-align:right;">{net_pct_display}</div>
+    <div class="oi-s1-cell">
+      <div class="oi-s1-icon" style="background:{net_icon_bg};color:{net_col};">{net_arrow}</div>
+      <div class="oi-s1-body">
+        <div class="oi-s1-lbl">Net OI Change</div>
+        <div class="oi-s1-val" style="color:{net_col};">{net_fmt}</div>
+        <div class="oi-s1-sub" style="color:{net_col};">{net_label}</div>
+        <div class="oi-s1-bar">
+          <div class="oi-s1-track"><div class="oi-s1-fill" style="width:{net_pct}%;background:{net_bar_col};"></div></div>
+          <span class="oi-s1-pct" style="color:{net_bar_col};">{net_pct_display}</span>
+        </div>
       </div>
     </div>
+  </div>
+  <div class="oi-s1-bottom">
+    <div class="oi-s1-stat"><div class="oi-s1-stat-lbl">CE OI</div><div class="oi-s1-stat-val" style="color:#ff6b6b;">{total_ce:,}</div></div>
+    <div class="oi-s1-stat"><div class="oi-s1-stat-lbl">PE OI</div><div class="oi-s1-stat-val" style="color:#00c896;">{total_pe:,}</div></div>
+    <div class="oi-s1-stat"><div class="oi-s1-stat-lbl">PCR</div><div class="oi-s1-stat-val" style="color:{pcr_col};">{pcr:.3f}</div></div>
+    <div class="oi-s1-stat"><div class="oi-s1-stat-lbl">Max CE Wall</div><div class="oi-s1-stat-val" style="color:#ff6b6b;">&#8377;{max_ce_s:,}</div></div>
+    <div class="oi-s1-stat"><div class="oi-s1-stat-lbl">Max PE Wall</div><div class="oi-s1-stat-val" style="color:#00c896;">&#8377;{max_pe_s:,}</div></div>
+  </div>
+  <div class="oi-s1-pain">
+    <span class="oi-s1-pain-lbl">Max Pain</span>
+    <span class="oi-s1-pain-val">&#8377;{max_pain:,}</span>
+    <span class="oi-s1-pain-desc">Option writers' target</span>
   </div>
 </div>"""
-
-    snapshot_table = (
-        f'<div class="oi-ticker-table">'
-        f'<div class="oi-ticker-hdr" style="background:rgba(100,128,255,.05);border-bottom:1px solid rgba(100,128,255,.1);">'
-        f'<div class="oi-ticker-hdr-label" style="color:rgba(100,128,255,.8);">&#9632; OI SNAPSHOT</div>'
-        f'<div class="oi-ticker-hdr-cell">Total CE OI</div><div class="oi-ticker-hdr-cell">Total PE OI</div>'
-        f'<div class="oi-ticker-hdr-cell">PCR (OI)</div><div class="oi-ticker-hdr-cell">Max CE</div>'
-        f'<div class="oi-ticker-hdr-cell">Max PE</div></div>'
-        f'<div class="oi-ticker-row">'
-        f'<div class="oi-ticker-metric">Snapshot</div>'
-        f'<div class="oi-ticker-cell" style="color:#ff6b6b;font-family:\'DM Mono\',monospace;font-weight:700;font-size:21.8px;">{total_ce:,}</div>'
-        f'<div class="oi-ticker-cell" style="color:#00c896;font-family:\'DM Mono\',monospace;font-weight:700;font-size:21.8px;">{total_pe:,}</div>'
-        f'<div class="oi-ticker-cell" style="color:{pcr_col};font-family:\'DM Mono\',monospace;font-weight:700;font-size:21.8px;">{pcr:.3f}</div>'
-        f'<div class="oi-ticker-cell" style="color:#ff6b6b;font-family:\'DM Mono\',monospace;font-weight:700;font-size:21.8px;">&#8377;{max_ce_s:,}</div>'
-        f'<div class="oi-ticker-cell" style="color:#00c896;font-family:\'DM Mono\',monospace;font-weight:700;font-size:21.8px;">&#8377;{max_pe_s:,}</div>'
-        f'</div>'
-        f'<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-top:1px solid rgba(255,255,255,.04);flex-wrap:wrap;gap:10px;">'
-        f'<div style="display:flex;align-items:center;gap:10px;">'
-        f'<span style="font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.68);">MAX PAIN</span>'
-        f'<span style="font-family:\'DM Mono\',monospace;font-size:26.1px;font-weight:700;color:#6480ff;">&#8377;{max_pain:,}</span>'
-        f'<span style="font-size:14.5px;color:rgba(100,128,255,.6);">Option writers\' target</span></div>'
-        f'</div></div>'
-    )
 
     return (
         f'<div class="section"><div class="sec-title">OPEN INTEREST DASHBOARD'
         f'<span class="sec-sub">Spot ±500 pts · Expiry: {expiry} · Spot: &#8377;{underlying:,.2f}</span></div>'
-        + dir_card + snapshot_table + "</div>"
+        + html + "</div>"
     )
 
 
