@@ -1039,12 +1039,9 @@ def analyze_option_chain(oc_data, vix=18.0):
     total_pe_vol = df["PE_Vol"].sum()
     pcr_oi       = total_pe_oi  / total_ce_oi  if total_ce_oi  > 0 else 0
     pcr_vol      = total_pe_vol / total_ce_vol if total_ce_vol > 0 else 0
-    # OI NET SIGNAL restricted to ATM ±10 strikes (10 × 50-pt spacing = ±500 pts)
-    atm_strike_raw = oc_data["atm_strike"]
-    df_net  = df[(df["Strike"] >= atm_strike_raw - 500) & (df["Strike"] <= atm_strike_raw + 500)]
-    ce_chg  = int(df_net["CE_OI_Change"].sum())
-    pe_chg  = int(df_net["PE_OI_Change"].sum())
-    net_chg = pe_chg + ce_chg
+    ce_chg       = int(df["CE_OI_Change"].sum())
+    pe_chg       = int(df["PE_OI_Change"].sum())
+    net_chg      = pe_chg + ce_chg
 
     if   ce_chg > 0 and pe_chg < 0:
         oi_dir, oi_sig, oi_icon, oi_cls = "Strong Bearish", "Call Build-up + Put Unwinding", "RED",    "bearish"
@@ -1418,13 +1415,6 @@ def compute_market_direction(tech, oc_analysis, live_vix=18.0):
         pcr = oc_analysis["pcr_oi"]
         if   pcr > 1.2: bull += 2
         elif pcr < 0.7: bear += 2
-
-        # ── CHG-based OI flow scoring (today's fresh money) ───────
-        # Real-time vote based on intraday OI change — more actionable
-        # than cumulative PCR alone. Only scored when decisive (>=60%).
-        chg_bull_pct = oc_analysis.get("chg_bull_pct", 50)
-        if   chg_bull_pct >= 60: bull += 1
-        elif chg_bull_pct <= 40: bear += 1
 
         # ── Max Pain scoring — time-weighted by days to expiry ────
         # Max Pain is almost meaningless 5+ days before expiry (market hasn't
@@ -1864,25 +1854,16 @@ def _build_exhaustion_banner_html(md):
 
 def build_dual_gauge_hero(oc, tech, md, ts):
     if oc:
-        # ── Gauges: Total PE_OI (Put OI) and Total CE_OI (Call OI) ──
-        total_pe_oi = oc["total_pe_oi"]
-        total_ce_oi = oc["total_ce_oi"]
-        oi_total    = total_pe_oi + total_ce_oi if (total_pe_oi + total_ce_oi) > 0 else 1
-        pe_pct      = round(total_pe_oi / oi_total * 100)
-        ce_pct      = 100 - pe_pct
-        pe_label    = _fmt_chg_oi(total_pe_oi)
-        ce_label    = _fmt_chg_oi(total_ce_oi)
-
-        # ── OI NET SIGNAL: restrict to ATM ±10 strikes only ──────────
-        pcr = oc["pcr_oi"]
-        raw_oi_dir = oc["raw_oi_dir"]; raw_oi_sig = oc["raw_oi_sig"]; raw_oi_cls = oc["raw_oi_cls"]
-        oi_dir = oc["oi_dir"]; oi_sig = oc["oi_sig"]; oi_cls = oc["oi_cls"]
+        chg_bull = oc["chg_bull_force"]; chg_bear = oc["chg_bear_force"]
+        bull_pct = oc["chg_bull_pct"]; bear_pct = oc["chg_bear_pct"]; pcr = oc["pcr_oi"]
+        oi_dir = oc["raw_oi_dir"]; oi_sig = oc["raw_oi_sig"]; oi_cls = oc["raw_oi_cls"]
+        bull_label = _fmt_chg_oi(chg_bull); bear_label = _fmt_chg_oi(chg_bear)
         expiry = oc["expiry"]; underlying = oc["underlying"]; atm = oc["atm_strike"]; max_pain = oc["max_pain"]
     else:
-        total_pe_oi = total_ce_oi = 0; pe_pct = ce_pct = 50; pcr = 1.0
-        pe_label = ce_label = "N/A"
+        chg_bull = chg_bear = 0; bull_pct = bear_pct = 50; pcr = 1.0
         oi_sig = "NSE data unavailable"; oi_dir = "UNKNOWN"; oi_cls = "neutral"
         expiry = "N/A"; underlying = 0; atm = 0; max_pain = 0
+        bull_label = "N/A"; bear_label = "N/A"
 
     cp = tech["price"] if tech else 0
     bias = md["bias"]; conf = md["confidence"]; bull_sc = md["bull"]; bear_sc = md["bear"]; diff = md["diff"]
@@ -1892,9 +1873,8 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     b_bg = _cls_bg(md.get("bias_cls", "neutral")); b_bdr = _cls_bdr(md.get("bias_cls", "neutral"))
     C = 263.9
     def clamp(v, lo=10, hi=97): return max(lo, min(hi, v))
-    pe_offset  = C * (1 - clamp(pe_pct) / 100)
-    ce_offset  = C * (1 - clamp(ce_pct) / 100)
-    pe_bar_w   = clamp(pe_pct); ce_bar_w = clamp(ce_pct)
+    bull_offset = C * (1 - clamp(bull_pct) / 100); bear_offset = C * (1 - clamp(bear_pct) / 100)
+    oi_bar_w = clamp(bull_pct); bear_bar_w = clamp(bear_pct)
     b_arrow = "▲" if bias == "BULLISH" else ("▼" if bias == "BEARISH" else "◆")
     glow_rgb = ("0,200,150" if dir_col == "#00c896" else "255,107,107" if dir_col == "#ff6b6b" else "100,128,255")
 
@@ -1904,32 +1884,32 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     <div class="gauge-wrap">
       <svg width="100" height="100" viewBox="0 0 100 100">
         <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="7"/>
-        <circle cx="50" cy="50" r="42" fill="none" stroke="url(#pe-oi-g)" stroke-width="7"
-          stroke-linecap="round" stroke-dasharray="{C}" stroke-dashoffset="{pe_offset:.1f}"
+        <circle cx="50" cy="50" r="42" fill="none" stroke="url(#bull-g)" stroke-width="7"
+          stroke-linecap="round" stroke-dasharray="{C}" stroke-dashoffset="{bull_offset:.1f}"
           style="transform:rotate(-90deg);transform-origin:50px 50px;transition:stroke-dashoffset 1s ease;"/>
-        <defs><linearGradient id="pe-oi-g" x1="0%" y1="0%" x2="100%" y2="0%">
+        <defs><linearGradient id="bull-g" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stop-color="#00c896"/><stop offset="100%" stop-color="#4de8b8"/>
         </linearGradient></defs>
       </svg>
       <div class="gauge-inner">
-        <div class="g-val" style="color:#00c896;">{pe_label}</div>
-        <div class="g-lbl">PUT OI</div>
+        <div class="g-val" style="color:#00c896;">{bull_label}</div>
+        <div class="g-lbl">CHG BULL</div>
       </div>
     </div>
     <div class="gauge-sep"></div>
     <div class="gauge-wrap">
       <svg width="100" height="100" viewBox="0 0 100 100">
         <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="7"/>
-        <circle cx="50" cy="50" r="42" fill="none" stroke="url(#ce-oi-g)" stroke-width="7"
-          stroke-linecap="round" stroke-dasharray="{C}" stroke-dashoffset="{ce_offset:.1f}"
+        <circle cx="50" cy="50" r="42" fill="none" stroke="url(#bear-g)" stroke-width="7"
+          stroke-linecap="round" stroke-dasharray="{C}" stroke-dashoffset="{bear_offset:.1f}"
           style="transform:rotate(-90deg);transform-origin:50px 50px;transition:stroke-dashoffset 1s ease;"/>
-        <defs><linearGradient id="ce-oi-g" x1="0%" y1="0%" x2="100%" y2="0%">
+        <defs><linearGradient id="bear-g" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stop-color="#ff6b6b"/><stop offset="100%" stop-color="#ff9090"/>
         </linearGradient></defs>
       </svg>
       <div class="gauge-inner">
-        <div class="g-val" style="color:#ff6b6b;">{ce_label}</div>
-        <div class="g-lbl">CALL OI</div>
+        <div class="g-val" style="color:#ff6b6b;">{bear_label}</div>
+        <div class="g-lbl">CHG BEAR</div>
       </div>
     </div>
   </div>
@@ -1940,15 +1920,15 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     <div class="h-divider"></div>
     <div class="pill-row">
       <div class="pill-dot" style="background:#00c896;box-shadow:0 0 5px rgba(0,200,150,.5);"></div>
-      <div class="pill-lbl">PUT OI</div>
-      <div class="pill-track"><div class="pill-fill" style="width:{pe_bar_w}%;background:linear-gradient(90deg,#00c896,#4de8b8);"></div></div>
-      <div class="pill-num" style="color:#00c896;">{pe_pct}%</div>
+      <div class="pill-lbl">BULL STRENGTH</div>
+      <div class="pill-track"><div class="pill-fill" style="width:{oi_bar_w}%;background:linear-gradient(90deg,#00c896,#4de8b8);"></div></div>
+      <div class="pill-num" style="color:#00c896;">{bull_pct}%</div>
     </div>
     <div class="pill-row">
       <div class="pill-dot" style="background:#ff6b6b;box-shadow:0 0 5px rgba(255,107,107,.4);"></div>
-      <div class="pill-lbl">CALL OI</div>
-      <div class="pill-track"><div class="pill-fill" style="width:{ce_bar_w}%;background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div></div>
-      <div class="pill-num" style="color:#ff6b6b;">{ce_pct}%</div>
+      <div class="pill-lbl">BEAR STRENGTH</div>
+      <div class="pill-track"><div class="pill-fill" style="width:{bear_bar_w}%;background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div></div>
+      <div class="pill-num" style="color:#ff6b6b;">{bear_pct}%</div>
     </div>
   </div>
   <div class="h-stats">
@@ -4995,25 +4975,10 @@ ANIMATED_JS = """
         // ── New data detected ──────────────────────────────────
         _lastGenAt = newTs;
         flashUpdated();
-        // Save complete page state before reload so user never loses their place
-        sessionStorage.setItem('nifty_scroll_pos',  window.scrollY);
-        sessionStorage.setItem('nifty_scroll_ts',   Date.now());
-        // Which main tab is active (oi or strat)
-        var activeMainTab = document.getElementById('mainTabStrat') &&
-                            document.getElementById('mainTabStrat').classList.contains('active')
-                            ? 'strat' : 'oi';
-        sessionStorage.setItem('nifty_main_tab', activeMainTab);
-        // Which strategy category filter is active (bullish/bearish/nondirectional)
-        if (typeof _currentCat !== 'undefined') {
-          sessionStorage.setItem('nifty_cat', _currentCat);
-        }
-        // Which card is open
-        var openCard = document.querySelector('.sc-card.expanded');
-        if (openCard && openCard.dataset.shape) {
-          sessionStorage.setItem('nifty_open_card', openCard.dataset.shape);
-        } else {
-          sessionStorage.removeItem('nifty_open_card');
-        }
+        // Save scroll position + timestamp so restore works even
+        // if the browser delays the load event slightly
+        sessionStorage.setItem('nifty_scroll_pos', window.scrollY);
+        sessionStorage.setItem('nifty_scroll_ts',  Date.now());
         // Short delay so flashUpdated() is visible before reload
         setTimeout(function() { location.reload(); }, 600);
       })
@@ -5038,76 +5003,15 @@ ANIMATED_JS = """
   }, 1000);
 
   window.addEventListener('load', function() {
-    // ── Restore full page state after a data-triggered reload ──────
-    var scrollPos  = sessionStorage.getItem('nifty_scroll_pos');
-    var scrollTs   = sessionStorage.getItem('nifty_scroll_ts');
-    var mainTab    = sessionStorage.getItem('nifty_main_tab');
-    var openShape  = sessionStorage.getItem('nifty_open_card');
-    var savedCat   = sessionStorage.getItem('nifty_cat');
-
-    // Clear all saved state immediately so a manual refresh doesn't re-apply it
-    sessionStorage.removeItem('nifty_scroll_pos');
-    sessionStorage.removeItem('nifty_scroll_ts');
-    sessionStorage.removeItem('nifty_main_tab');
-    sessionStorage.removeItem('nifty_open_card');
-    sessionStorage.removeItem('nifty_cat');
-
-    // Only restore if the save was recent (within 10 seconds — data reload)
-    if (!scrollTs || (Date.now() - parseInt(scrollTs)) > 10000) {
-      setTimeout(doSilentRefresh, 2000);
-      return;
+    // ── Restore scroll position after a data-triggered reload ──
+    var pos = sessionStorage.getItem('nifty_scroll_pos');
+    var ts  = sessionStorage.getItem('nifty_scroll_ts');
+    if (pos && ts && (Date.now() - parseInt(ts)) < 10000) {
+      window.scrollTo(0, parseInt(pos));
+      sessionStorage.removeItem('nifty_scroll_pos');
+      sessionStorage.removeItem('nifty_scroll_ts');
     }
-
-    // Step 1: Switch to correct main tab
-    if (mainTab === 'strat') {
-      switchMainTab('strat');
-    }
-
-    // Step 2: Restore category filter
-    if (savedCat && typeof filterStrat === 'function') {
-      filterStrat(savedCat, null);
-    }
-
-    // Step 3: Restore scroll position
-    if (scrollPos) {
-      window.scrollTo(0, parseInt(scrollPos));
-    }
-
-    // Step 4: Reopen the card — use a retry loop to beat any rendering delay
-    if (openShape) {
-      var attempts = 0;
-      var maxAttempts = 15;  // try for up to ~1.5 seconds
-      function tryRestoreCard() {
-        attempts++;
-        var card = document.querySelector('.sc-card[data-shape="' + openShape + '"]');
-        if (card) {
-          // Found — expand it and reload its metrics
-          document.querySelectorAll('.sc-card.expanded').forEach(function(c) {
-            c.classList.remove('expanded');
-          });
-          card.classList.add('expanded');
-          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          // Trigger metrics load exactly as a real click does
-          var mel = card.querySelector('.sc-metrics-live');
-          if (mel && mel.querySelector('.sc-loading')) {
-            try {
-              var shape      = card.dataset.shape;
-              var cat        = card.dataset.cat;
-              var scoreResult = smartPoP(shape, cat);
-              var _m         = calcMetrics(shape, scoreResult.edgeScore);
-              mel.innerHTML  = renderMetrics(_m, scoreResult);
-              try { drawPayoffChart(card, _m); } catch(e) {}
-            } catch(err) {}
-          }
-        } else if (attempts < maxAttempts) {
-          // Card not in DOM yet — wait 100ms and retry
-          setTimeout(tryRestoreCard, 100);
-        }
-      }
-      setTimeout(tryRestoreCard, 200);
-    }
-
-    // First poll after page load
+    // First poll after page load (slight delay for DOM to settle)
     setTimeout(doSilentRefresh, 2000);
   });
 })();
