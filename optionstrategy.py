@@ -1950,9 +1950,9 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 .hc-stat-val{{font-size:17px;font-weight:800;text-align:center;white-space:nowrap;}}
 
 .hc-bottom{{display:flex;align-items:center;gap:8px;padding:6px 12px;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.2);flex-wrap:wrap;}}
-.hc-chip{{font-size:9px;font-weight:700;padding:2px 9px;border-radius:20px;letter-spacing:.5px;text-transform:uppercase;}}
-.hc-score{{font-size:9px;color:rgba(255,255,255,.35);margin-left:auto;}}
-.hc-ts-lbl{{font-size:9px;color:rgba(255,255,255,.18);}}
+.hc-chip{{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.5px;text-transform:uppercase;}}
+.hc-score{{font-size:11px;color:rgba(255,255,255,.7);margin-left:auto;font-weight:600;}}
+.hc-ts-lbl{{font-size:10px;color:rgba(255,255,255,.5);}}
 @media(max-width:680px){{
   .hc-main{{flex-wrap:wrap;}}
   .hc-signal-block{{width:100%;border-right:none;border-bottom:1px solid rgba(255,255,255,.07);flex-direction:row;align-items:center;gap:12px;padding:10px 14px;}}
@@ -2120,9 +2120,9 @@ def build_oi_html(oc):
 .oi-s1-stat-lbl{{font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:rgba(255,255,255,.65);margin-bottom:3px;text-align:center;font-weight:700;}}
 .oi-s1-stat-val{{font-size:16px;font-weight:800;text-align:center;}}
 .oi-s1-pain{{display:flex;align-items:center;gap:10px;padding:7px 14px;border-top:1px solid rgba(255,255,255,.07);background:rgba(100,128,255,.04);flex-wrap:wrap;}}
-.oi-s1-pain-lbl{{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);}}
-.oi-s1-pain-val{{font-size:16px;font-weight:700;color:#6480ff;}}
-.oi-s1-pain-desc{{font-size:10px;color:rgba(100,128,255,.4);}}
+.oi-s1-pain-lbl{{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.65);font-weight:700;}}
+.oi-s1-pain-val{{font-size:19px;font-weight:800;color:#8aa0ff;}}
+.oi-s1-pain-desc{{font-size:11px;color:rgba(160,180,255,.7);}}
 @media(max-width:600px){{
   .oi-s1-sig{{display:none;}}
   .oi-s1-strip{{grid-template-columns:1fr;}}
@@ -5861,7 +5861,6 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None,
     <!-- Mobile: slide-up drawer content -->
     <div class="mob-drawer-content" id="mobDrawerContent">
       <!-- Greeks panel shown in drawer on mobile -->
-      <div id="greeksPanelMob" style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.08);"></div>
       <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:2px;color:rgba(255,255,255,.35);text-transform:uppercase;margin-bottom:10px;">NAVIGATE</div>
       <div style="display:flex;flex-direction:column;gap:5px;">
         <button class="sb-btn" onclick="mobNav('oi');toggleMobDrawer()">&#128202; OI Dashboard</button>
@@ -5952,10 +5951,7 @@ function switchMainTab(tab) {{
 // ── Mobile bottom nav ─────────────────────────────────────────────────────────
 // Pure CSS drives show/hide. JS handles drawer toggle, nav, and Greeks mirror.
 function _syncMobGreeks() {{
-  // Mirror the Greeks panel content into the mobile drawer slot
-  var src  = document.getElementById('greeksPanel');
-  var dest = document.getElementById('greeksPanelMob');
-  if (src && dest) dest.innerHTML = src.innerHTML;
+  // greeksPanelMob removed — Greeks accessible via Option Greeks nav button
 }}
 
 function toggleMobDrawer() {{
