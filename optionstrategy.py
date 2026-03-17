@@ -3025,7 +3025,9 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
 </div>
 
 <script>
-const OC={{
+// Using window.X assignments so the silent refresh engine can update
+// these globals in-place without a page reload (no flicker).
+window.OC={{
   spot:        {spot:.2f},
   atm:         {atm},
   expiry:      "{expiry}",
@@ -3049,14 +3051,14 @@ const OC={{
 
 // TRUE_POP_MAP — IV-based N(d2) probability, pre-computed in Python.
 // Answers "what does the Black-Scholes bell curve say?" (independent of bias/OI).
-const TRUE_POP_MAP = {true_pop_json};
+window.TRUE_POP_MAP = {true_pop_json};
 
 // IVP — India VIX percentile over last 90 trading days.
 // IVP > 70: IV expensive → favour premium selling.
 // IVP < 20: IV cheap → avoid short premium, prefer long vega strategies.
-const IVP = {ivp};
+window.IVP = {ivp};
 
-const STRIKE_MAP={{}};
+window.STRIKE_MAP={{}};
 OC.strikes.forEach(s=>{{ STRIKE_MAP[s.strike]=s; }});
 
 function smartPoP(shape, cat) {{
@@ -4450,7 +4452,7 @@ window.addEventListener('load',function(){{
 }});
 
 // ── Multi-Expiry Switcher ─────────────────────────────────────
-const ALL_EXPIRY_DATA = {all_expiry_json};
+window.ALL_EXPIRY_DATA = {all_expiry_json};
 
 window.switchExpiry = function(exp) {{
   let d = ALL_EXPIRY_DATA[exp];
@@ -4471,6 +4473,12 @@ window.switchExpiry = function(exp) {{
     }}
     if (!d) return;
   }}
+
+  // ── Remember which card is open so we can reopen it after the switch ──
+  const openCard  = document.querySelector('.sc-card.expanded');
+  const openShape = openCard ? openCard.dataset.shape : null;
+  const openCat   = openCard ? openCard.dataset.cat   : null;
+
   // Update OC object with selected expiry's data
   OC.spot        = d.spot;
   OC.atm         = d.atm;
@@ -4486,16 +4494,18 @@ window.switchExpiry = function(exp) {{
   // Rebuild strike map
   Object.keys(STRIKE_MAP).forEach(k => delete STRIKE_MAP[k]);
   OC.strikes.forEach(s => {{ STRIKE_MAP[s.strike] = s; }});
-  // Collapse all expanded cards first
+
+  // Collapse all expanded cards and reset their metrics panels
   document.querySelectorAll('.sc-card.expanded').forEach(c => c.classList.remove('expanded'));
-  // Reset all metrics panels
   document.querySelectorAll('.sc-metrics-live').forEach(m => {{
     m.innerHTML = '<div class="sc-loading">&#9685; Calculating metrics...</div>';
   }});
+
   // Re-run PoP + sort
   initAllCards();
   ['bullish','bearish','nondirectional'].forEach(sortGridByPoP);
-  // Flash indicator
+
+  // Flash the dropdown border to confirm selection
   const sel = document.getElementById('expiryDropdown');
   if (sel) {{
     sel.style.borderColor = '#00c896';
@@ -4504,6 +4514,48 @@ window.switchExpiry = function(exp) {{
       sel.style.borderColor = 'rgba(245,197,24,.45)';
       sel.style.boxShadow = 'none';
     }}, 800);
+  }}
+
+  // ── Reopen the card that was open before the expiry switch ─────────────
+  // Use a short delay to let initAllCards / sort finish rendering first.
+  if (openShape) {{
+    setTimeout(function() {{
+      const card = document.querySelector('.sc-card[data-shape="' + openShape + '"]');
+      if (!card) return;
+      document.querySelectorAll('.sc-card.expanded').forEach(c => c.classList.remove('expanded'));
+      card.classList.add('expanded');
+      const mel = card.querySelector('.sc-metrics-live');
+      if (mel) {{
+        try {{
+          const sr = smartPoP(openShape, openCat || card.dataset.cat);
+          const _m = calcMetrics(openShape, sr.edgeScore);
+          mel.innerHTML = renderMetrics(_m, sr);
+          try {{ drawPayoffChart(card, _m); }} catch(e) {{}}
+          // Rebuild day-selector table for the new expiry
+          try {{
+            const _sid = mel.querySelector('[id$="_tbody"]');
+            if (_sid) {{
+              const _simId = _sid.id.replace('_tbody','');
+              const _daysLeft = (function() {{
+                try {{
+                  const p = OC.expiry.split('-');
+                  const mo = {{Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}};
+                  const expD = new Date(Date.UTC(parseInt(p[2]), mo[p[1]], parseInt(p[0])));
+                  const ni = new Date(Date.now() + (new Date().getTimezoneOffset()*60000) + 5.5*3600000);
+                  const td = new Date(Date.UTC(ni.getUTCFullYear(), ni.getUTCMonth(), ni.getUTCDate()));
+                  return Math.max(1, Math.round((expD - td) / 86400000));
+                }} catch(e) {{ return 4; }}
+              }})();
+              setupDaySelector(_simId, _m.netDelta, _m.netTheta, _m.netVega, _m.netGamma,
+                _m.mlRawVal === 999999 ? null : _m.mlRawVal,
+                _m.mpRaw    === 999999 ? null : _m.mpRaw, _daysLeft);
+            }}
+          }} catch(e) {{}}
+        }} catch(err) {{}}
+      }}
+      // Scroll card into view so user doesn't wonder where it went
+      setTimeout(() => card.scrollIntoView({{ behavior: 'smooth', block: 'nearest' }}), 60);
+    }}, 120);
   }}
 }};
 </script>
@@ -5116,30 +5168,136 @@ ANIMATED_JS = """
           // No new data — do nothing
           return;
         }
-        // ── New data detected ──────────────────────────────────
+        // ── New data detected — patch in-place, zero reload, zero flicker ──
         _lastGenAt = newTs;
         flashUpdated();
-        // Save complete page state before reload so user never loses their place
-        sessionStorage.setItem('nifty_scroll_pos',  window.scrollY);
-        sessionStorage.setItem('nifty_scroll_ts',   Date.now());
-        // Which main tab is active (oi or strat)
-        var activeMainTab = document.getElementById('mainTabStrat') &&
-                            document.getElementById('mainTabStrat').classList.contains('active')
-                            ? 'strat' : 'oi';
-        sessionStorage.setItem('nifty_main_tab', activeMainTab);
-        // Which strategy category filter is active (bullish/bearish/nondirectional)
-        if (typeof _currentCat !== 'undefined') {
-          sessionStorage.setItem('nifty_cat', _currentCat);
-        }
-        // Which card is open
-        var openCard = document.querySelector('.sc-card.expanded');
-        if (openCard && openCard.dataset.shape) {
-          sessionStorage.setItem('nifty_open_card', openCard.dataset.shape);
-        } else {
-          sessionStorage.removeItem('nifty_open_card');
-        }
-        // Short delay so flashUpdated() is visible before reload
-        setTimeout(function() { location.reload(); }, 600);
+
+        // Snapshot UI state before touching anything
+        var openCard       = document.querySelector('.sc-card.expanded');
+        var openShape      = openCard ? openCard.dataset.shape : null;
+        var openCat        = openCard ? openCard.dataset.cat   : null;
+        var savedScrollY   = window.scrollY;
+        var activeMainTab  = (document.getElementById('mainTabStrat') &&
+                              document.getElementById('mainTabStrat').classList.contains('active'))
+                             ? 'strat' : 'oi';
+        var savedCat       = (typeof _currentCat !== 'undefined') ? _currentCat : 'nondirectional';
+        var savedExpiry    = document.getElementById('expiryDropdown')
+                             ? document.getElementById('expiryDropdown').value : null;
+
+        // Fetch fresh index.html and patch without reloading
+        fetch('index.html?_=' + Date.now())
+          .then(function(r) { return r.text(); })
+          .then(function(html) {
+            var parser = new DOMParser();
+            var newDoc  = parser.parseFromString(html, 'text/html');
+
+            // 1. Patch visible DOM panels (OI, key levels, header, strategy grid, etc.)
+            microDiff(newDoc);
+
+            // 2. Re-execute the data-init script from the new HTML so OC, TRUE_POP_MAP,
+            //    IVP and ALL_EXPIRY_DATA all reflect the latest Python run.
+            //    We look for the script that contains 'window.OC=' and eval it.
+            //    The script uses window.X assignments so eval updates globals cleanly.
+            var scripts = newDoc.querySelectorAll('script');
+            for (var si = 0; si < scripts.length; si++) {
+              var src = scripts[si].textContent || '';
+              if (src.indexOf('window.OC=') !== -1 || src.indexOf('window.OC =') !== -1) {
+                try { eval(src); } catch(evalErr) { /* silent — next poll will fix */ }
+                break;
+              }
+            }
+
+            // 3. Rebuild STRIKE_MAP with fresh strike data
+            if (typeof OC !== 'undefined' && OC.strikes) {
+              Object.keys(STRIKE_MAP).forEach(function(k) { delete STRIKE_MAP[k]; });
+              OC.strikes.forEach(function(s) { STRIKE_MAP[s.strike] = s; });
+            }
+
+            // 4. Re-initialise card PoP scores and re-sort grids
+            if (typeof initAllCards === 'function')  initAllCards();
+            if (typeof sortGridByPoP === 'function') {
+              ['bullish','bearish','nondirectional'].forEach(sortGridByPoP);
+            }
+
+            // 5. Restore expiry dropdown selection (user may have changed it)
+            if (savedExpiry) {
+              var sel = document.getElementById('expiryDropdown');
+              if (sel && sel.querySelector('option[value="' + savedExpiry + '"]')) {
+                sel.value = savedExpiry;
+                // Re-apply expiry data so OC matches the dropdown without collapsing the card
+                var d = ALL_EXPIRY_DATA[savedExpiry];
+                if (d) {
+                  OC.spot        = d.spot;  OC.atm    = d.atm;  OC.expiry = savedExpiry;
+                  OC.pcr         = d.pcr;   OC.maxCeStrike = d.maxCeStrike;
+                  OC.maxPeStrike = d.maxPeStrike;
+                  OC.support     = d.support; OC.resistance = d.resistance;
+                  OC.strongSup   = d.strongSup; OC.strongRes = d.strongRes;
+                  OC.strikes     = d.strikes;
+                  Object.keys(STRIKE_MAP).forEach(function(k) { delete STRIKE_MAP[k]; });
+                  OC.strikes.forEach(function(s) { STRIKE_MAP[s.strike] = s; });
+                }
+              }
+            }
+
+            // 6. Restore main tab
+            if (activeMainTab === 'strat' && typeof switchMainTab === 'function') {
+              switchMainTab('strat');
+            }
+
+            // 7. Restore category filter
+            if (savedCat && typeof filterStrat === 'function') {
+              filterStrat(savedCat, null);
+            }
+
+            // 8. Restore scroll position
+            window.scrollTo(0, savedScrollY);
+
+            // 9. Re-expand the previously open card with refreshed metrics
+            if (openShape) {
+              setTimeout(function() {
+                var card = document.querySelector('.sc-card[data-shape="' + openShape + '"]');
+                if (!card) return;
+                document.querySelectorAll('.sc-card.expanded').forEach(function(c) {
+                  c.classList.remove('expanded');
+                });
+                card.classList.add('expanded');
+                var mel = card.querySelector('.sc-metrics-live');
+                if (mel) {
+                  // Always re-render with fresh data after a data refresh
+                  try {
+                    var sr = smartPoP(openShape, openCat || card.dataset.cat);
+                    var _m = calcMetrics(openShape, sr.edgeScore);
+                    mel.innerHTML = renderMetrics(_m, sr);
+                    try { drawPayoffChart(card, _m); } catch(e) {}
+                    try {
+                      var _sid = mel.querySelector('[id$="_tbody"]');
+                      if (_sid) {
+                        var _simId = _sid.id.replace('_tbody','');
+                        var _daysLeft = (function() {
+                          try {
+                            var p = OC.expiry.split('-');
+                            var mo = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+                            var exp = new Date(Date.UTC(parseInt(p[2]), mo[p[1]], parseInt(p[0])));
+                            var ni  = new Date(Date.now() + (new Date().getTimezoneOffset()*60000) + 5.5*3600000);
+                            var td  = new Date(Date.UTC(ni.getUTCFullYear(), ni.getUTCMonth(), ni.getUTCDate()));
+                            return Math.max(1, Math.round((exp - td) / 86400000));
+                          } catch(e) { return 4; }
+                        })();
+                        if (typeof setupDaySelector === 'function') {
+                          setupDaySelector(_simId, _m.netDelta, _m.netTheta, _m.netVega, _m.netGamma,
+                            _m.mlRawVal === 999999 ? null : _m.mlRawVal,
+                            _m.mpRaw    === 999999 ? null : _m.mpRaw, _daysLeft);
+                        }
+                      }
+                    } catch(e) {}
+                  } catch(err) {}
+                }
+              }, 80);
+            }
+          })
+          .catch(function() {
+            // Network/parse error — silent fail, the next 30-second poll will retry.
+          });
       })
       .catch(function() {
         showSpinner(false);
@@ -5162,76 +5320,9 @@ ANIMATED_JS = """
   }, 1000);
 
   window.addEventListener('load', function() {
-    // ── Restore full page state after a data-triggered reload ──────
-    var scrollPos  = sessionStorage.getItem('nifty_scroll_pos');
-    var scrollTs   = sessionStorage.getItem('nifty_scroll_ts');
-    var mainTab    = sessionStorage.getItem('nifty_main_tab');
-    var openShape  = sessionStorage.getItem('nifty_open_card');
-    var savedCat   = sessionStorage.getItem('nifty_cat');
-
-    // Clear all saved state immediately so a manual refresh doesn't re-apply it
-    sessionStorage.removeItem('nifty_scroll_pos');
-    sessionStorage.removeItem('nifty_scroll_ts');
-    sessionStorage.removeItem('nifty_main_tab');
-    sessionStorage.removeItem('nifty_open_card');
-    sessionStorage.removeItem('nifty_cat');
-
-    // Only restore if the save was recent (within 10 seconds — data reload)
-    if (!scrollTs || (Date.now() - parseInt(scrollTs)) > 10000) {
-      setTimeout(doSilentRefresh, 2000);
-      return;
-    }
-
-    // Step 1: Switch to correct main tab
-    if (mainTab === 'strat') {
-      switchMainTab('strat');
-    }
-
-    // Step 2: Restore category filter
-    if (savedCat && typeof filterStrat === 'function') {
-      filterStrat(savedCat, null);
-    }
-
-    // Step 3: Restore scroll position
-    if (scrollPos) {
-      window.scrollTo(0, parseInt(scrollPos));
-    }
-
-    // Step 4: Reopen the card — use a retry loop to beat any rendering delay
-    if (openShape) {
-      var attempts = 0;
-      var maxAttempts = 15;  // try for up to ~1.5 seconds
-      function tryRestoreCard() {
-        attempts++;
-        var card = document.querySelector('.sc-card[data-shape="' + openShape + '"]');
-        if (card) {
-          // Found — expand it and reload its metrics
-          document.querySelectorAll('.sc-card.expanded').forEach(function(c) {
-            c.classList.remove('expanded');
-          });
-          card.classList.add('expanded');
-          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          // Trigger metrics load exactly as a real click does
-          var mel = card.querySelector('.sc-metrics-live');
-          if (mel && mel.querySelector('.sc-loading')) {
-            try {
-              var shape      = card.dataset.shape;
-              var cat        = card.dataset.cat;
-              var scoreResult = smartPoP(shape, cat);
-              var _m         = calcMetrics(shape, scoreResult.edgeScore);
-              mel.innerHTML  = renderMetrics(_m, scoreResult);
-              try { drawPayoffChart(card, _m); } catch(e) {}
-            } catch(err) {}
-          }
-        } else if (attempts < maxAttempts) {
-          // Card not in DOM yet — wait 100ms and retry
-          setTimeout(tryRestoreCard, 100);
-        }
-      }
-      setTimeout(tryRestoreCard, 200);
-    }
-
-    // First poll after page load
+    // First poll — starts 2 s after page load so the page is fully rendered first.
+    // (State-restore via sessionStorage is no longer needed — the silent refresh
+    //  engine now patches the DOM in-place without a page reload.)
     setTimeout(doSilentRefresh, 2000);
   });
 })();
