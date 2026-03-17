@@ -3011,6 +3011,7 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
           <th class="sc-th" onclick="sortTable('rr')"         style="text-align:center;padding:9px 10px;cursor:pointer;white-space:nowrap;">R:R &#8597;</th>
           <th class="sc-th" onclick="sortTable('maxprofit')"  style="text-align:center;padding:9px 10px;cursor:pointer;white-space:nowrap;">Max Profit &#8597;</th>
           <th class="sc-th" onclick="sortTable('maxloss')"    style="text-align:center;padding:9px 10px;cursor:pointer;white-space:nowrap;">Max Loss &#8597;</th>
+          <th class="sc-th"                                   style="text-align:center;padding:9px 10px;white-space:nowrap;color:#ffd166;">Breakeven</th>
           <th class="sc-th"                                   style="text-align:center;padding:9px 10px;white-space:nowrap;">IVP Adj</th>
           <th class="sc-th"                                   style="text-align:left;  padding:9px 10px;white-space:nowrap;">Legs</th>
         </tr>
@@ -4943,7 +4944,7 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   #viewGrid,#viewTable{flex:1;justify-content:center;}
   .sc-filter-pill{font-size:11px;padding:3px 9px;}
   #sc-table-wrap{-webkit-overflow-scrolling:touch;}
-  #sc-table{min-width:640px;}
+  #sc-table{min-width:780px;}
 }
 @media(max-width:640px){
   header{padding:10px 12px}
@@ -5706,6 +5707,7 @@ function buildTable() {{
       <td style="padding:8px 10px;text-align:center;color:rgba(255,255,255,.7);">${{m.rrStr}}</td>
       <td style="padding:8px 10px;text-align:center;color:#38d888;">${{mpTxt}}</td>
       <td style="padding:8px 10px;text-align:center;color:#f04050;">${{mlTxt}}</td>
+      <td style="padding:8px 10px;text-align:center;font-family:'DM Mono',monospace;font-size:12px;color:#ffd166;white-space:nowrap;">${{m.beStr || '\u2014'}}</td>
       <td style="padding:8px 10px;text-align:center;font-weight:700;color:${{ivpCol}};">${{ivpTxt}}</td>
       <td style="padding:8px 10px;color:rgba(0,200,220,.65);font-size:11px;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${{r.legs}}</td>
     </tr>`;
