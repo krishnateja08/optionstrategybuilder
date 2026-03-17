@@ -32,6 +32,10 @@ Aurora Borealis Theme · v23.0 · Smart Dynamic PoP Engine + Intraday P&L Simula
   2. Table View toggle — compare all strategies side-by-side, sortable by any column
   3. Filter pills — EV>0 / IVP OK / PoP≥60% / Edge≥65% / Limited Risk
      Active filters dim non-qualifying cards; table view respects same filters
+- FIXED v23.1: EV / True PoP / R:R mini-strip now persists after auto-refresh
+  populateMiniStrips() was missing after initAllCards() in both the silent
+  auto-refresh engine and the expiry switcher — causing "—" on collapsed cards
+  until a manual browser refresh. Fixed in both call sites.
 
 pip install curl_cffi pandas numpy yfinance pytz scipy
 """
@@ -4505,6 +4509,8 @@ window.switchExpiry = function(exp) {{
   // Re-run PoP + sort
   initAllCards();
   ['bullish','bearish','nondirectional'].forEach(sortGridByPoP);
+  // FIXED v23.1: repopulate EV / True PoP / R:R mini-strips after expiry switch
+  populateMiniStrips();
 
   // Flash the dropdown border to confirm selection
   const sel = document.getElementById('expiryDropdown');
@@ -5219,6 +5225,8 @@ ANIMATED_JS = """
             if (typeof sortGridByPoP === 'function') {
               ['bullish','bearish','nondirectional'].forEach(sortGridByPoP);
             }
+            // FIXED v23.1: repopulate EV / True PoP / R:R mini-strips after every silent refresh
+            if (typeof populateMiniStrips === 'function') populateMiniStrips();
 
             // 5. Restore expiry dropdown selection (user may have changed it)
             if (savedExpiry) {
