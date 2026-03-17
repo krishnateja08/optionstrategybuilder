@@ -3198,6 +3198,7 @@ function calcMetrics(shape, edgeScore) {{
   let es = edgeScore || 50;
   let mp = 0, ml = 0, be = [], nc = 0, margin = 0, rrRatio = 0;
   let ltpParts = [];
+  let legs = [];   // Expiry payoff legs — for accurate P&L chart
   // Net greeks for intraday simulator (per lot)
   let netDelta = 0, netTheta = 0, netVega = 0, netGamma = 0;
 
@@ -3717,6 +3718,128 @@ function calcMetrics(shape, edgeScore) {{
     }}
   }}
 
+  // ── Expiry payoff legs (intrinsic-value payoff chart) ──────────────────────
+  // Each leg: {{type:'CE'|'PE', strike:number, premium:number, qty:number}}
+  // qty = +1 long, -1 short, +2 2×long, -2 2×short, etc.
+  switch(shape) {{
+    case 'long_call':
+      legs=[{{type:'CE',strike:atm,premium:ce_atm||150,qty:1}}]; break;
+    case 'long_put':
+      legs=[{{type:'PE',strike:atm,premium:pe_atm||150,qty:1}}]; break;
+    case 'short_call':
+      legs=[{{type:'CE',strike:atm,premium:ce_atm||150,qty:-1}}]; break;
+    case 'short_put':
+      legs=[{{type:'PE',strike:atm,premium:pe_atm||150,qty:-1}}]; break;
+    case 'bull_call_spread':
+      legs=[{{type:'CE',strike:atm,premium:ce_atm||150,qty:1}},{{type:'CE',strike:co1.strike,premium:co1.ltp||80,qty:-1}}]; break;
+    case 'bull_put_spread':
+      legs=[{{type:'PE',strike:atm,premium:pe_atm||150,qty:-1}},{{type:'PE',strike:po1.strike,premium:po1.ltp||80,qty:1}}]; break;
+    case 'bear_call_spread':
+      legs=[{{type:'CE',strike:atm,premium:ce_atm||150,qty:-1}},{{type:'CE',strike:co1.strike,premium:co1.ltp||80,qty:1}}]; break;
+    case 'bear_put_spread':
+      legs=[{{type:'PE',strike:atm,premium:pe_atm||150,qty:1}},{{type:'PE',strike:po1.strike,premium:po1.ltp||80,qty:-1}}]; break;
+    case 'long_straddle':
+      legs=[{{type:'CE',strike:atm,premium:ce_atm||150,qty:1}},{{type:'PE',strike:atm,premium:pe_atm||150,qty:1}}]; break;
+    case 'short_straddle':
+      legs=[{{type:'CE',strike:atm,premium:ce_atm||150,qty:-1}},{{type:'PE',strike:atm,premium:pe_atm||150,qty:-1}}]; break;
+    case 'long_strangle': {{
+      const _cp=co1.ltp||100,_pp=po1.ltp||100;
+      legs=[{{type:'CE',strike:co1.strike,premium:_cp,qty:1}},{{type:'PE',strike:po1.strike,premium:_pp,qty:1}}]; break;
+    }}
+    case 'short_strangle': {{
+      const _cp=co1.ltp||100,_pp=po1.ltp||100;
+      legs=[{{type:'CE',strike:co1.strike,premium:_cp,qty:-1}},{{type:'PE',strike:po1.strike,premium:_pp,qty:-1}}]; break;
+    }}
+    case 'short_iron_fly': {{
+      const _ca=ce_atm||150,_pa=pe_atm||150,_wc=co1.ltp||80,_wp=po1.ltp||80;
+      legs=[{{type:'CE',strike:atm,premium:_ca,qty:-1}},{{type:'PE',strike:atm,premium:_pa,qty:-1}},
+            {{type:'CE',strike:co1.strike,premium:_wc,qty:1}},{{type:'PE',strike:po1.strike,premium:_wp,qty:1}}]; break;
+    }}
+    case 'long_iron_fly': {{
+      const _ca=ce_atm||150,_pa=pe_atm||150,_wc=co1.ltp||80,_wp=po1.ltp||80;
+      legs=[{{type:'CE',strike:atm,premium:_ca,qty:1}},{{type:'PE',strike:atm,premium:_pa,qty:1}},
+            {{type:'CE',strike:co1.strike,premium:_wc,qty:-1}},{{type:'PE',strike:po1.strike,premium:_wp,qty:-1}}]; break;
+    }}
+    case 'short_iron_condor': {{
+      const _sc=co1.ltp||100,_bc=co2.ltp||50,_sp=po1.ltp||100,_bp=po2.ltp||50;
+      legs=[{{type:'CE',strike:co1.strike,premium:_sc,qty:-1}},{{type:'CE',strike:co2.strike,premium:_bc,qty:1}},
+            {{type:'PE',strike:po1.strike,premium:_sp,qty:-1}},{{type:'PE',strike:po2.strike,premium:_bp,qty:1}}]; break;
+    }}
+    case 'long_iron_condor': {{
+      const _sc=co1.ltp||100,_bc=co2.ltp||50,_sp=po1.ltp||100,_bp=po2.ltp||50;
+      legs=[{{type:'CE',strike:co1.strike,premium:_sc,qty:1}},{{type:'CE',strike:co2.strike,premium:_bc,qty:-1}},
+            {{type:'PE',strike:po1.strike,premium:_sp,qty:1}},{{type:'PE',strike:po2.strike,premium:_bp,qty:-1}}]; break;
+    }}
+    case 'call_butterfly': case 'bull_butterfly': {{
+      const _lp=ce_atm||150,_mid=co1.ltp||80,_hp=co2.ltp||40;
+      legs=[{{type:'CE',strike:atm,premium:_lp,qty:1}},{{type:'CE',strike:co1.strike,premium:_mid,qty:-2}},
+            {{type:'CE',strike:co2.strike,premium:_hp,qty:1}}]; break;
+    }}
+    case 'put_butterfly': case 'bear_butterfly': {{
+      const _hp=pe_atm||150,_mid=po1.ltp||80,_lp=po2.ltp||40;
+      legs=[{{type:'PE',strike:atm,premium:_hp,qty:1}},{{type:'PE',strike:po1.strike,premium:_mid,qty:-2}},
+            {{type:'PE',strike:po2.strike,premium:_lp,qty:1}}]; break;
+    }}
+    case 'call_ratio_back': {{
+      const _sp=ce_atm||150,_bp=co1.ltp||80;
+      legs=[{{type:'CE',strike:atm,premium:_sp,qty:-1}},{{type:'CE',strike:co1.strike,premium:_bp,qty:2}}]; break;
+    }}
+    case 'put_ratio_back': {{
+      const _sp=pe_atm||150,_bp=po1.ltp||80;
+      legs=[{{type:'PE',strike:atm,premium:_sp,qty:-1}},{{type:'PE',strike:po1.strike,premium:_bp,qty:2}}]; break;
+    }}
+    case 'call_ratio_spread': {{
+      const _bp=ce_atm||150,_sp=co1.ltp||80;
+      legs=[{{type:'CE',strike:atm,premium:_bp,qty:1}},{{type:'CE',strike:co1.strike,premium:_sp,qty:-2}}]; break;
+    }}
+    case 'put_ratio_spread': {{
+      const _bp=pe_atm||150,_sp=po1.ltp||80;
+      legs=[{{type:'PE',strike:atm,premium:_bp,qty:1}},{{type:'PE',strike:po1.strike,premium:_sp,qty:-2}}]; break;
+    }}
+    case 'long_synthetic':
+      legs=[{{type:'CE',strike:atm,premium:ce_atm||150,qty:1}},{{type:'PE',strike:atm,premium:pe_atm||150,qty:-1}}]; break;
+    case 'short_synthetic':
+      legs=[{{type:'CE',strike:atm,premium:ce_atm||150,qty:-1}},{{type:'PE',strike:atm,premium:pe_atm||150,qty:1}}]; break;
+    case 'risk_reversal': {{
+      const _bp=po1.ltp||100,_sc=co1.ltp||100;
+      legs=[{{type:'PE',strike:po1.strike,premium:_bp,qty:1}},{{type:'CE',strike:co1.strike,premium:_sc,qty:-1}}]; break;
+    }}
+    case 'range_forward': {{
+      const _bc=co1.ltp||100,_sp=po1.ltp||100;
+      legs=[{{type:'CE',strike:co1.strike,premium:_bc,qty:1}},{{type:'PE',strike:po1.strike,premium:_sp,qty:-1}}]; break;
+    }}
+    case 'jade_lizard': {{
+      const _pp=po1.ltp||100,_cs=co1.ltp||80,_cb=co2.ltp||40;
+      legs=[{{type:'PE',strike:po1.strike,premium:_pp,qty:-1}},{{type:'CE',strike:co1.strike,premium:_cs,qty:-1}},
+            {{type:'CE',strike:co2.strike,premium:_cb,qty:1}}]; break;
+    }}
+    case 'reverse_jade': {{
+      const _cp2=co1.ltp||100,_ps=po1.ltp||80,_pb=po2.ltp||40;
+      legs=[{{type:'CE',strike:co1.strike,premium:_cp2,qty:-1}},{{type:'PE',strike:po1.strike,premium:_ps,qty:-1}},
+            {{type:'PE',strike:po2.strike,premium:_pb,qty:1}}]; break;
+    }}
+    case 'bull_condor':
+      legs=[{{type:'CE',strike:atm,premium:ce_atm||150,qty:1}},{{type:'CE',strike:co1.strike,premium:co1.ltp||100,qty:-1}},
+            {{type:'CE',strike:co2.strike,premium:co2.ltp||60,qty:-1}},{{type:'CE',strike:co3.strike,premium:co3.ltp||30,qty:1}}]; break;
+    case 'bear_condor':
+      legs=[{{type:'PE',strike:atm,premium:pe_atm||150,qty:1}},{{type:'PE',strike:po1.strike,premium:po1.ltp||100,qty:-1}},
+            {{type:'PE',strike:po2.strike,premium:po2.ltp||60,qty:-1}},{{type:'PE',strike:po3.strike,premium:po3.ltp||30,qty:1}}]; break;
+    case 'batman':
+      legs=[{{type:'CE',strike:atm,premium:ce_atm||150,qty:2}},{{type:'CE',strike:co1.strike,premium:co1.ltp||80,qty:-4}},
+            {{type:'CE',strike:co2.strike,premium:co2.ltp||40,qty:2}}]; break;
+    case 'double_fly':
+      legs=[{{type:'CE',strike:atm,premium:ce_atm||150,qty:1}},{{type:'CE',strike:co1.strike,premium:co1.ltp||80,qty:-2}},
+            {{type:'CE',strike:co2.strike,premium:co2.ltp||40,qty:1}},
+            {{type:'PE',strike:atm,premium:pe_atm||150,qty:1}},{{type:'PE',strike:po1.strike,premium:po1.ltp||80,qty:-2}},
+            {{type:'PE',strike:po2.strike,premium:po2.ltp||40,qty:1}}]; break;
+    case 'double_condor':
+      legs=[{{type:'CE',strike:atm,premium:ce_atm||150,qty:1}},{{type:'CE',strike:co1.strike,premium:co1.ltp||100,qty:-1}},
+            {{type:'CE',strike:co2.strike,premium:co2.ltp||60,qty:-1}},{{type:'CE',strike:co3.strike,premium:co3.ltp||30,qty:1}},
+            {{type:'PE',strike:atm,premium:pe_atm||150,qty:1}},{{type:'PE',strike:po1.strike,premium:po1.ltp||100,qty:-1}},
+            {{type:'PE',strike:po2.strike,premium:po2.ltp||60,qty:-1}},{{type:'PE',strike:po3.strike,premium:po3.ltp||30,qty:1}}]; break;
+    // Calendar/diagonal spreads leave legs=[] → chart falls back to delta-gamma approx
+  }}
+
   const beStr     = be.map(v => '\u20b9' + Math.round(v).toLocaleString('en-IN')).join(' / ');
   const mpStr     = mp === 999999 ? 'Unlimited' : '\u20b9' + Math.round(mp).toLocaleString('en-IN');
   const mlStr     = ml === 999999 ? 'Unlimited' : '\u20b9' + Math.round(ml).toLocaleString('en-IN');
@@ -3805,6 +3928,7 @@ function calcMetrics(shape, edgeScore) {{
     :                 'Avoid — strongly negative EV';
 
   return {{edgeScore:es, truePop, tvRatio, evRaw, evStr, evCol, evLabel, evCapped,
+           legs,
            mpStr,mlStr,rrStr,beStr,ncStr,slipNote,marginStr,mpPct,strikeStr,ltpStr,
            mpRaw:mp,mlRaw:ml,ncRaw:Math.round(ncAdjusted),ncPositive:ncAdjusted>=0,
            netDelta:Math.round(netDelta*100)/100,
@@ -5621,6 +5745,8 @@ function drawPayoffChart(card, m) {{
   const ml    = m.mlRawVal === 999999 ? null : m.mlRawVal;
   const nd    = m.netDelta;
   const ng    = m.netGamma;
+  const legs  = m.legs || [];
+  const lotSz = OC.lotSize || 65;
   const breakevens = m.beStr.replace(/[₹,]/g,'').split(' / ')
                       .map(v=>parseFloat(v)).filter(v=>!isNaN(v));
 
@@ -5631,6 +5757,21 @@ function drawPayoffChart(card, m) {{
   for(let x=xMin;x<=xMax;x+=25) steps.push(x);
 
   function expiryPnl(s){{
+    // ── Accurate analytical expiry P&L using intrinsic values ──────
+    // For each leg: P&L = qty × (intrinsic − premium)
+    // qty>0=long (paid premium, receive intrinsic)
+    // qty<0=short (received premium, owe intrinsic if ITM)
+    if(legs.length > 0) {{
+      let p = 0;
+      for(const leg of legs) {{
+        const intr = leg.type === 'CE'
+          ? Math.max(0, s - leg.strike)
+          : Math.max(0, leg.strike - s);
+        p += leg.qty * (intr - leg.premium);
+      }}
+      return p * lotSz;
+    }}
+    // ── Fallback: delta-gamma approximation (calendar/diagonal spreads) ──
     const mv=s-spot;
     let p=nd*mv+0.5*ng*mv*mv;
     if(ml!==null) p=Math.max(-ml,p);
