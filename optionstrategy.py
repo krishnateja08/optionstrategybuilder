@@ -1927,8 +1927,8 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 
 /* FIX 1 — Signal block: no gap, inline layout, brighter sub text */
 .hc-signal-block{{padding:12px 18px;border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;justify-content:center;gap:4px;flex-shrink:0;width:260px;background:rgba({glow_rgb},.05);box-sizing:border-box;}}
-.hc-eyebrow{{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.65);margin-bottom:2px;font-weight:600;}}
-.hc-signal{{font-family:'Sora',sans-serif;font-size:24px;font-weight:900;line-height:1.1;white-space:nowrap;}}
+.hc-eyebrow{{font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.82);margin-bottom:3px;font-weight:700;}}
+.hc-signal{{font-family:'Sora',sans-serif;font-size:26px;font-weight:900;line-height:1.1;white-space:nowrap;}}
 .hc-sub{{font-size:13px;font-weight:600;color:rgba(255,255,255,.85);line-height:1.4;}}
 .hc-sub-pcr{{font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;font-weight:600;}}
 
@@ -2097,19 +2097,19 @@ def build_oi_html(oc):
     html = f"""<style>
 .oi-s1{{background:#080b14;border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;font-family:'DM Mono',monospace;margin-bottom:16px;}}
 .oi-s1-top{{display:flex;align-items:stretch;border-bottom:1px solid rgba(255,255,255,.07);flex-wrap:wrap;}}
-.oi-s1-badge{{padding:0 14px;min-height:44px;display:flex;align-items:center;gap:8px;border-right:1px solid rgba(255,255,255,.07);background:{dir_bg};flex-shrink:0;flex:1;min-width:0;}}
+.oi-s1-badge{{padding:0 16px;min-height:50px;display:flex;align-items:center;gap:8px;border-right:1px solid rgba(255,255,255,.07);background:{dir_bg};flex-shrink:0;flex:1;min-width:0;}}
 .oi-s1-dot{{width:8px;height:8px;border-radius:50%;background:{dir_col};flex-shrink:0;}}
-.oi-s1-dir{{font-size:13px;font-weight:700;color:{dir_col};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
-.oi-s1-sig{{font-size:10px;color:rgba(255,255,255,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
+.oi-s1-dir{{font-size:16px;font-weight:800;color:{dir_col};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
+.oi-s1-sig{{font-size:12px;font-weight:600;color:rgba(255,255,255,.75);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
 .oi-s1-pcr{{padding:0 14px;display:flex;align-items:center;gap:6px;font-size:11px;color:rgba(255,255,255,.4);flex-shrink:0;min-height:44px;}}
 .oi-s1-strip{{display:grid;grid-template-columns:repeat(3,1fr);}}
 .oi-s1-cell{{padding:10px 14px;border-right:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:10px;min-width:0;}}
 .oi-s1-cell:last-child{{border-right:none;}}
 .oi-s1-icon{{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;letter-spacing:.3px;}}
 .oi-s1-body{{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;}}
-.oi-s1-lbl{{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.3);}}
+.oi-s1-lbl{{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.65);font-weight:700;}}
 .oi-s1-val{{font-size:20px;font-weight:700;line-height:1;}}
-.oi-s1-sub{{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
+.oi-s1-sub{{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
 .oi-s1-bar{{display:flex;align-items:center;gap:5px;margin-top:3px;}}
 .oi-s1-track{{flex:1;height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;}}
 .oi-s1-fill{{height:100%;border-radius:2px;}}
@@ -2296,16 +2296,27 @@ def build_key_levels_html(tech, oc):
 
     def node_html(n):
         b = str(n["bottom"]) + "px"
+        # Pill-style label matching the NOW pill — filled background, rounded, prominent
+        glow_shadow = ('box-shadow:0 2px 10px rgba(' +
+            ('0,200,150' if n["dc"] == "#00c896" or n["dc"] == "#00a07a"
+             else '204,64,64' if n["dc"] == "#ff6b6b" or n["dc"] == "#cc4040"
+             else '100,128,255') + ',.45);')
         return (
             '<div style="position:absolute;left:' + str(n["p"]) + '%;bottom:' + b + ';'
-            'transform:translateX(-50%);text-align:center;">'
+            'transform:translateX(-50%);text-align:center;z-index:10;">'
+            '<div style="display:inline-block;background:' + n["dc"] + '22;'
+            'border:1px solid ' + n["dc"] + '88;border-radius:20px;'
+            'padding:3px 10px;white-space:nowrap;' + glow_shadow + '">'
             '<div style="font-family:' + DM + ';font-size:10px;font-weight:700;'
             'letter-spacing:1.2px;text-transform:uppercase;color:' + n["lc"] + ';'
-            'white-space:nowrap;line-height:1.3;">' + n["lbl"] + '</div>'
-            '<div style="font-family:' + DM + ';font-size:13px;font-weight:700;'
-            'color:' + n["vc"] + ';white-space:nowrap;line-height:1.3;">' + n["val"] + '</div>'
+            'line-height:1.3;">' + n["lbl"] + '</div>'
+            '<div style="font-family:' + DM + ';font-size:14px;font-weight:800;'
+            'color:' + n["vc"] + ';line-height:1.3;">' + n["val"] + '</div>'
+            '</div>'
+            '<div style="width:2px;height:8px;background:' + n["dc"] + ';'
+            'margin:3px auto 0;border-radius:1px;opacity:.7;"></div>'
             '<div style="width:9px;height:9px;border-radius:50%;background:' + n["dc"] + ';'
-            + n["glow"] + 'margin:4px auto 0;border:2px solid ' + BG + ';"></div>'
+            + n["glow"] + 'margin:0 auto;border:2px solid ' + BG + ';"></div>'
             '</div>'
         )
 
@@ -5012,15 +5023,15 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 .content{overflow-y:auto}
 .section{padding:26px 28px;border-bottom:1px solid rgba(255,255,255,.05);background:transparent;position:relative}
 .section:nth-child(odd){background:rgba(255,255,255,.015)}
-.sec-title{font-family:var(--fh);font-size:15.9px;font-weight:700;letter-spacing:2.5px;color:var(--aurora1);text-transform:uppercase;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid rgba(0,200,150,.15)}
+.sec-title{font-family:var(--fh);font-size:18px;font-weight:800;letter-spacing:2.5px;color:var(--aurora1);text-transform:uppercase;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid rgba(0,200,150,.2);text-shadow:0 0 20px rgba(0,200,150,.35)}
 .sec-sub{font-size:15.9px;color:var(--muted2);font-weight:400;letter-spacing:.5px;text-transform:none;margin-left:auto}
 .oi-ticker-table{border:1px solid rgba(255,255,255,.07);border-radius:14px;overflow:hidden}
 .oi-ticker-hdr{display:grid;grid-template-columns:130px repeat(5,1fr);padding:9px 18px;align-items:center;gap:6px}
 .oi-ticker-hdr-label{font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
-.oi-ticker-hdr-cell{font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.70);text-align:center}
+.oi-ticker-hdr-cell{font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.85);text-align:center;font-weight:700}
 .oi-ticker-row{display:grid;grid-template-columns:130px repeat(5,1fr);padding:15px 18px;border-top:1px solid rgba(255,255,255,.04);align-items:center;gap:6px;transition:background .15s}
 .oi-ticker-row:hover{background:rgba(255,255,255,.03)}
-.oi-ticker-metric{font-size:14.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.70)}
+.oi-ticker-metric{font-size:14.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.85)}
 .oi-ticker-cell{text-align:center}
 .kl-zone-labels{display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;overflow:hidden;}
 .kl-node{position:absolute;text-align:center;transition:bottom .3s ease;}
