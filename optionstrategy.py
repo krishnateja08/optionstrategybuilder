@@ -4984,7 +4984,32 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .logo-wrap{min-width:0;max-width:180px;height:32px;}
   .logo-slide{font-size:20px;}
   .refresh-countdown{display:none;}
-  .sidebar{display:none;}
+  /* FIXED v23.2: sidebar becomes a slide-up drawer on mobile instead of display:none */
+  .main{grid-template-columns:1fr;padding-bottom:56px;}
+  .sidebar{
+    display:flex;
+    position:fixed;
+    bottom:0;left:0;right:0;
+    height:56px;
+    flex-direction:row;
+    align-items:center;
+    top:auto;
+    border-right:none;
+    border-top:1px solid rgba(255,255,255,.10);
+    z-index:200;
+    overflow:hidden;
+    transition:height .3s cubic-bezier(.4,0,.2,1);
+  }
+  .sidebar.mob-open{height:70vh;flex-direction:column;align-items:stretch;overflow-y:auto;}
+  .sidebar-sticky-top{display:none;}
+  .sidebar-scroll{display:none;}
+  .mob-nav-bar{display:flex !important;width:100%;height:56px;flex-shrink:0;align-items:center;padding:0 8px;gap:4px;border-top:none;}
+  .mob-nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px 2px;border-radius:8px;border:none;background:transparent;color:rgba(255,255,255,.5);font-family:var(--fh);font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;transition:all .15s;}
+  .mob-nav-btn.active,.mob-nav-btn:hover{color:#00c896;background:rgba(0,200,150,.08);}
+  .mob-nav-icon{font-size:18px;line-height:1;}
+  .mob-drawer-content{display:none;flex:1;overflow-y:auto;padding:12px;}
+  .sidebar.mob-open .mob-drawer-content{display:block;}
+  .sidebar.mob-open .mob-nav-bar{border-top:1px solid rgba(255,255,255,.08);}
   .sc-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
   .main-tab{font-size:10px;padding:6px 10px;}
   /* Hero: tighter on narrow phones */
@@ -5537,7 +5562,8 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None,
 {ticker_html}
 {gauge_html}
 <div class="main">
-  <aside class="sidebar">
+  <aside class="sidebar" id="mobileSidebar">
+    <!-- Desktop: Greeks panel sticky top + scroll nav -->
     <div class="sidebar-sticky-top">
       <div id="greeksPanel">{greeks_sidebar}</div>
     </div>
@@ -5558,6 +5584,37 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None,
       <div class="sb-lbl">OPTION CHAIN</div>
       <button class="sb-btn" onclick="switchMainTab('oi');go('strikes',this)">Top 5 Strikes</button>
     </div>
+    </div>
+    <!-- Mobile: bottom nav bar (hidden on desktop via CSS) -->
+    <div class="mob-nav-bar" style="display:none;" id="mobNavBar">
+      <button class="mob-nav-btn" onclick="mobNav('oi')">
+        <span class="mob-nav-icon">&#128202;</span>OI
+      </button>
+      <button class="mob-nav-btn" onclick="mobNav('greeks')">
+        <span class="mob-nav-icon">&#9651;</span>Greeks
+      </button>
+      <button class="mob-nav-btn" onclick="mobNav('strat')">
+        <span class="mob-nav-icon">&#9654;</span>Strats
+      </button>
+      <button class="mob-nav-btn" onclick="mobNav('kl')">
+        <span class="mob-nav-icon">&#9670;</span>Levels
+      </button>
+      <button class="mob-nav-btn" id="mobMoreBtn" onclick="toggleMobDrawer()">
+        <span class="mob-nav-icon">&#9776;</span>More
+      </button>
+    </div>
+    <!-- Mobile: slide-up drawer content -->
+    <div class="mob-drawer-content" id="mobDrawerContent">
+      <div style="font-family:var(--fh);font-size:11px;font-weight:700;letter-spacing:2px;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.08);">NAVIGATION</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <button class="sb-btn" onclick="mobNav('oi');toggleMobDrawer()">&#128202; OI Dashboard</button>
+        <button class="sb-btn" onclick="mobNav('greeks');toggleMobDrawer()">&#9652; Option Greeks</button>
+        <button class="sb-btn" onclick="mobNav('kl');toggleMobDrawer()">&#9670; Key Levels</button>
+        <button class="sb-btn" onclick="mobNav('strikes');toggleMobDrawer()">&#9644; Top 5 Strikes</button>
+        <button class="sb-btn" onclick="goStrat('bullish',this);toggleMobDrawer()">&#9650; Bullish Strategies</button>
+        <button class="sb-btn" onclick="goStrat('bearish',this);toggleMobDrawer()">&#9660; Bearish Strategies</button>
+        <button class="sb-btn" onclick="goStrat('nondirectional',this);toggleMobDrawer()">&#8596; Non-Directional</button>
+      </div>
     </div>
   </aside>
   <main class="content">
@@ -5633,6 +5690,70 @@ function switchMainTab(tab) {{
   document.getElementById('mainPanelStrat').style.display = tab === 'strat' ? '' : 'none';
   document.getElementById('mainTabOI').classList.toggle('active',    tab === 'oi');
   document.getElementById('mainTabStrat').classList.toggle('active', tab === 'strat');
+}}
+
+// ── Mobile bottom nav ─────────────────────────────────────────────────────────
+(function() {{
+  var mq = window.matchMedia('(max-width:640px)');
+  function applyMobile(e) {{
+    var bar   = document.getElementById('mobNavBar');
+    var sTop  = document.querySelector('.sidebar-sticky-top');
+    var sScrl = document.querySelector('.sidebar-scroll');
+    if (!bar) return;
+    if (e.matches) {{
+      bar.style.display   = 'flex';
+      if (sTop)  sTop.style.display  = 'none';
+      if (sScrl) sScrl.style.display = 'none';
+    }} else {{
+      bar.style.display   = 'none';
+      if (sTop)  sTop.style.display  = '';
+      if (sScrl) sScrl.style.display = '';
+      // Close drawer if resizing to desktop
+      var sb = document.getElementById('mobileSidebar');
+      if (sb) sb.classList.remove('mob-open');
+    }}
+  }}
+  mq.addEventListener ? mq.addEventListener('change', applyMobile) : mq.addListener(applyMobile);
+  window.addEventListener('load', function() {{ applyMobile(mq); }});
+}})();
+
+function toggleMobDrawer() {{
+  var sb  = document.getElementById('mobileSidebar');
+  var btn = document.getElementById('mobMoreBtn');
+  if (!sb) return;
+  var open = sb.classList.toggle('mob-open');
+  if (btn) btn.classList.toggle('active', open);
+}}
+
+function mobNav(dest) {{
+  // Close drawer if open
+  var sb = document.getElementById('mobileSidebar');
+  if (sb) sb.classList.remove('mob-open');
+  var btn = document.getElementById('mobMoreBtn');
+  if (btn) btn.classList.remove('active');
+  // Highlight active nav button
+  document.querySelectorAll('.mob-nav-btn').forEach(function(b) {{ b.classList.remove('active'); }});
+  // Route to correct panel
+  if (dest === 'strat') {{
+    switchMainTab('strat');
+    window.scrollTo({{top:0, behavior:'smooth'}});
+  }} else if (dest === 'oi') {{
+    switchMainTab('oi');
+    var el = document.getElementById('oi');
+    if (el) el.scrollIntoView({{behavior:'smooth', block:'start'}});
+  }} else if (dest === 'greeks') {{
+    switchMainTab('oi');
+    var el = document.getElementById('greeksTable');
+    if (el) el.scrollIntoView({{behavior:'smooth', block:'start'}});
+  }} else if (dest === 'kl') {{
+    switchMainTab('oi');
+    var el = document.getElementById('kl');
+    if (el) el.scrollIntoView({{behavior:'smooth', block:'start'}});
+  }} else if (dest === 'strikes') {{
+    switchMainTab('oi');
+    var el = document.getElementById('strikes');
+    if (el) el.scrollIntoView({{behavior:'smooth', block:'start'}});
+  }}
 }}
 // ── Current view state ───────────────────────────────────────────────────────
 let _currentCat    = 'bullish';
