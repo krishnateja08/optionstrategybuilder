@@ -1926,11 +1926,11 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 .hc-main{{display:flex !important;align-items:stretch;flex-wrap:nowrap;}}
 
 /* FIX 1 — Signal block: no gap, inline layout, brighter sub text */
-.hc-signal-block{{padding:12px 16px;border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;justify-content:center;gap:4px;flex-shrink:0;width:190px;background:rgba({glow_rgb},.05);box-sizing:border-box;}}
-.hc-eyebrow{{font-size:8px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.35);margin-bottom:1px;}}
-.hc-signal{{font-family:'Sora',sans-serif;font-size:22px;font-weight:900;line-height:1.1;}}
-.hc-sub{{font-size:12px;font-weight:600;color:rgba(255,255,255,.75);line-height:1.4;}}
-.hc-sub-pcr{{font-size:11px;color:rgba(255,255,255,.5);margin-top:1px;}}
+.hc-signal-block{{padding:12px 18px;border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;justify-content:center;gap:4px;flex-shrink:0;width:260px;background:rgba({glow_rgb},.05);box-sizing:border-box;}}
+.hc-eyebrow{{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.65);margin-bottom:2px;font-weight:600;}}
+.hc-signal{{font-family:'Sora',sans-serif;font-size:24px;font-weight:900;line-height:1.1;white-space:nowrap;}}
+.hc-sub{{font-size:13px;font-weight:600;color:rgba(255,255,255,.85);line-height:1.4;}}
+.hc-sub-pcr{{font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;font-weight:600;}}
 
 /* FIX 2 — Bars: tighter track (35% max-width), bigger icon/label/value fonts */
 .hc-center{{flex:1;padding:10px 14px;display:flex;flex-direction:column;justify-content:center;gap:8px;border-right:1px solid rgba(255,255,255,.07);min-width:0;}}
@@ -1946,8 +1946,8 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 .hc-right{{display:grid;grid-template-columns:repeat(4,1fr);flex-shrink:0;}}
 .hc-stat{{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 12px;border-right:1px solid rgba(255,255,255,.05);}}
 .hc-stat:last-child{{border-right:none;}}
-.hc-stat-lbl{{font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:3px;text-align:center;font-weight:600;}}
-.hc-stat-val{{font-size:15px;font-weight:800;text-align:center;white-space:nowrap;}}
+.hc-stat-lbl{{font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:rgba(255,255,255,.7);margin-bottom:4px;text-align:center;font-weight:700;}}
+.hc-stat-val{{font-size:17px;font-weight:800;text-align:center;white-space:nowrap;}}
 
 .hc-bottom{{display:flex;align-items:center;gap:8px;padding:6px 12px;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.2);flex-wrap:wrap;}}
 .hc-chip{{font-size:9px;font-weight:700;padding:2px 9px;border-radius:20px;letter-spacing:.5px;text-transform:uppercase;}}
@@ -1956,7 +1956,7 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 @media(max-width:680px){{
   .hc-main{{flex-wrap:wrap;}}
   .hc-signal-block{{width:100%;border-right:none;border-bottom:1px solid rgba(255,255,255,.07);flex-direction:row;align-items:center;gap:12px;padding:10px 14px;}}
-  .hc-signal{{font-size:20px;}}
+  .hc-signal{{font-size:20px;white-space:normal;}}
   .hc-center{{width:100%;border-right:none;border-bottom:1px solid rgba(255,255,255,.07);}}
   .hc-right{{width:100%;grid-template-columns:repeat(4,1fr);}}
   .hc-stat{{padding:8px 6px;}}
