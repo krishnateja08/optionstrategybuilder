@@ -34,6 +34,13 @@ Aurora Borealis Theme · v23.0 · Smart Dynamic PoP Engine + Intraday P&L Simula
      Active filters dim non-qualifying cards; table view respects same filters
 - FIXED v23.1: EV / True PoP / R:R mini-strip now persists after auto-refresh
 - UPDATED v23.2: Two calibration improvements + auto-refresh cache fix
+- NEW v24.0: Three Pillar Edge Score Architecture
+  1. Directional cluster (Bias+PCR, cap ±15) — GEX weighted ×1.3 when trending
+  2. Structural cluster (S/R+OI, cap ±15)    — GEX weighted ×1.3 when ranging
+  3. Efficiency cluster (IVP+Strat, cap ±15) — IV regime independent
+  Eliminates double-counting: high score now requires cross-pillar confirmation
+  Edge Gap gatekeeper: edgeScore - truePop must be >5 to show any lots
+  Kelly-Lite sizing: edge gap maps to 0/1/2/3 lots shown on every card
   Auto-refresh: fetch() now uses cache:'no-store' on both latest.json and
   index.html fetches — prevents browsers/CDNs returning stale 304 responses
   which made the page appear to never detect new Python runs.
@@ -2502,6 +2509,7 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
     conf        = md["confidence"] if md else "MEDIUM"
     bull_sc     = md["bull"]       if md else 4
     bear_sc     = md["bear"]       if md else 4
+    gex_regime  = oc_analysis.get("gex_regime", "positive") if oc_analysis else "positive"
 
     def render_cards(strats, cat):
         cards = ""
@@ -2528,6 +2536,7 @@ def build_strategies_html(oc_analysis, tech=None, md=None, multi_expiry_analyzed
                 f'<div class="sc-mini-cell"><span class="sc-mini-lbl">EV</span><span class="sc-mini-val sc-mini-ev" id="mini_ev_{cid}">—</span></div>'
                 f'<div class="sc-mini-cell"><span class="sc-mini-lbl">PoP</span><span class="sc-mini-val sc-mini-pop" id="mini_pop_{cid}">—</span></div>'
                 f'<div class="sc-mini-cell"><span class="sc-mini-lbl">R:R</span><span class="sc-mini-val" id="mini_rr_{cid}">—</span></div>'
+                f'<div class="sc-mini-cell"><span class="sc-mini-lbl">LOTS</span><span class="sc-mini-val" id="mini_lots_{cid}">—</span></div>'
                 f'</div>'
                 f'</div>'
                 f'<div class="sc-detail" id="detail_{cid}">'
@@ -3060,7 +3069,8 @@ window.OC={{
   strikes:     {strikes_json},
   lotSize:     65,
   ivp:         {ivp},
-  vix:         {vix}
+  vix:         {vix},
+  gexRegime:   "{gex_regime}"
 }};
 
 // TRUE_POP_MAP — IV-based N(d2) probability, pre-computed in Python.
@@ -3075,92 +3085,183 @@ window.IVP = {ivp};
 window.STRIKE_MAP={{}};
 OC.strikes.forEach(s=>{{ STRIKE_MAP[s.strike]=s; }});
 
+// ══════════════════════════════════════════════════════════════════
+// smartPoP v24.0 — Three Pillar Cluster Architecture
+// ──────────────────────────────────────────────────────────────────
+// OLD: 6 signals added linearly → double-counting problem
+//      e.g. BULLISH bias + high PCR + near support all measured
+//      the same crowd sentiment and stacked to +40 pts uncapped.
+//
+// NEW: Signals grouped into 3 independent clusters, each capped ±15.
+//      A high score now REQUIRES confirmation across ALL THREE pillars.
+//
+//  PILLAR 1 — DIRECTIONAL  (bias + pcr)       cap ±15
+//             "Where is the crowd going?"
+//             GEX regime weights this pillar:
+//             GEX negative (trending) → weight ×1.3
+//             GEX positive (ranging)  → weight ×0.8
+//
+//  PILLAR 2 — STRUCTURAL   (s/r + oi walls)   cap ±15
+//             "Where are the real-money walls?"
+//             GEX positive (ranging) → weight ×1.3
+//             GEX negative (trending) → weight ×0.8
+//
+//  PILLAR 3 — EFFICIENCY   (ivp + strat fit)  cap ±15
+//             "Is the option price actually a bargain?"
+//             No GEX weighting — IV is independent of price regime.
+//
+// Edge Gap gatekeeper:
+//   edgeGap = edgeScore − truePop
+//   < 5  → NO TRADE (no alpha vs market)
+//   5–10 → Weak edge
+//   10–15 → Strong edge
+//   > 15 → Rare alpha
+//
+// Kelly-Lite position sizing (lots):
+//   edgeGap < 5  → 0 lots
+//   5–10         → 1 lot
+//   10–15        → 2 lots
+//   > 15         → 3 lots
+// ══════════════════════════════════════════════════════════════════
 function smartPoP(shape, cat) {{
-  const spot=OC.spot, pcr=OC.pcr;
-  const sup=OC.support, res=OC.resistance;
-  const ssup=OC.strongSup, sres=OC.strongRes;
-  const maxCE=OC.maxCeStrike, maxPE=OC.maxPeStrike;
-  const bias=OC.bias, conf=OC.biasConf;
+  const spot   = OC.spot,   pcr = OC.pcr;
+  const sup    = OC.support, res = OC.resistance;
+  const maxCE  = OC.maxCeStrike, maxPE = OC.maxPeStrike;
+  const bias   = OC.bias,   conf = OC.biasConf;
+  const gex    = OC.gexRegime || 'positive'; // 'positive'=ranging | 'negative'=trending
   const rangeSize = res - sup || 200;
-  const confMult = conf==="HIGH" ? 1.25 : conf==="LOW" ? 0.6 : 1.0;
-  let biasAdj = 0;
-  if (cat === "bullish") {{ biasAdj = bias==="BULLISH" ? 15 : bias==="BEARISH" ? -15 : 0; }}
-  else if (cat === "bearish") {{ biasAdj = bias==="BEARISH" ? 15 : bias==="BULLISH" ? -15 : 0; }}
-  else {{ biasAdj = bias==="SIDEWAYS" ? 8 : (OC.bullScore===OC.bearScore ? 5 : -5); }}
-  biasAdj = biasAdj * confMult;
-  let srAdj = 0;
-  const distToSup = spot - sup; const distToRes = res - spot;
-  if (cat === "bullish") {{
-    if (distToSup >= 0 && distToSup <= rangeSize * 0.25) {{ srAdj = 10; }}
-    else if (distToSup >= 0 && distToSup <= rangeSize * 0.5) {{ srAdj = 5; }}
-    else if (distToRes >= 0 && distToRes <= rangeSize * 0.2) {{ srAdj = -10; }}
-    else if (spot > res) {{ srAdj = -8; }} else {{ srAdj = 2; }}
-  }} else if (cat === "bearish") {{
-    if (distToRes >= 0 && distToRes <= rangeSize * 0.25) {{ srAdj = 10; }}
-    else if (distToRes >= 0 && distToRes <= rangeSize * 0.5) {{ srAdj = 5; }}
-    else if (distToSup >= 0 && distToSup <= rangeSize * 0.2) {{ srAdj = -10; }}
-    else if (spot < sup) {{ srAdj = -8; }} else {{ srAdj = 2; }}
-  }} else {{
-    const midRange = (sup + res) / 2; const distFromMid = Math.abs(spot - midRange); const halfRange = rangeSize / 2;
-    if (distFromMid <= halfRange * 0.3) {{ srAdj = 10; }} else if (distFromMid <= halfRange * 0.6) {{ srAdj = 5; }} else {{ srAdj = -5; }}
-  }}
-  srAdj = srAdj * confMult;
-  let oiAdj = 0;
-  const distAboveMaxPE = spot - maxPE; const distBelowMaxCE = maxCE - spot;
-  if (cat === "bullish") {{
-    if (distAboveMaxPE > 0 && distAboveMaxPE < 150) {{ oiAdj += 8; }} else if (distAboveMaxPE > 150) {{ oiAdj += 4; }} else {{ oiAdj -= 8; }}
-    if (distBelowMaxCE > 200) {{ oiAdj += 5; }} else if (distBelowMaxCE < 100) {{ oiAdj -= 7; }}
-  }} else if (cat === "bearish") {{
-    if (distBelowMaxCE > 0 && distBelowMaxCE < 150) {{ oiAdj += 8; }} else if (distBelowMaxCE > 150) {{ oiAdj += 4; }} else {{ oiAdj -= 8; }}
-    if (distAboveMaxPE > 200) {{ oiAdj += 5; }} else if (distAboveMaxPE < 100) {{ oiAdj -= 7; }}
-  }} else {{
-    if (distAboveMaxPE > 0 && distBelowMaxCE > 0) {{
-      const oiRange = maxCE - maxPE || 200; const midOI = (maxPE + maxCE) / 2; const distFromOIMid = Math.abs(spot - midOI);
-      if (distFromOIMid < oiRange * 0.3) {{ oiAdj = 10; }} else {{ oiAdj = 4; }}
-    }} else {{ oiAdj = -5; }}
-  }}
-  let pcrAdj = 0;
-  if (cat === "bullish") {{ pcrAdj = pcr > 1.5 ? 8 : pcr > 1.2 ? 6 : pcr > 1.0 ? 3 : pcr < 0.7 ? -8 : pcr < 0.9 ? -4 : 0; }}
-  else if (cat === "bearish") {{ pcrAdj = pcr < 0.5 ? 8 : pcr < 0.7 ? 6 : pcr < 0.9 ? 3 : pcr > 1.3 ? -8 : pcr > 1.1 ? -4 : 0; }}
-  else {{ pcrAdj = (pcr >= 0.85 && pcr <= 1.15) ? 6 : (pcr >= 0.7 && pcr <= 1.3) ? 3 : -4; }}
-
-  // ── IVP-based strategy adjustment ────────────────────────────────────
-  // Short premium strategies (condors, straddles, spreads) are penalised
-  // when IV is cheap (IVP < 20) — you are selling low and the trade is
-  // structurally poor regardless of bias alignment.
-  // Long vol strategies (straddles, backspreads) are rewarded when IV is cheap.
-  // Short premium is rewarded when IVP > 70 — IV is expensive relative to history.
+  const confMult  = conf === 'HIGH' ? 1.2 : conf === 'LOW' ? 0.65 : 1.0;
   const ivp = IVP;
+
+  // ── PILLAR 1: DIRECTIONAL (bias + pcr) ─────────────────────────
+  // biasAdj: crowd direction vs strategy category
+  let biasRaw = 0;
+  if (cat === 'bullish')        {{ biasRaw = bias==='BULLISH' ? 12 : bias==='BEARISH' ? -12 : 0; }}
+  else if (cat === 'bearish')   {{ biasRaw = bias==='BEARISH' ? 12 : bias==='BULLISH' ? -12 : 0; }}
+  else                          {{ biasRaw = bias==='SIDEWAYS' ? 8 : (OC.bullScore===OC.bearScore ? 4 : -4); }}
+  biasRaw *= confMult;
+
+  // pcrAdj: PCR confirming or denying direction
+  let pcrRaw = 0;
+  if (cat === 'bullish')        {{ pcrRaw = pcr>1.5?8 : pcr>1.2?6 : pcr>1.0?3 : pcr<0.7?-8 : pcr<0.9?-4 : 0; }}
+  else if (cat === 'bearish')   {{ pcrRaw = pcr<0.5?8 : pcr<0.7?6 : pcr<0.9?3 : pcr>1.3?-8 : pcr>1.1?-4 : 0; }}
+  else                          {{ pcrRaw = (pcr>=0.85&&pcr<=1.15)?6 : (pcr>=0.7&&pcr<=1.3)?3 : -4; }}
+
+  // GEX weights the directional pillar:
+  // trending market (gex negative) → direction matters more → ×1.3
+  // ranging market  (gex positive) → direction less reliable → ×0.8
+  const dirMult   = gex === 'negative' ? 1.3 : 0.8;
+  const dirRaw    = (biasRaw + pcrRaw) * dirMult;
+  const dirCluster = Math.max(-15, Math.min(15, Math.round(dirRaw)));
+
+  // ── PILLAR 2: STRUCTURAL (s/r + oi walls) ──────────────────────
+  // srAdj: proximity to support/resistance
+  let srRaw = 0;
+  const distToSup = spot - sup; const distToRes = res - spot;
+  if (cat === 'bullish') {{
+    if (distToSup >= 0 && distToSup <= rangeSize*0.25)      {{ srRaw = 10; }}
+    else if (distToSup >= 0 && distToSup <= rangeSize*0.5)  {{ srRaw = 5; }}
+    else if (distToRes >= 0 && distToRes <= rangeSize*0.2)  {{ srRaw = -10; }}
+    else if (spot > res)                                     {{ srRaw = -8; }}
+    else                                                     {{ srRaw = 2; }}
+  }} else if (cat === 'bearish') {{
+    if (distToRes >= 0 && distToRes <= rangeSize*0.25)      {{ srRaw = 10; }}
+    else if (distToRes >= 0 && distToRes <= rangeSize*0.5)  {{ srRaw = 5; }}
+    else if (distToSup >= 0 && distToSup <= rangeSize*0.2)  {{ srRaw = -10; }}
+    else if (spot < sup)                                     {{ srRaw = -8; }}
+    else                                                     {{ srRaw = 2; }}
+  }} else {{
+    const mid = (sup+res)/2; const half = rangeSize/2;
+    const dfm = Math.abs(spot-mid);
+    srRaw = dfm<=half*0.3 ? 10 : dfm<=half*0.6 ? 5 : -5;
+  }}
+  srRaw *= confMult;
+
+  // oiAdj: OI wall proximity
+  let oiRaw = 0;
+  const distAboveMaxPE = spot - maxPE; const distBelowMaxCE = maxCE - spot;
+  if (cat === 'bullish') {{
+    if (distAboveMaxPE>0 && distAboveMaxPE<150)   {{ oiRaw += 8; }}
+    else if (distAboveMaxPE > 150)                {{ oiRaw += 4; }}
+    else                                          {{ oiRaw -= 8; }}
+    if (distBelowMaxCE > 200)                     {{ oiRaw += 5; }}
+    else if (distBelowMaxCE < 100)                {{ oiRaw -= 7; }}
+  }} else if (cat === 'bearish') {{
+    if (distBelowMaxCE>0 && distBelowMaxCE<150)   {{ oiRaw += 8; }}
+    else if (distBelowMaxCE > 150)                {{ oiRaw += 4; }}
+    else                                          {{ oiRaw -= 8; }}
+    if (distAboveMaxPE > 200)                     {{ oiRaw += 5; }}
+    else if (distAboveMaxPE < 100)                {{ oiRaw -= 7; }}
+  }} else {{
+    if (distAboveMaxPE>0 && distBelowMaxCE>0) {{
+      const oiR=maxCE-maxPE||200; const midOI=(maxPE+maxCE)/2;
+      oiRaw = Math.abs(spot-midOI) < oiR*0.3 ? 10 : 4;
+    }} else {{ oiRaw = -5; }}
+  }}
+
+  // GEX weights the structural pillar:
+  // ranging market (gex positive) → walls are more reliable → ×1.3
+  // trending market (gex negative) → walls can break → ×0.8
+  const strMult    = gex === 'positive' ? 1.3 : 0.8;
+  const strRaw     = (srRaw + oiRaw) * strMult;
+  const strCluster = Math.max(-15, Math.min(15, Math.round(strRaw)));
+
+  // ── PILLAR 3: EFFICIENCY (ivp + strategy fit) ──────────────────
+  // ivpAdj: is the option price cheap or expensive for this strategy?
   const isShortPremium = ['short_straddle','short_strangle','short_iron_condor',
     'short_iron_fly','short_put','short_call','bear_call_spread','bull_put_spread',
     'jade_lizard','reverse_jade','call_ratio_spread','put_ratio_spread'].includes(shape);
   const isLongVol = ['long_straddle','long_strangle','long_iron_condor',
     'long_iron_fly','call_ratio_back','put_ratio_back','long_call','long_put'].includes(shape);
-  let ivpAdj = 0;
+  let ivpRaw = 0;
   if (isShortPremium) {{
-    if (ivp < 20)      ivpAdj = -15;  // IV cheap — never sell; hard penalty
-    else if (ivp < 35) ivpAdj = -8;   // IV below average — cautious
-    else if (ivp > 70) ivpAdj = +8;   // IV expensive — premium selling ideal
-    else if (ivp > 55) ivpAdj = +4;   // IV moderately high — slight boost
-  }}
-  if (isLongVol) {{
-    if (ivp < 20)      ivpAdj = +10;  // IV cheap — long vol is a bargain
-    else if (ivp < 35) ivpAdj = +5;
-    else if (ivp > 70) ivpAdj = -8;   // IV expensive — long vol is overpriced
-    else if (ivp > 55) ivpAdj = -4;
+    ivpRaw = ivp<20 ? -15 : ivp<35 ? -8 : ivp>70 ? 8 : ivp>55 ? 4 : 0;
+  }} else if (isLongVol) {{
+    ivpRaw = ivp<20 ? 10 : ivp<35 ? 5 : ivp>70 ? -8 : ivp>55 ? -4 : 0;
   }}
 
-  let stratAdj = 0;
-  if (shape.includes('spread') || shape.includes('condor') || shape.includes('butterfly')) {{ stratAdj = 2; }}
-  if (shape === 'short_straddle' || shape === 'short_strangle') {{ stratAdj = bias === 'SIDEWAYS' ? 8 : -10; }}
-  if (shape === 'long_straddle' || shape === 'long_strangle') {{ stratAdj = bias === 'SIDEWAYS' ? -8 : 8; }}
-  if ((shape === 'short_iron_condor' || shape === 'short_iron_fly') && bias === 'SIDEWAYS') {{ stratAdj = 10; }}
+  // stratAdj: structural fit of strategy to current bias
+  let stratRaw = 0;
+  if (shape.includes('spread')||shape.includes('condor')||shape.includes('butterfly')) {{ stratRaw = 2; }}
+  if (shape==='short_straddle'||shape==='short_strangle') {{ stratRaw = bias==='SIDEWAYS' ? 8 : -10; }}
+  if (shape==='long_straddle' ||shape==='long_strangle')  {{ stratRaw = bias==='SIDEWAYS' ? -8 : 8; }}
+  if ((shape==='short_iron_condor'||shape==='short_iron_fly') && bias==='SIDEWAYS') {{ stratRaw = 10; }}
 
-  const rawPoP = 50 + biasAdj + srAdj + oiAdj + pcrAdj + stratAdj + ivpAdj;
-  return {{ edgeScore: Math.min(95, Math.max(5, Math.round(rawPoP))),
-            biasAdj: Math.round(biasAdj), srAdj: Math.round(srAdj),
-            oiAdj: Math.round(oiAdj), pcrAdj: Math.round(pcrAdj),
-            stratAdj: Math.round(stratAdj), ivpAdj: Math.round(ivpAdj) }};
+  const effRaw     = ivpRaw + stratRaw;
+  const effCluster = Math.max(-15, Math.min(15, Math.round(effRaw)));
+
+  // ── FINAL EDGE SCORE ────────────────────────────────────────────
+  const rawScore  = 50 + dirCluster + strCluster + effCluster;
+  const edgeScore = Math.min(95, Math.max(5, rawScore));
+
+  // ── EDGE GAP & KELLY-LITE SIZING ────────────────────────────────
+  const truePop_  = TRUE_POP_MAP[shape] !== undefined ? TRUE_POP_MAP[shape] : null;
+  const edgeGap   = truePop_ !== null ? edgeScore - truePop_ : null;
+  let kellyLots   = 0;
+  let kellyLabel  = 'No Trade';
+  let kellyColor  = '#f04050';
+  if (edgeGap !== null) {{
+    if      (edgeGap > 15) {{ kellyLots = 3; kellyLabel = 'High Conviction'; kellyColor = '#38d888'; }}
+    else if (edgeGap > 10) {{ kellyLots = 2; kellyLabel = 'Strong Edge';     kellyColor = '#38d888'; }}
+    else if (edgeGap > 5)  {{ kellyLots = 1; kellyLabel = 'Weak Edge';       kellyColor = '#ffcc00'; }}
+    else                   {{ kellyLots = 0; kellyLabel = 'No Alpha';        kellyColor = '#f04050'; }}
+  }}
+
+  return {{
+    edgeScore,
+    dirCluster, strCluster, effCluster,
+    biasAdj:  Math.round(biasRaw * confMult),
+    pcrAdj:   Math.round(pcrRaw),
+    srAdj:    Math.round(srRaw),
+    oiAdj:    Math.round(oiRaw),
+    ivpAdj:   Math.round(ivpRaw),
+    stratAdj: Math.round(stratRaw),
+    gexRegime: gex,
+    edgeGap,
+    kellyLots,
+    kellyLabel,
+    kellyColor,
+  }};
 }}
 
 function normCDF(x) {{
@@ -3961,20 +4062,61 @@ function renderMetrics(m, scoreBreakdown) {{
   const tpc = tp===null ? '#888' : tp>=70?'#38d888': tp>=55?'#ffcc00': tp>=45?'#ffaa00':'#f04050';
   const nc  = m.ncPositive?'#38d888':'#f04050';
 
-  // ── EdgeScore breakdown strip ──────────────────────────────────────
-  const sbHtml = scoreBreakdown ? `
-    <div style="background:rgba(255,185,0,.04);border-top:1px solid rgba(255,185,0,.12);padding:9px 12px 11px;">
-      <div style="font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,210,0,.85);margin-bottom:7px;font-family:DM Mono,monospace;font-weight:700;">EDGE SCORE BREAKDOWN</div>
-      <div style="display:flex;flex-wrap:wrap;gap:5px;">
-        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">Base <b style="color:#ffcc00;">50%</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">Bias <b style="color:${{scoreBreakdown.biasAdj>=0?'#38d888':'#f04050'}};">${{scoreBreakdown.biasAdj>=0?'+':''}}${{scoreBreakdown.biasAdj}}</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">S/R <b style="color:${{scoreBreakdown.srAdj>=0?'#38d888':'#f04050'}};">${{scoreBreakdown.srAdj>=0?'+':''}}${{scoreBreakdown.srAdj}}</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">OI <b style="color:${{scoreBreakdown.oiAdj>=0?'#38d888':'#f04050'}};">${{scoreBreakdown.oiAdj>=0?'+':''}}${{scoreBreakdown.oiAdj}}</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">PCR <b style="color:${{scoreBreakdown.pcrAdj>=0?'#38d888':'#f04050'}};">${{scoreBreakdown.pcrAdj>=0?'+':''}}${{scoreBreakdown.pcrAdj}}</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">Strat <b style="color:${{scoreBreakdown.stratAdj>=0?'#38d888':'#f04050'}};">${{scoreBreakdown.stratAdj>=0?'+':''}}${{scoreBreakdown.stratAdj}}</b></span>
-        <span style="font-size:13px;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:4px;border:1px solid rgba(255,185,0,.25);color:rgba(255,210,0,.85);font-family:DM Mono,monospace;">IVP ${{IVP}}% <b style="color:${{(scoreBreakdown.ivpAdj||0)>=0?'#38d888':'#f04050'}};">${{(scoreBreakdown.ivpAdj||0)>=0?'+':''}}${{scoreBreakdown.ivpAdj||0}}</b></span>
+  // ── EdgeScore breakdown strip — Three Pillars ─────────────────────
+  function _clrPt(v) {{ return v > 0 ? '#38d888' : v < 0 ? '#f04050' : 'rgba(255,255,255,.4)'; }}
+  function _fmtPt(v) {{ return (v >= 0 ? '+' : '') + v; }}
+  function _clrCluster(v) {{ return v >= 8?'#38d888': v >= 1?'#ffcc00': v <= -8?'#f04050':'#ffaa00'; }}
+
+  const sb = scoreBreakdown;
+  const sbHtml = sb ? (() => {{
+    const gexLabel = (sb.gexRegime||'positive')==='negative'
+      ? '<span style="color:#ff9050;font-size:10px;">⚡ Trending (GEX−)</span>'
+      : '<span style="color:#38d888;font-size:10px;">〰 Ranging (GEX+)</span>';
+    const edgeGapVal  = sb.edgeGap !== null ? sb.edgeGap : null;
+    const egColor     = edgeGapVal===null?'#888': edgeGapVal>15?'#38d888': edgeGapVal>10?'#38d888': edgeGapVal>5?'#ffcc00':'#f04050';
+    const egLabel     = edgeGapVal===null?'N/A': edgeGapVal>15?'Rare Alpha': edgeGapVal>10?'Strong Edge': edgeGapVal>5?'Weak Edge':'No Alpha';
+    const klColor     = sb.kellyColor || '#f04050';
+    const klLabel     = sb.kellyLabel || 'No Trade';
+    const klLots      = sb.kellyLots  !== undefined ? sb.kellyLots : 0;
+    return \`
+    <div style="background:rgba(255,185,0,.04);border-top:1px solid rgba(255,185,0,.12);padding:10px 12px 12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,210,0,.85);font-family:DM Mono,monospace;font-weight:700;">THREE PILLAR BREAKDOWN</div>
+        \${{gexLabel}}
       </div>
-    </div>` : '';
+      <!-- Three cluster bars -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;">
+        <div style="background:rgba(0,0,0,.35);border:1px solid rgba(255,185,0,.2);border-radius:6px;padding:7px 9px;">
+          <div style="font-size:9px;letter-spacing:1.2px;color:rgba(255,210,0,.6);font-family:DM Mono,monospace;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Directional</div>
+          <div style="font-size:18px;font-weight:800;color:\${{_clrCluster(sb.dirCluster||0)}};font-family:DM Mono,monospace;">\${{_fmtPt(sb.dirCluster||0)}}</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px;">Bias \${{_fmtPt(sb.biasAdj)}} · PCR \${{_fmtPt(sb.pcrAdj)}}</div>
+        </div>
+        <div style="background:rgba(0,0,0,.35);border:1px solid rgba(255,185,0,.2);border-radius:6px;padding:7px 9px;">
+          <div style="font-size:9px;letter-spacing:1.2px;color:rgba(255,210,0,.6);font-family:DM Mono,monospace;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Structural</div>
+          <div style="font-size:18px;font-weight:800;color:\${{_clrCluster(sb.strCluster||0)}};font-family:DM Mono,monospace;">\${{_fmtPt(sb.strCluster||0)}}</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px;">S/R \${{_fmtPt(sb.srAdj)}} · OI \${{_fmtPt(sb.oiAdj)}}</div>
+        </div>
+        <div style="background:rgba(0,0,0,.35);border:1px solid rgba(255,185,0,.2);border-radius:6px;padding:7px 9px;">
+          <div style="font-size:9px;letter-spacing:1.2px;color:rgba(255,210,0,.6);font-family:DM Mono,monospace;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Efficiency</div>
+          <div style="font-size:18px;font-weight:800;color:\${{_clrCluster(sb.effCluster||0)}};font-family:DM Mono,monospace;">\${{_fmtPt(sb.effCluster||0)}}</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px;">IVP \${{_fmtPt(sb.ivpAdj)}} · Strat \${{_fmtPt(sb.stratAdj)}}</div>
+        </div>
+      </div>
+      <!-- Edge Gap + Kelly Lots -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <div style="background:rgba(0,0,0,.35);border:1px solid rgba(100,128,255,.2);border-radius:6px;padding:7px 9px;">
+          <div style="font-size:9px;letter-spacing:1.2px;color:rgba(100,128,255,.8);font-family:DM Mono,monospace;font-weight:700;text-transform:uppercase;margin-bottom:3px;">Edge Gap</div>
+          <div style="font-size:16px;font-weight:800;color:\${{egColor}};font-family:DM Mono,monospace;">\${{edgeGapVal!==null ? (edgeGapVal>=0?'+':'')+edgeGapVal+'%' : 'N/A'}}</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px;">\${{egLabel}}</div>
+        </div>
+        <div style="background:rgba(0,0,0,.35);border:1px solid \${{klLots>0?'rgba(56,216,136,.25)':'rgba(240,64,80,.2)'}};border-radius:6px;padding:7px 9px;">
+          <div style="font-size:9px;letter-spacing:1.2px;color:\${{klLots>0?'rgba(56,216,136,.8)':'rgba(240,64,80,.7)'}};font-family:DM Mono,monospace;font-weight:700;text-transform:uppercase;margin-bottom:3px;">Kelly Lots</div>
+          <div style="font-size:16px;font-weight:800;color:\${{klColor}};font-family:DM Mono,monospace;">\${{klLots}} lot\${{klLots!==1?'s':''}} \${{klLots===0?'🚫':klLots===1?'🟡':klLots===2?'🟢':'🔥'}}</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px;">\${{klLabel}}</div>
+        </div>
+      </div>
+    </div>\`;
+  }})() : '';
 
   return `
   <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,185,0,.12);background:rgba(255,185,0,.05);">
@@ -3991,7 +4133,7 @@ function renderMetrics(m, scoreBreakdown) {{
     <div style="padding:11px 12px;border-right:1px solid rgba(255,185,0,.1);">
       <div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,210,0,.85);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:3px;font-weight:700;">Edge Score</div>
       <div style="font-family:DM Mono,monospace;font-size:26px;font-weight:800;color:${{esc}};">${{es}}%</div>
-      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,255,255,.42);margin-top:2px;">Bias + S/R + OI + PCR + IVP</div>
+      <div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,255,255,.42);margin-top:2px;">Dir · Structural · Efficiency (capped ±15 each)</div>
     </div>
     <div style="padding:11px 12px;">
       <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -5985,6 +6127,14 @@ function populateMiniStrips() {{
       // R:R cell
       const rrEl = document.getElementById('mini_rr_' + cid);
       if (rrEl) {{ rrEl.textContent = m.rrStr || '—'; }}
+      // Kelly Lots cell
+      const lotsEl = document.getElementById('mini_lots_' + cid);
+      if (lotsEl) {{
+        const kl = sr.kellyLots !== undefined ? sr.kellyLots : null;
+        const klColor = sr.kellyColor || 'rgba(255,255,255,.4)';
+        lotsEl.textContent = kl !== null ? (kl === 0 ? '✗' : kl + (kl===1?' lot':' lots')) : '—';
+        lotsEl.style.color = klColor;
+      }}
     }} catch(e) {{}}
   }});
 }}
