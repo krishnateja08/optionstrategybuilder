@@ -1919,74 +1919,92 @@ def build_dual_gauge_hero(oc, tech, md, ts):
     glow_rgb = ("0,200,150" if dir_col == "#00c896" else "255,107,107" if dir_col == "#ff6b6b" else "100,128,255")
 
     return f"""
-<div class="hero" id="heroWidget">
-  <div class="h-gauges">
-    <div class="gauge-wrap">
-      <svg width="100" height="100" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="7"/>
-        <circle cx="50" cy="50" r="42" fill="none" stroke="url(#pe-oi-g)" stroke-width="7"
-          stroke-linecap="round" stroke-dasharray="{C}" stroke-dashoffset="{pe_offset:.1f}"
-          style="transform:rotate(-90deg);transform-origin:50px 50px;transition:stroke-dashoffset 1s ease;"/>
-        <defs><linearGradient id="pe-oi-g" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#00c896"/><stop offset="100%" stop-color="#4de8b8"/>
-        </linearGradient></defs>
-      </svg>
-      <div class="gauge-inner">
-        <div class="g-val" style="color:#00c896;">{pe_label}</div>
-        <div class="g-lbl">PUT OI</div>
+<style>
+.hc-wrap{{background:#06080f;border:1px solid rgba(255,255,255,.08);border-radius:12px;overflow:hidden;font-family:'DM Mono',monospace;}}
+.hc-main{{display:flex;align-items:stretch;flex-wrap:nowrap;}}
+.hc-signal-block{{padding:12px 16px;border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;justify-content:center;gap:3px;flex-shrink:0;width:170px;background:rgba({glow_rgb},.04);box-sizing:border-box;}}
+.hc-eyebrow{{font-size:8px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.3);}}
+.hc-signal{{font-family:'Sora',sans-serif;font-size:18px;font-weight:900;line-height:1.15;}}
+.hc-sub{{font-size:10px;color:rgba(255,255,255,.4);}}
+.hc-center{{flex:1;padding:10px 14px;display:flex;flex-direction:column;justify-content:center;gap:7px;border-right:1px solid rgba(255,255,255,.07);min-width:0;}}
+.hc-bar-row{{display:flex;align-items:center;gap:7px;}}
+.hc-bicon{{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;letter-spacing:.3px;}}
+.hc-blbl{{font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:rgba(255,255,255,.4);width:44px;flex-shrink:0;}}
+.hc-bval{{font-size:13px;font-weight:700;width:42px;flex-shrink:0;}}
+.hc-track{{flex:1;height:4px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden;}}
+.hc-fill{{height:100%;border-radius:2px;}}
+.hc-pct{{font-size:10px;font-weight:700;width:28px;text-align:right;flex-shrink:0;}}
+.hc-right{{display:grid;grid-template-columns:repeat(3,1fr);flex-shrink:0;}}
+.hc-stat{{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 10px;border-right:1px solid rgba(255,255,255,.05);}}
+.hc-stat:last-child{{border-right:none;}}
+.hc-stat-lbl{{font-size:7.5px;letter-spacing:.8px;text-transform:uppercase;color:rgba(255,255,255,.25);margin-bottom:2px;text-align:center;}}
+.hc-stat-val{{font-size:12px;font-weight:700;text-align:center;white-space:nowrap;}}
+.hc-bottom{{display:flex;align-items:center;gap:8px;padding:6px 12px;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.2);flex-wrap:wrap;}}
+.hc-chip{{font-size:9px;font-weight:700;padding:2px 8px;border-radius:20px;letter-spacing:.5px;text-transform:uppercase;}}
+.hc-score{{font-size:9px;color:rgba(255,255,255,.3);margin-left:auto;}}
+.hc-ts-lbl{{font-size:9px;color:rgba(255,255,255,.18);}}
+@media(max-width:620px){{
+  .hc-main{{flex-wrap:wrap;}}
+  .hc-signal-block{{width:100%;border-right:none;border-bottom:1px solid rgba(255,255,255,.07);flex-direction:row;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 14px;}}
+  .hc-signal{{font-size:16px;}}
+  .hc-center{{width:100%;border-right:none;border-bottom:1px solid rgba(255,255,255,.07);}}
+  .hc-right{{width:100%;grid-template-columns:repeat(3,1fr);}}
+  .hc-stat{{padding:7px 8px;}}
+}}
+</style>
+<div class="hero hc-wrap" id="heroWidget">
+  <div class="hc-main">
+
+    <!-- Signal block -->
+    <div class="hc-signal-block">
+      <div class="hc-eyebrow">OI Signal &middot; {expiry}</div>
+      <div class="hc-signal" style="color:{dir_col};">{oi_dir}</div>
+      <div class="hc-sub">{oi_sig}</div>
+      <div class="hc-sub" style="margin-top:2px;">PCR&nbsp;<span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
+    </div>
+
+    <!-- PE / CE bars -->
+    <div class="hc-center">
+      <div class="hc-bar-row">
+        <div class="hc-bicon" style="background:rgba(0,200,150,.12);color:#00c896;">PE</div>
+        <span class="hc-blbl">Put OI</span>
+        <span class="hc-bval" style="color:#00c896;">{pe_label}</span>
+        <div class="hc-track"><div class="hc-fill" style="width:{pe_bar_w}%;background:linear-gradient(90deg,#00c896,#4de8b8);"></div></div>
+        <span class="hc-pct" style="color:#00c896;">{pe_pct}%</span>
+      </div>
+      <div class="hc-bar-row">
+        <div class="hc-bicon" style="background:rgba(255,107,107,.12);color:#ff6b6b;">CE</div>
+        <span class="hc-blbl">Call OI</span>
+        <span class="hc-bval" style="color:#ff6b6b;">{ce_label}</span>
+        <div class="hc-track"><div class="hc-fill" style="width:{ce_bar_w}%;background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div></div>
+        <span class="hc-pct" style="color:#ff6b6b;">{ce_pct}%</span>
       </div>
     </div>
-    <div class="gauge-sep"></div>
-    <div class="gauge-wrap">
-      <svg width="100" height="100" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="7"/>
-        <circle cx="50" cy="50" r="42" fill="none" stroke="url(#ce-oi-g)" stroke-width="7"
-          stroke-linecap="round" stroke-dasharray="{C}" stroke-dashoffset="{ce_offset:.1f}"
-          style="transform:rotate(-90deg);transform-origin:50px 50px;transition:stroke-dashoffset 1s ease;"/>
-        <defs><linearGradient id="ce-oi-g" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#ff6b6b"/><stop offset="100%" stop-color="#ff9090"/>
-        </linearGradient></defs>
-      </svg>
-      <div class="gauge-inner">
-        <div class="g-val" style="color:#ff6b6b;">{ce_label}</div>
-        <div class="g-lbl">CALL OI</div>
+
+    <!-- Key stats -->
+    <div class="hc-right">
+      <div class="hc-stat">
+        <div class="hc-stat-lbl">Nifty Spot</div>
+        <div class="hc-stat-val" style="color:rgba(255,255,255,.85);">&#8377;{cp:,.0f}</div>
+      </div>
+      <div class="hc-stat">
+        <div class="hc-stat-lbl">ATM Strike</div>
+        <div class="hc-stat-val" style="color:#00c896;">&#8377;{atm:,}</div>
+      </div>
+      <div class="hc-stat">
+        <div class="hc-stat-lbl">Max Pain</div>
+        <div class="hc-stat-val" style="color:#ffd166;">&#8377;{max_pain:,}</div>
       </div>
     </div>
+
   </div>
-  <div class="h-mid">
-    <div class="h-eyebrow">OI NET SIGNAL · {expiry} · SPOT ₹{underlying:,.0f}</div>
-    <div class="h-signal" style="color:{dir_col};text-shadow:0 0 20px rgba({glow_rgb},.6),0 0 40px rgba({glow_rgb},.3);font-size:31.9px;font-weight:900;letter-spacing:1px;">{oi_dir}</div>
-    <div class="h-sub">{oi_sig} · PCR <span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
-    <div class="h-divider"></div>
-    <div class="pill-row">
-      <div class="pill-dot" style="background:#00c896;box-shadow:0 0 5px rgba(0,200,150,.5);"></div>
-      <div class="pill-lbl">PUT OI</div>
-      <div class="pill-track"><div class="pill-fill" style="width:{pe_bar_w}%;background:linear-gradient(90deg,#00c896,#4de8b8);"></div></div>
-      <div class="pill-num" style="color:#00c896;">{pe_pct}%</div>
-    </div>
-    <div class="pill-row">
-      <div class="pill-dot" style="background:#ff6b6b;box-shadow:0 0 5px rgba(255,107,107,.4);"></div>
-      <div class="pill-lbl">CALL OI</div>
-      <div class="pill-track"><div class="pill-fill" style="width:{ce_bar_w}%;background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div></div>
-      <div class="pill-num" style="color:#ff6b6b;">{ce_pct}%</div>
-    </div>
-  </div>
-  <div class="h-stats">
-    <div class="h-stat-row">
-      <div class="h-stat"><div class="h-stat-lbl">NIFTY SPOT</div><div class="h-stat-val" style="color:rgba(255,255,255,.85);">&#8377;{cp:,.2f}</div></div>
-      <div class="h-stat"><div class="h-stat-lbl">ATM STRIKE</div><div class="h-stat-val" style="color:#00c896;">&#8377;{atm:,}</div></div>
-      <div class="h-stat"><div class="h-stat-lbl">EXPIRY</div><div class="h-stat-val" style="color:#00c8e0;">{expiry}</div></div>
-      <div class="h-stat"><div class="h-stat-lbl">PCR (OI)</div><div class="h-stat-val" style="color:{pcr_col};">{pcr:.3f}</div></div>
-      <div class="h-stat"><div class="h-stat-lbl">MAX PAIN</div><div class="h-stat-val" style="color:#ffd166;">&#8377;{max_pain:,}</div></div>
-    </div>
-    <div class="h-stat-bottom">
-      <div class="h-bias-row">
-        <span class="h-chip" style="background:{b_bg};color:{b_col};border:1px solid {b_bdr};">{b_arrow}&nbsp;{bias}</span>
-        <span class="h-chip" style="background:rgba(255,209,102,.1);color:#ffd166;border:1px solid rgba(255,209,102,.3);">{conf}&nbsp;CONF</span>
-        <span class="h-score">Bull&nbsp;{bull_sc} · Bear&nbsp;{bear_sc} · Diff&nbsp;{diff:+d}</span>
-      </div>
-      <div class="h-ts" id="lastUpdatedTs">{ts}</div>
-    </div>
+
+  <!-- Bottom chips row -->
+  <div class="hc-bottom">
+    <span class="hc-chip" style="background:{b_bg};color:{b_col};border:1px solid {b_bdr};">{b_arrow}&nbsp;{bias}</span>
+    <span class="hc-chip" style="background:rgba(255,209,102,.1);color:#ffd166;border:1px solid rgba(255,209,102,.3);">{conf}&nbsp;CONF</span>
+    <span class="hc-score">Bull&nbsp;{bull_sc} &middot; Bear&nbsp;{bear_sc} &middot; Diff&nbsp;{diff:+d}</span>
+    <div class="hc-ts-lbl" id="lastUpdatedTs">{ts}</div>
   </div>
 </div>
 {_build_exhaustion_banner_html(md)}
