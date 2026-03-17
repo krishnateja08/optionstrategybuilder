@@ -5151,7 +5151,7 @@ ANIMATED_JS = """
   }
 
   const PATCH_IDS = [
-    'heroWidget','oi','kl','strikes','greeksTable','greeksPanel','tkTrack','lastUpdatedTs','mainPanelStrat'
+    'heroWidget','oi','kl','strikes','greeksTable','greeksPanel','tkTrack','lastUpdatedTs','mainPanelStrat','hdrReportTs'
   ];
 
   function microDiff(newDoc) {
@@ -5514,7 +5514,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None,
     <div class="live-dot"></div>
     <span>NSE Options Dashboard</span>
     <span style="color:rgba(255,255,255,.15);">|</span>
-    <span style="color:rgba(255,255,255,.75);">Last report generated:&nbsp;<span style="color:#00c896;font-weight:600;">{ts}</span></span>
+    <span style="color:rgba(255,255,255,.75);">Last report generated:&nbsp;<span id="hdrReportTs" style="color:#00c896;font-weight:600;">{ts}</span></span>
     <span style="color:rgba(255,255,255,.15);">|</span>
     <span style="color:rgba(255,255,255,.75);">IST&nbsp;<span id="liveClock" style="font-family:'DM Mono',monospace;color:#ffd166;font-weight:700;letter-spacing:1px;">--:--:--</span></span>
     <span style="color:rgba(255,255,255,.15);">|</span>
