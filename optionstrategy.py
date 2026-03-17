@@ -4174,54 +4174,52 @@ function renderMetrics(m, scoreBreakdown) {{
   function _clrCluster(v) {{ return v >= 8?'#38d888': v >= 1?'#ffcc00': v <= -8?'#f04050':'#ffaa00'; }}
 
   const sb = scoreBreakdown;
-  const sbHtml = sb ? (() => {{
-    const gexLabel = (sb.gexRegime||'positive')==='negative'
-      ? '<span style="color:#ff9050;font-size:10px;">⚡ Trending (GEX−)</span>'
-      : '<span style="color:#38d888;font-size:10px;">〰 Ranging (GEX+)</span>';
-    const edgeGapVal  = sb.edgeGap !== null ? sb.edgeGap : null;
-    const egColor     = edgeGapVal===null?'#888': edgeGapVal>15?'#38d888': edgeGapVal>10?'#38d888': edgeGapVal>5?'#ffcc00':'#f04050';
-    const egLabel     = edgeGapVal===null?'N/A': edgeGapVal>15?'Rare Alpha': edgeGapVal>10?'Strong Edge': edgeGapVal>5?'Weak Edge':'No Alpha';
-    const klColor     = sb.kellyColor || '#f04050';
-    const klLabel     = sb.kellyLabel || 'No Trade';
-    const klLots      = sb.kellyLots  !== undefined ? sb.kellyLots : 0;
-    return \`
-    <div style="background:rgba(255,185,0,.04);border-top:1px solid rgba(255,185,0,.12);padding:10px 12px 12px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <div style="font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,210,0,.85);font-family:DM Mono,monospace;font-weight:700;">THREE PILLAR BREAKDOWN</div>
-        \${{gexLabel}}
-      </div>
-      <!-- Three cluster bars -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;">
-        <div style="background:rgba(0,0,0,.35);border:1px solid rgba(255,185,0,.2);border-radius:6px;padding:7px 9px;">
-          <div style="font-size:9px;letter-spacing:1.2px;color:rgba(255,210,0,.6);font-family:DM Mono,monospace;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Directional</div>
-          <div style="font-size:18px;font-weight:800;color:\${{_clrCluster(sb.dirCluster||0)}};font-family:DM Mono,monospace;">\${{_fmtPt(sb.dirCluster||0)}}</div>
-          <div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px;">Bias \${{_fmtPt(sb.biasAdj)}} · PCR \${{_fmtPt(sb.pcrAdj)}}</div>
-        </div>
-        <div style="background:rgba(0,0,0,.35);border:1px solid rgba(255,185,0,.2);border-radius:6px;padding:7px 9px;">
-          <div style="font-size:9px;letter-spacing:1.2px;color:rgba(255,210,0,.6);font-family:DM Mono,monospace;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Structural</div>
-          <div style="font-size:18px;font-weight:800;color:\${{_clrCluster(sb.strCluster||0)}};font-family:DM Mono,monospace;">\${{_fmtPt(sb.strCluster||0)}}</div>
-          <div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px;">S/R \${{_fmtPt(sb.srAdj)}} · OI \${{_fmtPt(sb.oiAdj)}}</div>
-        </div>
-        <div style="background:rgba(0,0,0,.35);border:1px solid rgba(255,185,0,.2);border-radius:6px;padding:7px 9px;">
-          <div style="font-size:9px;letter-spacing:1.2px;color:rgba(255,210,0,.6);font-family:DM Mono,monospace;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Efficiency</div>
-          <div style="font-size:18px;font-weight:800;color:\${{_clrCluster(sb.effCluster||0)}};font-family:DM Mono,monospace;">\${{_fmtPt(sb.effCluster||0)}}</div>
-          <div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px;">IVP \${{_fmtPt(sb.ivpAdj)}} · Strat \${{_fmtPt(sb.stratAdj)}}</div>
-        </div>
-      </div>
-      <!-- Edge Gap + Kelly Lots -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-        <div style="background:rgba(0,0,0,.35);border:1px solid rgba(100,128,255,.2);border-radius:6px;padding:7px 9px;">
-          <div style="font-size:9px;letter-spacing:1.2px;color:rgba(100,128,255,.8);font-family:DM Mono,monospace;font-weight:700;text-transform:uppercase;margin-bottom:3px;">Edge Gap</div>
-          <div style="font-size:16px;font-weight:800;color:\${{egColor}};font-family:DM Mono,monospace;">\${{edgeGapVal!==null ? (edgeGapVal>=0?'+':'')+edgeGapVal+'%' : 'N/A'}}</div>
-          <div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px;">\${{egLabel}}</div>
-        </div>
-        <div style="background:rgba(0,0,0,.35);border:1px solid \${{klLots>0?'rgba(56,216,136,.25)':'rgba(240,64,80,.2)'}};border-radius:6px;padding:7px 9px;">
-          <div style="font-size:9px;letter-spacing:1.2px;color:\${{klLots>0?'rgba(56,216,136,.8)':'rgba(240,64,80,.7)'}};font-family:DM Mono,monospace;font-weight:700;text-transform:uppercase;margin-bottom:3px;">Kelly Lots</div>
-          <div style="font-size:16px;font-weight:800;color:\${{klColor}};font-family:DM Mono,monospace;">\${{klLots}} lot\${{klLots!==1?'s':''}} \${{klLots===0?'🚫':klLots===1?'🟡':klLots===2?'🟢':'🔥'}}</div>
-          <div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px;">\${{klLabel}}</div>
-        </div>
-      </div>
-    </div>\`;
+  const sbHtml = sb ? (function() {{
+    var gexLabel = (sb.gexRegime||'positive')==='negative'
+      ? '<span style="color:#ff9050;font-size:10px;">Trending (GEX-)</span>'
+      : '<span style="color:#38d888;font-size:10px;">Ranging (GEX+)</span>';
+    var edgeGapVal = sb.edgeGap !== null ? sb.edgeGap : null;
+    var egColor = edgeGapVal===null?'#888': edgeGapVal>15?'#38d888': edgeGapVal>10?'#38d888': edgeGapVal>5?'#ffcc00':'#f04050';
+    var egLabel = edgeGapVal===null?'N/A': edgeGapVal>15?'Rare Alpha': edgeGapVal>10?'Strong Edge': edgeGapVal>5?'Weak Edge':'No Alpha';
+    var klColor = sb.kellyColor || '#f04050';
+    var klLabel = sb.kellyLabel || 'No Trade';
+    var klLots  = sb.kellyLots !== undefined ? sb.kellyLots : 0;
+    var klIcon  = klLots===0?'x':klLots===1?'1L':klLots===2?'2L':'3L';
+    var d1c = _clrCluster(sb.dirCluster||0);
+    var d2c = _clrCluster(sb.strCluster||0);
+    var d3c = _clrCluster(sb.effCluster||0);
+    var egDisp = edgeGapVal!==null ? (edgeGapVal>=0?'+':'')+edgeGapVal+'%' : 'N/A';
+    var klBorder = klLots>0 ? 'rgba(56,216,136,.25)' : 'rgba(240,64,80,.2)';
+    var klLblCol = klLots>0 ? 'rgba(56,216,136,.8)' : 'rgba(240,64,80,.7)';
+    var lotsDisp = klLots + (klLots!==1?' lots':' lot');
+    return '<div style="background:rgba(255,185,0,.04);border-top:1px solid rgba(255,185,0,.12);padding:10px 12px 12px;">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
+      + '<div style="font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:rgba(255,210,0,.85);font-family:DM Mono,monospace;font-weight:700;">THREE PILLAR BREAKDOWN</div>'
+      + gexLabel + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;">'
+      + '<div style="background:rgba(0,0,0,.35);border:1px solid rgba(255,185,0,.2);border-radius:6px;padding:7px 9px;">'
+      + '<div style="font-size:9px;letter-spacing:1.2px;color:rgba(255,210,0,.6);font-family:DM Mono,monospace;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Directional</div>'
+      + '<div style="font-size:18px;font-weight:800;color:'+d1c+';font-family:DM Mono,monospace;">'+_fmtPt(sb.dirCluster||0)+'</div>'
+      + '<div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px;">Bias '+_fmtPt(sb.biasAdj)+' · PCR '+_fmtPt(sb.pcrAdj)+'</div></div>'
+      + '<div style="background:rgba(0,0,0,.35);border:1px solid rgba(255,185,0,.2);border-radius:6px;padding:7px 9px;">'
+      + '<div style="font-size:9px;letter-spacing:1.2px;color:rgba(255,210,0,.6);font-family:DM Mono,monospace;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Structural</div>'
+      + '<div style="font-size:18px;font-weight:800;color:'+d2c+';font-family:DM Mono,monospace;">'+_fmtPt(sb.strCluster||0)+'</div>'
+      + '<div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px;">S/R '+_fmtPt(sb.srAdj)+' · OI '+_fmtPt(sb.oiAdj)+'</div></div>'
+      + '<div style="background:rgba(0,0,0,.35);border:1px solid rgba(255,185,0,.2);border-radius:6px;padding:7px 9px;">'
+      + '<div style="font-size:9px;letter-spacing:1.2px;color:rgba(255,210,0,.6);font-family:DM Mono,monospace;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Efficiency</div>'
+      + '<div style="font-size:18px;font-weight:800;color:'+d3c+';font-family:DM Mono,monospace;">'+_fmtPt(sb.effCluster||0)+'</div>'
+      + '<div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px;">IVP '+_fmtPt(sb.ivpAdj)+' · Strat '+_fmtPt(sb.stratAdj)+'</div></div>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
+      + '<div style="background:rgba(0,0,0,.35);border:1px solid rgba(100,128,255,.2);border-radius:6px;padding:7px 9px;">'
+      + '<div style="font-size:9px;letter-spacing:1.2px;color:rgba(100,128,255,.8);font-family:DM Mono,monospace;font-weight:700;text-transform:uppercase;margin-bottom:3px;">Edge Gap</div>'
+      + '<div style="font-size:16px;font-weight:800;color:'+egColor+';font-family:DM Mono,monospace;">'+egDisp+'</div>'
+      + '<div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px;">'+egLabel+'</div></div>'
+      + '<div style="background:rgba(0,0,0,.35);border:1px solid '+klBorder+';border-radius:6px;padding:7px 9px;">'
+      + '<div style="font-size:9px;letter-spacing:1.2px;color:'+klLblCol+';font-family:DM Mono,monospace;font-weight:700;text-transform:uppercase;margin-bottom:3px;">Kelly Lots</div>'
+      + '<div style="font-size:16px;font-weight:800;color:'+klColor+';font-family:DM Mono,monospace;">'+lotsDisp+'</div>'
+      + '<div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:2px;">'+klLabel+'</div></div>'
+      + '</div></div>';
   }})() : '';
 
   return `
