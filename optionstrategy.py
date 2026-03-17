@@ -2105,20 +2105,20 @@ def build_oi_html(oc):
 .oi-s1-strip{{display:grid;grid-template-columns:repeat(3,1fr);}}
 .oi-s1-cell{{padding:10px 14px;border-right:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:10px;min-width:0;}}
 .oi-s1-cell:last-child{{border-right:none;}}
-.oi-s1-icon{{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;letter-spacing:.3px;}}
+.oi-s1-icon{{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0;letter-spacing:.3px;}}
 .oi-s1-body{{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;}}
-.oi-s1-lbl{{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.65);font-weight:700;}}
-.oi-s1-val{{font-size:20px;font-weight:700;line-height:1;}}
-.oi-s1-sub{{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
+.oi-s1-lbl{{font-size:12px;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.85);font-weight:700;}}
+.oi-s1-val{{font-size:26px;font-weight:800;line-height:1;}}
+.oi-s1-sub{{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
 .oi-s1-bar{{display:flex;align-items:center;gap:5px;margin-top:3px;}}
 .oi-s1-track{{flex:1;height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;}}
 .oi-s1-fill{{height:100%;border-radius:2px;}}
-.oi-s1-pct{{font-size:10px;font-weight:700;min-width:28px;text-align:right;flex-shrink:0;}}
+.oi-s1-pct{{font-size:14px;font-weight:800;min-width:36px;text-align:right;flex-shrink:0;}}
 .oi-s1-bottom{{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid rgba(255,255,255,.07);}}
 .oi-s1-stat{{display:flex;flex-direction:column;align-items:center;padding:7px 6px;border-right:1px solid rgba(255,255,255,.05);}}
 .oi-s1-stat:last-child{{border-right:none;}}
-.oi-s1-stat-lbl{{font-size:8px;letter-spacing:.8px;text-transform:uppercase;color:rgba(255,255,255,.25);margin-bottom:2px;text-align:center;}}
-.oi-s1-stat-val{{font-size:13px;font-weight:700;text-align:center;}}
+.oi-s1-stat-lbl{{font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:rgba(255,255,255,.65);margin-bottom:3px;text-align:center;font-weight:700;}}
+.oi-s1-stat-val{{font-size:16px;font-weight:800;text-align:center;}}
 .oi-s1-pain{{display:flex;align-items:center;gap:10px;padding:7px 14px;border-top:1px solid rgba(255,255,255,.07);background:rgba(100,128,255,.04);flex-wrap:wrap;}}
 .oi-s1-pain-lbl{{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.3);}}
 .oi-s1-pain-val{{font-size:16px;font-weight:700;color:#6480ff;}}
@@ -2130,7 +2130,7 @@ def build_oi_html(oc):
   .oi-s1-cell:last-child{{border-bottom:none;}}
   .oi-s1-bottom{{grid-template-columns:repeat(3,1fr);}}
   .oi-s1-stat:nth-child(4),.oi-s1-stat:nth-child(5){{display:none;}}
-  .oi-s1-val{{font-size:18px;}}
+  .oi-s1-val{{font-size:22px;}}
   .oi-s1-pcr{{padding:0 10px;}}
 }}
 </style>
