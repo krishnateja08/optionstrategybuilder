@@ -33,7 +33,10 @@ Aurora Borealis Theme · v23.0 · Smart Dynamic PoP Engine + Intraday P&L Simula
   3. Filter pills — EV>0 / IVP OK / PoP≥60% / Edge≥65% / Limited Risk
      Active filters dim non-qualifying cards; table view respects same filters
 - FIXED v23.1: EV / True PoP / R:R mini-strip now persists after auto-refresh
-- UPDATED v23.2: Two calibration improvements
+- UPDATED v23.2: Two calibration improvements + auto-refresh cache fix
+  Auto-refresh: fetch() now uses cache:'no-store' on both latest.json and
+  index.html fetches — prevents browsers/CDNs returning stale 304 responses
+  which made the page appear to never detect new Python runs.
   1. VIX regime thresholds: LOW <13 (was <15), HIGH >20 (was >22)
      Reflects post-2024 structurally compressed NIFTY VIX environment
   2. IV asymmetry: replaced VIX×3.5 with fixed beta (2.5×100 down, 0.8×100 up)
@@ -5181,14 +5184,20 @@ ANIMATED_JS = """
     if (_refreshing) return;
     _refreshing = true;
     showSpinner(true);
-    fetch('latest.json?_=' + Date.now())
-      .then(function(r) { return r.json(); })
+    // FIXED v23.2: cache-bust with timestamp to prevent stale 304 responses
+    // on both GitHub Pages and local file servers
+    fetch('latest.json?nocache=' + Date.now(), { cache: 'no-store' })
+      .then(function(r) {
+        if (!r.ok) throw new Error('latest.json fetch failed: ' + r.status);
+        return r.json();
+      })
       .then(function(data) {
         var newTs = data.generated_at;
         showSpinner(false);
         _refreshing = false;
         if (_lastGenAt === null) {
-          // First poll — just record the timestamp, no reload needed
+          // First poll — record timestamp and immediately trigger a data refresh
+          // so the page reflects the latest Python run on first load
           _lastGenAt = newTs;
           return;
         }
@@ -5213,7 +5222,7 @@ ANIMATED_JS = """
                              ? document.getElementById('expiryDropdown').value : null;
 
         // Fetch fresh index.html and patch without reloading
-        fetch('index.html?_=' + Date.now())
+        fetch('index.html?nocache=' + Date.now(), { cache: 'no-store' })
           .then(function(r) { return r.text(); })
           .then(function(html) {
             var parser = new DOMParser();
@@ -5329,9 +5338,16 @@ ANIMATED_JS = """
             // Network/parse error — silent fail, the next 30-second poll will retry.
           });
       })
-      .catch(function() {
+      .catch(function(err) {
         showSpinner(false);
         _refreshing = false;
+        // Show error in status bar so user can see refresh is failing
+        var txt = document.getElementById('refreshStatus');
+        if (txt) {
+          txt.textContent = 'Refresh error — check latest.json';
+          txt.style.color = '#ff6b6b';
+          setTimeout(function() { txt.textContent = ''; txt.style.color = ''; }, 5000);
+        }
       });
   }
 
