@@ -1920,8 +1920,10 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 
     return f"""
 <style>
-.hc-wrap{{background:#06080f;border:1px solid rgba(255,255,255,.08);border-radius:12px;overflow:hidden;font-family:'DM Mono',monospace;}}
-.hc-main{{display:flex;align-items:stretch;flex-wrap:nowrap;}}
+/* Override old .hero class — new Style C widget takes full control */
+.hero.hc-wrap{{display:block !important;min-height:unset !important;background:none !important;border-bottom:none !important;padding:0 !important;}}
+.hc-wrap{{background:#06080f;border:1px solid rgba(255,255,255,.08);border-radius:12px;overflow:hidden;font-family:'DM Mono',monospace;margin-bottom:0;}}
+.hc-main{{display:flex !important;align-items:stretch;flex-wrap:nowrap;}}
 .hc-signal-block{{padding:12px 16px;border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;justify-content:center;gap:3px;flex-shrink:0;width:170px;background:rgba({glow_rgb},.04);box-sizing:border-box;}}
 .hc-eyebrow{{font-size:8px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.3);}}
 .hc-signal{{font-family:'Sora',sans-serif;font-size:18px;font-weight:900;line-height:1.15;}}
