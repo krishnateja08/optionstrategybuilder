@@ -4725,7 +4725,7 @@ window.switchExpiry = function(exp) {{
               }})();
               setupDaySelector(_simId, _m.netDelta, _m.netTheta, _m.netVega, _m.netGamma,
                 _m.mlRawVal === 999999 ? null : _m.mlRawVal,
-                _m.mpRaw    === 999999 ? null : _m.mpRaw, _daysLeft);
+                _m.mpRaw    === 999999 ? null : _m.mpRaw, _daysLeft, _m.legs||[]);
             }}
           }} catch(e) {{}}
         }} catch(err) {{}}
@@ -5501,7 +5501,7 @@ ANIMATED_JS = """
                         if (typeof setupDaySelector === 'function') {
                           setupDaySelector(_simId, _m.netDelta, _m.netTheta, _m.netVega, _m.netGamma,
                             _m.mlRawVal === 999999 ? null : _m.mlRawVal,
-                            _m.mpRaw    === 999999 ? null : _m.mpRaw, _daysLeft);
+                            _m.mpRaw    === 999999 ? null : _m.mpRaw, _daysLeft, _m.legs||[]);
                         }
                       }
                     } catch(e) {}
@@ -6047,7 +6047,7 @@ function jumpToCard(cardId) {{
           const _daysLeft = (function(){{try{{const p=OC.expiry.split('-');const mo={{Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}};const exp=new Date(Date.UTC(parseInt(p[2]),mo[p[1]],parseInt(p[0])));const nu=Date.now()+(new Date().getTimezoneOffset()*60000);const ni=new Date(nu+5.5*3600000);const td=new Date(Date.UTC(ni.getUTCFullYear(),ni.getUTCMonth(),ni.getUTCDate()));return Math.max(1,Math.round((exp-td)/86400000));}}catch(e){{return 4;}}}})();
           setupDaySelector(_simId,_m.netDelta,_m.netTheta,_m.netVega,_m.netGamma,
             _m.mlRawVal===999999?null:_m.mlRawVal,
-            _m.mpRaw===999999?null:_m.mpRaw,_daysLeft);
+            _m.mpRaw===999999?null:_m.mpRaw,_daysLeft, _m.legs||[]);
         }}
       }} catch(e) {{}}
     }} catch(err) {{ mel.innerHTML = '<div class="sc-loading">Could not calculate metrics</div>'; }}
@@ -6284,21 +6284,42 @@ function drawPayoffChart(card, m) {{
 
 
 // ── Day Selector Setup (called after innerHTML injection) ────────────────────
-function setupDaySelector(simId, nd, nt, nv, ng, maxL, maxP, maxDays) {{
+function setupDaySelector(simId, nd, nt, nv, ng, maxL, maxP, maxDays, legs) {{
   const _mv = [-500,-400,-300,-200,-150,-100,-50,0,50,100,150,200,300,400,500];
+  const lotSz = OC.lotSize || 65;
   function _pnl(mv, days) {{
-    // UPDATED v23.2: Beta-weighted IV model — decoupled from current VIX level.
-    // Empirical NIFTY: ~2.5% IV rise per 1% down move (stable across VIX regimes).
-    // Old baseVix*3.5 overstated tail risk; fixed beta is more consistent.
-    const movePct = Math.abs(mv) / OC.spot;
-    const IV_BETA_DOWN = 2.5;  // ~2-3% IV rise per 1% Nifty drop (empirical)
-    const IV_BETA_UP   = 0.8;  // relief rallies still compress IV
-    const downSens = IV_BETA_DOWN * 100;
-    const upSens   = IV_BETA_UP   * 100;
-    const iv = mv < 0 ? movePct * downSens : -(movePct * upSens);
-    let p = nd*mv + 0.5*ng*mv*mv + nv*iv + (nt*days);
+    // FIXED v24.0: Hybrid P&L model
+    // - At expiry (days = maxDays): use exact intrinsic value per leg
+    //   This is 100% accurate — same formula as the payoff chart.
+    // - Intraday (days < maxDays): use Greeks approximation + IV beta
+    //   Greeks are inherently approximate for large moves, so we also
+    //   clamp the result to [−maxL, maxP] to prevent impossible values.
+    const isExpiry = (days === maxDays);
+
+    // ── EXPIRY PATH: exact intrinsic calculation ──────────────────
+    if (isExpiry && legs && legs.length > 0) {{
+      let p = 0;
+      const targetSpot = OC.spot + mv;
+      for (const leg of legs) {{
+        const intr = leg.type === 'CE'
+          ? Math.max(0, targetSpot - leg.strike)
+          : Math.max(0, leg.strike - targetSpot);
+        p += leg.qty * (intr - leg.premium);
+      }}
+      return Math.round(p * lotSz);
+    }}
+
+    // ── INTRADAY PATH: Greeks + IV beta approximation ─────────────
+    const movePct   = Math.abs(mv) / OC.spot;
+    const IV_BETA_DOWN = 2.5;   // ~2-3% IV rise per 1% Nifty drop (empirical)
+    const IV_BETA_UP   = 0.8;   // relief rallies compress IV
+    const downSens  = IV_BETA_DOWN * 100;
+    const upSens    = IV_BETA_UP   * 100;
+    const ivEst     = mv < 0 ? movePct * downSens : -(movePct * upSens);
+    let p = nd*mv + 0.5*ng*mv*mv + nv*ivEst + (nt*days);
+    // Hard clamp to strategy bounds — Greeks can overshoot on large moves
     if (maxL !== null) p = Math.max(-maxL, p);
-    if (maxP !== null) p = Math.min(maxP*0.9, p);
+    if (maxP !== null) p = Math.min(maxP,  p);
     return Math.round(p);
   }}
   window['selDay_'+simId] = function(days) {{
@@ -6328,7 +6349,11 @@ function setupDaySelector(simId, nd, nt, nv, ng, maxL, maxP, maxDays) {{
       const mc  = mv>0?'#38d888':mv<0?'#f04050':'#ffcc00';
       const mb  = mv>0?'rgba(56,216,136,.12)':mv<0?'rgba(240,64,80,.18)':'rgba(255,185,0,.18)';
       const ml  = mv>0?'+'+mv:mv===0?'Flat':String(mv);
-      const pc  = maxP ? ((pnl/maxP)*100).toFixed(0)+'%' : '—';
+      // VS MAX: show % of max profit when positive, % of max loss when negative
+      let pc = '—';
+      if (pnl >= 0 && maxP)       pc = '+' + ((pnl/maxP)*100).toFixed(0)+'%';
+      else if (pnl < 0 && maxL)   pc = ((pnl/maxL)*100).toFixed(0)+'%';
+      else if (pnl >= 0 && !maxP) pc = '~';
       const rb  = mv===0 ? 'background:rgba(255,185,0,.05);' : '';
       return '<tr style="'+rb+'">'
         +'<td style="padding:6px 10px;white-space:nowrap;"><span style="font-family:DM Mono,monospace;font-size:13px;font-weight:700;padding:4px 8px;border-radius:4px;background:'+mb+';color:'+mc+';white-space:nowrap;display:inline-block;min-width:56px;text-align:center;">'+ml+(mv!==0?'p':'')+'</span></td>'
@@ -6366,7 +6391,7 @@ document.addEventListener("click",function(e){{
               const _daysLeft=(function(){{try{{const p=OC.expiry.split('-');const mo={{Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}};const exp=new Date(Date.UTC(parseInt(p[2]),mo[p[1]],parseInt(p[0])));const nu=Date.now()+(new Date().getTimezoneOffset()*60000);const ni=new Date(nu+5.5*3600000);const td=new Date(Date.UTC(ni.getUTCFullYear(),ni.getUTCMonth(),ni.getUTCDate()));return Math.max(1,Math.round((exp-td)/86400000));}}catch(e){{return 4;}}}})();
               setupDaySelector(_simId,_m.netDelta,_m.netTheta,_m.netVega,_m.netGamma,
                 _m.mlRawVal===999999?null:_m.mlRawVal,
-                _m.mpRaw===999999?null:_m.mpRaw,_daysLeft);
+                _m.mpRaw===999999?null:_m.mpRaw,_daysLeft, _m.legs||[]);
             }}
           }}catch(e){{}}
         }}
