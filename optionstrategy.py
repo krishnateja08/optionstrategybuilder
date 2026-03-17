@@ -33,6 +33,11 @@ Aurora Borealis Theme · v23.0 · Smart Dynamic PoP Engine + Intraday P&L Simula
   3. Filter pills — EV>0 / IVP OK / PoP≥60% / Edge≥65% / Limited Risk
      Active filters dim non-qualifying cards; table view respects same filters
 - FIXED v23.1: EV / True PoP / R:R mini-strip now persists after auto-refresh
+- UPDATED v23.2: Two calibration improvements
+  1. VIX regime thresholds: LOW <13 (was <15), HIGH >20 (was >22)
+     Reflects post-2024 structurally compressed NIFTY VIX environment
+  2. IV asymmetry: replaced VIX×3.5 with fixed beta (2.5×100 down, 0.8×100 up)
+     Empirical NIFTY: ~2.5% IV rise per 1% drop — decoupled from VIX level
   populateMiniStrips() was missing after initAllCards() in both the silent
   auto-refresh engine and the expiry switcher — causing "—" on collapsed cards
   until a manual browser refresh. Fixed in both call sites.
@@ -1532,10 +1537,11 @@ def compute_market_direction(tech, oc_analysis, live_vix=18.0):
             }
 
     # ── VIX regime flags (used by JS PoP engine for strategy scoring) ─
-    # High VIX (>22): favour Long Volatility (Straddles, Backspreads)
+    # UPDATED v23.2: HIGH >20, LOW <13 (post-2024 compressed regime)
+    # High VIX (>20): favour Long Volatility (Straddles, Backspreads)
     #                 penalise Non-Directional premium-selling (Iron Condors)
-    # Low  VIX (<15): favour premium-selling strategies (Iron Condors, Short Straddles)
-    vix_regime = "high" if live_vix > 22 else "low" if live_vix < 15 else "normal"
+    # Low  VIX (<13): favour premium-selling strategies (Iron Condors, Short Straddles)
+    vix_regime = "high" if live_vix > 20 else "low" if live_vix < 13 else "normal"
 
     return {
         "bias":                 bias,
@@ -1546,8 +1552,8 @@ def compute_market_direction(tech, oc_analysis, live_vix=18.0):
         "diff":                 diff,
         "sma200_filter_active": is_below_sma200,
         "vix_regime":           vix_regime,
-        "vix_high":             live_vix > 22,
-        "vix_low":              live_vix < 15,
+        "vix_high":             live_vix > 20,
+        "vix_low":              live_vix < 13,
         "max_pain_shift":       max_pain_shift,
         "mp_weight":            mp_weight,
         "exhaustion_flag":      exhaustion_flag,
@@ -4358,9 +4364,13 @@ function simSlide(simId, val, slMin, slMax, nd, nt, nv, maxL, maxP) {{
   if (slv) slv.textContent = 'Spot: \u20b9' + spot.toLocaleString('en-IN');
   // VIX-based IV model — uses live India VIX from OC object
   const movePct  = Math.abs(move) / OC.spot;
-  const baseVix  = OC.vix || 16;
-  const downSens = baseVix * 3.5;
-  const upSens   = baseVix * 0.8;
+  // UPDATED v23.2: Beta-weighted IV sensitivity — decoupled from current VIX level.
+  // Empirical NIFTY: ~2.5% IV rise per 1% down move (stable across VIX regimes).
+  // Old: baseVix * 3.5 overstated tail risk and inflated protection cost.
+  const IV_BETA_DOWN = 2.5;  // ~2-3% IV rise per 1% Nifty drop (empirical)
+  const IV_BETA_UP   = 0.8;  // relief rallies still compress IV
+  const downSens = IV_BETA_DOWN * 100;
+  const upSens   = IV_BETA_UP   * 100;
   const ivEst    = move < 0 ? movePct * downSens : -(movePct * upSens);
   // ivChangePct is the estimated IV point change (e.g. +8.4 means IV rose 8.4 points)
   const ivChangePct = Math.round(ivEst * 10) / 10;
@@ -5995,14 +6005,14 @@ function drawPayoffChart(card, m) {{
 function setupDaySelector(simId, nd, nt, nv, ng, maxL, maxP, maxDays) {{
   const _mv = [-500,-400,-300,-200,-150,-100,-50,0,50,100,150,200,300,400,500];
   function _pnl(mv, days) {{
-    // VIX-based IV model: real India VIX drives the base IV level
-    // Down moves spike IV asymmetrically (fear > greed)
-    // Formula: IV change = (move% × vix_sensitivity) with 3x down / 1x up multiplier
+    // UPDATED v23.2: Beta-weighted IV model — decoupled from current VIX level.
+    // Empirical NIFTY: ~2.5% IV rise per 1% down move (stable across VIX regimes).
+    // Old baseVix*3.5 overstated tail risk; fixed beta is more consistent.
     const movePct = Math.abs(mv) / OC.spot;
-    const baseVix = OC.vix || 16;
-    // Sensitivity: larger moves spike IV more non-linearly
-    const downSens = baseVix * 3.5;   // down moves: VIX amplified 3.5x
-    const upSens   = baseVix * 0.8;   // up moves: VIX dampened (relief rally compresses IV)
+    const IV_BETA_DOWN = 2.5;  // ~2-3% IV rise per 1% Nifty drop (empirical)
+    const IV_BETA_UP   = 0.8;  // relief rallies still compress IV
+    const downSens = IV_BETA_DOWN * 100;
+    const upSens   = IV_BETA_UP   * 100;
     const iv = mv < 0 ? movePct * downSens : -(movePct * upSens);
     let p = nd*mv + 0.5*ng*mv*mv + nv*iv + (nt*days);
     if (maxL !== null) p = Math.max(-maxL, p);
