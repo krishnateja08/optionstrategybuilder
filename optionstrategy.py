@@ -4453,7 +4453,18 @@ window.addEventListener('load',function(){{
   initAllCards();
   ['bullish','bearish','nondirectional'].forEach(sortGridByPoP);
   filterStrat('bullish',document.querySelector('.sc-tab'));
-  populateMiniStrips();
+  // FIXED v23.1: defer populateMiniStrips so all JS in this large file is fully
+  // parsed before we call it. Without the delay, the function may not yet exist
+  // when the load event fires, causing EV/PoP/R:R to silently stay "—".
+  // We also retry once at 500ms in case the first tick is still too early.
+  function _tryPopulate() {{
+    if (typeof populateMiniStrips === 'function') {{
+      populateMiniStrips();
+    }} else {{
+      setTimeout(_tryPopulate, 200);
+    }}
+  }}
+  setTimeout(_tryPopulate, 0);
 }});
 
 // ── Multi-Expiry Switcher ─────────────────────────────────────
