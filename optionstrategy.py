@@ -4478,6 +4478,10 @@ window.addEventListener('load',function(){{
     }}
   }}
   setTimeout(_tryPopulate, 0);
+  // Mirror Greeks panel into mobile drawer
+  setTimeout(function() {{
+    if (typeof _syncMobGreeks === 'function') _syncMobGreeks();
+  }}, 100);
 }});
 
 // ── Multi-Expiry Switcher ─────────────────────────────────────
@@ -4984,30 +4988,33 @@ footer{padding:16px 32px;border-top:1px solid rgba(255,255,255,.06);background:r
   .logo-wrap{min-width:0;max-width:180px;height:32px;}
   .logo-slide{font-size:20px;}
   .refresh-countdown{display:none;}
-  /* FIXED v23.2: sidebar becomes a slide-up drawer on mobile instead of display:none */
-  .main{grid-template-columns:1fr;padding-bottom:56px;}
+  /* Mobile: sidebar becomes fixed bottom nav bar */
+  .main{grid-template-columns:1fr !important;padding-bottom:58px;}
   .sidebar{
-    display:flex;
-    position:fixed;
-    bottom:0;left:0;right:0;
+    position:fixed !important;
+    bottom:0;left:0;right:0;top:auto !important;
     height:56px;
-    flex-direction:row;
-    align-items:center;
-    top:auto;
+    width:100%;
+    display:flex !important;
+    flex-direction:column;
     border-right:none;
-    border-top:1px solid rgba(255,255,255,.10);
-    z-index:200;
+    border-top:1px solid rgba(255,255,255,.12);
+    z-index:300;
     overflow:hidden;
-    transition:height .3s cubic-bezier(.4,0,.2,1);
+    transition:height .28s cubic-bezier(.4,0,.2,1);
+    background:rgba(8,11,20,.97) !important;
   }
-  .sidebar.mob-open{height:70vh;flex-direction:column;align-items:stretch;overflow-y:auto;}
-  .sidebar-sticky-top{display:none;}
-  .sidebar-scroll{display:none;}
-  .mob-nav-bar{display:flex !important;width:100%;height:56px;flex-shrink:0;align-items:center;padding:0 8px;gap:4px;border-top:none;}
-  .mob-nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px 2px;border-radius:8px;border:none;background:transparent;color:rgba(255,255,255,.5);font-family:var(--fh);font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;transition:all .15s;}
-  .mob-nav-btn.active,.mob-nav-btn:hover{color:#00c896;background:rgba(0,200,150,.08);}
-  .mob-nav-icon{font-size:18px;line-height:1;}
-  .mob-drawer-content{display:none;flex:1;overflow-y:auto;padding:12px;}
+  .sidebar.mob-open{height:72vh;}
+  /* Hide desktop-only sidebar parts */
+  .sidebar-sticky-top{display:none !important;}
+  .sidebar-scroll{display:none !important;}
+  /* Show mobile nav bar */
+  .mob-nav-bar{display:flex !important;width:100%;height:56px;min-height:56px;flex-shrink:0;align-items:center;padding:0 6px;gap:2px;order:2;}
+  .mob-nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 2px;border-radius:8px;border:none;background:transparent;color:rgba(255,255,255,.45);font-family:'DM Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;transition:all .15s;min-width:0;}
+  .mob-nav-btn.active,.mob-nav-btn:hover{color:#00c896;background:rgba(0,200,150,.1);}
+  .mob-nav-icon{font-size:20px;line-height:1;margin-bottom:1px;}
+  /* Drawer content — shown when mob-open */
+  .mob-drawer-content{display:none;order:1;flex:1;overflow-y:auto;padding:16px 14px 8px;}
   .sidebar.mob-open .mob-drawer-content{display:block;}
   .sidebar.mob-open .mob-nav-bar{border-top:1px solid rgba(255,255,255,.08);}
   .sc-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
@@ -5282,6 +5289,8 @@ ANIMATED_JS = """
             }
             // FIXED v23.1: repopulate EV / True PoP / R:R mini-strips after every silent refresh
             if (typeof populateMiniStrips === 'function') populateMiniStrips();
+            // Sync Greeks panel into mobile drawer after refresh
+            if (typeof _syncMobGreeks === 'function') _syncMobGreeks();
 
             // 5. Restore expiry dropdown selection (user may have changed it)
             if (savedExpiry) {
@@ -5586,7 +5595,7 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None,
     </div>
     </div>
     <!-- Mobile: bottom nav bar (hidden on desktop via CSS) -->
-    <div class="mob-nav-bar" style="display:none;" id="mobNavBar">
+    <div class="mob-nav-bar" id="mobNavBar">
       <button class="mob-nav-btn" onclick="mobNav('oi')">
         <span class="mob-nav-icon">&#128202;</span>OI
       </button>
@@ -5605,10 +5614,12 @@ def generate_html(tech, oc, md, ts, vix_data=None, multi_expiry_analyzed=None,
     </div>
     <!-- Mobile: slide-up drawer content -->
     <div class="mob-drawer-content" id="mobDrawerContent">
-      <div style="font-family:var(--fh);font-size:11px;font-weight:700;letter-spacing:2px;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.08);">NAVIGATION</div>
-      <div style="display:flex;flex-direction:column;gap:6px;">
+      <!-- Greeks panel shown in drawer on mobile -->
+      <div id="greeksPanelMob" style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.08);"></div>
+      <div style="font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:2px;color:rgba(255,255,255,.35);text-transform:uppercase;margin-bottom:10px;">NAVIGATE</div>
+      <div style="display:flex;flex-direction:column;gap:5px;">
         <button class="sb-btn" onclick="mobNav('oi');toggleMobDrawer()">&#128202; OI Dashboard</button>
-        <button class="sb-btn" onclick="mobNav('greeks');toggleMobDrawer()">&#9652; Option Greeks</button>
+        <button class="sb-btn" onclick="mobNav('greeks');toggleMobDrawer()">&#9652; Option Greeks Table</button>
         <button class="sb-btn" onclick="mobNav('kl');toggleMobDrawer()">&#9670; Key Levels</button>
         <button class="sb-btn" onclick="mobNav('strikes');toggleMobDrawer()">&#9644; Top 5 Strikes</button>
         <button class="sb-btn" onclick="goStrat('bullish',this);toggleMobDrawer()">&#9650; Bullish Strategies</button>
@@ -5693,29 +5704,13 @@ function switchMainTab(tab) {{
 }}
 
 // ── Mobile bottom nav ─────────────────────────────────────────────────────────
-(function() {{
-  var mq = window.matchMedia('(max-width:640px)');
-  function applyMobile(e) {{
-    var bar   = document.getElementById('mobNavBar');
-    var sTop  = document.querySelector('.sidebar-sticky-top');
-    var sScrl = document.querySelector('.sidebar-scroll');
-    if (!bar) return;
-    if (e.matches) {{
-      bar.style.display   = 'flex';
-      if (sTop)  sTop.style.display  = 'none';
-      if (sScrl) sScrl.style.display = 'none';
-    }} else {{
-      bar.style.display   = 'none';
-      if (sTop)  sTop.style.display  = '';
-      if (sScrl) sScrl.style.display = '';
-      // Close drawer if resizing to desktop
-      var sb = document.getElementById('mobileSidebar');
-      if (sb) sb.classList.remove('mob-open');
-    }}
-  }}
-  mq.addEventListener ? mq.addEventListener('change', applyMobile) : mq.addListener(applyMobile);
-  window.addEventListener('load', function() {{ applyMobile(mq); }});
-}})();
+// Pure CSS drives show/hide. JS handles drawer toggle, nav, and Greeks mirror.
+function _syncMobGreeks() {{
+  // Mirror the Greeks panel content into the mobile drawer slot
+  var src  = document.getElementById('greeksPanel');
+  var dest = document.getElementById('greeksPanelMob');
+  if (src && dest) dest.innerHTML = src.innerHTML;
+}}
 
 function toggleMobDrawer() {{
   var sb  = document.getElementById('mobileSidebar');
