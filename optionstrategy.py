@@ -1920,82 +1920,101 @@ def build_dual_gauge_hero(oc, tech, md, ts):
 
     return f"""
 <style>
-/* Override old .hero class — new Style C widget takes full control */
+/* Override old .hero class */
 .hero.hc-wrap{{display:block !important;min-height:unset !important;background:none !important;border-bottom:none !important;padding:0 !important;}}
-.hc-wrap{{background:#06080f;border:1px solid rgba(255,255,255,.08);border-radius:12px;overflow:hidden;font-family:'DM Mono',monospace;margin-bottom:0;}}
+.hc-wrap{{background:#06080f;border:1px solid rgba(255,255,255,.08);border-radius:12px;overflow:hidden;font-family:'DM Mono',monospace;}}
 .hc-main{{display:flex !important;align-items:stretch;flex-wrap:nowrap;}}
-.hc-signal-block{{padding:12px 16px;border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;justify-content:center;gap:3px;flex-shrink:0;width:170px;background:rgba({glow_rgb},.04);box-sizing:border-box;}}
-.hc-eyebrow{{font-size:8px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.3);}}
-.hc-signal{{font-family:'Sora',sans-serif;font-size:18px;font-weight:900;line-height:1.15;}}
-.hc-sub{{font-size:10px;color:rgba(255,255,255,.4);}}
-.hc-center{{flex:1;padding:10px 14px;display:flex;flex-direction:column;justify-content:center;gap:7px;border-right:1px solid rgba(255,255,255,.07);min-width:0;}}
-.hc-bar-row{{display:flex;align-items:center;gap:7px;}}
-.hc-bicon{{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;letter-spacing:.3px;}}
-.hc-blbl{{font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:rgba(255,255,255,.4);width:44px;flex-shrink:0;}}
-.hc-bval{{font-size:13px;font-weight:700;width:42px;flex-shrink:0;}}
-.hc-track{{flex:1;height:4px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden;}}
-.hc-fill{{height:100%;border-radius:2px;}}
-.hc-pct{{font-size:10px;font-weight:700;width:28px;text-align:right;flex-shrink:0;}}
-.hc-right{{display:grid;grid-template-columns:repeat(3,1fr);flex-shrink:0;}}
-.hc-stat{{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 10px;border-right:1px solid rgba(255,255,255,.05);}}
+
+/* FIX 1 — Signal block: no gap, inline layout, brighter sub text */
+.hc-signal-block{{padding:12px 16px;border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;justify-content:center;gap:4px;flex-shrink:0;width:190px;background:rgba({glow_rgb},.05);box-sizing:border-box;}}
+.hc-eyebrow{{font-size:8px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.35);margin-bottom:1px;}}
+.hc-signal{{font-family:'Sora',sans-serif;font-size:22px;font-weight:900;line-height:1.1;}}
+.hc-sub{{font-size:12px;font-weight:600;color:rgba(255,255,255,.75);line-height:1.4;}}
+.hc-sub-pcr{{font-size:11px;color:rgba(255,255,255,.5);margin-top:1px;}}
+
+/* FIX 2 — Bars: tighter track (35% max-width), bigger icon/label/value fonts */
+.hc-center{{flex:1;padding:10px 14px;display:flex;flex-direction:column;justify-content:center;gap:8px;border-right:1px solid rgba(255,255,255,.07);min-width:0;}}
+.hc-bar-row{{display:flex;align-items:center;gap:8px;}}
+.hc-bicon{{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;letter-spacing:.3px;}}
+.hc-blbl{{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;width:52px;flex-shrink:0;}}
+.hc-bval{{font-size:16px;font-weight:800;width:48px;flex-shrink:0;}}
+.hc-track{{width:35%;flex-shrink:0;height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;}}
+.hc-fill{{height:100%;border-radius:3px;}}
+.hc-pct{{font-size:13px;font-weight:800;width:32px;text-align:right;flex-shrink:0;}}
+
+/* FIX 3 — Stats: bigger values, brighter labels */
+.hc-right{{display:grid;grid-template-columns:repeat(4,1fr);flex-shrink:0;}}
+.hc-stat{{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 12px;border-right:1px solid rgba(255,255,255,.05);}}
 .hc-stat:last-child{{border-right:none;}}
-.hc-stat-lbl{{font-size:7.5px;letter-spacing:.8px;text-transform:uppercase;color:rgba(255,255,255,.25);margin-bottom:2px;text-align:center;}}
-.hc-stat-val{{font-size:12px;font-weight:700;text-align:center;white-space:nowrap;}}
+.hc-stat-lbl{{font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:3px;text-align:center;font-weight:600;}}
+.hc-stat-val{{font-size:15px;font-weight:800;text-align:center;white-space:nowrap;}}
+
 .hc-bottom{{display:flex;align-items:center;gap:8px;padding:6px 12px;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.2);flex-wrap:wrap;}}
-.hc-chip{{font-size:9px;font-weight:700;padding:2px 8px;border-radius:20px;letter-spacing:.5px;text-transform:uppercase;}}
-.hc-score{{font-size:9px;color:rgba(255,255,255,.3);margin-left:auto;}}
+.hc-chip{{font-size:9px;font-weight:700;padding:2px 9px;border-radius:20px;letter-spacing:.5px;text-transform:uppercase;}}
+.hc-score{{font-size:9px;color:rgba(255,255,255,.35);margin-left:auto;}}
 .hc-ts-lbl{{font-size:9px;color:rgba(255,255,255,.18);}}
-@media(max-width:620px){{
+@media(max-width:680px){{
   .hc-main{{flex-wrap:wrap;}}
-  .hc-signal-block{{width:100%;border-right:none;border-bottom:1px solid rgba(255,255,255,.07);flex-direction:row;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 14px;}}
-  .hc-signal{{font-size:16px;}}
+  .hc-signal-block{{width:100%;border-right:none;border-bottom:1px solid rgba(255,255,255,.07);flex-direction:row;align-items:center;gap:12px;padding:10px 14px;}}
+  .hc-signal{{font-size:20px;}}
   .hc-center{{width:100%;border-right:none;border-bottom:1px solid rgba(255,255,255,.07);}}
-  .hc-right{{width:100%;grid-template-columns:repeat(3,1fr);}}
-  .hc-stat{{padding:7px 8px;}}
+  .hc-right{{width:100%;grid-template-columns:repeat(4,1fr);}}
+  .hc-stat{{padding:8px 6px;}}
+  .hc-stat-val{{font-size:13px;}}
+  .hc-track{{width:30%;}}
+}}
+@media(max-width:420px){{
+  .hc-right{{grid-template-columns:repeat(2,1fr);}}
+  .hc-stat:nth-child(2n){{border-right:none;}}
+  .hc-stat:nth-child(1),.hc-stat:nth-child(2){{border-bottom:1px solid rgba(255,255,255,.05);}}
 }}
 </style>
 <div class="hero hc-wrap" id="heroWidget">
   <div class="hc-main">
 
-    <!-- Signal block -->
+    <!-- FIX 1: Signal block — bigger font, oi_dir on one line, sub text below, bright -->
     <div class="hc-signal-block">
-      <div class="hc-eyebrow">OI Signal &middot; {expiry}</div>
+      <div class="hc-eyebrow">OI Signal &middot; {expiry} &middot; Spot &#8377;{underlying:,.0f}</div>
       <div class="hc-signal" style="color:{dir_col};">{oi_dir}</div>
       <div class="hc-sub">{oi_sig}</div>
-      <div class="hc-sub" style="margin-top:2px;">PCR&nbsp;<span style="color:{pcr_col};font-weight:700;">{pcr:.3f}</span></div>
+      <div class="hc-sub-pcr">PCR&nbsp;<span style="color:{pcr_col};font-weight:800;font-size:13px;">{pcr:.3f}</span></div>
     </div>
 
-    <!-- PE / CE bars -->
+    <!-- FIX 2: PE/CE bars — 35% track, bigger PE/CE icons, bigger PUT OI/CALL OI labels -->
     <div class="hc-center">
       <div class="hc-bar-row">
-        <div class="hc-bicon" style="background:rgba(0,200,150,.12);color:#00c896;">PE</div>
-        <span class="hc-blbl">Put OI</span>
-        <span class="hc-bval" style="color:#00c896;">{pe_label}</span>
+        <div class="hc-bicon" style="background:rgba(0,200,150,.18);color:#00e8b0;">PE</div>
+        <span class="hc-blbl" style="color:#00e8b0;">PUT OI</span>
+        <span class="hc-bval" style="color:#00e8b0;">{pe_label}</span>
         <div class="hc-track"><div class="hc-fill" style="width:{pe_bar_w}%;background:linear-gradient(90deg,#00c896,#4de8b8);"></div></div>
-        <span class="hc-pct" style="color:#00c896;">{pe_pct}%</span>
+        <span class="hc-pct" style="color:#00e8b0;">{pe_pct}%</span>
       </div>
       <div class="hc-bar-row">
-        <div class="hc-bicon" style="background:rgba(255,107,107,.12);color:#ff6b6b;">CE</div>
-        <span class="hc-blbl">Call OI</span>
-        <span class="hc-bval" style="color:#ff6b6b;">{ce_label}</span>
+        <div class="hc-bicon" style="background:rgba(255,107,107,.18);color:#ff8080;">CE</div>
+        <span class="hc-blbl" style="color:#ff8080;">CALL OI</span>
+        <span class="hc-bval" style="color:#ff8080;">{ce_label}</span>
         <div class="hc-track"><div class="hc-fill" style="width:{ce_bar_w}%;background:linear-gradient(90deg,#ff6b6b,#ff9090);"></div></div>
-        <span class="hc-pct" style="color:#ff6b6b;">{ce_pct}%</span>
+        <span class="hc-pct" style="color:#ff8080;">{ce_pct}%</span>
       </div>
     </div>
 
-    <!-- Key stats -->
+    <!-- FIX 3: Stats — bigger values, brighter labels, PCR added -->
     <div class="hc-right">
       <div class="hc-stat">
         <div class="hc-stat-lbl">Nifty Spot</div>
-        <div class="hc-stat-val" style="color:rgba(255,255,255,.85);">&#8377;{cp:,.0f}</div>
+        <div class="hc-stat-val" style="color:#ffffff;">&#8377;{cp:,.0f}</div>
       </div>
       <div class="hc-stat">
         <div class="hc-stat-lbl">ATM Strike</div>
-        <div class="hc-stat-val" style="color:#00c896;">&#8377;{atm:,}</div>
+        <div class="hc-stat-val" style="color:#00e8b0;">&#8377;{atm:,}</div>
       </div>
       <div class="hc-stat">
         <div class="hc-stat-lbl">Max Pain</div>
         <div class="hc-stat-val" style="color:#ffd166;">&#8377;{max_pain:,}</div>
+      </div>
+      <div class="hc-stat">
+        <div class="hc-stat-lbl">PCR (OI)</div>
+        <div class="hc-stat-val" style="color:{pcr_col};">{pcr:.3f}</div>
       </div>
     </div>
 
