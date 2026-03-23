@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Position Advisor — Nifty Options</title>
+<style>
+  :root {
+    --bg:      #07090f;
+    --bg1:     #0d1117;
+    --bg2:     #111827;
+    --card:    rgba(255,255,255,0.05);
+    --cardhov: rgba(255,255,255,0.08);
+    --border:  rgba(255,255,255,0.12);
+    --border2: rgba(255,255,255,0.20);
+    --green:   #00e8a8;
+    --green2:  rgba(0,200,120,0.18);
+    --green3:  rgba(0,200,120,0.35);
+    --blue:    #a8c0ff;
+    --blue2:   rgba(100,128,255,0.18);
+    --blue3:   rgba(100,128,255,0.35);
+    --amber:   #f0c040;
+    --amber2:  rgba(240,192,64,0.15);
+    --amber3:  rgba(240,192,64,0.35);
+    --red:     #ff8080;
+    --red2:    rgba(255,80,80,0.15);
+    --red3:    rgba(255,80,80,0.35);
+    --text:    rgba(255,255,255,0.90);
+    --text2:   rgba(255,255,255,0.65);
+    --text3:   rgba(255,255,255,0.40);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── Aurora background ── */
+  body::before {
+    content:'';
+    position:fixed; top:0; left:0; right:0; height:420px;
+    background: radial-gradient(ellipse 80% 60% at 50% -10%,
+      rgba(0,180,130,0.18) 0%, rgba(100,80,220,0.12) 45%, transparent 75%);
+    pointer-events:none; z-index:0;
+  }
+
+  /* ── Layout ── */
+  .page { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; position:relative; z-index:1; }
+
+  /* ── Header ── */
+  .header { text-align:center; margin-bottom:28px; }
+  .header-badge {
+    display:inline-block; background:var(--blue2); border:1px solid var(--blue3);
+    color:var(--blue); border-radius:20px; padding:4px 16px;
+    font-size:11px; font-weight:700; letter-spacing:2px; margin-bottom:12px;
+  }
+  .header h1 { font-size:28px; font-weight:800; color:#fff; letter-spacing:-0.5px; }
+  .header h1 span { color:var(--green); }
+  .header p { color:var(--text2); margin-top:6px; font-size:14px; }
+
+  /* ── Market context bar ── */
+  .ctx-bar {
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px;
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:14px 18px; margin-bottom:20px;
+  }
+  .ctx-item { text-align:center; }
+  .ctx-item .lbl { font-size:10px; font-weight:700; letter-spacing:1.5px; color:var(--text3); text-transform:uppercase; }
+  .ctx-item .val { font-size:18px; font-weight:700; color:#fff; margin-top:2px; }
+  .ctx-item .val.green { color:var(--green); }
+  .ctx-item .val.red   { color:var(--red); }
+  .ctx-item .val.amber { color:var(--amber); }
+  .ctx-item .sub { font-size:11px; color:var(--text3); }
+
+  /* ── Sections ── */
+  .section { margin-bottom:20px; }
+  .section-title {
+    font-size:11px; font-weight:700; letter-spacing:2px; color:var(--blue);
+    text-transform:uppercase; margin-bottom:12px; display:flex; align-items:center; gap:8px;
+  }
+  .section-title::before { content:''; width:3px; height:14px; background:var(--blue); border-radius:2px; display:inline-block; }
+
+  /* ── Cards ── */
+  .card {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:14px; padding:18px 20px;
+  }
+
+  /* ── Form grid ── */
+  .form-grid { display:grid; grid-template-columns:repeat(6,1fr) auto; gap:10px; align-items:end; }
+  @media(max-width:800px) { .form-grid { grid-template-columns:1fr 1fr 1fr; } }
+
+  .field label {
+    display:block; font-size:10px; font-weight:700; letter-spacing:1.5px;
+    color:var(--text3); text-transform:uppercase; margin-bottom:5px;
+  }
+  .field input, .field select {
+    width:100%; background:rgba(255,255,255,0.07); border:1px solid var(--border);
+    border-radius:8px; color:#fff; font-size:13px; padding:9px 11px;
+    outline:none; transition:border-color 0.2s;
+    -webkit-appearance:none; appearance:none;
+  }
+  .field input:focus, .field select:focus { border-color:var(--blue3); background:rgba(100,128,255,0.08); }
+  .field select { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; padding-right:28px; }
+  .field input::placeholder { color:var(--text3); }
+
+  /* ── Buttons ── */
+  .btn {
+    border:none; border-radius:9px; font-size:13px; font-weight:700;
+    cursor:pointer; transition:all 0.18s; padding:10px 18px; white-space:nowrap;
+  }
+  .btn-add   { background:var(--green); color:#071a12; }
+  .btn-add:hover { background:#00ffb8; transform:translateY(-1px); }
+  .btn-analyze { background:linear-gradient(135deg,#4080ff,#8040ff); color:#fff; width:100%; padding:14px; font-size:15px; letter-spacing:0.5px; border-radius:12px; }
+  .btn-analyze:hover { opacity:0.88; transform:translateY(-1px); }
+  .btn-analyze:disabled { opacity:0.4; cursor:not-allowed; transform:none; }
+  .btn-clear  { background:var(--red2); border:1px solid var(--red3); color:var(--red); padding:8px 14px; font-size:12px; }
+  .btn-clear:hover { background:var(--red3); }
+
+  /* ── Legs table ── */
+  .legs-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .legs-table th {
+    text-align:left; padding:8px 10px; font-size:10px; font-weight:700;
+    letter-spacing:1.5px; color:var(--text3); text-transform:uppercase;
+    border-bottom:1px solid var(--border);
+  }
+  .legs-table td { padding:9px 10px; border-bottom:1px solid rgba(255,255,255,0.05); vertical-align:middle; }
+  .legs-table tr:last-child td { border-bottom:none; }
+  .legs-table tr:hover td { background:rgba(255,255,255,0.02); }
+
+  .badge {
+    display:inline-block; padding:3px 9px; border-radius:5px;
+    font-size:11px; font-weight:700; letter-spacing:0.5px;
+  }
+  .badge-buy  { background:rgba(0,200,120,0.2); color:var(--green); }
+  .badge-sell { background:var(--red2); color:var(--red); }
+  .badge-ce   { background:var(--blue2); color:var(--blue); }
+  .badge-pe   { background:var(--amber2); color:var(--amber); }
+
+  .pnl-pos { color:var(--green); font-weight:700; }
+  .pnl-neg { color:var(--red);   font-weight:700; }
+
+  .btn-del {
+    background:none; border:1px solid var(--red3); color:var(--red);
+    border-radius:6px; padding:3px 9px; font-size:11px; cursor:pointer;
+  }
+  .btn-del:hover { background:var(--red2); }
+
+  /* ── Metrics row ── */
+  .metrics-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; }
+  .metric-card {
+    background:rgba(255,255,255,0.04); border:1px solid var(--border);
+    border-radius:12px; padding:14px 16px; text-align:center;
+  }
+  .metric-card .m-lbl { font-size:10px; font-weight:700; letter-spacing:1.5px; color:var(--text3); text-transform:uppercase; margin-bottom:6px; }
+  .metric-card .m-val { font-size:22px; font-weight:800; color:#fff; }
+  .metric-card .m-sub { font-size:11px; color:var(--text3); margin-top:3px; }
+
+  /* ── Greeks table ── */
+  .greeks-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .greek-card {
+    background:rgba(255,255,255,0.04); border:1px solid var(--border);
+    border-radius:12px; padding:14px; text-align:center;
+  }
+  .greek-card .g-name { font-size:11px; font-weight:700; letter-spacing:1.5px; color:var(--text3); text-transform:uppercase; }
+  .greek-card .g-val  { font-size:24px; font-weight:800; margin:6px 0 4px; }
+  .greek-card .g-desc { font-size:11px; color:var(--text3); line-height:1.5; }
+
+  /* ── Payoff chart ── */
+  .payoff-wrap { overflow-x:auto; }
+  .payoff-row  { display:flex; align-items:center; gap:8px; margin-bottom:3px; min-width:500px; }
+  .payoff-price { font-size:11px; color:var(--text3); width:56px; text-align:right; flex-shrink:0; font-family:monospace; }
+  .payoff-bar-wrap { flex:1; display:flex; align-items:center; position:relative; height:18px; }
+  .payoff-bar   { height:14px; border-radius:2px; min-width:2px; }
+  .payoff-bar.pos { background:var(--green); }
+  .payoff-bar.neg { background:var(--red); }
+  .payoff-zero  { position:absolute; left:50%; top:0; bottom:0; width:1px; background:rgba(255,255,255,0.15); }
+  .payoff-amount { font-size:11px; width:80px; font-family:monospace; }
+  .payoff-atm   { font-size:10px; color:var(--amber); font-weight:700; width:36px; }
+
+  /* ── Recommendations ── */
+  .rec-card {
+    border-radius:12px; padding:14px 18px; margin-bottom:10px;
+    display:flex; gap:14px; align-items:flex-start;
+  }
+  .rec-card.urgent { background:rgba(255,60,60,0.12); border:1px solid var(--red3); }
+  .rec-card.high   { background:rgba(255,120,60,0.10); border:1px solid rgba(255,120,60,0.35); }
+  .rec-card.medium { background:var(--amber2); border:1px solid var(--amber3); }
+  .rec-card.low    { background:var(--green2); border:1px solid var(--green3); }
+  .rec-card.info   { background:var(--blue2); border:1px solid var(--blue3); }
+  .rec-badge {
+    padding:4px 10px; border-radius:6px; font-size:10px; font-weight:700;
+    letter-spacing:1px; flex-shrink:0; margin-top:2px;
+  }
+  .rec-badge.urgent { background:var(--red3); color:#fff; }
+  .rec-badge.high   { background:rgba(255,120,60,0.45); color:#ff9060; }
+  .rec-badge.medium { background:var(--amber3); color:var(--amber); }
+  .rec-badge.low    { background:var(--green3); color:var(--green); }
+  .rec-badge.info   { background:var(--blue3); color:var(--blue); }
+  .rec-action { font-weight:700; font-size:14px; color:#fff; }
+  .rec-reason { font-size:13px; color:var(--text2); margin-top:3px; line-height:1.6; }
+
+  /* ── What-If slider ── */
+  .whatif-wrap { display:flex; flex-direction:column; gap:14px; }
+  .slider-row  { display:flex; align-items:center; gap:12px; }
+  .slider-row label { font-size:12px; color:var(--text2); width:100px; flex-shrink:0; }
+  .slider-row input[type=range] { flex:1; accent-color:var(--green); }
+  .slider-val { font-size:14px; font-weight:700; color:#fff; width:90px; text-align:right; }
+  .whatif-result { text-align:center; padding:18px; }
+  .whatif-result .wr-label { font-size:12px; color:var(--text3); letter-spacing:1.5px; text-transform:uppercase; }
+  .whatif-result .wr-val   { font-size:32px; font-weight:800; margin-top:4px; }
+
+  /* ── Leg input bottom edit ── */
+  .edit-input {
+    width:72px; background:rgba(255,255,255,0.07); border:1px solid var(--border);
+    border-radius:6px; color:#fff; font-size:12px; padding:4px 7px; text-align:center;
+    outline:none;
+  }
+  .edit-input:focus { border-color:var(--blue3); }
+
+  /* ── Empty state ── */
+  .empty { text-align:center; padding:32px; color:var(--text3); font-size:14px; }
+  .empty .e-icon { font-size:32px; margin-bottom:8px; }
+
+  /* ── Nav link ── */
+  .nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
+  .nav a { color:var(--blue); text-decoration:none; font-size:13px; font-weight:600; }
+  .nav a:hover { color:#fff; }
+  .nav-logo { font-size:16px; font-weight:800; color:#fff; }
+  .nav-logo span { color:var(--green); }
+
+  /* ── Tabs ── */
+  .tab-bar { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+  .tab-btn {
+    padding:7px 16px; border-radius:8px; font-size:12px; font-weight:700;
+    background:rgba(255,255,255,0.06); border:1px solid var(--border);
+    color:var(--text2); cursor:pointer; transition:all 0.15s; letter-spacing:0.5px;
+  }
+  .tab-btn.active { background:var(--blue2); border-color:var(--blue3); color:var(--blue); }
+  .tab-btn:hover:not(.active) { background:rgba(255,255,255,0.09); color:#fff; }
+  .tab-pane { display:none; }
+  .tab-pane.active { display:block; }
+
+  /* ── Per-leg greeks in table ── */
+  .g-chip {
+    display:inline-block; padding:1px 6px; border-radius:4px;
+    font-size:10px; font-family:monospace;
+    background:rgba(255,255,255,0.08); color:var(--text2);
+  }
+
+  /* ── Strategy pill ── */
+  .strat-pill {
+    display:inline-block; padding:4px 14px; border-radius:20px;
+    font-size:12px; font-weight:700; letter-spacing:0.5px;
+    background:var(--blue2); border:1px solid var(--blue3); color:var(--blue);
+  }
+
+  /* ── Loading spinner ── */
+  .spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,0.2); border-top-color:var(--green); border-radius:50%; animation:spin 0.7s linear infinite; vertical-align:middle; margin-right:6px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* ── Disclaimer ── */
+  .disclaimer {
+    margin-top:24px; padding:14px 18px; border-radius:12px;
+    background:rgba(240,192,64,0.08); border:1px solid rgba(240,192,64,0.25);
+    font-size:12px; color:var(--text2); line-height:1.7;
+  }
+  .disclaimer strong { color:var(--amber); }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15); border-radius:3px; }
+
+  /* ── Hover current premium ── */
+  .curr-input {
+    width:78px; background:rgba(255,255,255,0.07); border:1px solid var(--border);
+    border-radius:6px; color:#fff; font-size:12px; padding:4px 7px; text-align:center; outline:none;
+  }
+  .curr-input:focus { border-color:var(--green3); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-logo">NIFTY<span>50</span></div>
+    <div style="display:flex;gap:16px;align-items:center;">
+      <a href="index.html">← Dashboard</a>
+      <a href="position-advisor.html" style="color:var(--green);">Position Advisor</a>
+    </div>
+  </nav>
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-badge">🔬 POSITION ADVISOR</div>
+    <h1>Options <span>Strategy Analyzer</span></h1>
+    <p>Enter your legs · Pure math engine · Greeks · Breakevens · Hedge recommendations</p>
+  </div>
+
+  <!-- MARKET CONTEXT BAR -->
+  <div class="ctx-bar" id="ctx-bar">
+    <div class="ctx-item">
+      <div class="lbl">Nifty Spot</div>
+      <div class="val" id="ctx-spot">—</div>
+      <div class="sub" id="ctx-ts">Loading...</div>
+    </div>
+    <div class="ctx-item">
+      <div class="lbl">Expiry</div>
+      <div class="val amber" id="ctx-expiry">—</div>
+      <div class="sub" id="ctx-dte">— DTE</div>
+    </div>
+    <div class="ctx-item">
+      <div class="lbl">India VIX</div>
+      <div class="val" id="ctx-vix">—</div>
+      <div class="sub" id="ctx-vix-regime">—</div>
+    </div>
+    <div class="ctx-item">
+      <div class="lbl">ATM Strike</div>
+      <div class="val" id="ctx-atm">—</div>
+      <div class="sub">Current ATM</div>
+    </div>
+    <div class="ctx-item">
+      <div class="lbl">Bias</div>
+      <div class="val" id="ctx-bias">—</div>
+      <div class="sub" id="ctx-conf">—</div>
+    </div>
+    <div class="ctx-item">
+      <div class="lbl">PCR</div>
+      <div class="val" id="ctx-pcr">—</div>
+      <div class="sub" id="ctx-pcr-dir">—</div>
+    </div>
+    <div class="ctx-item">
+      <div class="lbl">Lot Size</div>
+      <div class="val" id="ctx-lotsize">65</div>
+      <div class="sub">units</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  SECTION 1 — ADD LEGS                                  -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">Add Option Leg</div>
+    <div class="card">
+      <div class="form-grid">
+        <div class="field">
+          <label>Strike</label>
+          <input type="number" id="f-strike" placeholder="24500" step="50" min="1">
+        </div>
+        <div class="field">
+          <label>Type</label>
+          <select id="f-type">
+            <option value="CE">CE — Call</option>
+            <option value="PE">PE — Put</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Action</label>
+          <select id="f-action">
+            <option value="BUY">BUY</option>
+            <option value="SELL">SELL</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Lots</label>
+          <input type="number" id="f-qty" value="1" min="1" max="99">
+        </div>
+        <div class="field">
+          <label>Entry ₹</label>
+          <input type="number" id="f-entry" placeholder="150.00" step="0.05" min="0">
+        </div>
+        <div class="field">
+          <label>Current ₹</label>
+          <input type="number" id="f-current" placeholder="180.00" step="0.05" min="0">
+        </div>
+        <div class="field" style="align-self:end;">
+          <button class="btn btn-add" onclick="addLeg()">+ Add</button>
+        </div>
+      </div>
+      <div id="form-err" style="color:var(--red);font-size:12px;margin-top:8px;display:none;"></div>
+
+      <!-- Lot size override -->
+      <div style="margin-top:14px;display:flex;align-items:center;gap:12px;border-top:1px solid var(--border);padding-top:12px;flex-wrap:wrap;">
+        <div style="font-size:11px;color:var(--text3);font-weight:700;letter-spacing:1px;">LOT SIZE</div>
+        <input type="number" id="lot-size" value="65" min="1" max="1000"
+          style="width:70px;background:rgba(255,255,255,0.07);border:1px solid var(--border);border-radius:7px;color:#fff;font-size:13px;padding:6px 10px;outline:none;text-align:center;">
+        <div style="font-size:12px;color:var(--text3);">units per lot (default 65 — update if changed by NSE)</div>
+        <div style="margin-left:auto;">
+          <button class="btn btn-clear" onclick="clearAll()">✕ Clear All</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  SECTION 2 — LEGS TABLE                               -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div class="section" id="legs-section">
+    <div class="section-title">Your Position</div>
+    <div class="card">
+      <div id="legs-wrap">
+        <div class="empty"><div class="e-icon">📋</div>No legs added yet.<br>Fill in the form above to get started.</div>
+      </div>
+
+      <!-- Metrics -->
+      <div id="metrics-wrap" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="m-lbl">Net Cost / Credit</div>
+            <div class="m-val" id="m-cost">—</div>
+            <div class="m-sub" id="m-cost-sub">—</div>
+          </div>
+          <div class="metric-card">
+            <div class="m-lbl">Current M2M Value</div>
+            <div class="m-val" id="m-m2m">—</div>
+            <div class="m-sub">mark-to-market</div>
+          </div>
+          <div class="metric-card">
+            <div class="m-lbl">Net P&amp;L Today</div>
+            <div class="m-val" id="m-pnl">—</div>
+            <div class="m-sub" id="m-pnl-pct">—</div>
+          </div>
+          <div class="metric-card">
+            <div class="m-lbl">Strategy</div>
+            <div class="m-val" style="font-size:14px;margin-top:6px;" id="m-strat">—</div>
+            <div class="m-sub" id="m-direction">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analyze button -->
+      <div id="analyze-wrap" style="display:none;margin-top:16px;">
+        <button class="btn btn-analyze" id="analyze-btn" onclick="runAnalysis()">
+          ⚡ Run Full Analysis — Greeks · Breakevens · Payoff · Hedge Recommendations
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  SECTION 3 — ANALYSIS OUTPUT                          -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="analysis-output" style="display:none;">
+
+    <!-- ── Tab bar ── -->
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="showTab('greeks')">📊 Greeks</button>
+      <button class="tab-btn" onclick="showTab('payoff')">📈 Payoff Chart</button>
+      <button class="tab-btn" onclick="showTab('levels')">🎯 Key Levels</button>
+      <button class="tab-btn" onclick="showTab('hedge')">🛡 Hedge Recs</button>
+      <button class="tab-btn" onclick="showTab('whatif')">🧪 What-If</button>
+    </div>
+
+    <!-- ── TAB: GREEKS ── -->
+    <div class="tab-pane active" id="tab-greeks">
+      <div class="section-title" style="margin-bottom:12px;">Net Position Greeks</div>
+      <div class="greeks-grid" id="greeks-display"></div>
+
+      <div style="margin-top:16px;">
+        <div class="section-title" style="margin-bottom:10px;">Per-Leg Greeks Breakdown</div>
+        <div class="card" style="overflow-x:auto;">
+          <table class="legs-table" id="greeks-table"></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: PAYOFF ── -->
+    <div class="tab-pane" id="tab-payoff">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+          <div class="section-title" style="margin-bottom:0;">Expiry Payoff Chart (Spot ±12%)</div>
+          <div style="font-size:11px;color:var(--text3);">
+            <span style="color:var(--green);font-weight:700;">█</span> Profit &nbsp;
+            <span style="color:var(--red);font-weight:700;">█</span> Loss &nbsp;
+            <span style="color:var(--amber);font-weight:700;">◄</span> Current Spot
+          </div>
+        </div>
+        <div class="payoff-wrap" id="payoff-chart"></div>
+      </div>
+    </div>
+
+    <!-- ── TAB: KEY LEVELS ── -->
+    <div class="tab-pane" id="tab-levels">
+      <div id="levels-content"></div>
+    </div>
+
+    <!-- ── TAB: HEDGE ── -->
+    <div class="tab-pane" id="tab-hedge">
+      <div id="hedge-content"></div>
+    </div>
+
+    <!-- ── TAB: WHAT-IF ── -->
+    <div class="tab-pane" id="tab-whatif">
+      <div class="card">
+        <div class="section-title" style="margin-bottom:16px;">What-If Simulator</div>
+        <div class="whatif-wrap">
+          <div>
+            <div style="font-size:12px;color:var(--text3);margin-bottom:8px;letter-spacing:1px;text-transform:uppercase;font-weight:700;">Nifty at Expiry</div>
+            <div class="slider-row">
+              <label id="wi-lo-lbl">—</label>
+              <input type="range" id="wi-slider" min="0" max="100" value="50" oninput="updateWhatIf()">
+              <label id="wi-hi-lbl">—</label>
+            </div>
+            <div style="text-align:center;margin-top:6px;font-size:13px;color:var(--text2);">
+              Nifty: <strong id="wi-price" style="color:#fff;font-size:16px;">—</strong>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <div class="whatif-result metric-card">
+              <div class="wr-label">P&amp;L at Expiry</div>
+              <div class="wr-val" id="wi-pnl">—</div>
+            </div>
+            <div class="whatif-result metric-card">
+              <div class="wr-label">vs Current P&amp;L</div>
+              <div class="wr-val" id="wi-vs-now">—</div>
+            </div>
+          </div>
+
+          <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.7;">
+            Slide to simulate Nifty's expiry price. P&amp;L = intrinsic value at expiry minus your entry cost.
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /analysis-output -->
+
+  <!-- DISCLAIMER -->
+  <div class="disclaimer">
+    <strong>⚠ Educational Purpose Only:</strong>
+    This tool uses Black-Scholes pricing model for Greeks estimation. Actual market Greeks may differ due to skew, smile, and model limitations.
+    This is NOT SEBI-registered investment advice. Options trading involves substantial risk of loss.
+    Always consult a qualified financial advisor before trading. Past performance is not indicative of future results.
+  </div>
+
+</div><!-- /page -->
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════════
+var legs   = [];
+var legId  = 0;
+var mktCtx = { spot: 24500, vix: 15, atm: 24500, expiry: '', dte: 7, lotSize: 65 };
+
+// ════════════════════════════════════════════════════════════
+//  LOAD latest.json (matches your script's output)
+// ════════════════════════════════════════════════════════════
+async function loadMarketContext() {
+  try {
+    var url = 'latest.json?t=' + Date.now();
+    var resp = await fetch(url, { cache: 'no-store' });
+    if (!resp.ok) throw new Error('not found');
+    var d = await resp.json();
+
+    mktCtx.spot    = d.price    || 24500;
+    mktCtx.vix     = d.india_vix || 15;
+    mktCtx.atm     = d.atm_strike || Math.round(mktCtx.spot / 50) * 50;
+    mktCtx.expiry  = d.expiry  || '';
+    mktCtx.lotSize = 65;  // fixed from your script
+
+    // DTE
+    if (d.expiry) {
+      var dt = parseExpiry(d.expiry);
+      mktCtx.dte = dt ? Math.max(0, Math.round((dt - Date.now()) / 86400000)) : 7;
+    }
+
+    // Update UI
+    el('ctx-spot').textContent    = '₹' + fmt(mktCtx.spot);
+    el('ctx-expiry').textContent  = d.expiry || '—';
+    el('ctx-dte').textContent     = mktCtx.dte + ' DTE';
+    el('ctx-atm').textContent     = d.atm_strike ? '₹' + d.atm_strike : '—';
+    el('ctx-lotsize').textContent = '65';
+
+    var vixEl = el('ctx-vix');
+    vixEl.textContent = d.india_vix ? d.india_vix.toFixed(2) : '—';
+    vixEl.className = 'val ' + (d.india_vix > 20 ? 'red' : d.india_vix < 13 ? 'green' : 'amber');
+    el('ctx-vix-regime').textContent = d.india_vix > 20 ? 'HIGH FEAR' : d.india_vix < 13 ? 'LOW VOL' : 'NORMAL';
+
+    var biasEl = el('ctx-bias');
+    biasEl.textContent = d.bias || '—';
+    biasEl.className = 'val ' + (d.bias === 'BULLISH' ? 'green' : d.bias === 'BEARISH' ? 'red' : 'amber');
+    el('ctx-conf').textContent = d.confidence || '—';
+
+    var pcr = d.pcr;
+    el('ctx-pcr').textContent = pcr ? pcr.toFixed(3) : '—';
+    el('ctx-pcr-dir').textContent = pcr > 1.2 ? 'Bullish (PCR↑)' : pcr < 0.8 ? 'Bearish (PCR↓)' : 'Neutral';
+
+    el('ctx-ts').textContent = d.timestamp ? d.timestamp.split(' ').slice(0,3).join(' ') : 'Live';
+    el('lot-size').value = 65;
+
+  } catch(e) {
+    // Demo mode — use placeholder values
+    el('ctx-spot').textContent   = '₹24,500';
+    el('ctx-expiry').textContent = 'Manual Mode';
+    el('ctx-dte').textContent    = 'Enter manually';
+    el('ctx-vix').textContent    = '—';
+    el('ctx-ts').textContent     = 'latest.json not found';
+    el('ctx-atm').textContent    = '24,500';
+    el('ctx-bias').textContent   = '—';
+    el('ctx-pcr').textContent    = '—';
+    console.log('latest.json not found — using demo mode');
+  }
+}
+
+function parseExpiry(str) {
+  // Handles "27-Mar-2026" format from your Python script
+  var months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  var parts = str.split('-');
+  if (parts.length === 3) {
+    var mon = months[parts[1]];
+    if (mon !== undefined) {
+      return new Date(parseInt(parts[2]), mon, parseInt(parts[0])).getTime();
+    }
+  }
+  return null;
+}
+
+// ════════════════════════════════════════════════════════════
+//  BLACK-SCHOLES ENGINE
+// ════════════════════════════════════════════════════════════
+function normCDF(x) {
+  var a1= 0.254829592, a2=-0.284496736, a3= 1.421413741,
+      a4=-1.453152027, a5= 1.061405429, p = 0.3275911;
+  var sign = x < 0 ? -1 : 1;
+  x = Math.abs(x) / Math.SQRT2;
+  var t = 1 / (1 + p * x);
+  var y = 1 - (((((a5*t+a4)*t+a3)*t+a2)*t+a1)*t) * Math.exp(-x*x);
+  return 0.5 * (1 + sign * y);
+}
+function normPDF(x) { return Math.exp(-0.5*x*x) / Math.sqrt(2*Math.PI); }
+
+function bsD1D2(S, K, T, r, sigma) {
+  if (T <= 0 || sigma <= 0) return [null, null];
+  var d1 = (Math.log(S/K) + (r + 0.5*sigma*sigma)*T) / (sigma*Math.sqrt(T));
+  return [d1, d1 - sigma*Math.sqrt(T)];
+}
+
+function bsPrice(S, K, T, r, sigma, type) {
+  var dd = bsD1D2(S, K, T, r, sigma);
+  if (dd[0] === null) return Math.max(0, type==='CE' ? S-K : K-S);
+  var d1=dd[0], d2=dd[1];
+  if (type==='CE') return S*normCDF(d1) - K*Math.exp(-r*T)*normCDF(d2);
+  return K*Math.exp(-r*T)*normCDF(-d2) - S*normCDF(-d1);
+}
+
+function bsGreeks(S, K, T, r, sigma, type) {
+  var dd = bsD1D2(S, K, T, r, sigma);
+  if (dd[0] === null) return {delta:0, gamma:0, theta:0, vega:0};
+  var d1=dd[0], d2=dd[1], sqT=Math.sqrt(T), nd1=normPDF(d1);
+  var gamma = nd1 / (S * sigma * sqT);
+  var vega  = S * nd1 * sqT / 100;
+  var delta, theta;
+  if (type==='CE') {
+    delta = normCDF(d1);
+    theta = (-S*nd1*sigma/(2*sqT) - r*K*Math.exp(-r*T)*normCDF(d2)) / 365;
+  } else {
+    delta = normCDF(d1) - 1;
+    theta = (-S*nd1*sigma/(2*sqT) + r*K*Math.exp(-r*T)*normCDF(-d2)) / 365;
+  }
+  return { delta:+delta.toFixed(4), gamma:+gamma.toFixed(6), theta:+theta.toFixed(2), vega:+vega.toFixed(2) };
+}
+
+// Newton-Raphson IV solver
+function calcIV(mktPrice, S, K, T, r, type) {
+  if (T <= 0 || mktPrice <= 0) return 0;
+  var sigma = 0.20;
+  for (var i = 0; i < 150; i++) {
+    var price = bsPrice(S, K, T, r, sigma, type);
+    var dd = bsD1D2(S, K, T, r, sigma);
+    if (dd[0] === null) break;
+    var vega = S * normPDF(dd[0]) * Math.sqrt(T);
+    if (vega < 1e-10) break;
+    var diff = price - mktPrice;
+    if (Math.abs(diff) < 1e-5) break;
+    sigma -= diff / vega;
+    sigma = Math.max(0.001, Math.min(sigma, 5.0));
+  }
+  return +(sigma * 100).toFixed(2);
+}
+
+// ════════════════════════════════════════════════════════════
+//  LEG MANAGEMENT
+// ════════════════════════════════════════════════════════════
+function addLeg() {
+  var strike  = parseFloat(el('f-strike').value);
+  var type    = el('f-type').value;
+  var action  = el('f-action').value;
+  var qty     = parseInt(el('f-qty').value) || 1;
+  var entry   = parseFloat(el('f-entry').value);
+  var current = parseFloat(el('f-current').value);
+
+  var err = '';
+  if (!strike || isNaN(strike)) err = 'Enter a valid strike price.';
+  else if (isNaN(entry) || entry < 0) err = 'Enter a valid entry premium.';
+  else if (isNaN(current) || current < 0) err = 'Enter a valid current market premium.';
+
+  var errEl = el('form-err');
+  if (err) { errEl.textContent = err; errEl.style.display = 'block'; return; }
+  errEl.style.display = 'none';
+
+  legs.push({ id: ++legId, strike, type, action, qty, entry, current });
+  renderLegs();
+
+  // Clear strike, entry, current but keep type/action/qty for quick next leg
+  el('f-strike').value = '';
+  el('f-entry').value = '';
+  el('f-current').value = '';
+  el('f-strike').focus();
+}
+
+function removeLeg(id) {
+  legs = legs.filter(l => l.id !== id);
+  renderLegs();
+  if (legs.length === 0) el('analysis-output').style.display = 'none';
+}
+
+function updateCurrent(id, val) {
+  var l = legs.find(l => l.id === id);
+  if (l) { l.current = parseFloat(val) || 0; renderMetrics(); }
+}
+
+function clearAll() {
+  if (legs.length && !confirm('Clear all legs?')) return;
+  legs = [];
+  renderLegs();
+  el('analysis-output').style.display = 'none';
+}
+
+// ════════════════════════════════════════════════════════════
+//  RENDER LEGS TABLE
+// ════════════════════════════════════════════════════════════
+function getLotSize() { return parseInt(el('lot-size').value) || 65; }
+
+function legPnl(l) {
+  var sign = l.action === 'BUY' ? 1 : -1;
+  return sign * (l.current - l.entry) * l.qty * getLotSize();
+}
+
+function renderLegs() {
+  var wrap = el('legs-wrap');
+  if (legs.length === 0) {
+    wrap.innerHTML = '<div class="empty"><div class="e-icon">📋</div>No legs added yet.<br>Fill in the form above to get started.</div>';
+    el('metrics-wrap').style.display = 'none';
+    el('analyze-wrap').style.display = 'none';
+    return;
+  }
+
+  var html = '<div style="overflow-x:auto"><table class="legs-table"><thead><tr>' +
+    '<th>#</th><th>Strike</th><th>Type</th><th>Action</th><th>Lots</th>' +
+    '<th>Entry ₹</th><th>Current ₹ <span style="color:var(--green);font-size:9px;">✎ editable</span></th>' +
+    '<th>P&L</th><th>Delta</th><th></th></tr></thead><tbody>';
+
+  legs.forEach(function(l, i) {
+    var lotSize = getLotSize();
+    var T   = Math.max(mktCtx.dte / 365, 0.001);
+    var r   = 0.068;
+    var S   = mktCtx.spot;
+    var iv  = calcIV(l.current, S, l.strike, T, r, l.type);
+    var sig = (iv > 0 ? iv : 18) / 100;
+    var g   = bsGreeks(S, l.strike, T, r, sig, l.type);
+    var sign = l.action === 'BUY' ? 1 : -1;
+    var delta = (g.delta * sign).toFixed(3);
+    var pnl = legPnl(l);
+
+    html += '<tr>';
+    html += '<td style="color:var(--text3)">' + (i+1) + '</td>';
+    html += '<td style="font-weight:700;font-size:14px;">₹' + l.strike + '</td>';
+    html += '<td><span class="badge badge-' + l.type.toLowerCase() + '">' + l.type + '</span></td>';
+    html += '<td><span class="badge badge-' + l.action.toLowerCase() + '">' + l.action + '</span></td>';
+    html += '<td>' + l.qty + '</td>';
+    html += '<td>₹' + l.entry.toFixed(2) + '</td>';
+    html += '<td><input class="curr-input" type="number" value="' + l.current.toFixed(2) +
+            '" step="0.05" onchange="updateCurrent(' + l.id + ',this.value)"></td>';
+    html += '<td class="' + (pnl >= 0 ? 'pnl-pos' : 'pnl-neg') + '">₹' + (pnl >= 0 ? '+' : '') + Math.round(pnl).toLocaleString('en-IN') + '</td>';
+    html += '<td><span class="g-chip">' + (parseFloat(delta) >= 0 ? '+' : '') + delta + '</span></td>';
+    html += '<td><button class="btn-del" onclick="removeLeg(' + l.id + ')">✕</button></td>';
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  wrap.innerHTML = html;
+  el('metrics-wrap').style.display = 'block';
+  el('analyze-wrap').style.display = 'block';
+  renderMetrics();
+}
+
+function renderMetrics() {
+  var lotSize = getLotSize();
+  var totalPaid = 0, totalCurr = 0, totalPnl = 0;
+  var hasBuy = false, hasSell = false, hasCE = false, hasPE = false;
+
+  legs.forEach(function(l) {
+    var sign = l.action === 'BUY' ? 1 : -1;
+    totalPaid += sign * l.entry   * l.qty * lotSize;
+    totalCurr += sign * l.current * l.qty * lotSize;
+    totalPnl  += legPnl(l);
+    if (l.action === 'BUY')  hasBuy  = true;
+    if (l.action === 'SELL') hasSell = true;
+    if (l.type   === 'CE')   hasCE   = true;
+    if (l.type   === 'PE')   hasPE   = true;
+  });
+
+  // Cost / Credit
+  var costEl = el('m-cost');
+  costEl.textContent = '₹' + (totalPaid >= 0 ? '+' : '') + Math.round(totalPaid).toLocaleString('en-IN');
+  costEl.style.color = totalPaid >= 0 ? 'var(--red)' : 'var(--green)';
+  el('m-cost-sub').textContent = totalPaid >= 0 ? 'Debit (paid out)' : 'Credit (received)';
+
+  var m2mEl = el('m-m2m');
+  m2mEl.textContent = '₹' + (totalCurr >= 0 ? '+' : '') + Math.round(totalCurr).toLocaleString('en-IN');
+
+  var pnlEl = el('m-pnl');
+  pnlEl.textContent = '₹' + (totalPnl >= 0 ? '+' : '') + Math.round(totalPnl).toLocaleString('en-IN');
+  pnlEl.style.color = totalPnl >= 0 ? 'var(--green)' : 'var(--red)';
+  var pct = totalPaid !== 0 ? (totalPnl / Math.abs(totalPaid) * 100).toFixed(1) + '%' : '—';
+  el('m-pnl-pct').textContent = (totalPnl >= 0 ? '+' : '') + pct + ' of cost';
+
+  // Strategy name
+  var strat = identifyStrategy(legs, hasBuy, hasSell, hasCE, hasPE);
+  el('m-strat').innerHTML = '<span class="strat-pill">' + strat + '</span>';
+
+  var ng = netGreeks();
+  var dir = ng.delta > 5 ? '🔼 BULLISH BIAS' : ng.delta < -5 ? '🔽 BEARISH BIAS' : '↔ NEUTRAL';
+  el('m-direction').textContent = dir;
+}
+
+// ════════════════════════════════════════════════════════════
+//  STRATEGY IDENTIFICATION
+// ════════════════════════════════════════════════════════════
+function identifyStrategy(legs, hasBuy, hasSell, hasCE, hasPE) {
+  var n = legs.length;
+  if (n === 0) return '—';
+  if (n === 1) {
+    var l = legs[0];
+    return (l.action === 'BUY' ? 'Long ' : 'Short ') + l.type;
+  }
+  var strikes = legs.map(l => l.strike);
+  var uniqueStrikes = [...new Set(strikes)].length;
+
+  if (n === 2) {
+    if (hasBuy && hasSell && hasCE && !hasPE) return 'Call Vertical Spread';
+    if (hasBuy && hasSell && hasPE && !hasCE) return 'Put Vertical Spread';
+    if (hasBuy && hasCE && hasPE && uniqueStrikes === 1) return 'Long Straddle';
+    if (hasSell && hasCE && hasPE && uniqueStrikes === 1) return 'Short Straddle';
+    if (hasBuy && hasCE && hasPE) return 'Long Strangle';
+    if (hasSell && hasCE && hasPE) return 'Short Strangle';
+  }
+  if (n === 3) return 'Butterfly / Christmas Tree';
+  if (n === 4) {
+    if (hasBuy && hasSell && hasCE && hasPE) {
+      if (uniqueStrikes === 2) return 'Iron Butterfly';
+      return 'Iron Condor';
+    }
+    return 'Custom 4-Leg';
+  }
+  return 'Custom ' + n + '-Leg Strategy';
+}
+
+// ════════════════════════════════════════════════════════════
+//  NET GREEKS
+// ════════════════════════════════════════════════════════════
+function netGreeks() {
+  var T = Math.max(mktCtx.dte / 365, 0.001);
+  var r = 0.068, S = mktCtx.spot;
+  var lotSize = getLotSize();
+  var net = {delta:0, gamma:0, theta:0, vega:0};
+
+  legs.forEach(function(l) {
+    var iv  = calcIV(l.current, S, l.strike, T, r, l.type);
+    var sig = (iv > 0 ? iv : 18) / 100;
+    var g   = bsGreeks(S, l.strike, T, r, sig, l.type);
+    var sign = l.action === 'BUY' ? 1 : -1;
+    var units = l.qty * lotSize;
+    net.delta += g.delta * sign * units;
+    net.gamma += g.gamma * sign * units;
+    net.theta += g.theta * sign * units;
+    net.vega  += g.vega  * sign * units;
+  });
+
+  net.delta = +net.delta.toFixed(2);
+  net.gamma = +net.gamma.toFixed(4);
+  net.theta = +net.theta.toFixed(2);
+  net.vega  = +net.vega.toFixed(2);
+  return net;
+}
+
+// ════════════════════════════════════════════════════════════
+//  PAYOFF AT EXPIRY
+// ════════════════════════════════════════════════════════════
+function payoffAt(niftyPrice) {
+  var lotSize = getLotSize();
+  var total = 0;
+  legs.forEach(function(l) {
+    var intrinsic = l.type === 'CE'
+      ? Math.max(0, niftyPrice - l.strike)
+      : Math.max(0, l.strike - niftyPrice);
+    var sign = l.action === 'BUY' ? 1 : -1;
+    total += sign * (intrinsic - l.entry) * l.qty * lotSize;
+  });
+  return total;
+}
+
+function breakevenPoints() {
+  var lo = Math.floor(mktCtx.spot * 0.85);
+  var hi = Math.ceil(mktCtx.spot  * 1.15);
+  var bev = [];
+  var prev = payoffAt(lo);
+  for (var p = lo + 1; p <= hi; p++) {
+    var curr = payoffAt(p);
+    if (prev * curr < 0) {
+      var exact = p - 1 + Math.abs(prev) / (Math.abs(prev) + Math.abs(curr));
+      bev.push(+exact.toFixed(0));
+    }
+    prev = curr;
+  }
+  return bev;
+}
+
+function maxProfitLoss() {
+  var lo = Math.floor(mktCtx.spot * 0.78);
+  var hi = Math.ceil(mktCtx.spot  * 1.22);
+  var maxP = -Infinity, maxL = Infinity, maxPPrice = lo, maxLPrice = lo;
+  for (var p = lo; p <= hi; p += 10) {
+    var po = payoffAt(p);
+    if (po > maxP) { maxP = po; maxPPrice = p; }
+    if (po < maxL) { maxL = po; maxLPrice = p; }
+  }
+  return {maxP, maxPPrice, maxL, maxLPrice};
+}
+
+// ════════════════════════════════════════════════════════════
+//  MAIN ANALYSIS RUNNER
+// ════════════════════════════════════════════════════════════
+function runAnalysis() {
+  if (legs.length === 0) return;
+  el('analysis-output').style.display = 'block';
+  el('analysis-output').scrollIntoView({behavior:'smooth', block:'start'});
+
+  renderGreeksTab();
+  renderPayoffChart();
+  renderKeyLevels();
+  renderHedgeRecs();
+  initWhatIf();
+}
+
+// ── TAB: GREEKS ──────────────────────────────────────────
+function renderGreeksTab() {
+  var ng = netGreeks();
+  var T  = Math.max(mktCtx.dte / 365, 0.001);
+  var r  = 0.068, S = mktCtx.spot, lotSize = getLotSize();
+
+  // Greek cards
+  var greekDefs = [
+    {
+      name:'Net Delta', val: (ng.delta >= 0 ? '+' : '') + ng.delta,
+      color: ng.delta > 5 ? 'var(--green)' : ng.delta < -5 ? 'var(--red)' : 'var(--amber)',
+      desc: 'Each ₹1 Nifty move → ₹' + Math.abs(ng.delta).toFixed(0) + ' P&L change<br>' +
+            (ng.delta > 0 ? 'Bullish bias — profits when Nifty rises' :
+             ng.delta < 0 ? 'Bearish bias — profits when Nifty falls' : 'Neutral — market-direction agnostic'),
+    },
+    {
+      name:'Net Gamma', val: (ng.gamma >= 0 ? '+' : '') + ng.gamma,
+      color: ng.gamma > 0 ? 'var(--green)' : 'var(--red)',
+      desc: 'Delta changes by ' + Math.abs(ng.gamma).toFixed(4) + ' per ₹1 move<br>' +
+            (ng.gamma > 0 ? 'Long gamma — profits accelerate with big moves' : 'Short gamma — gains erode on big moves'),
+    },
+    {
+      name:'Theta ₹/day', val: (ng.theta >= 0 ? '+' : '') + '₹' + ng.theta.toFixed(0),
+      color: ng.theta > 0 ? 'var(--green)' : 'var(--red)',
+      desc: 'Time decay: ' + (ng.theta >= 0 ? 'earns' : 'costs') + ' ₹' + Math.abs(ng.theta).toFixed(0) + '/day<br>' +
+            (ng.theta > 0 ? 'Short premium — time works FOR you' : 'Long premium — time works AGAINST you'),
+    },
+    {
+      name:'Vega ₹/1%IV', val: (ng.vega >= 0 ? '+' : '') + '₹' + ng.vega.toFixed(0),
+      color: ng.vega > 0 ? 'var(--blue)' : 'var(--amber)',
+      desc: 'Per 1% IV change → ₹' + Math.abs(ng.vega).toFixed(0) + ' P&L<br>' +
+            (ng.vega > 0 ? 'Long vol — profits if VIX spikes (events, news)' : 'Short vol — profits if VIX drops (IV crush)'),
+    },
+  ];
+
+  var html = '';
+  greekDefs.forEach(function(g) {
+    html += '<div class="greek-card">' +
+      '<div class="g-name">' + g.name + '</div>' +
+      '<div class="g-val" style="color:' + g.color + '">' + g.val + '</div>' +
+      '<div class="g-desc">' + g.desc + '</div>' +
+    '</div>';
+  });
+  el('greeks-display').innerHTML = html;
+
+  // Per-leg greeks table
+  var thtml = '<thead><tr><th>#</th><th>Strike</th><th>Action</th><th>IV%</th><th>Delta</th><th>Gamma</th><th>Theta/day</th><th>Vega/1%</th></tr></thead><tbody>';
+  legs.forEach(function(l, i) {
+    var iv  = calcIV(l.current, S, l.strike, T, r, l.type);
+    var sig = (iv > 0 ? iv : 18) / 100;
+    var g   = bsGreeks(S, l.strike, T, r, sig, l.type);
+    var sign = l.action === 'BUY' ? 1 : -1;
+    var units = l.qty * lotSize;
+    thtml += '<tr>' +
+      '<td style="color:var(--text3)">' + (i+1) + '</td>' +
+      '<td><b>₹' + l.strike + '</b> <span class="badge badge-' + l.type.toLowerCase() + '">' + l.type + '</span></td>' +
+      '<td><span class="badge badge-' + l.action.toLowerCase() + '">' + l.action + ' ' + l.qty + 'L</span></td>' +
+      '<td><span style="color:var(--amber)">' + (iv || '~18') + '%</span></td>' +
+      '<td>' + fmtG(g.delta * sign * units) + '</td>' +
+      '<td>' + fmtG(g.gamma * sign * units, 4) + '</td>' +
+      '<td>₹' + fmtG(g.theta * sign * units) + '/d</td>' +
+      '<td>₹' + fmtG(g.vega  * sign * units) + '</td>' +
+    '</tr>';
+  });
+  thtml += '</tbody>';
+  el('greeks-table').innerHTML = thtml;
+}
+
+// ── TAB: PAYOFF CHART ─────────────────────────────────
+function renderPayoffChart() {
+  var spot = mktCtx.spot;
+  var lo   = Math.floor(spot * 0.88);
+  var hi   = Math.ceil(spot  * 1.12);
+  var step = Math.max(25, Math.round((hi - lo) / 22 / 25) * 25);
+
+  var prices = [], payoffs = [];
+  for (var p = lo; p <= hi; p += step) {
+    prices.push(p);
+    payoffs.push(payoffAt(p));
+  }
+
+  var maxAbs = Math.max(...payoffs.map(Math.abs)) || 1;
+  var barWidth = 220; // px for max bar
+
+  var html = '';
+  prices.forEach(function(price, i) {
+    var po = payoffs[i];
+    var bLen = Math.round(Math.abs(po) / maxAbs * barWidth);
+    var isAtm = Math.abs(price - spot) < step;
+    var barColor = po >= 0 ? 'var(--green)' : 'var(--red)';
+    var barStyle = po >= 0
+      ? 'margin-left:' + barWidth + 'px;'
+      : 'margin-left:' + (barWidth - bLen) + 'px;';
+
+    html += '<div class="payoff-row">' +
+      '<div class="payoff-price">' + price.toLocaleString('en-IN') + '</div>' +
+      '<div class="payoff-bar-wrap" style="min-width:' + (barWidth*2+4) + 'px;">' +
+        '<div class="payoff-zero" style="left:' + barWidth + 'px;"></div>' +
+        '<div class="payoff-bar ' + (po >= 0 ? 'pos' : 'neg') + '" style="width:' + bLen + 'px;' + barStyle + '"></div>' +
+      '</div>' +
+      '<div class="payoff-amount ' + (po >= 0 ? 'pnl-pos' : 'pnl-neg') + '">' +
+        (po >= 0 ? '+' : '') + '₹' + Math.round(po).toLocaleString('en-IN') +
+      '</div>' +
+      '<div class="payoff-atm">' + (isAtm ? '◄ ATM' : '') + '</div>' +
+    '</div>';
+  });
+
+  el('payoff-chart').innerHTML = html;
+}
+
+// ── TAB: KEY LEVELS ──────────────────────────────────
+function renderKeyLevels() {
+  var bev  = breakevenPoints();
+  var ml   = maxProfitLoss();
+  var spot = mktCtx.spot;
+  var ng   = netGreeks();
+  var hasBuy  = legs.some(l => l.action === 'BUY');
+  var hasSell = legs.some(l => l.action === 'SELL');
+  var totalPnl = legs.reduce((s, l) => s + legPnl(l), 0);
+  var totalPaid = legs.reduce((s, l) => { var sign = l.action==='BUY'?1:-1; return s + sign*l.entry*l.qty*getLotSize(); }, 0);
+
+  // T/V ratio
+  var tv = ng.vega !== 0 ? (ng.theta / ng.vega).toFixed(3) : 'N/A';
+  var tvColor = ng.vega !== 0 && Math.abs(ng.theta / ng.vega) >= 0.1 ? 'var(--green)' : 'var(--amber)';
+
+  // True PoP via N(d2)
+  var T = Math.max(mktCtx.dte / 365, 0.001);
+  var r = 0.068, S = spot;
+  var popHtml = '';
+  legs.forEach(function(l) {
+    var iv  = calcIV(l.current, S, l.strike, T, r, l.type);
+    var sig = (iv > 0 ? iv : 18) / 100;
+    var dd  = bsD1D2(S, l.strike, T, r, sig);
+    if (dd[0] !== null) {
+      var pop = l.type === 'CE' ? normCDF(-dd[1]) : normCDF(dd[1]);
+      if (l.action === 'SELL') pop = 1 - pop; // seller's PoP = option expires worthless
+      popHtml += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">' +
+        '<span style="color:var(--text2)">Leg ' + (legs.indexOf(l)+1) + ': ' + l.action + ' ' + l.strike + ' ' + l.type + '</span>' +
+        '<span style="font-weight:700;color:' + (pop>0.6?'var(--green)':pop>0.45?'var(--amber)':'var(--red)') + '">' + (pop*100).toFixed(1) + '% PoP</span>' +
+      '</div>';
+    }
+  });
+
+  el('levels-content').innerHTML =
+  '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">' +
+
+    // Breakevens
+    '<div class="card">' +
+      '<div class="section-title" style="margin-bottom:12px;">Breakeven Points</div>' +
+      (bev.length > 0
+        ? bev.map(b => '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">' +
+            '<div style="width:10px;height:10px;border-radius:50%;background:var(--amber);flex-shrink:0;"></div>' +
+            '<div><div style="font-size:18px;font-weight:800;color:var(--amber)">₹' + b.toLocaleString('en-IN') + '</div>' +
+            '<div style="font-size:11px;color:var(--text3)">' + (b > spot ? '+' : '') + Math.round(b - spot).toLocaleString('en-IN') + ' from spot</div></div>' +
+          '</div>').join('')
+        : '<div style="color:var(--text3);font-size:13px;padding:10px 0;">No breakeven in ±15% range<br>(position may already be profitable or all-loss)</div>'
+      ) +
+      (bev.length > 0 ? '<div style="font-size:11px;color:var(--text3);margin-top:10px;">⚠ Set price alerts at these levels in your broker app</div>' : '') +
+    '</div>' +
+
+    // Max P&L
+    '<div class="card">' +
+      '<div class="section-title" style="margin-bottom:12px;">Max Profit / Max Loss</div>' +
+      '<div style="padding:10px 0;border-bottom:1px solid var(--border)">' +
+        '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">MAX PROFIT (at Nifty ' + ml.maxPPrice.toLocaleString('en-IN') + ')</div>' +
+        '<div style="font-size:22px;font-weight:800;color:var(--green)">' + (ml.maxP > 1e8 ? 'Unlimited' : '₹' + Math.round(ml.maxP).toLocaleString('en-IN')) + '</div>' +
+      '</div>' +
+      '<div style="padding:10px 0;border-bottom:1px solid var(--border)">' +
+        '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">MAX LOSS (at Nifty ' + ml.maxLPrice.toLocaleString('en-IN') + ')</div>' +
+        '<div style="font-size:22px;font-weight:800;color:var(--red)">' + (ml.maxL < -1e8 ? 'Unlimited' : '₹' + Math.round(ml.maxL).toLocaleString('en-IN')) + '</div>' +
+      '</div>' +
+      '<div style="padding:10px 0">' +
+        '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">RISK:REWARD RATIO</div>' +
+        (ml.maxL !== 0 && ml.maxP !== 0
+          ? '<div style="font-size:16px;font-weight:700;color:' + (Math.abs(ml.maxP/ml.maxL) >= 1 ? 'var(--green)' : 'var(--amber)') + '">' +
+            '1 : ' + Math.abs(ml.maxP / ml.maxL).toFixed(2) + '</div>'
+          : '<div style="color:var(--text3)">N/A</div>') +
+      '</div>' +
+    '</div>' +
+
+    // Per-leg PoP
+    '<div class="card">' +
+      '<div class="section-title" style="margin-bottom:12px;">True PoP per Leg (N(d₂))</div>' +
+      (popHtml || '<div style="color:var(--text3);font-size:13px;">Cannot compute — check premiums</div>') +
+      '<div style="font-size:11px;color:var(--text3);margin-top:10px;">PoP = probability option expires worthless (from BSM N(d₂))</div>' +
+    '</div>' +
+
+    // Greeks ratios
+    '<div class="card">' +
+      '<div class="section-title" style="margin-bottom:12px;">Efficiency Metrics</div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px;">' +
+        '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">' +
+          '<span style="color:var(--text2)">Theta/Vega Ratio</span>' +
+          '<span style="font-weight:700;color:' + tvColor + '">' + tv + ' ' + (parseFloat(tv) >= 0.1 ? '✔ Well compensated' : parseFloat(tv) < 0 ? '—' : '⚠ Low') + '</span>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">' +
+          '<span style="color:var(--text2)">Net Delta</span>' +
+          '<span style="font-weight:700;color:' + (Math.abs(ng.delta)<5?'var(--green)':'var(--amber)') + '">' + (ng.delta>=0?'+':'') + ng.delta + (Math.abs(ng.delta)<5?' (Neutral)':ng.delta>0?' (Long)':' (Short)') + '</span>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">' +
+          '<span style="color:var(--text2)">Days to Expiry</span>' +
+          '<span style="font-weight:700;color:' + (mktCtx.dte<=1?'var(--red)':mktCtx.dte<=3?'var(--amber)':'var(--text)') + '">' + mktCtx.dte + ' days</span>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between;padding:8px 0">' +
+          '<span style="color:var(--text2)">India VIX</span>' +
+          '<span style="font-weight:700;color:' + (mktCtx.vix>20?'var(--red)':mktCtx.vix<13?'var(--green)':'var(--amber)') + '">' + (mktCtx.vix||'—') + ' (' + (mktCtx.vix>20?'HIGH — IV crush risk':mktCtx.vix<13?'LOW — avoid long vol':'NORMAL') + ')</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+  '</div>';
+}
+
+// ── TAB: HEDGE RECOMMENDATIONS ───────────────────────
+function renderHedgeRecs() {
+  var recs = [];
+  var ng   = netGreeks();
+  var totalPnl  = legs.reduce((s, l) => s + legPnl(l), 0);
+  var totalPaid = legs.reduce((s, l) => { var sign=l.action==='BUY'?1:-1; return s+sign*l.entry*l.qty*getLotSize(); }, 0);
+  var lossPct   = totalPaid !== 0 ? Math.abs(totalPnl / totalPaid * 100) : 0;
+  var bev = breakevenPoints();
+  var ml  = maxProfitLoss();
+  var spot = mktCtx.spot;
+  var atm  = Math.round(spot / 50) * 50;
+
+  // ── Rule 1: Overall P&L status ──
+  if (totalPnl >= 0) {
+    var profitPct = totalPaid !== 0 ? (totalPnl / Math.abs(totalPaid) * 100).toFixed(1) : 0;
+    recs.push({ priority:'low', action:'✅ Position Profitable — Trail Your Stop Loss',
+      reason: 'Current P&L is ₹' + Math.round(totalPnl).toLocaleString('en-IN') + ' (+' + profitPct + '%). ' +
+              'Consider booking 50–60% of max profit. Don\'t hold till expiry unnecessarily.' });
+  } else {
+    // ── Rule 2: Loss severity ──
+    if (lossPct > 75) {
+      recs.push({ priority:'urgent', action:'🚨 CRITICAL: Consider Full Square-Off',
+        reason: 'Loss is ' + lossPct.toFixed(1) + '% of premium paid (₹' + Math.abs(Math.round(totalPnl)).toLocaleString('en-IN') + '). ' +
+                'Risk of hitting max loss. Square off all legs NOW and reassess.' });
+    } else if (lossPct > 50) {
+      recs.push({ priority:'high', action:'⚠ STOP LOSS ZONE: Partial Exit or Full Hedge',
+        reason: 'Loss at ' + lossPct.toFixed(1) + '%. If spread premium has doubled from entry → this is your pre-defined SL. ' +
+                'Either exit fully or buy protection immediately.' });
+    } else if (lossPct > 25) {
+      recs.push({ priority:'medium', action:'⚠ Add Protective Hedge to Limit Downside',
+        reason: 'Loss at ' + lossPct.toFixed(1) + '% — still recoverable. Add a hedge leg before loss worsens.' });
+    }
+
+    // ── Rule 3: Delta hedge ──
+    if (ng.delta > 10) {
+      recs.push({ priority:'high',
+        action: 'DELTA HEDGE: SELL 1 lot ' + atm + ' CE  OR  BUY 1 lot ' + atm + ' PE',
+        reason: 'Net Delta = +' + ng.delta.toFixed(1) + ' — strong bullish exposure. ' +
+                'If market falls further, losses will accelerate. Selling CE or buying PE neutralizes direction risk.' });
+    } else if (ng.delta < -10) {
+      recs.push({ priority:'high',
+        action: 'DELTA HEDGE: BUY 1 lot ' + atm + ' CE  OR  SELL 1 lot ' + atm + ' PE',
+        reason: 'Net Delta = ' + ng.delta.toFixed(1) + ' — strong bearish exposure. ' +
+                'Buying CE or selling PE will offset downside if market reverses upward.' });
+    }
+
+    // ── Rule 4: Theta burn ──
+    if (ng.theta < -200) {
+      recs.push({ priority:'medium',
+        action: '⏰ TIME DECAY BURNING ₹' + Math.abs(ng.theta).toFixed(0) + '/day — Accelerate Exit Decision',
+        reason: 'Each passing day costs ₹' + Math.abs(ng.theta).toFixed(0) + '. With ' + mktCtx.dte + ' DTE left, ' +
+                'total additional time decay = ₹' + Math.abs(Math.round(ng.theta * mktCtx.dte)).toLocaleString('en-IN') + '. ' +
+                'Don\'t wait hoping for recovery if theta is working against you.' });
+    }
+
+    // ── Rule 5: Vega risk ──
+    if (ng.vega > 100 && mktCtx.vix < 15) {
+      recs.push({ priority:'medium',
+        action: 'VEGA RISK: IV Crush may hurt — Sell OTM options to offset',
+        reason: 'High +Vega (₹' + ng.vega.toFixed(0) + '/1% IV) with VIX at ' + mktCtx.vix + ' (LOW). ' +
+                'If VIX drops after an event, you lose even if Nifty stays flat. ' +
+                'Sell 1 OTM CE + 1 OTM PE to collect premium and reduce vega.' });
+    } else if (ng.vega < -100 && mktCtx.vix > 20) {
+      recs.push({ priority:'medium',
+        action: 'VEGA RISK: VIX spike can hurt short-vega position',
+        reason: 'Net Vega = ₹' + ng.vega.toFixed(0) + '/1% with VIX already at ' + mktCtx.vix + ' (HIGH). ' +
+                'If VIX spikes further (news event), your short premium erodes faster than expected.' });
+    }
+
+    // ── Rule 6: Breakevens ──
+    if (bev.length > 0) {
+      bev.forEach(function(b) {
+        var dist = Math.abs(b - spot);
+        if (dist < 200) {
+          recs.push({ priority:'high',
+            action: '🎯 NEAR BREAKEVEN at ₹' + b.toLocaleString('en-IN') + ' (' + dist.toFixed(0) + ' pts from spot)',
+            reason: 'Nifty is within ' + dist.toFixed(0) + ' pts of breakeven. ' +
+                    'Set a broker price alert at ₹' + b.toLocaleString('en-IN') + '. ' +
+                    'If touched intraday → review immediately. A move beyond this = losses mount.' });
+        } else {
+          recs.push({ priority:'info',
+            action: '📍 Breakeven: ₹' + b.toLocaleString('en-IN') + ' (' + (b>spot?'+':'') + (b-spot).toFixed(0) + ' pts from spot)',
+            reason: 'If Nifty reaches ₹' + b.toLocaleString('en-IN') + ' at expiry, position breaks even. ' +
+                    'Set alerts at this level. Current distance: ' + dist.toFixed(0) + ' pts (' + (dist/spot*100).toFixed(1) + '% from spot).' });
+        }
+      });
+    }
+
+    // ── Rule 7: Max loss warning ──
+    recs.push({ priority:'info',
+      action: '📊 Max Loss Scenario: Nifty at ₹' + ml.maxLPrice.toLocaleString('en-IN'),
+      reason: 'Estimated max loss = ₹' + Math.abs(Math.round(ml.maxL)).toLocaleString('en-IN') + ' if Nifty hits ₹' + ml.maxLPrice.toLocaleString('en-IN') + '. ' +
+              'Place a conditional exit order in your broker if Nifty approaches this level.' });
+  }
+
+  // ── Rule 8: DTE warning ──
+  if (mktCtx.dte <= 1) {
+    recs.push({ priority:'urgent', action:'⏰ EXPIRY TODAY/TOMORROW — Act Now',
+      reason: 'Less than 2 days to expiry. In-the-money options have almost no time value. ' +
+              'Either exit or allow assignment. Do not hold losing ITM short options past close.' });
+  }
+
+  // Build HTML
+  var html = recs.map(function(r) {
+    return '<div class="rec-card ' + r.priority + '">' +
+      '<div><span class="rec-badge ' + r.priority + '">' + r.priority.toUpperCase() + '</span></div>' +
+      '<div>' +
+        '<div class="rec-action">' + r.action + '</div>' +
+        '<div class="rec-reason">' + r.reason + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  el('hedge-content').innerHTML = html ||
+    '<div class="card"><div class="empty"><div class="e-icon">✅</div>No critical recommendations — position looks stable.</div></div>';
+}
+
+// ── TAB: WHAT-IF ─────────────────────────────────────
+function initWhatIf() {
+  var lo  = Math.floor(mktCtx.spot * 0.85);
+  var hi  = Math.ceil(mktCtx.spot  * 1.15);
+  var sl  = el('wi-slider');
+  sl.min  = lo;
+  sl.max  = hi;
+  sl.step = 25;
+  sl.value = mktCtx.spot;
+  el('wi-lo-lbl').textContent = '₹' + lo.toLocaleString('en-IN');
+  el('wi-hi-lbl').textContent = '₹' + hi.toLocaleString('en-IN');
+  updateWhatIf();
+}
+
+function updateWhatIf() {
+  var price  = parseInt(el('wi-slider').value);
+  var po     = payoffAt(price);
+  var currPnl = legs.reduce((s, l) => s + legPnl(l), 0);
+  var diff    = po - currPnl;
+
+  el('wi-price').textContent = '₹' + price.toLocaleString('en-IN');
+  var pnlEl = el('wi-pnl');
+  pnlEl.textContent = (po >= 0 ? '+' : '') + '₹' + Math.round(po).toLocaleString('en-IN');
+  pnlEl.style.color = po >= 0 ? 'var(--green)' : 'var(--red)';
+
+  var diffEl = el('wi-vs-now');
+  diffEl.textContent = (diff >= 0 ? '+' : '') + '₹' + Math.round(diff).toLocaleString('en-IN');
+  diffEl.style.color = diff >= 0 ? 'var(--green)' : 'var(--red)';
+}
+
+// ════════════════════════════════════════════════════════════
+//  TABS
+// ════════════════════════════════════════════════════════════
+function showTab(name) {
+  var panes = document.querySelectorAll('.tab-pane');
+  var btns  = document.querySelectorAll('.tab-btn');
+  panes.forEach(function(p) { p.classList.remove('active'); });
+  btns.forEach(function(b)  { b.classList.remove('active'); });
+  el('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ════════════════════════════════════════════════════════════
+//  UTILS
+// ════════════════════════════════════════════════════════════
+function el(id) { return document.getElementById(id); }
+function fmt(n) { return Math.round(n).toLocaleString('en-IN'); }
+function fmtG(v, dec) { dec = dec || 2; return (v >= 0 ? '+' : '') + v.toFixed(dec); }
+
+// keyboard shortcut: Enter on current premium → addLeg
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && (e.target.id === 'f-current' || e.target.id === 'f-entry')) {
+    addLeg();
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════════
+loadMarketContext();
+</script>
+</body>
+</html>
