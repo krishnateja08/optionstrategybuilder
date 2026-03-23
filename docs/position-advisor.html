@@ -1413,380 +1413,444 @@ function updateWhatIf() {
 // ════════════════════════════════════════════════════════════
 
 function renderRecoveryEngine() {
-  var lotSize  = getLotSize();
-  var spot     = mktCtx.spot;
-  var atm      = Math.round(spot / 50) * 50;
-  var dte      = mktCtx.dte;
-  var vix      = mktCtx.vix || 15;
-  var T        = Math.max(dte / 365, 0.001);
-  var r        = 0.068;
+  var lotSize = getLotSize();
+  var spot    = mktCtx.spot;
+  var atm     = Math.round(spot / 50) * 50;
+  var dte     = mktCtx.dte;
+  var vix     = mktCtx.vix || 15;
+  var T       = Math.max(dte / 365, 0.001);
+  var r       = 0.068;
 
-  var totalPnl  = legs.reduce((s, l) => s + legPnl(l), 0);
-  var totalPaid = legs.reduce((s, l) => {
-    var sign = l.action === 'BUY' ? 1 : -1;
-    return s + sign * l.entry * l.qty * lotSize;
+  var totalPnl  = legs.reduce(function(s,l){ return s + legPnl(l); }, 0);
+  var totalPaid = legs.reduce(function(s,l){
+    return s + (l.action==='BUY'?1:-1) * l.entry * l.qty * lotSize;
   }, 0);
-  var ng        = netGreeks();
-  var bev       = breakevenPoints();
-  var ml        = maxProfitLoss();
-  var lossPct   = totalPaid !== 0 ? (totalPnl / Math.abs(totalPaid) * 100) : 0;
-  var isLoss    = totalPnl < 0;
+  var ng       = netGreeks();
+  var bev      = breakevenPoints();
+  var ml       = maxProfitLoss();
+  var lossPct  = totalPaid !== 0 ? (totalPnl / Math.abs(totalPaid) * 100) : 0;
+  var isLoss   = totalPnl < 0;
 
-  // ── Estimate current BS premium for a given strike+type ──
-  function estimatePremium(strike, type, ivOverride) {
-    var iv  = ivOverride || vix / 100 * 1.2; // VIX to IV rough conv
-    return Math.max(0.5, bsPrice(spot, strike, T, r, iv, type));
+  // ── Get avg IV from legs ──
+  var ivArr = legs.map(function(l){ return calcIV(l.current, spot, l.strike, T, r, l.type); }).filter(function(v){ return v>0; });
+  var avgIVpct = ivArr.length ? ivArr.reduce(function(a,b){return a+b;},0)/ivArr.length : (vix * 1.3);
+  var avgIVsig = avgIVpct / 100;
+
+  function estPrem(strike, type, ivSig) {
+    var s = ivSig || avgIVsig;
+    return Math.max(0.5, +bsPrice(spot, strike, T, r, s, type).toFixed(2));
   }
 
-  // Strikes around ATM (OTM = 1 step away, FOTM = 2 steps)
-  var otmCE   = atm + 50;
-  var fotmCE  = atm + 100;
-  var ffotmCE = atm + 150;
-  var otmPE   = atm - 50;
-  var fotmPE  = atm - 100;
-  var ffotmPE = atm - 150;
+  // Key strikes
+  var otmCE  = atm + 50,  fotmCE = atm + 100, ffotmCE = atm + 150;
+  var otmPE  = atm - 50,  fotmPE = atm - 100, ffotmPE = atm - 150;
 
-  // IVs from existing legs (use average of what user entered)
-  function avgIV() {
-    var ivs = legs.map(l => calcIV(l.current, spot, l.strike, T, r, l.type)).filter(v => v > 0);
-    return ivs.length ? ivs.reduce((a,b)=>a+b,0)/ivs.length/100 : (vix/100*1.2);
-  }
-  var iv = avgIV();
+  // ── Build strategies ──
+  var strategies = [];
 
-  // Leg cost helper (negative = credit received)
-  function legCost(action, premium, qty) {
-    return action === 'BUY' ? premium * qty * lotSize : -premium * qty * lotSize;
-  }
-
-  // PnL improvement if we add a hedge leg NOW vs current position
-  // measured as: how much does the new leg shift the payoff at the MOST PAINFUL price
-  function hedgeImpactAtWorstPrice(hedgeAction, hedgeStrike, hedgeType, hedgeQty) {
-    var intrinsic = hedgeType === 'CE'
-      ? Math.max(0, ml.maxLPrice - hedgeStrike)
-      : Math.max(0, hedgeStrike - ml.maxLPrice);
-    var sign = hedgeAction === 'BUY' ? 1 : -1;
-    var entryPrem = estimatePremium(hedgeStrike, hedgeType, iv);
-    return sign * (intrinsic - entryPrem) * hedgeQty * lotSize;
-  }
-
-  // ── Build strategy options ──
-  var options = [];
-
-  // ── 1. EXIT IMMEDIATELY ──
-  var exitCost = Math.abs(totalPnl); // current mark loss if you square off
-  options.push({
-    id: 'exit',
-    style: isLoss ? 'aggressive' : 'defensive',
-    title: isLoss ? '🚪 Square Off Entire Position Now' : '💰 Book Profit — Close All Legs',
-    tag: isLoss ? 'STOP LOSS' : 'PROFIT BOOKING',
-    desc: isLoss
-      ? 'Exit all legs at current market premiums. You crystallise a loss of ₹' + Math.abs(Math.round(totalPnl)).toLocaleString('en-IN') +
-        ' (' + Math.abs(lossPct).toFixed(1) + '% of capital deployed). This stops further losses from theta decay or adverse moves.'
-      : 'Book the current profit of ₹' + Math.round(totalPnl).toLocaleString('en-IN') + '. Recommended when position has achieved 50–70% of max profit.',
-    actions: legs.map((l, i) => {
-      var closeAction = l.action === 'BUY' ? 'SELL' : 'BUY';
-      return {
-        action: closeAction + ' to close',
-        strike: l.strike,
-        type: l.type,
-        qty: l.qty,
-        premium: l.current,
-        note: 'Close leg ' + (i+1) + ' at current market price',
-        cssClass: 'action-close'
-      };
-    }),
-    netCost: totalPnl, // negative = loss
-    newMaxLoss: 0,
-    newBreakeven: 'N/A — position closed',
-    highlight: isLoss && Math.abs(lossPct) > 60
+  // ─────────────────────────────────────────
+  // STRATEGY A: FULL SQUARE-OFF
+  // ─────────────────────────────────────────
+  var closeLegs = legs.map(function(l,i){
+    return {
+      step: i+1,
+      action: l.action==='BUY' ? 'SELL' : 'BUY',
+      strike: l.strike,
+      type:   l.type,
+      lots:   l.qty,
+      estPrem: l.current.toFixed(2),
+      impact: 'Realise ₹' + (legPnl(l)>=0?'+':'') + Math.round(legPnl(l)).toLocaleString('en-IN') + ' on this leg',
+      color:  'action-close'
+    };
+  });
+  strategies.push({
+    rank: isLoss && Math.abs(lossPct) > 60 ? 1 : 3,
+    recommended: isLoss && Math.abs(lossPct) > 60,
+    badge: isLoss ? 'STOP LOSS' : 'BOOK PROFIT',
+    badgeStyle: isLoss ? 'aggressive' : 'defensive',
+    title: isLoss ? '🚪 Full Square-Off — Exit All Legs Now' : '💰 Book Profit — Close All Legs',
+    why: isLoss
+      ? 'Loss is ₹' + Math.abs(Math.round(totalPnl)).toLocaleString('en-IN') + ' (' + Math.abs(lossPct).toFixed(1) + '% of capital). ' +
+        'Closing all legs now stops further theta, delta and vega exposure.'
+      : 'Position is profitable at ₹+' + Math.round(totalPnl).toLocaleString('en-IN') + '. Lock in gains before expiry uncertainty grows.',
+    legs: closeLegs,
+    netEffect: isLoss ? '🔴 You realise a loss of ₹' + Math.abs(Math.round(totalPnl)).toLocaleString('en-IN') + ' — but all risk is eliminated.' :
+               '🟢 You lock in ₹' + Math.round(totalPnl).toLocaleString('en-IN') + ' profit.',
+    newPnl: 0,
+    maxLossAfter: '₹0 — position fully closed'
   });
 
   if (isLoss) {
-    var atmIVest = iv;
-
-    // ── 2. CONVERT TO IRON CONDOR / ADD OPPOSITE WING (Delta Neutral) ──
-    // Sell OTM CE + OTM PE to collect premium and reduce delta
-    var sellCEprem = estimatePremium(otmCE, 'CE', atmIVest);
-    var sellPEprem = estimatePremium(otmPE, 'PE', atmIVest);
-    var condorCredit = (sellCEprem + sellPEprem) * lotSize;
-    var pnlAfterCondor = totalPnl + condorCredit; // we receive premium
-
-    if (ng.delta > 5 || ng.delta < -5 || Math.abs(lossPct) < 70) {
-      options.push({
-        id: 'condor',
-        style: 'moderate',
-        title: '🦅 Sell OTM Strangle to Collect Premium',
-        tag: 'DELTA NEUTRALISE',
-        desc: 'Sell 1 lot each of ' + otmCE + ' CE and ' + otmPE + ' PE to collect ₹' +
-              Math.round(condorCredit).toLocaleString('en-IN') + ' in premium. This reduces your net loss immediately and caps further downside. ' +
-              'Best when you expect Nifty to stay range-bound for ' + dte + ' more days.',
-        actions: [
-          { action:'SELL', strike:otmCE, type:'CE', qty:1, premium:sellCEprem.toFixed(2), note:'Collect ₹' + Math.round(sellCEprem*lotSize).toLocaleString('en-IN') + ' credit', cssClass:'action-sell' },
-          { action:'SELL', strike:otmPE, type:'PE', qty:1, premium:sellPEprem.toFixed(2), note:'Collect ₹' + Math.round(sellPEprem*lotSize).toLocaleString('en-IN') + ' credit', cssClass:'action-sell' },
-        ],
-        netCost: -condorCredit, // negative = you receive money
-        newMaxLoss: Math.round(totalPnl), // worst case — these expire worthless; you keep premium
-        newBreakeven: bev.length > 0 ? '₹' + bev[0] + ' (improved by ₹' + Math.round(condorCredit/lotSize) + ' per lot)' : 'N/A',
-        highlight: Math.abs(lossPct) > 25 && Math.abs(lossPct) < 70
+    // ─────────────────────────────────────────
+    // STRATEGY B: CLOSE WORST LEG ONLY (partial exit)
+    // ─────────────────────────────────────────
+    if (legs.length > 1) {
+      var sorted = legs.slice().sort(function(a,b){ return legPnl(a)-legPnl(b); });
+      var worst  = sorted[0];
+      var wLoss  = legPnl(worst);
+      var remaining = legs.filter(function(l){ return l.id !== worst.id; });
+      var remainPnl = remaining.reduce(function(s,l){ return s+legPnl(l); }, 0);
+      strategies.push({
+        rank: 2,
+        recommended: Math.abs(lossPct) > 30,
+        badge: 'PARTIAL EXIT',
+        badgeStyle: 'moderate',
+        title: '✂ Close Worst Leg — Keep Rest Running',
+        why: 'Leg ' + worst.strike + ' ' + worst.type + ' (' + worst.action + ') is your biggest loser at ₹' +
+             Math.abs(Math.round(wLoss)).toLocaleString('en-IN') + '. Closing it reduces total risk. ' +
+             'Remaining ' + remaining.length + ' leg(s) have combined P&L of ₹' + Math.round(remainPnl).toLocaleString('en-IN') + '.',
+        legs: [{
+          step: 1,
+          action: worst.action==='BUY' ? 'SELL' : 'BUY',
+          strike: worst.strike,
+          type:   worst.type,
+          lots:   worst.qty,
+          estPrem: worst.current.toFixed(2),
+          impact: 'Cuts loss by ₹' + Math.abs(Math.round(wLoss)).toLocaleString('en-IN'),
+          color: 'action-close'
+        }],
+        netEffect: '🟡 New total P&L = ₹' + Math.round(remainPnl).toLocaleString('en-IN') + ' on remaining legs.',
+        newPnl: remainPnl,
+        maxLossAfter: 'Reduced — only ' + remaining.length + ' leg(s) remain'
       });
     }
 
-    // ── 3. BUY PROTECTIVE HEDGE IN DIRECTION OF LOSS ──
-    // If delta is negative (bearish loss), buy CE. If delta positive (bullish loss), buy PE.
-    if (ng.delta < -5) {
-      // Bearish position going wrong (market rising) — buy OTM CE to cap upside loss
-      var buyCEprem = estimatePremium(otmCE, 'CE', atmIVest);
-      var ceCost = buyCEprem * lotSize;
-      options.push({
-        id: 'hedge_ce',
-        style: 'moderate',
-        title: '🛡 Buy OTM Call to Cap Upside Loss',
-        tag: 'PROTECTIVE HEDGE',
-        desc: 'Your position has bearish delta (' + ng.delta.toFixed(1) + '). Market moving up is hurting you. ' +
-              'Buy 1 lot ' + otmCE + ' CE at ~₹' + buyCEprem.toFixed(2) + ' to cap your upside loss. ' +
-              'If Nifty rises further, the CE gains offset your position losses. Cost: ₹' + Math.round(ceCost).toLocaleString('en-IN') + '.',
-        actions: [
-          { action:'BUY', strike:otmCE, type:'CE', qty:1, premium:buyCEprem.toFixed(2), note:'Hedge against further upside move', cssClass:'action-do' },
-        ],
-        netCost: ceCost,
-        newMaxLoss: Math.round(totalPnl - ceCost),
-        newBreakeven: bev.length > 0 ? 'Moves up by ~₹' + buyCEprem.toFixed(0) + ' per lot' : 'N/A',
-        highlight: ng.delta < -10
+    // ─────────────────────────────────────────
+    // STRATEGY C: DELTA HEDGE (buy option in loss direction)
+    // ─────────────────────────────────────────
+    if (ng.delta > 8) {
+      // Strong bullish delta — market falling hurts. Buy PE to hedge.
+      var hPEprem = estPrem(otmPE, 'PE');
+      var hPEcost = hPEprem * lotSize;
+      // How much does this PE gain if market falls 100pts?
+      var peGainAt100fall = Math.max(0, otmPE - (spot-100)) * lotSize - hPEcost;
+      strategies.push({
+        rank: 1,
+        recommended: ng.delta > 15,
+        badge: 'DELTA HEDGE',
+        badgeStyle: 'moderate',
+        title: '🛡 Buy ' + otmPE + ' PE — Hedge Against Further Fall',
+        why: 'Your net delta is +' + ng.delta.toFixed(1) + ' (strongly bullish). Every ₹1 Nifty falls costs you ₹' + Math.abs(ng.delta).toFixed(0) + '. ' +
+             'Buying 1 lot ' + otmPE + ' PE gives you bearish delta to offset losses if Nifty continues falling.',
+        legs: [{
+          step: 1,
+          action: 'BUY',
+          strike: otmPE,
+          type:   'PE',
+          lots:   1,
+          estPrem: hPEprem.toFixed(2),
+          impact: 'Cost ₹' + Math.round(hPEcost).toLocaleString('en-IN') + ' | Protects if Nifty falls further',
+          color: 'action-do'
+        }],
+        netEffect: '🟡 Debit ₹' + Math.round(hPEcost).toLocaleString('en-IN') + ' upfront. New delta ≈ ' + (ng.delta - estPrem(otmPE,'PE') * 0 - 0.4 * lotSize).toFixed(0) + ' (more neutral). PE gains if Nifty falls.',
+        newPnl: totalPnl - hPEcost,
+        maxLossAfter: 'Capped on downside beyond ₹' + otmPE
       });
-    } else if (ng.delta > 5) {
-      // Bullish position going wrong (market falling) — buy OTM PE
-      var buyPEprem = estimatePremium(otmPE, 'PE', atmIVest);
-      var peCost = buyPEprem * lotSize;
-      options.push({
-        id: 'hedge_pe',
-        style: 'moderate',
-        title: '🛡 Buy OTM Put to Cap Downside Loss',
-        tag: 'PROTECTIVE HEDGE',
-        desc: 'Your position has bullish delta (+' + ng.delta.toFixed(1) + '). Market falling is hurting you. ' +
-              'Buy 1 lot ' + otmPE + ' PE at ~₹' + buyPEprem.toFixed(2) + ' to cap your downside loss. ' +
-              'If Nifty falls further, the PE gains will offset your position losses. Cost: ₹' + Math.round(peCost).toLocaleString('en-IN') + '.',
-        actions: [
-          { action:'BUY', strike:otmPE, type:'PE', qty:1, premium:buyPEprem.toFixed(2), note:'Hedge against further downside move', cssClass:'action-do' },
-        ],
-        netCost: peCost,
-        newMaxLoss: Math.round(totalPnl - peCost),
-        newBreakeven: bev.length > 0 ? 'Moves down by ~₹' + buyPEprem.toFixed(0) + ' per lot' : 'N/A',
-        highlight: ng.delta > 10
+    } else if (ng.delta < -8) {
+      // Bearish delta — market rising hurts. Buy CE to hedge.
+      var hCEprem = estPrem(otmCE, 'CE');
+      var hCEcost = hCEprem * lotSize;
+      strategies.push({
+        rank: 1,
+        recommended: ng.delta < -15,
+        badge: 'DELTA HEDGE',
+        badgeStyle: 'moderate',
+        title: '🛡 Buy ' + otmCE + ' CE — Hedge Against Further Rise',
+        why: 'Your net delta is ' + ng.delta.toFixed(1) + ' (strongly bearish). Every ₹1 Nifty rises costs you ₹' + Math.abs(ng.delta).toFixed(0) + '. ' +
+             'Buying 1 lot ' + otmCE + ' CE neutralises losses if Nifty continues rising.',
+        legs: [{
+          step: 1,
+          action: 'BUY',
+          strike: otmCE,
+          type:   'CE',
+          lots:   1,
+          estPrem: hCEprem.toFixed(2),
+          impact: 'Cost ₹' + Math.round(hCEcost).toLocaleString('en-IN') + ' | Protects if Nifty rises further',
+          color: 'action-do'
+        }],
+        netEffect: '🟡 Debit ₹' + Math.round(hCEcost).toLocaleString('en-IN') + ' upfront. CE gains offset position losses on further upside.',
+        newPnl: totalPnl - hCEcost,
+        maxLossAfter: 'Capped on upside beyond ₹' + otmCE
       });
     }
 
-    // ── 4. ROLL LOSING LEGS TO NEXT EXPIRY / BETTER STRIKE ──
-    // For each losing leg, suggest rolling it to reduce loss
-    var losingLegs = legs.filter(l => legPnl(l) < -500);
+    // ─────────────────────────────────────────
+    // STRATEGY D: CONVERT TO IRON CONDOR (if short strangle/straddle)
+    // ─────────────────────────────────────────
+    var hasSellCE = legs.some(function(l){ return l.action==='SELL' && l.type==='CE'; });
+    var hasSellPE = legs.some(function(l){ return l.action==='SELL' && l.type==='PE'; });
+    if (hasSellCE && hasSellPE) {
+      var wingCEprem = estPrem(fotmCE, 'CE');
+      var wingPEprem = estPrem(fotmPE, 'PE');
+      var wingCost   = (wingCEprem + wingPEprem) * lotSize;
+      var selledCEleg = legs.find(function(l){ return l.action==='SELL' && l.type==='CE'; });
+      var selledPEleg = legs.find(function(l){ return l.action==='SELL' && l.type==='PE'; });
+      // Max loss of IC = spread width - net credit received
+      var netCreditReceived = Math.abs(totalPaid); // already received
+      var spreadWidth = (fotmCE - (selledCEleg ? selledCEleg.strike : atm)) * lotSize;
+      var newMaxLoss = spreadWidth - netCreditReceived + wingCost;
+      strategies.push({
+        rank: 1,
+        recommended: Math.abs(lossPct) > 40,
+        badge: 'IRON CONDOR',
+        badgeStyle: 'defensive',
+        title: '🏰 Buy Wings — Convert Short Strangle to Iron Condor',
+        why: 'You have a short strangle (sold CE + PE). Your MAX LOSS is currently UNLIMITED. ' +
+             'Buying OTM wings caps your max loss to the spread width. ' +
+             'This is the safest structural fix for a losing short strangle.',
+        legs: [
+          {
+            step: 1,
+            action: 'BUY',
+            strike: fotmCE,
+            type:   'CE',
+            lots:   selledCEleg ? selledCEleg.qty : 1,
+            estPrem: wingCEprem.toFixed(2),
+            impact: 'Caps upside loss beyond ₹' + fotmCE,
+            color: 'action-do'
+          },
+          {
+            step: 2,
+            action: 'BUY',
+            strike: fotmPE,
+            type:   'PE',
+            lots:   selledPEleg ? selledPEleg.qty : 1,
+            estPrem: wingPEprem.toFixed(2),
+            impact: 'Caps downside loss beyond ₹' + fotmPE,
+            color: 'action-do'
+          }
+        ],
+        netEffect: '🔴 Debit ₹' + Math.round(wingCost).toLocaleString('en-IN') + ' for wings. Max loss is NOW CAPPED — no more unlimited risk.',
+        newPnl: totalPnl - wingCost,
+        maxLossAfter: 'Capped: ₹' + Math.round(newMaxLoss).toLocaleString('en-IN') + ' maximum'
+      });
+    }
+
+    // ─────────────────────────────────────────
+    // STRATEGY E: ROLL EACH LOSING LEG
+    // ─────────────────────────────────────────
+    var losingLegs = legs.filter(function(l){ return legPnl(l) < -500; });
     losingLegs.forEach(function(l) {
-      var legLoss = legPnl(l);
-      var closeAction = l.action === 'BUY' ? 'SELL' : 'BUY';
-      var closeAtPrem = l.current;
+      var lPnl       = legPnl(l);
+      var closeAct   = l.action==='BUY' ? 'SELL' : 'BUY';
+      // Roll direction: SELL → roll further OTM. BUY → roll closer ATM.
+      var newStrike  = l.action==='SELL'
+        ? (l.type==='CE' ? l.strike+50 : l.strike-50)  // roll short further OTM (safer)
+        : (l.type==='CE' ? l.strike-50 : l.strike+50);  // roll long closer ATM (cheaper)
+      var newPrem    = estPrem(newStrike, l.type);
+      // For SELL: buy back current (costly), sell new at newPrem (credit)
+      // rollNet: positive = net credit received
+      var rollNet = l.action==='SELL'
+        ? (newPrem - l.current) * l.qty * lotSize   // buy back current, sell new (higher strike CE = less premium)
+        : (l.current - newPrem) * l.qty * lotSize;  // sell current, buy new
 
-      // New strike: roll OTM by 1 strike
-      var newStrike = l.type === 'CE' ? l.strike + 50 : l.strike - 50;
-      var newPrem   = estimatePremium(newStrike, l.type, atmIVest);
-      var rollCredit = (l.action === 'SELL')
-        ? (closeAtPrem - newPrem) * l.qty * lotSize  // buy back cheap, sell new
-        : (newPrem - closeAtPrem) * l.qty * lotSize; // sell old, buy new (cost diff)
-
-      options.push({
-        id: 'roll_' + l.id,
-        style: 'defensive',
-        title: '🔄 Roll ' + l.action + ' ' + l.strike + ' ' + l.type + ' to ' + newStrike + ' ' + l.type,
-        tag: 'ROLL POSITION',
-        desc: 'Close the losing ' + l.action + ' ' + l.strike + ' ' + l.type + ' leg (currently at ₹' + l.current.toFixed(2) +
-              ', entry was ₹' + l.entry.toFixed(2) + ') and re-enter at ' + newStrike + ' ' + l.type +
-              ' at ~₹' + newPrem.toFixed(2) + '. This shifts your breakeven and gives the position more room.' +
-              (rollCredit > 0 ? ' Net credit from rolling: ₹' + Math.round(rollCredit).toLocaleString('en-IN') + '.' :
-               ' Additional cost of roll: ₹' + Math.abs(Math.round(rollCredit)).toLocaleString('en-IN') + '.'),
-        actions: [
-          { action:closeAction + ' (close)', strike:l.strike, type:l.type, qty:l.qty, premium:closeAtPrem.toFixed(2), note:'Close losing leg at market', cssClass:'action-close' },
-          { action:l.action + ' (new leg)', strike:newStrike, type:l.type, qty:l.qty, premium:newPrem.toFixed(2), note:'Re-enter at better strike', cssClass:'action-do' },
+      strategies.push({
+        rank: 3,
+        recommended: false,
+        badge: 'ROLL POSITION',
+        badgeStyle: 'neutral',
+        title: '🔄 Roll ' + l.action + ' ' + l.strike + ' ' + l.type + ' → ' + newStrike + ' ' + l.type,
+        why: 'Leg: ' + l.action + ' ' + l.strike + ' ' + l.type + ' (entry ₹' + l.entry.toFixed(2) + ', now ₹' + l.current.toFixed(2) + '). ' +
+             'Loss on this leg: ₹' + Math.abs(Math.round(lPnl)).toLocaleString('en-IN') + '. ' +
+             'Rolling to ' + newStrike + ' ' + l.type + ' gives more room and shifts breakeven.' +
+             (rollNet > 0 ? ' You collect ₹' + Math.round(rollNet).toLocaleString('en-IN') + ' net credit.' :
+              ' Additional cost: ₹' + Math.abs(Math.round(rollNet)).toLocaleString('en-IN') + '.'),
+        legs: [
+          {
+            step: 1,
+            action: closeAct,
+            strike: l.strike,
+            type:   l.type,
+            lots:   l.qty,
+            estPrem: l.current.toFixed(2),
+            impact: 'Close existing leg at market',
+            color: 'action-close'
+          },
+          {
+            step: 2,
+            action: l.action,
+            strike: newStrike,
+            type:   l.type,
+            lots:   l.qty,
+            estPrem: newPrem.toFixed(2),
+            impact: 'Re-enter at new strike with more room',
+            color: 'action-do'
+          }
         ],
-        netCost: -rollCredit,
-        newMaxLoss: Math.round(totalPnl + rollCredit),
-        newBreakeven: newStrike + ' ' + l.type + ' breakeven = ₹' + (l.type === 'CE' ? newStrike + newPrem : newStrike - newPrem).toFixed(0),
-        highlight: false
+        netEffect: rollNet > 0
+          ? '🟢 Net credit from roll: ₹' + Math.round(rollNet).toLocaleString('en-IN')
+          : '🔴 Net debit for roll: ₹' + Math.abs(Math.round(rollNet)).toLocaleString('en-IN'),
+        newPnl: totalPnl + rollNet,
+        maxLossAfter: 'Breakeven shifts by ' + (l.type==='CE' ? '+' : '-') + '50 pts'
       });
     });
 
-    // ── 5. ADD CALENDAR / PARTIAL COVER: SELL NEAR EXPIRY OPTIONS ──
-    // Sell short-dated OTM CE or PE to collect theta if DTE > 5
-    if (dte > 4 && ng.theta < -100) {
-      var sellNearCE = estimatePremium(fotmCE, 'CE', atmIVest * 0.9);
-      var sellNearPE = estimatePremium(fotmPE, 'PE', atmIVest * 0.9);
-      var thetaCredit = (sellNearCE + sellNearPE) * lotSize;
-      options.push({
-        id: 'theta_cover',
-        style: 'neutral',
-        title: '⏰ Sell Far-OTM Options to Fund Theta Bleed',
-        tag: 'THETA COVER',
-        desc: 'Your position loses ₹' + Math.abs(ng.theta).toFixed(0) + '/day from theta. ' +
-              'Sell 1 lot each of ' + fotmCE + ' CE (~₹' + sellNearCE.toFixed(2) + ') and ' + fotmPE + ' PE (~₹' + sellNearPE.toFixed(2) + ') ' +
-              'to collect ₹' + Math.round(thetaCredit).toLocaleString('en-IN') + ' which covers ~' +
-              Math.round(thetaCredit / Math.abs(ng.theta)) + ' days of theta burn. ' +
-              'Risk: if Nifty moves beyond these strikes sharply, you have additional exposure.',
-        actions: [
-          { action:'SELL', strike:fotmCE, type:'CE', qty:1, premium:sellNearCE.toFixed(2), note:'Covers ~' + Math.round(sellNearCE*lotSize/Math.abs(ng.theta)) + ' days theta', cssClass:'action-sell' },
-          { action:'SELL', strike:fotmPE, type:'PE', qty:1, premium:sellNearPE.toFixed(2), note:'Covers ~' + Math.round(sellNearPE*lotSize/Math.abs(ng.theta)) + ' days theta', cssClass:'action-sell' },
+    // ─────────────────────────────────────────
+    // STRATEGY F: SELL FURTHER OTM TO COLLECT PREMIUM
+    // ─────────────────────────────────────────
+    if (Math.abs(lossPct) < 80) {
+      var sellF1prem = estPrem(ffotmCE, 'CE');
+      var sellF2prem = estPrem(ffotmPE, 'PE');
+      var premCollect = (sellF1prem + sellF2prem) * lotSize;
+      var daysOfTheta = ng.theta !== 0 ? Math.round(premCollect / Math.max(1, Math.abs(ng.theta))) : '—';
+      strategies.push({
+        rank: 4,
+        recommended: false,
+        badge: 'PREMIUM COLLECT',
+        badgeStyle: 'neutral',
+        title: '💰 Sell Far-OTM CE + PE to Collect Additional Premium',
+        why: 'Sell 1 lot each of far-OTM ' + ffotmCE + ' CE and ' + ffotmPE + ' PE to collect ₹' +
+             Math.round(premCollect).toLocaleString('en-IN') + ' additional credit. ' +
+             'This immediately improves your net P&L by that amount. ' +
+             (ng.theta < 0 ? 'Also covers ~' + daysOfTheta + ' days of theta bleed.' : '') +
+             ' Risk: adds short gamma exposure — don\'t do this if you expect a big move.',
+        legs: [
+          {
+            step: 1,
+            action: 'SELL',
+            strike: ffotmCE,
+            type:   'CE',
+            lots:   1,
+            estPrem: sellF1prem.toFixed(2),
+            impact: 'Collect ₹' + Math.round(sellF1prem*lotSize).toLocaleString('en-IN') + ' credit',
+            color: 'action-sell'
+          },
+          {
+            step: 2,
+            action: 'SELL',
+            strike: ffotmPE,
+            type:   'PE',
+            lots:   1,
+            estPrem: sellF2prem.toFixed(2),
+            impact: 'Collect ₹' + Math.round(sellF2prem*lotSize).toLocaleString('en-IN') + ' credit',
+            color: 'action-sell'
+          }
         ],
-        netCost: -thetaCredit,
-        newMaxLoss: 'Unchanged on existing legs',
-        newBreakeven: 'Existing breakevens improved by ₹' + Math.round(thetaCredit / lotSize) + '/lot',
-        highlight: ng.theta < -200 && dte > 5
-      });
-    }
-
-    // ── 6. CONVERT SHORT STRADDLE / STRANGLE LOSS → IRON CONDOR ──
-    // If user sold ATM options and now they're losing, buy protection
-    var hasSellCE = legs.some(l => l.action === 'SELL' && l.type === 'CE');
-    var hasSellPE = legs.some(l => l.action === 'SELL' && l.type === 'PE');
-    if (hasSellCE && hasSellPE) {
-      var buyProtCE = estimatePremium(fotmCE, 'CE', atmIVest);
-      var buyProtPE = estimatePremium(fotmPE, 'PE', atmIVest);
-      var protCost  = (buyProtCE + buyProtPE) * lotSize;
-      options.push({
-        id: 'ic_convert',
-        style: 'defensive',
-        title: '🏰 Convert to Iron Condor — Buy OTM Wings',
-        tag: 'CAP MAX LOSS',
-        desc: 'You have short CE and PE (straddle/strangle). Your max loss is theoretically large. ' +
-              'Buy 1 lot each of ' + fotmCE + ' CE and ' + fotmPE + ' PE to convert to an Iron Condor. ' +
-              'This caps your maximum loss to the spread width minus net credit. Cost: ₹' + Math.round(protCost).toLocaleString('en-IN') + '.',
-        actions: [
-          { action:'BUY', strike:fotmCE, type:'CE', qty:1, premium:buyProtCE.toFixed(2), note:'Caps upside loss beyond ' + fotmCE, cssClass:'action-do' },
-          { action:'BUY', strike:fotmPE, type:'PE', qty:1, premium:buyProtPE.toFixed(2), note:'Caps downside loss beyond ' + fotmPE, cssClass:'action-do' },
-        ],
-        netCost: protCost,
-        newMaxLoss: Math.round(totalPnl - protCost),
-        newBreakeven: 'Max loss now capped at spread width',
-        highlight: Math.abs(lossPct) > 40 && hasSellCE && hasSellPE
-      });
-    }
-
-    // ── 7. PARTIAL EXIT — Close the WORST leg only ──
-    var sortedByLoss = legs.slice().sort((a,b) => legPnl(a) - legPnl(b));
-    if (sortedByLoss.length > 1) {
-      var worstLeg = sortedByLoss[0];
-      var worstLoss = legPnl(worstLeg);
-      var closeWAction = worstLeg.action === 'BUY' ? 'SELL' : 'BUY';
-      options.push({
-        id: 'partial_exit',
-        style: 'moderate',
-        title: '✂ Partial Exit — Close the Worst Performing Leg',
-        tag: 'PARTIAL UNWIND',
-        desc: 'Close only the worst leg (' + worstLeg.action + ' ' + worstLeg.strike + ' ' + worstLeg.type + ') which is currently losing ₹' +
-              Math.abs(Math.round(worstLoss)).toLocaleString('en-IN') + '. ' +
-              'Remaining legs may recover. This reduces your total exposure and capital at risk without fully exiting the trade.',
-        actions: [
-          { action:closeWAction + ' to close', strike:worstLeg.strike, type:worstLeg.type, qty:worstLeg.qty, premium:worstLeg.current.toFixed(2), note:'Worst leg — loss of ₹' + Math.abs(Math.round(worstLoss)).toLocaleString('en-IN'), cssClass:'action-close' },
-        ],
-        netCost: worstLoss, // this is negative (you realise the loss)
-        newMaxLoss: Math.round(totalPnl - worstLoss),
-        newBreakeven: 'Remaining legs continue independently',
-        highlight: Math.abs(lossPct) > 30 && legs.length > 1
+        netEffect: '🟢 Immediate P&L improvement: +₹' + Math.round(premCollect).toLocaleString('en-IN') + '. New P&L = ₹' + Math.round(totalPnl+premCollect).toLocaleString('en-IN'),
+        newPnl: totalPnl + premCollect,
+        maxLossAfter: 'Increased on extreme moves — set stop loss if Nifty moves ±150 pts'
       });
     }
   }
+
+  // Sort by rank
+  strategies.sort(function(a,b){ return a.rank - b.rank; });
 
   // ── Render ──
-  var el2 = el('recovery-content');
+  var out = '';
 
-  // Summary bar
-  var summaryHtml = '<div class="recovery-summary">' +
-    '<div class="rs-card"><div class="rs-lbl">Current P&L</div>' +
-      '<div class="rs-val" style="color:' + (totalPnl>=0?'var(--green)':'var(--red)') + '">₹' +
-      (totalPnl>=0?'+':'') + Math.round(totalPnl).toLocaleString('en-IN') + '</div></div>' +
-    '<div class="rs-card"><div class="rs-lbl">% of Capital</div>' +
-      '<div class="rs-val" style="color:' + (lossPct>=0?'var(--green)':'var(--red)') + '">' +
-      (lossPct>=0?'+':'') + lossPct.toFixed(1) + '%</div></div>' +
-    '<div class="rs-card"><div class="rs-lbl">Net Delta</div>' +
-      '<div class="rs-val" style="color:' + (Math.abs(ng.delta)<5?'var(--green)':'var(--amber)') + '">' +
-      (ng.delta>=0?'+':'') + ng.delta + '</div></div>' +
-    '<div class="rs-card"><div class="rs-lbl">Theta/Day</div>' +
-      '<div class="rs-val" style="color:' + (ng.theta>=0?'var(--green)':'var(--red)') + '">₹' +
-      (ng.theta>=0?'+':'') + ng.theta.toFixed(0) + '</div></div>' +
-    '<div class="rs-card"><div class="rs-lbl">DTE Left</div>' +
-      '<div class="rs-val" style="color:' + (dte<=2?'var(--red)':dte<=5?'var(--amber)':'var(--text)') + '">' + dte + 'd</div></div>' +
-    '<div class="rs-card"><div class="rs-lbl">VIX</div>' +
-      '<div class="rs-val" style="color:' + (vix>20?'var(--red)':vix<13?'var(--green)':'var(--amber)') + '">' + vix.toFixed(1) + '</div></div>' +
-  '</div>';
+  // ── Position snapshot ──
+  out += '<div style="background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:14px;padding:16px 20px;margin-bottom:18px;">';
+  out += '<div style="font-size:10px;font-weight:700;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:12px;">📊 YOUR CURRENT POSITION SNAPSHOT</div>';
+  out += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;">';
+  var snaps = [
+    { lbl:'Net P&L', val:'₹'+(totalPnl>=0?'+':'')+Math.round(totalPnl).toLocaleString('en-IN'), col: totalPnl>=0?'var(--green)':'var(--red)' },
+    { lbl:'% of Capital', val:(lossPct>=0?'+':'')+lossPct.toFixed(1)+'%', col: lossPct>=0?'var(--green)':'var(--red)' },
+    { lbl:'Net Delta', val:(ng.delta>=0?'+':'')+ng.delta.toFixed(1), col: Math.abs(ng.delta)<5?'var(--green)':'var(--amber)' },
+    { lbl:'Theta/Day', val:'₹'+(ng.theta>=0?'+':'')+ng.theta.toFixed(0), col: ng.theta>=0?'var(--green)':'var(--red)' },
+    { lbl:'DTE', val:dte+' days', col: dte<=2?'var(--red)':dte<=5?'var(--amber)':'var(--text)' },
+    { lbl:'VIX', val:vix.toFixed(1), col: vix>20?'var(--red)':vix<13?'var(--green)':'var(--amber)' }
+  ];
+  snaps.forEach(function(s){
+    out += '<div style="text-align:center;padding:10px;background:rgba(255,255,255,0.03);border-radius:9px;">' +
+           '<div style="font-size:10px;color:var(--text3);font-weight:700;letter-spacing:1px;margin-bottom:4px;">'+s.lbl+'</div>' +
+           '<div style="font-size:18px;font-weight:800;color:'+s.col+'">'+s.val+'</div>' +
+           '</div>';
+  });
+  out += '</div>';
 
-  // Header
-  var headerHtml = '<div class="rec-engine-header ' + (isLoss?'':'profit') + '">' +
-    '<div class="rec-engine-icon">' + (isLoss ? '🚑' : '🏆') + '</div>' +
-    '<div><div class="rec-engine-title">' +
-      (isLoss ? 'Recovery Mode — Position is in Loss' : 'Position is Profitable') + '</div>' +
-      '<div class="rec-engine-sub">' +
-        (isLoss
-          ? Math.abs(options.length - 1) + ' recovery strategies generated based on your position Greeks, delta, theta, and market conditions.'
-          : 'Below are profit-protection strategies. Choose based on how much more upside you expect.') +
-      '</div>' +
-    '</div>' +
-  '</div>';
+  // Breakevens inside snapshot
+  if (bev.length > 0) {
+    out += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--text2);">';
+    out += '<span style="color:var(--text3);font-weight:700;letter-spacing:1px;font-size:10px;">BREAKEVEN(S): </span>';
+    bev.forEach(function(b){
+      var dist = b - spot;
+      out += '<span style="background:rgba(240,192,64,0.15);border:1px solid rgba(240,192,64,0.3);color:var(--amber);font-weight:700;padding:2px 10px;border-radius:5px;margin-right:8px;">₹'+b.toLocaleString('en-IN')+' ('+(dist>=0?'+':'')+Math.round(dist)+' from spot)</span>';
+    });
+    out += '</div>';
+  }
+  out += '</div>';
 
-  // Warning if near expiry
-  var warnHtml = '';
+  // ── Warnings ──
   if (dte <= 2 && isLoss) {
-    warnHtml = '<div class="warning-box"><strong>⏰ EXPIRY WARNING:</strong> Only ' + dte + ' day(s) left. ' +
-      'Time value is near zero — rolling or waiting for recovery is NOT recommended. ' +
-      'Square off or convert immediately. Theta will destroy any long options rapidly.</div>';
+    out += '<div class="warning-box"><strong>⏰ EXPIRY IN ' + dte + ' DAY(S):</strong> Time value is nearly zero. Rolling or waiting for recovery will NOT work. Exit or convert structure immediately.</div>';
   }
-  if (vix > 22 && isLoss) {
-    warnHtml += '<div class="warning-box"><strong>📈 HIGH VIX (' + vix.toFixed(1) + '):</strong> IV is elevated. ' +
-      'Buying options is expensive right now. Selling strategies (condor, strangle) are more efficient in high-VIX environments. ' +
-      'Premiums shown are estimates — actual market premiums may be 20–30% higher.</div>';
+  if (isLoss && Math.abs(lossPct) > 100) {
+    out += '<div class="warning-box" style="background:rgba(255,60,60,0.12);border-color:rgba(255,60,60,0.35);"><strong style="color:var(--red);">🚨 CRITICAL LOSS LEVEL (' + Math.abs(lossPct).toFixed(0) + '%):</strong> Loss exceeds 100% of premium collected. Square-off is strongly recommended before loss compounds further.</div>';
   }
 
-  // Render strategy cards
-  var cardsHtml = options.map(function(opt) {
-    var costIsNeg = typeof opt.netCost === 'number' && opt.netCost < 0;
-    var costLabel = typeof opt.netCost === 'number'
-      ? (opt.netCost < 0
-          ? '<span class="cost-pill credit">+ ₹' + Math.abs(Math.round(opt.netCost)).toLocaleString('en-IN') + ' credit</span>'
-          : opt.netCost === 0
-            ? '<span class="cost-pill neutral">No cost</span>'
-            : '<span class="cost-pill">₹' + Math.round(opt.netCost).toLocaleString('en-IN') + ' debit</span>')
-      : '<span class="cost-pill neutral">' + opt.netCost + '</span>';
+  // ── Strategy cards ──
+  out += '<div style="font-size:10px;font-weight:700;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:12px;">' +
+         (isLoss ? '🚑 RECOVERY STRATEGIES — CHOOSE ONE' : '✅ PROFIT PROTECTION STRATEGIES') + '</div>';
 
-    var actRows = opt.actions.map(function(a) {
-      return '<tr>' +
-        '<td class="' + a.cssClass + '">' + a.action + '</td>' +
-        '<td style="font-weight:700">₹' + a.strike + '</td>' +
-        '<td><span class="badge badge-' + a.type.toLowerCase() + '">' + a.type + '</span></td>' +
-        '<td>' + a.qty + ' lot' + (a.qty>1?'s':'') + '</td>' +
-        '<td>~₹' + a.premium + '</td>' +
-        '<td style="color:var(--text3);font-size:11px;">' + a.note + '</td>' +
-      '</tr>';
-    }).join('');
+  strategies.forEach(function(st) {
+    var borderColor = st.recommended ? 'var(--amber)' : 'var(--border)';
+    var bgColor     = st.recommended ? 'rgba(240,192,64,0.06)' : 'rgba(255,255,255,0.03)';
 
-    return '<div class="strategy-option ' + opt.style + (opt.highlight?' " style="border-color:var(--amber);box-shadow:0 0 0 1px rgba(240,192,64,0.2)':'') + '">' +
-      '<div class="so-header">' +
-        '<div class="so-title">' + opt.title + '</div>' +
-        '<span class="so-tag ' + opt.style + '">' + opt.tag + '</span>' +
-      '</div>' +
-      '<div class="so-desc">' + opt.desc + '</div>' +
-      (opt.actions.length > 0
-        ? '<div style="overflow-x:auto;margin-bottom:10px"><table class="leg-action-table">' +
-            '<thead><tr><th>Action</th><th>Strike</th><th>Type</th><th>Qty</th><th>Est. Premium</th><th>Note</th></tr></thead>' +
-            '<tbody>' + actRows + '</tbody>' +
-          '</table></div>'
-        : '') +
-      '<div class="so-outcome">' +
-        '<div>Net Cost/Credit: ' + costLabel + '</div>' +
-        '<div>New Max Loss: <span>' + (typeof opt.newMaxLoss === 'number' ? '₹' + opt.newMaxLoss.toLocaleString('en-IN') : opt.newMaxLoss) + '</span></div>' +
-        '<div>Breakeven Impact: <span>' + opt.newBreakeven + '</span></div>' +
-      '</div>' +
+    out += '<div style="border:1px solid '+borderColor+';background:'+bgColor+';border-radius:14px;padding:18px 20px;margin-bottom:14px;' +
+           (st.recommended ? 'box-shadow:0 0 0 1px rgba(240,192,64,0.15);' : '') + '">';
+
+    // Header row
+    out += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">';
+    out += '<div style="font-size:15px;font-weight:800;color:#fff;">' + st.title + '</div>';
+    out += '<div style="display:flex;gap:6px;align-items:center;">';
+    if (st.recommended) out += '<span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:5px;background:rgba(240,192,64,0.25);color:var(--amber);letter-spacing:1px;">⭐ RECOMMENDED</span>';
+    out += '<span class="so-tag '+st.badgeStyle+'">'+st.badge+'</span>';
+    out += '</div></div>';
+
+    // Why
+    out += '<div style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.7;padding:10px 14px;background:rgba(255,255,255,0.04);border-radius:9px;border-left:3px solid var(--blue3);">' +
+           '<strong style="color:var(--blue);font-size:11px;letter-spacing:1px;">WHY THIS?</strong><br>' + st.why + '</div>';
+
+    // Action table — WHAT TO DO
+    if (st.legs && st.legs.length > 0) {
+      out += '<div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">📋 EXACT ORDERS TO PLACE IN YOUR BROKER:</div>';
+      out += '<div style="overflow-x:auto;">';
+      out += '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
+      out += '<thead><tr style="border-bottom:2px solid var(--border);">' +
+             '<th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--text3);font-weight:700;letter-spacing:1px;">STEP</th>' +
+             '<th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--text3);font-weight:700;letter-spacing:1px;">ACTION</th>' +
+             '<th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--text3);font-weight:700;letter-spacing:1px;">STRIKE</th>' +
+             '<th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--text3);font-weight:700;letter-spacing:1px;">TYPE</th>' +
+             '<th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--text3);font-weight:700;letter-spacing:1px;">LOTS</th>' +
+             '<th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--text3);font-weight:700;letter-spacing:1px;">EST. PREMIUM</th>' +
+             '<th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--text3);font-weight:700;letter-spacing:1px;">IMPACT</th>' +
+             '</tr></thead><tbody>';
+
+      st.legs.forEach(function(lg){
+        var actionColor = lg.color==='action-do' ? 'var(--green)' : lg.color==='action-sell' ? 'var(--amber)' : 'var(--red)';
+        var actionBg    = lg.color==='action-do' ? 'rgba(0,200,120,0.15)' : lg.color==='action-sell' ? 'rgba(240,192,64,0.15)' : 'rgba(255,80,80,0.15)';
+        out += '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">' +
+               '<td style="padding:10px;font-weight:800;font-size:15px;color:var(--text3);">'+lg.step+'</td>' +
+               '<td style="padding:10px;"><span style="background:'+actionBg+';color:'+actionColor+';font-weight:800;padding:4px 12px;border-radius:6px;font-size:13px;white-space:nowrap;">'+lg.action+'</span></td>' +
+               '<td style="padding:10px;font-weight:800;font-size:15px;color:#fff;">₹'+lg.strike+'</td>' +
+               '<td style="padding:10px;"><span class="badge badge-'+lg.type.toLowerCase()+'">'+lg.type+'</span></td>' +
+               '<td style="padding:10px;font-weight:700;color:#fff;">'+lg.lots+' lot'+(lg.lots>1?'s':'')+'</td>' +
+               '<td style="padding:10px;font-weight:700;color:var(--amber);">~₹'+lg.estPrem+'</td>' +
+               '<td style="padding:10px;font-size:12px;color:var(--text2);">'+lg.impact+'</td>' +
+               '</tr>';
+      });
+      out += '</tbody></table></div>';
+    }
+
+    // Net effect
+    out += '<div style="margin-top:12px;padding:10px 14px;background:rgba(255,255,255,0.04);border-radius:9px;display:flex;gap:20px;flex-wrap:wrap;font-size:12px;">' +
+           '<div><span style="color:var(--text3);font-size:10px;letter-spacing:1px;font-weight:700;">NET EFFECT: </span>' +
+           '<span style="color:#fff;font-weight:700;">'+st.netEffect+'</span></div>' +
+           '<div><span style="color:var(--text3);font-size:10px;letter-spacing:1px;font-weight:700;">MAX LOSS AFTER: </span>' +
+           '<span style="color:#fff;font-weight:700;">'+st.maxLossAfter+'</span></div>' +
+           '</div>';
+
+    out += '</div>'; // end strategy card
+  });
+
+  // Footer note
+  out += '<div style="margin-top:12px;padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:10px;font-size:11px;color:var(--text3);line-height:1.8;">' +
+    '<strong style="color:var(--amber);">⚠ Note:</strong> Premiums are estimated using Black-Scholes with your current position\'s implied volatility (' + avgIVpct.toFixed(1) + '%). ' +
+    'Always verify live premiums before placing orders. This tool is for educational reference only.' +
     '</div>';
-  }).join('');
 
-  el2.innerHTML = summaryHtml + headerHtml + warnHtml + cardsHtml +
-    '<div style="margin-top:16px;padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:10px;font-size:11px;color:var(--text3);line-height:1.8;">' +
-    '<strong style="color:var(--amber);">⚠ Note:</strong> Premiums shown are Black-Scholes estimates using your current IV and DTE. ' +
-    'Actual market premiums may differ. Always check live quotes before placing orders. ' +
-    'This is a mathematical analysis tool — not SEBI-registered investment advice.' +
-    '</div>';
+  el('recovery-content').innerHTML = out;
 }
 
 // ════════════════════════════════════════════════════════════
