@@ -272,7 +272,96 @@
   }
   .disclaimer strong { color:var(--amber); }
 
-  /* ── Scrollbar ── */
+  /* ── Recovery Engine ── */
+  .rec-engine-header {
+    display:flex; align-items:center; gap:14px; margin-bottom:18px;
+    background:rgba(255,80,80,0.08); border:1px solid rgba(255,80,80,0.25);
+    border-radius:14px; padding:16px 20px;
+  }
+  .rec-engine-header.profit {
+    background:rgba(0,200,120,0.08); border-color:rgba(0,200,120,0.25);
+  }
+  .rec-engine-icon { font-size:32px; flex-shrink:0; }
+  .rec-engine-title { font-size:17px; font-weight:800; color:#fff; }
+  .rec-engine-sub   { font-size:13px; color:var(--text2); margin-top:3px; }
+
+  .strategy-option {
+    border-radius:13px; padding:18px 20px; margin-bottom:14px;
+    border:1px solid var(--border); background:rgba(255,255,255,0.04);
+    transition: border-color 0.2s;
+  }
+  .strategy-option:hover { border-color:var(--border2); }
+  .strategy-option.aggressive { border-left:3px solid var(--red); }
+  .strategy-option.moderate   { border-left:3px solid var(--amber); }
+  .strategy-option.defensive  { border-left:3px solid var(--green); }
+  .strategy-option.neutral    { border-left:3px solid var(--blue); }
+
+  .so-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px; }
+  .so-title  { font-size:15px; font-weight:800; color:#fff; }
+  .so-tag    { font-size:10px; font-weight:700; letter-spacing:1.5px; padding:3px 10px; border-radius:5px; }
+  .so-tag.aggressive { background:rgba(255,80,80,0.2); color:var(--red); }
+  .so-tag.moderate   { background:var(--amber2); color:var(--amber); }
+  .so-tag.defensive  { background:var(--green2); color:var(--green); }
+  .so-tag.neutral    { background:var(--blue2); color:var(--blue); }
+
+  .so-desc { font-size:13px; color:var(--text2); margin-bottom:14px; line-height:1.7; }
+
+  .leg-action-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .leg-action-table th {
+    font-size:10px; font-weight:700; letter-spacing:1.5px; color:var(--text3);
+    text-transform:uppercase; padding:6px 10px; text-align:left;
+    border-bottom:1px solid var(--border);
+  }
+  .leg-action-table td { padding:9px 10px; border-bottom:1px solid rgba(255,255,255,0.04); }
+  .leg-action-table tr:last-child td { border-bottom:none; }
+
+  .action-do   { color:var(--green); font-weight:700; }
+  .action-close{ color:var(--red);   font-weight:700; }
+  .action-sell { color:var(--amber); font-weight:700; }
+
+  .so-outcome {
+    margin-top:12px; padding:10px 14px; border-radius:9px;
+    background:rgba(255,255,255,0.05); font-size:12px; color:var(--text2);
+    display:flex; gap:20px; flex-wrap:wrap;
+  }
+  .so-outcome span { font-weight:700; color:#fff; }
+
+  .recovery-filters {
+    display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; align-items:center;
+  }
+  .rf-label { font-size:11px; color:var(--text3); font-weight:700; letter-spacing:1px; }
+  .rf-btn {
+    padding:5px 14px; border-radius:7px; font-size:12px; font-weight:700;
+    background:rgba(255,255,255,0.06); border:1px solid var(--border);
+    color:var(--text2); cursor:pointer; transition:all 0.15s;
+  }
+  .rf-btn.active { background:var(--blue2); border-color:var(--blue3); color:var(--blue); }
+  .rf-btn:hover:not(.active) { background:rgba(255,255,255,0.09); color:#fff; }
+
+  .cost-pill {
+    display:inline-block; padding:2px 9px; border-radius:5px; font-size:11px;
+    font-weight:700; background:rgba(255,80,80,0.18); color:var(--red);
+  }
+  .cost-pill.credit { background:rgba(0,200,120,0.18); color:var(--green); }
+  .cost-pill.neutral { background:rgba(255,255,255,0.1); color:var(--text2); }
+
+  .recovery-summary {
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:10px; margin-bottom:18px;
+  }
+  .rs-card {
+    background:rgba(255,255,255,0.04); border:1px solid var(--border);
+    border-radius:11px; padding:12px 14px; text-align:center;
+  }
+  .rs-lbl { font-size:10px; font-weight:700; letter-spacing:1.5px; color:var(--text3); text-transform:uppercase; margin-bottom:5px; }
+  .rs-val { font-size:20px; font-weight:800; }
+
+  .warning-box {
+    background:rgba(240,192,64,0.10); border:1px solid rgba(240,192,64,0.30);
+    border-radius:10px; padding:12px 16px; font-size:12px; color:var(--text2);
+    margin-bottom:14px; line-height:1.7;
+  }
+  .warning-box strong { color:var(--amber); }
   ::-webkit-scrollbar { width:6px; height:6px; }
   ::-webkit-scrollbar-track { background:transparent; }
   ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15); border-radius:3px; }
@@ -455,6 +544,7 @@
       <button class="tab-btn" onclick="showTab('payoff')">📈 Payoff Chart</button>
       <button class="tab-btn" onclick="showTab('levels')">🎯 Key Levels</button>
       <button class="tab-btn" onclick="showTab('hedge')">🛡 Hedge Recs</button>
+      <button class="tab-btn" onclick="showTab('recovery')">🚑 Recovery Engine</button>
       <button class="tab-btn" onclick="showTab('whatif')">🧪 What-If</button>
     </div>
 
@@ -494,6 +584,11 @@
     <!-- ── TAB: HEDGE ── -->
     <div class="tab-pane" id="tab-hedge">
       <div id="hedge-content"></div>
+    </div>
+
+    <!-- ── TAB: RECOVERY ENGINE ── -->
+    <div class="tab-pane" id="tab-recovery">
+      <div id="recovery-content"></div>
     </div>
 
     <!-- ── TAB: WHAT-IF ── -->
@@ -949,6 +1044,7 @@ function runAnalysis() {
   renderPayoffChart();
   renderKeyLevels();
   renderHedgeRecs();
+  renderRecoveryEngine();
   initWhatIf();
 }
 
@@ -1310,6 +1406,387 @@ function updateWhatIf() {
   var diffEl = el('wi-vs-now');
   diffEl.textContent = (diff >= 0 ? '+' : '') + '₹' + Math.round(diff).toLocaleString('en-IN');
   diffEl.style.color = diff >= 0 ? 'var(--green)' : 'var(--red)';
+}
+
+// ════════════════════════════════════════════════════════════
+//  RECOVERY ENGINE — Pure Math-Based Loss Recovery Advisor
+// ════════════════════════════════════════════════════════════
+
+function renderRecoveryEngine() {
+  var lotSize  = getLotSize();
+  var spot     = mktCtx.spot;
+  var atm      = Math.round(spot / 50) * 50;
+  var dte      = mktCtx.dte;
+  var vix      = mktCtx.vix || 15;
+  var T        = Math.max(dte / 365, 0.001);
+  var r        = 0.068;
+
+  var totalPnl  = legs.reduce((s, l) => s + legPnl(l), 0);
+  var totalPaid = legs.reduce((s, l) => {
+    var sign = l.action === 'BUY' ? 1 : -1;
+    return s + sign * l.entry * l.qty * lotSize;
+  }, 0);
+  var ng        = netGreeks();
+  var bev       = breakevenPoints();
+  var ml        = maxProfitLoss();
+  var lossPct   = totalPaid !== 0 ? (totalPnl / Math.abs(totalPaid) * 100) : 0;
+  var isLoss    = totalPnl < 0;
+
+  // ── Estimate current BS premium for a given strike+type ──
+  function estimatePremium(strike, type, ivOverride) {
+    var iv  = ivOverride || vix / 100 * 1.2; // VIX to IV rough conv
+    return Math.max(0.5, bsPrice(spot, strike, T, r, iv, type));
+  }
+
+  // Strikes around ATM (OTM = 1 step away, FOTM = 2 steps)
+  var otmCE   = atm + 50;
+  var fotmCE  = atm + 100;
+  var ffotmCE = atm + 150;
+  var otmPE   = atm - 50;
+  var fotmPE  = atm - 100;
+  var ffotmPE = atm - 150;
+
+  // IVs from existing legs (use average of what user entered)
+  function avgIV() {
+    var ivs = legs.map(l => calcIV(l.current, spot, l.strike, T, r, l.type)).filter(v => v > 0);
+    return ivs.length ? ivs.reduce((a,b)=>a+b,0)/ivs.length/100 : (vix/100*1.2);
+  }
+  var iv = avgIV();
+
+  // Leg cost helper (negative = credit received)
+  function legCost(action, premium, qty) {
+    return action === 'BUY' ? premium * qty * lotSize : -premium * qty * lotSize;
+  }
+
+  // PnL improvement if we add a hedge leg NOW vs current position
+  // measured as: how much does the new leg shift the payoff at the MOST PAINFUL price
+  function hedgeImpactAtWorstPrice(hedgeAction, hedgeStrike, hedgeType, hedgeQty) {
+    var intrinsic = hedgeType === 'CE'
+      ? Math.max(0, ml.maxLPrice - hedgeStrike)
+      : Math.max(0, hedgeStrike - ml.maxLPrice);
+    var sign = hedgeAction === 'BUY' ? 1 : -1;
+    var entryPrem = estimatePremium(hedgeStrike, hedgeType, iv);
+    return sign * (intrinsic - entryPrem) * hedgeQty * lotSize;
+  }
+
+  // ── Build strategy options ──
+  var options = [];
+
+  // ── 1. EXIT IMMEDIATELY ──
+  var exitCost = Math.abs(totalPnl); // current mark loss if you square off
+  options.push({
+    id: 'exit',
+    style: isLoss ? 'aggressive' : 'defensive',
+    title: isLoss ? '🚪 Square Off Entire Position Now' : '💰 Book Profit — Close All Legs',
+    tag: isLoss ? 'STOP LOSS' : 'PROFIT BOOKING',
+    desc: isLoss
+      ? 'Exit all legs at current market premiums. You crystallise a loss of ₹' + Math.abs(Math.round(totalPnl)).toLocaleString('en-IN') +
+        ' (' + Math.abs(lossPct).toFixed(1) + '% of capital deployed). This stops further losses from theta decay or adverse moves.'
+      : 'Book the current profit of ₹' + Math.round(totalPnl).toLocaleString('en-IN') + '. Recommended when position has achieved 50–70% of max profit.',
+    actions: legs.map((l, i) => {
+      var closeAction = l.action === 'BUY' ? 'SELL' : 'BUY';
+      return {
+        action: closeAction + ' to close',
+        strike: l.strike,
+        type: l.type,
+        qty: l.qty,
+        premium: l.current,
+        note: 'Close leg ' + (i+1) + ' at current market price',
+        cssClass: 'action-close'
+      };
+    }),
+    netCost: totalPnl, // negative = loss
+    newMaxLoss: 0,
+    newBreakeven: 'N/A — position closed',
+    highlight: isLoss && Math.abs(lossPct) > 60
+  });
+
+  if (isLoss) {
+    var atmIVest = iv;
+
+    // ── 2. CONVERT TO IRON CONDOR / ADD OPPOSITE WING (Delta Neutral) ──
+    // Sell OTM CE + OTM PE to collect premium and reduce delta
+    var sellCEprem = estimatePremium(otmCE, 'CE', atmIVest);
+    var sellPEprem = estimatePremium(otmPE, 'PE', atmIVest);
+    var condorCredit = (sellCEprem + sellPEprem) * lotSize;
+    var pnlAfterCondor = totalPnl + condorCredit; // we receive premium
+
+    if (ng.delta > 5 || ng.delta < -5 || Math.abs(lossPct) < 70) {
+      options.push({
+        id: 'condor',
+        style: 'moderate',
+        title: '🦅 Sell OTM Strangle to Collect Premium',
+        tag: 'DELTA NEUTRALISE',
+        desc: 'Sell 1 lot each of ' + otmCE + ' CE and ' + otmPE + ' PE to collect ₹' +
+              Math.round(condorCredit).toLocaleString('en-IN') + ' in premium. This reduces your net loss immediately and caps further downside. ' +
+              'Best when you expect Nifty to stay range-bound for ' + dte + ' more days.',
+        actions: [
+          { action:'SELL', strike:otmCE, type:'CE', qty:1, premium:sellCEprem.toFixed(2), note:'Collect ₹' + Math.round(sellCEprem*lotSize).toLocaleString('en-IN') + ' credit', cssClass:'action-sell' },
+          { action:'SELL', strike:otmPE, type:'PE', qty:1, premium:sellPEprem.toFixed(2), note:'Collect ₹' + Math.round(sellPEprem*lotSize).toLocaleString('en-IN') + ' credit', cssClass:'action-sell' },
+        ],
+        netCost: -condorCredit, // negative = you receive money
+        newMaxLoss: Math.round(totalPnl), // worst case — these expire worthless; you keep premium
+        newBreakeven: bev.length > 0 ? '₹' + bev[0] + ' (improved by ₹' + Math.round(condorCredit/lotSize) + ' per lot)' : 'N/A',
+        highlight: Math.abs(lossPct) > 25 && Math.abs(lossPct) < 70
+      });
+    }
+
+    // ── 3. BUY PROTECTIVE HEDGE IN DIRECTION OF LOSS ──
+    // If delta is negative (bearish loss), buy CE. If delta positive (bullish loss), buy PE.
+    if (ng.delta < -5) {
+      // Bearish position going wrong (market rising) — buy OTM CE to cap upside loss
+      var buyCEprem = estimatePremium(otmCE, 'CE', atmIVest);
+      var ceCost = buyCEprem * lotSize;
+      options.push({
+        id: 'hedge_ce',
+        style: 'moderate',
+        title: '🛡 Buy OTM Call to Cap Upside Loss',
+        tag: 'PROTECTIVE HEDGE',
+        desc: 'Your position has bearish delta (' + ng.delta.toFixed(1) + '). Market moving up is hurting you. ' +
+              'Buy 1 lot ' + otmCE + ' CE at ~₹' + buyCEprem.toFixed(2) + ' to cap your upside loss. ' +
+              'If Nifty rises further, the CE gains offset your position losses. Cost: ₹' + Math.round(ceCost).toLocaleString('en-IN') + '.',
+        actions: [
+          { action:'BUY', strike:otmCE, type:'CE', qty:1, premium:buyCEprem.toFixed(2), note:'Hedge against further upside move', cssClass:'action-do' },
+        ],
+        netCost: ceCost,
+        newMaxLoss: Math.round(totalPnl - ceCost),
+        newBreakeven: bev.length > 0 ? 'Moves up by ~₹' + buyCEprem.toFixed(0) + ' per lot' : 'N/A',
+        highlight: ng.delta < -10
+      });
+    } else if (ng.delta > 5) {
+      // Bullish position going wrong (market falling) — buy OTM PE
+      var buyPEprem = estimatePremium(otmPE, 'PE', atmIVest);
+      var peCost = buyPEprem * lotSize;
+      options.push({
+        id: 'hedge_pe',
+        style: 'moderate',
+        title: '🛡 Buy OTM Put to Cap Downside Loss',
+        tag: 'PROTECTIVE HEDGE',
+        desc: 'Your position has bullish delta (+' + ng.delta.toFixed(1) + '). Market falling is hurting you. ' +
+              'Buy 1 lot ' + otmPE + ' PE at ~₹' + buyPEprem.toFixed(2) + ' to cap your downside loss. ' +
+              'If Nifty falls further, the PE gains will offset your position losses. Cost: ₹' + Math.round(peCost).toLocaleString('en-IN') + '.',
+        actions: [
+          { action:'BUY', strike:otmPE, type:'PE', qty:1, premium:buyPEprem.toFixed(2), note:'Hedge against further downside move', cssClass:'action-do' },
+        ],
+        netCost: peCost,
+        newMaxLoss: Math.round(totalPnl - peCost),
+        newBreakeven: bev.length > 0 ? 'Moves down by ~₹' + buyPEprem.toFixed(0) + ' per lot' : 'N/A',
+        highlight: ng.delta > 10
+      });
+    }
+
+    // ── 4. ROLL LOSING LEGS TO NEXT EXPIRY / BETTER STRIKE ──
+    // For each losing leg, suggest rolling it to reduce loss
+    var losingLegs = legs.filter(l => legPnl(l) < -500);
+    losingLegs.forEach(function(l) {
+      var legLoss = legPnl(l);
+      var closeAction = l.action === 'BUY' ? 'SELL' : 'BUY';
+      var closeAtPrem = l.current;
+
+      // New strike: roll OTM by 1 strike
+      var newStrike = l.type === 'CE' ? l.strike + 50 : l.strike - 50;
+      var newPrem   = estimatePremium(newStrike, l.type, atmIVest);
+      var rollCredit = (l.action === 'SELL')
+        ? (closeAtPrem - newPrem) * l.qty * lotSize  // buy back cheap, sell new
+        : (newPrem - closeAtPrem) * l.qty * lotSize; // sell old, buy new (cost diff)
+
+      options.push({
+        id: 'roll_' + l.id,
+        style: 'defensive',
+        title: '🔄 Roll ' + l.action + ' ' + l.strike + ' ' + l.type + ' to ' + newStrike + ' ' + l.type,
+        tag: 'ROLL POSITION',
+        desc: 'Close the losing ' + l.action + ' ' + l.strike + ' ' + l.type + ' leg (currently at ₹' + l.current.toFixed(2) +
+              ', entry was ₹' + l.entry.toFixed(2) + ') and re-enter at ' + newStrike + ' ' + l.type +
+              ' at ~₹' + newPrem.toFixed(2) + '. This shifts your breakeven and gives the position more room.' +
+              (rollCredit > 0 ? ' Net credit from rolling: ₹' + Math.round(rollCredit).toLocaleString('en-IN') + '.' :
+               ' Additional cost of roll: ₹' + Math.abs(Math.round(rollCredit)).toLocaleString('en-IN') + '.'),
+        actions: [
+          { action:closeAction + ' (close)', strike:l.strike, type:l.type, qty:l.qty, premium:closeAtPrem.toFixed(2), note:'Close losing leg at market', cssClass:'action-close' },
+          { action:l.action + ' (new leg)', strike:newStrike, type:l.type, qty:l.qty, premium:newPrem.toFixed(2), note:'Re-enter at better strike', cssClass:'action-do' },
+        ],
+        netCost: -rollCredit,
+        newMaxLoss: Math.round(totalPnl + rollCredit),
+        newBreakeven: newStrike + ' ' + l.type + ' breakeven = ₹' + (l.type === 'CE' ? newStrike + newPrem : newStrike - newPrem).toFixed(0),
+        highlight: false
+      });
+    });
+
+    // ── 5. ADD CALENDAR / PARTIAL COVER: SELL NEAR EXPIRY OPTIONS ──
+    // Sell short-dated OTM CE or PE to collect theta if DTE > 5
+    if (dte > 4 && ng.theta < -100) {
+      var sellNearCE = estimatePremium(fotmCE, 'CE', atmIVest * 0.9);
+      var sellNearPE = estimatePremium(fotmPE, 'PE', atmIVest * 0.9);
+      var thetaCredit = (sellNearCE + sellNearPE) * lotSize;
+      options.push({
+        id: 'theta_cover',
+        style: 'neutral',
+        title: '⏰ Sell Far-OTM Options to Fund Theta Bleed',
+        tag: 'THETA COVER',
+        desc: 'Your position loses ₹' + Math.abs(ng.theta).toFixed(0) + '/day from theta. ' +
+              'Sell 1 lot each of ' + fotmCE + ' CE (~₹' + sellNearCE.toFixed(2) + ') and ' + fotmPE + ' PE (~₹' + sellNearPE.toFixed(2) + ') ' +
+              'to collect ₹' + Math.round(thetaCredit).toLocaleString('en-IN') + ' which covers ~' +
+              Math.round(thetaCredit / Math.abs(ng.theta)) + ' days of theta burn. ' +
+              'Risk: if Nifty moves beyond these strikes sharply, you have additional exposure.',
+        actions: [
+          { action:'SELL', strike:fotmCE, type:'CE', qty:1, premium:sellNearCE.toFixed(2), note:'Covers ~' + Math.round(sellNearCE*lotSize/Math.abs(ng.theta)) + ' days theta', cssClass:'action-sell' },
+          { action:'SELL', strike:fotmPE, type:'PE', qty:1, premium:sellNearPE.toFixed(2), note:'Covers ~' + Math.round(sellNearPE*lotSize/Math.abs(ng.theta)) + ' days theta', cssClass:'action-sell' },
+        ],
+        netCost: -thetaCredit,
+        newMaxLoss: 'Unchanged on existing legs',
+        newBreakeven: 'Existing breakevens improved by ₹' + Math.round(thetaCredit / lotSize) + '/lot',
+        highlight: ng.theta < -200 && dte > 5
+      });
+    }
+
+    // ── 6. CONVERT SHORT STRADDLE / STRANGLE LOSS → IRON CONDOR ──
+    // If user sold ATM options and now they're losing, buy protection
+    var hasSellCE = legs.some(l => l.action === 'SELL' && l.type === 'CE');
+    var hasSellPE = legs.some(l => l.action === 'SELL' && l.type === 'PE');
+    if (hasSellCE && hasSellPE) {
+      var buyProtCE = estimatePremium(fotmCE, 'CE', atmIVest);
+      var buyProtPE = estimatePremium(fotmPE, 'PE', atmIVest);
+      var protCost  = (buyProtCE + buyProtPE) * lotSize;
+      options.push({
+        id: 'ic_convert',
+        style: 'defensive',
+        title: '🏰 Convert to Iron Condor — Buy OTM Wings',
+        tag: 'CAP MAX LOSS',
+        desc: 'You have short CE and PE (straddle/strangle). Your max loss is theoretically large. ' +
+              'Buy 1 lot each of ' + fotmCE + ' CE and ' + fotmPE + ' PE to convert to an Iron Condor. ' +
+              'This caps your maximum loss to the spread width minus net credit. Cost: ₹' + Math.round(protCost).toLocaleString('en-IN') + '.',
+        actions: [
+          { action:'BUY', strike:fotmCE, type:'CE', qty:1, premium:buyProtCE.toFixed(2), note:'Caps upside loss beyond ' + fotmCE, cssClass:'action-do' },
+          { action:'BUY', strike:fotmPE, type:'PE', qty:1, premium:buyProtPE.toFixed(2), note:'Caps downside loss beyond ' + fotmPE, cssClass:'action-do' },
+        ],
+        netCost: protCost,
+        newMaxLoss: Math.round(totalPnl - protCost),
+        newBreakeven: 'Max loss now capped at spread width',
+        highlight: Math.abs(lossPct) > 40 && hasSellCE && hasSellPE
+      });
+    }
+
+    // ── 7. PARTIAL EXIT — Close the WORST leg only ──
+    var sortedByLoss = legs.slice().sort((a,b) => legPnl(a) - legPnl(b));
+    if (sortedByLoss.length > 1) {
+      var worstLeg = sortedByLoss[0];
+      var worstLoss = legPnl(worstLeg);
+      var closeWAction = worstLeg.action === 'BUY' ? 'SELL' : 'BUY';
+      options.push({
+        id: 'partial_exit',
+        style: 'moderate',
+        title: '✂ Partial Exit — Close the Worst Performing Leg',
+        tag: 'PARTIAL UNWIND',
+        desc: 'Close only the worst leg (' + worstLeg.action + ' ' + worstLeg.strike + ' ' + worstLeg.type + ') which is currently losing ₹' +
+              Math.abs(Math.round(worstLoss)).toLocaleString('en-IN') + '. ' +
+              'Remaining legs may recover. This reduces your total exposure and capital at risk without fully exiting the trade.',
+        actions: [
+          { action:closeWAction + ' to close', strike:worstLeg.strike, type:worstLeg.type, qty:worstLeg.qty, premium:worstLeg.current.toFixed(2), note:'Worst leg — loss of ₹' + Math.abs(Math.round(worstLoss)).toLocaleString('en-IN'), cssClass:'action-close' },
+        ],
+        netCost: worstLoss, // this is negative (you realise the loss)
+        newMaxLoss: Math.round(totalPnl - worstLoss),
+        newBreakeven: 'Remaining legs continue independently',
+        highlight: Math.abs(lossPct) > 30 && legs.length > 1
+      });
+    }
+  }
+
+  // ── Render ──
+  var el2 = el('recovery-content');
+
+  // Summary bar
+  var summaryHtml = '<div class="recovery-summary">' +
+    '<div class="rs-card"><div class="rs-lbl">Current P&L</div>' +
+      '<div class="rs-val" style="color:' + (totalPnl>=0?'var(--green)':'var(--red)') + '">₹' +
+      (totalPnl>=0?'+':'') + Math.round(totalPnl).toLocaleString('en-IN') + '</div></div>' +
+    '<div class="rs-card"><div class="rs-lbl">% of Capital</div>' +
+      '<div class="rs-val" style="color:' + (lossPct>=0?'var(--green)':'var(--red)') + '">' +
+      (lossPct>=0?'+':'') + lossPct.toFixed(1) + '%</div></div>' +
+    '<div class="rs-card"><div class="rs-lbl">Net Delta</div>' +
+      '<div class="rs-val" style="color:' + (Math.abs(ng.delta)<5?'var(--green)':'var(--amber)') + '">' +
+      (ng.delta>=0?'+':'') + ng.delta + '</div></div>' +
+    '<div class="rs-card"><div class="rs-lbl">Theta/Day</div>' +
+      '<div class="rs-val" style="color:' + (ng.theta>=0?'var(--green)':'var(--red)') + '">₹' +
+      (ng.theta>=0?'+':'') + ng.theta.toFixed(0) + '</div></div>' +
+    '<div class="rs-card"><div class="rs-lbl">DTE Left</div>' +
+      '<div class="rs-val" style="color:' + (dte<=2?'var(--red)':dte<=5?'var(--amber)':'var(--text)') + '">' + dte + 'd</div></div>' +
+    '<div class="rs-card"><div class="rs-lbl">VIX</div>' +
+      '<div class="rs-val" style="color:' + (vix>20?'var(--red)':vix<13?'var(--green)':'var(--amber)') + '">' + vix.toFixed(1) + '</div></div>' +
+  '</div>';
+
+  // Header
+  var headerHtml = '<div class="rec-engine-header ' + (isLoss?'':'profit') + '">' +
+    '<div class="rec-engine-icon">' + (isLoss ? '🚑' : '🏆') + '</div>' +
+    '<div><div class="rec-engine-title">' +
+      (isLoss ? 'Recovery Mode — Position is in Loss' : 'Position is Profitable') + '</div>' +
+      '<div class="rec-engine-sub">' +
+        (isLoss
+          ? Math.abs(options.length - 1) + ' recovery strategies generated based on your position Greeks, delta, theta, and market conditions.'
+          : 'Below are profit-protection strategies. Choose based on how much more upside you expect.') +
+      '</div>' +
+    '</div>' +
+  '</div>';
+
+  // Warning if near expiry
+  var warnHtml = '';
+  if (dte <= 2 && isLoss) {
+    warnHtml = '<div class="warning-box"><strong>⏰ EXPIRY WARNING:</strong> Only ' + dte + ' day(s) left. ' +
+      'Time value is near zero — rolling or waiting for recovery is NOT recommended. ' +
+      'Square off or convert immediately. Theta will destroy any long options rapidly.</div>';
+  }
+  if (vix > 22 && isLoss) {
+    warnHtml += '<div class="warning-box"><strong>📈 HIGH VIX (' + vix.toFixed(1) + '):</strong> IV is elevated. ' +
+      'Buying options is expensive right now. Selling strategies (condor, strangle) are more efficient in high-VIX environments. ' +
+      'Premiums shown are estimates — actual market premiums may be 20–30% higher.</div>';
+  }
+
+  // Render strategy cards
+  var cardsHtml = options.map(function(opt) {
+    var costIsNeg = typeof opt.netCost === 'number' && opt.netCost < 0;
+    var costLabel = typeof opt.netCost === 'number'
+      ? (opt.netCost < 0
+          ? '<span class="cost-pill credit">+ ₹' + Math.abs(Math.round(opt.netCost)).toLocaleString('en-IN') + ' credit</span>'
+          : opt.netCost === 0
+            ? '<span class="cost-pill neutral">No cost</span>'
+            : '<span class="cost-pill">₹' + Math.round(opt.netCost).toLocaleString('en-IN') + ' debit</span>')
+      : '<span class="cost-pill neutral">' + opt.netCost + '</span>';
+
+    var actRows = opt.actions.map(function(a) {
+      return '<tr>' +
+        '<td class="' + a.cssClass + '">' + a.action + '</td>' +
+        '<td style="font-weight:700">₹' + a.strike + '</td>' +
+        '<td><span class="badge badge-' + a.type.toLowerCase() + '">' + a.type + '</span></td>' +
+        '<td>' + a.qty + ' lot' + (a.qty>1?'s':'') + '</td>' +
+        '<td>~₹' + a.premium + '</td>' +
+        '<td style="color:var(--text3);font-size:11px;">' + a.note + '</td>' +
+      '</tr>';
+    }).join('');
+
+    return '<div class="strategy-option ' + opt.style + (opt.highlight?' " style="border-color:var(--amber);box-shadow:0 0 0 1px rgba(240,192,64,0.2)':'') + '">' +
+      '<div class="so-header">' +
+        '<div class="so-title">' + opt.title + '</div>' +
+        '<span class="so-tag ' + opt.style + '">' + opt.tag + '</span>' +
+      '</div>' +
+      '<div class="so-desc">' + opt.desc + '</div>' +
+      (opt.actions.length > 0
+        ? '<div style="overflow-x:auto;margin-bottom:10px"><table class="leg-action-table">' +
+            '<thead><tr><th>Action</th><th>Strike</th><th>Type</th><th>Qty</th><th>Est. Premium</th><th>Note</th></tr></thead>' +
+            '<tbody>' + actRows + '</tbody>' +
+          '</table></div>'
+        : '') +
+      '<div class="so-outcome">' +
+        '<div>Net Cost/Credit: ' + costLabel + '</div>' +
+        '<div>New Max Loss: <span>' + (typeof opt.newMaxLoss === 'number' ? '₹' + opt.newMaxLoss.toLocaleString('en-IN') : opt.newMaxLoss) + '</span></div>' +
+        '<div>Breakeven Impact: <span>' + opt.newBreakeven + '</span></div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  el2.innerHTML = summaryHtml + headerHtml + warnHtml + cardsHtml +
+    '<div style="margin-top:16px;padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:10px;font-size:11px;color:var(--text3);line-height:1.8;">' +
+    '<strong style="color:var(--amber);">⚠ Note:</strong> Premiums shown are Black-Scholes estimates using your current IV and DTE. ' +
+    'Actual market premiums may differ. Always check live quotes before placing orders. ' +
+    'This is a mathematical analysis tool — not SEBI-registered investment advice.' +
+    '</div>';
 }
 
 // ════════════════════════════════════════════════════════════
